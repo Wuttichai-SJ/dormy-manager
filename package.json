@@ -10,11 +10,11 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "rebuild": "electron-rebuild -f -w better-sqlite3,bcrypt"
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
     "better-sqlite3": "11.7.0",
-    "bcrypt": "5.1.1",
+    "bcryptjs": "2.4.3",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
