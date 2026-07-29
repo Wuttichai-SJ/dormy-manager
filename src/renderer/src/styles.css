@@ -1,0 +1,157 @@
+/* Base palette — muted / low-saturation on purpose (not garish, different from yeeraf).
+   Central variables so the whole theme can be retuned once real screenshots arrive. */
+:root {
+  --bg: #f4f5f3; /* warm off-white */
+  --surface: #ffffff;
+  --sidebar: #2b3230; /* deep muted slate-green */
+  --sidebar-text: #c9d1cd;
+  --sidebar-active: #3d4744;
+  --border: #e2e4e0;
+  --text: #2a2e2c;
+  --text-muted: #7c837f;
+  --accent: #5b7d70; /* muted sage/teal */
+  --accent-weak: #e7ede9;
+  --ok: #4f7a5c;
+  --err: #a15b56;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Segoe UI', 'Sarabun', system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--sidebar);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 10px;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  padding: 8px 12px 20px;
+  letter-spacing: 0.3px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--sidebar-text);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.nav-item:hover {
+  background: var(--sidebar-active);
+}
+
+.nav-item.active {
+  background: var(--sidebar-active);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Content */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.topbar {
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.panel {
+  margin: 24px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.muted {
+  color: var(--text-muted);
+  margin-top: 0;
+}
+
+.selftest {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 9px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  filter: brightness(0.95);
+}
+
+.status {
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+}
+
+.status.ok {
+  color: var(--ok);
+  background: var(--accent-weak);
+}
+
+.status.err {
+  color: var(--err);
+  background: #f3e3e2;
+}

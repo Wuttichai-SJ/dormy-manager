@@ -1,0 +1,41 @@
+// Hand-rolled migration runner (no ORM). Runs once at startup, before any db access.
+// Migration files: numbered, immutable once shipped (001_init.sql, 002_...).
+// The user's local _migrations table is the only record of what has been applied.
+const fs = require('fs')
+const path = require('path')
+
+function runMigrations(db, migrationsDir) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT NOT NULL
+    )
+  `)
+
+  if (!fs.existsSync(migrationsDir)) return
+
+  const applied = new Set(
+    db.prepare('SELECT name FROM _migrations').all().map((r) => r.name)
+  )
+  const files = fs
+    .readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort() // 001_, 002_... sort naturally
+
+  for (const file of files) {
+    if (applied.has(file)) continue
+    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8')
+    // One file = one transaction; a failure here must stop startup, not silently continue.
+    const applyOne = db.transaction(() => {
+      db.exec(sql)
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+        file,
+        new Date().toISOString()
+      )
+    })
+    applyOne()
+  }
+}
+
+module.exports = { runMigrations }

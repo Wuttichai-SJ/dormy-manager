@@ -1,0 +1,31 @@
+{
+  "name": "dormy-manager",
+  "version": "0.0.1",
+  "description": "Offline-first dormitory management desktop app (ElectronJS + React 19 + better-sqlite3)",
+  "author": "Wuttichai-SJ",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "rebuild": "electron-rebuild -f -w better-sqlite3,bcrypt"
+  },
+  "dependencies": {
+    "better-sqlite3": "11.7.0",
+    "bcrypt": "5.1.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-vite": "2.3.0",
+    "vite": "5.4.11",
+    "@vitejs/plugin-react": "4.3.4",
+    "@electron/rebuild": "3.7.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
