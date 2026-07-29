@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron')
+import { contextBridge, ipcRenderer } from 'electron'
 
 // The ONLY bridge between renderer and main. Renderer never touches ipcRenderer directly;
 // every call goes through window.electron.invoke(channel, data) and returns

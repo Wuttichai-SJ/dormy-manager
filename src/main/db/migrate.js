@@ -1,10 +1,10 @@
 // Hand-rolled migration runner (no ORM). Runs once at startup, before any db access.
 // Migration files: numbered, immutable once shipped (001_init.sql, 002_...).
 // The user's local _migrations table is the only record of what has been applied.
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
 
-function runMigrations(db, migrationsDir) {
+export function runMigrations(db, migrationsDir) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,5 +37,3 @@ function runMigrations(db, migrationsDir) {
     applyOne()
   }
 }
-
-module.exports = { runMigrations }

@@ -1,9 +1,9 @@
 // Opens the single-file SQLite database, sets pragmas, and runs migrations.
 // Shared instance — every db/*.js module require()s getDatabase() from here.
-const path = require('path')
-const { app } = require('electron')
-const Database = require('better-sqlite3')
-const { runMigrations } = require('./db/migrate')
+import path from 'path'
+import { app } from 'electron'
+import Database from 'better-sqlite3'
+import { runMigrations } from './db/migrate'
 
 let db = null
 
@@ -15,7 +15,7 @@ function resolveMigrationsDir() {
     : path.join(app.getAppPath(), 'src/main/migrations')
 }
 
-function getDatabase() {
+export function getDatabase() {
   if (db) return db
 
   const dbPath = path.join(app.getPath('userData'), 'dormy.sqlite')
@@ -25,5 +25,3 @@ function getDatabase() {
   runMigrations(db, resolveMigrationsDir())
   return db
 }
-
-module.exports = { getDatabase }

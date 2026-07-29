@@ -4,7 +4,31 @@
 อ้างอิงการออกแบบจากเว็บต้นฉบับ `app.yeeraf.com` (layout ตาม, โทนสีต่าง/สุขุม).
 
 ## สถานะ
-Phase 0 — วางราก (กำลังเริ่ม)
+Phase 0 — วางราก (เสร็จ: แอปเปิดได้, migration รัน, IPC ping/pong ผ่าน)
+
+## ติดตั้ง / รัน
+
+```
+npm ci        # ใช้ npm ci เท่านั้น ห้าม npm install/update หลังมี lockfile แล้ว
+npm run dev
+```
+
+better-sqlite3 ใช้ **prebuilt binary ของ Electron ABI** (ไม่ต้องมี C++ toolchain) โดยอ่านค่า
+`runtime` / `target` / `disturl` จาก `.npmrc` — ต้องแก้ `target` ให้ตรงกับเวอร์ชัน `electron`
+ใน package.json ทุกครั้งที่อัปเกรด Electron
+
+⚠️ npm 11 เตือนว่าคีย์พวกนี้เป็น "Unknown project config" และ **จะเลิกรองรับใน npm major ถัดไป**
+ถ้าวันหนึ่ง `.npmrc` ใช้ไม่ได้แล้ว ให้ส่งเป็น env var แทน (ได้ผลเหมือนกัน):
+
+```powershell
+$env:npm_config_runtime='electron'; $env:npm_config_target='33.2.1'
+$env:npm_config_disturl='https://electronjs.org/headers'; $env:npm_config_build_from_source='false'
+npm ci
+```
+
+ตรวจว่า native module ผูกกับ ABI ถูกตัว:
+`ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron.exe -e "require('better-sqlite3')"`
+(ต้องได้ `process.versions.modules` = 130 สำหรับ Electron 33)
 
 ## เอกสารอ้างอิง
 - `../dormitory.sql` — สคีมาต้นฉบับ (MySQL) รอแปลงเป็น SQLite migrations

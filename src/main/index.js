@@ -1,6 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
-const path = require('path')
-const { getDatabase } = require('./database')
+import { app, BrowserWindow, ipcMain } from 'electron'
+import path from 'path'
+import { getDatabase } from './database'
 
 function createWindow() {
   const win = new BrowserWindow({
