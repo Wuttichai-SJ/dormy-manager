@@ -20,6 +20,15 @@
   box-sizing: border-box;
 }
 
+/* เบราว์เซอร์ไม่ให้ปุ่ม/ช่องกรอกสืบทอดฟอนต์จาก body เอง ต้องสั่งตรงนี้
+   ไม่งั้นเมนูและฟอร์มทั้งแอปจะไม่ได้ใช้ Noto Sans Thai */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 html,
 body,
 #root {
@@ -28,7 +37,9 @@ body,
 }
 
 body {
-  font-family: 'Segoe UI', 'Sarabun', system-ui, -apple-system, sans-serif;
+  /* Noto Sans Thai เป็นไฟล์ในเครื่อง (assets/fonts) ไม่พึ่งอินเทอร์เน็ต
+     fallback ไว้เผื่อไฟล์ฟอนต์หายตอนแพ็ก แอปจะได้ยังอ่านออก */
+  font-family: 'Noto Sans Thai', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -65,6 +76,9 @@ body {
 }
 
 .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   background: transparent;
   border: none;
@@ -74,6 +88,17 @@ body {
   font-size: 14px;
   cursor: pointer;
   transition: background 0.12s ease;
+}
+
+/* ไอคอนถูกฝังเป็น <svg> ในเครื่อง — คุมขนาดที่นี่ที่เดียว สีวิ่งตาม currentColor เอง */
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .nav-item:hover {

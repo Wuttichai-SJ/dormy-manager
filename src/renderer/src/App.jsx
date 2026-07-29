@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import Icon from './Icon.jsx'
 
 // Navigation mirrors app.yeeraf.com's module grouping (layout follows the source site;
 // colors deliberately differ — muted, not garish). Real pages arrive per build phase.
@@ -44,7 +45,8 @@ export default function App() {
               className={'nav-item' + (item.key === active ? ' active' : '')}
               onClick={() => setActive(item.key)}
             >
-              {item.label}
+              <Icon name={item.key} />
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>
