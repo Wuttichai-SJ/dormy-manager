@@ -10,8 +10,24 @@ Phase 0 — วางราก (เสร็จ: แอปเปิดได้,
 
 ```
 npm ci        # ใช้ npm ci เท่านั้น ห้าม npm install/update หลังมี lockfile แล้ว
-npm run dev
+npm run dev       # แอปจริง (Electron + ฐานข้อมูล)
+npm run dev:web   # เฉพาะหน้าจอในเบราว์เซอร์ที่ http://localhost:5173 ไม่มี Electron/IPC/DB
 ```
+
+`dev:web` ใช้ `vite.config.mjs` ซึ่ง `electron.vite.config.mjs` import ไปใช้ต่อ — ตั้งค่า
+หน้าจอไว้ที่เดียว สองโหมดจะได้ไม่เพี้ยนกัน เหมาะกับตอนจัด layout เพราะรีเฟรชไว
+แต่ปุ่มไหนที่เรียก IPC จะขึ้นว่าอยู่ในโหมดเบราว์เซอร์แทน
+
+## ดู log เวลาแอปมีปัญหา
+
+Electron บน Windows เป็น GUI subsystem — `console.log` ฝั่ง main process **ไม่โผล่ใน
+terminal** ทุกอย่างจึงถูกเขียนลงไฟล์:
+
+```
+C:\Users\<user>\AppData\Roaming\dormy-manager\logs\main.log
+```
+
+เวลาผู้ใช้แจ้งว่า "เปิดไม่ขึ้น" ให้ขอไฟล์นี้มาดูก่อนเสมอ
 
 better-sqlite3 ใช้ **prebuilt binary ของ Electron ABI** (ไม่ต้องมี C++ toolchain) โดยอ่านค่า
 `runtime` / `target` / `disturl` จาก `.npmrc` — ต้องแก้ `target` ให้ตรงกับเวอร์ชัน `electron`

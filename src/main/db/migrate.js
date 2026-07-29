@@ -13,7 +13,13 @@ export function runMigrations(db, migrationsDir) {
     )
   `)
 
-  if (!fs.existsSync(migrationsDir)) return
+  // หา migration ไม่เจอ = ต้องดังทันที ห้ามเงียบ
+  // ถ้าปล่อยผ่าน แอปจะเปิดฐานข้อมูล "เปล่า" ที่ไม่มีตารางสักตาราง แล้วดูเหมือนทำงานปกติ
+  // จนกว่าจะมีคนกดใช้งานจริง — เคสที่จะเจอคือตอนแพ็กเป็น .exe แล้วลืมคัดโฟลเดอร์
+  // migrations ไปด้วย (ยังไม่ได้ตั้ง extraResources — งาน Phase 4)
+  if (!fs.existsSync(migrationsDir)) {
+    throw new Error(`ไม่พบโฟลเดอร์ migrations ที่ ${migrationsDir}`)
+  }
 
   const applied = new Set(
     db.prepare('SELECT name FROM _migrations').all().map((r) => r.name)
@@ -22,6 +28,10 @@ export function runMigrations(db, migrationsDir) {
     .readdirSync(migrationsDir)
     .filter((f) => f.endsWith('.sql'))
     .sort() // 001_, 002_... sort naturally
+
+  if (files.length === 0) {
+    throw new Error(`โฟลเดอร์ migrations ว่างเปล่า: ${migrationsDir}`)
+  }
 
   for (const file of files) {
     if (applied.has(file)) continue

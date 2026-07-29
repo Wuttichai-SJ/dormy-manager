@@ -20,7 +20,13 @@ export default function App() {
   const [active, setActive] = useState('dashboard')
   const [ping, setPing] = useState(null)
 
+  // `npm run dev:web` เปิดเฉพาะหน้าจอในเบราว์เซอร์ (ไม่มี Electron) — ที่นั่นไม่มี
+  // window.electron ให้เรียก ต้องกันไว้ ไม่งั้นกดปุ่มแล้ว throw
   async function testBridge() {
+    if (!window.electron) {
+      setPing({ success: false, error: 'โหมดเบราว์เซอร์ — ไม่มี IPC (ต้องรัน npm run dev)' })
+      return
+    }
     const res = await window.electron.invoke('app:ping')
     setPing(res)
   }
