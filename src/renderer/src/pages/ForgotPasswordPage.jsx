@@ -3,6 +3,7 @@ import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
+import RecoveryCodeInput from '../components/RecoveryCodeInput.jsx'
 import { resetPasswordWithTicket, verifyRecoveryCode } from '../services/authService.js'
 
 // ลืมรหัสผ่าน 3 ขั้น: ยืนยันรหัสสำรอง → ตั้งรหัสผ่านใหม่ → รับรหัสสำรองใบใหม่
@@ -102,18 +103,12 @@ export default function ForgotPasswordPage({ onCancel, onDone }) {
               />
             </div>
 
-            <div className="field">
-              <label htmlFor="recoveryCode">รหัสสำรอง</label>
-              <input
-                id="recoveryCode"
-                className="code-input"
-                value={recoveryCode}
-                onChange={(e) => setRecoveryCode(e.target.value)}
-                placeholder="XXXX-XXXX-XXXX-XXXX"
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
+            <RecoveryCodeInput
+              id="recoveryCode"
+              label="รหัสสำรอง"
+              value={recoveryCode}
+              onChange={setRecoveryCode}
+            />
           </>
         ) : (
           <>

@@ -4,10 +4,14 @@ import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
 import { setupFirstUser } from '../services/authService.js'
 
-// หน้าตั้งค่าครั้งแรก — เห็นครั้งเดียวตลอดอายุการติดตั้ง คือตอนที่ฐานข้อมูลยังไม่มีผู้ใช้เลย
-// ต้นแบบ (app.yeeraf.com) ใช้หน้า "ลงทะเบียน" ของ SaaS ตรงนี้ แต่แอปนี้ไม่มีการสมัครสมาชิก
-// เจ้าของหอคือผู้ดูแลคนแรกและคนเดียวที่เกิดจากหน้านี้ ผู้ใช้คนอื่นถูกเพิ่มทีหลังจากหน้าตั้งค่า
-export default function SetupPage({ onReady }) {
+// หน้า "ลงทะเบียน" — วางหน้าตาให้ตรงกับหน้าลงทะเบียนของต้นแบบ (app.yeeraf.com)
+// เพราะผู้ใช้เคยใช้เว็บนั้นมาก่อน จะได้ไม่ต้องเรียนรู้ใหม่
+//
+// แต่เบื้องหลังไม่เหมือนกัน และห้ามลืมข้อนี้: นี่ไม่ใช่การสมัครสมาชิกกับบริการออนไลน์
+// บัญชีถูกสร้างลงไฟล์ในเครื่องนี้เครื่องเดียว และหน้านี้จะโผล่มาแค่ครั้งเดียวตลอดการติดตั้ง
+// คือตอนที่ยังไม่มีบัญชีใดๆ ในฐานข้อมูล (main กันซ้ำไว้อีกชั้นด้วย isInitialized)
+// ผู้ใช้คนถัดๆ ไปเกิดจากหน้าจัดการผู้ใช้ ไม่ใช่จากหน้านี้
+export default function RegisterPage({ onReady }) {
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
@@ -64,11 +68,8 @@ export default function SetupPage({ onReady }) {
       <form className="auth-card auth-card-wide" onSubmit={submit}>
         <div className="auth-head">
           <div className="auth-brand">Dormy Manager</div>
-          <h2>ตั้งค่าผู้ดูแลระบบคนแรก</h2>
-          <p className="muted">
-            เครื่องนี้ยังไม่มีบัญชีผู้ใช้ กรุณาสร้างบัญชีผู้ดูแลเพื่อเริ่มใช้งาน
-            ข้อมูลทั้งหมดถูกเก็บไว้ในเครื่องนี้เท่านั้น
-          </p>
+          <h2>ลงทะเบียน</h2>
+          <p className="muted">สร้างบัญชีผู้ดูแลระบบเพื่อเริ่มใช้งาน</p>
         </div>
 
         <Alert>{error}</Alert>
@@ -129,8 +130,16 @@ export default function SetupPage({ onReady }) {
         </div>
 
         <button type="submit" className="btn btn-block" disabled={busy}>
-          {busy ? 'กำลังสร้างบัญชี...' : 'สร้างบัญชีผู้ดูแล'}
+          {busy ? 'กำลังลงทะเบียน...' : 'ลงทะเบียน'}
         </button>
+
+        {/* ต้นแบบมีลิงก์ "มีบัญชีอยู่แล้ว? เข้าสู่ระบบ" ตรงนี้ — ที่นี่ไม่ใส่โดยตั้งใจ
+            เพราะหน้านี้แสดงก็ต่อเมื่อยังไม่มีบัญชีในเครื่อง ลิงก์นั้นจะพาไปสู่หน้า
+            เข้าสู่ระบบที่ล็อกอินไม่ได้แน่ๆ กลายเป็นทางตัน */}
+        <p className="auth-footnote">
+          บัญชีนี้ถูกสร้างและเก็บไว้ในเครื่องนี้เท่านั้น ไม่ได้ส่งข้อมูลออกไปที่ใด
+          และหน้านี้จะแสดงเฉพาะครั้งแรกที่ยังไม่มีบัญชีในระบบ
+        </p>
       </form>
     </div>
   )

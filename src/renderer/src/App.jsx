@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from './Icon.jsx'
 import LoginPage from './pages/LoginPage.jsx'
-import SetupPage from './pages/SetupPage.jsx'
+import RegisterPage from './pages/RegisterPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import SecuritySettingsPage from './pages/SecuritySettingsPage.jsx'
 import { getAuthStatus, logout } from './services/authService.js'
@@ -38,7 +38,8 @@ export default function App() {
       return
     }
     const { initialized, session, lastIdentifier } = res.data
-    if (!initialized) return setStatus({ phase: 'setup' })
+    // ยังไม่มีบัญชีในเครื่อง = ไปหน้าลงทะเบียน (ชื่อ phase คงไว้ว่า register เพื่อให้ตรงกับ UI)
+    if (!initialized) return setStatus({ phase: 'register' })
     if (!session) return setStatus({ phase: 'login', lastIdentifier })
     setStatus({ phase: 'ready', user: session })
   }, [])
@@ -86,8 +87,8 @@ export default function App() {
     )
   }
 
-  if (status.phase === 'setup') {
-    return <SetupPage onReady={handleAuthenticated} />
+  if (status.phase === 'register') {
+    return <RegisterPage onReady={handleAuthenticated} />
   }
 
   if (status.phase === 'login') {

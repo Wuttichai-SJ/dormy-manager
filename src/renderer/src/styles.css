@@ -316,11 +316,63 @@ body {
   color: var(--text-muted);
 }
 
-/* ช่องกรอกรหัสสำรอง — ตัวพิมพ์ใหญ่ ระยะห่างเท่ากันทุกตัว เทียบกับกระดาษที่จดไว้ได้ง่าย */
-.code-input {
+/* ช่องกรอกรหัสสำรอง — แยก 4 กลุ่มตามที่พิมพ์บนกระดาษ ผู้ใช้จะได้เห็นว่าคัดมาถึงกลุ่มไหน
+   ตัวอักษรใช้ฟอนต์ monospace ตัวพิมพ์ใหญ่ เทียบกับกระดาษได้ตรงตัว */
+.code-segments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.code-segment {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 4px;
   font-family: 'Consolas', 'Courier New', monospace;
-  letter-spacing: 2px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-align: center;
   text-transform: uppercase;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.code-segment:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+.code-dash {
+  color: var(--text-muted);
+  font-weight: 600;
+  user-select: none;
+}
+
+.code-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.code-complete {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.code-warn {
+  color: var(--err);
+}
+
+.auth-footnote {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 /* ช่องกรอกที่มีปุ่มซ้อนอยู่ข้างใน (ปุ่มดูรหัสผ่าน) */
