@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import { showToast } from '../components/Toast.jsx'
 import ApartmentFormPage from './ApartmentFormPage.jsx'
 import { deleteApartment, listApartments } from '../services/apartmentService.js'
 
@@ -45,9 +46,11 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
         </button>
         <ApartmentFormPage
           apartmentId={view.apartmentId}
-          onCancel={() => setView({ mode: 'list' })}
           onDone={(apartment) => {
             setView({ mode: 'list' })
+            // ข้อความแจ้งผลลอยมุมจอเหมือนต้นแบบ — ต้องสั่งจากตรงนี้ ไม่ใช่ในฟอร์ม
+            // เพราะฟอร์มถูกถอดออกจากจอทันทีหลังบันทึก (ดู components/Toast.jsx)
+            showToast(view.mode === 'create' ? 'เพิ่มข้อมูลสำเร็จ' : 'แก้ไขข้อมูลสำเร็จ')
             // สร้างหอใหม่ = พาเข้าตัวช่วยตั้งค่าทันที (ตามต้นแบบ) ไม่ใช่ทิ้งไว้ที่รายการหอ
             // แล้วให้เจ้าของเดาเองว่าต้องไปตั้งอะไรต่อที่ไหน
             if (view.mode === 'create') onCreated?.(apartment)

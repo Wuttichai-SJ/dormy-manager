@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import { centsToInput } from '../format.js'
 import { MAX_DUE_DATE_DAY } from '../constants.js'
 import { createApartment, getApartment, updateApartment } from '../services/apartmentService.js'
 
-// ฟอร์มเพิ่ม/แก้ไขหอพัก — โครงตามหน้าเพิ่มอพาร์ตเมนต์ของต้นแบบ:
-// แต่ละกลุ่มมีหัวข้อ+คำอธิบายอยู่คอลัมน์ซ้าย ช่องกรอกอยู่คอลัมน์ขวา
+// ฟอร์มเพิ่ม/แก้ไขหอพัก — ลอกหน้า "เพิ่มอพาร์ตเมนต์" ของต้นแบบมาทั้งโครงและระยะ:
+// แต่ละกลุ่มมีหัวข้อ+คำอธิบายอยู่คอลัมน์ซ้าย การ์ดช่องกรอกอยู่คอลัมน์ขวา คั่นกลุ่มด้วย
+// เส้นบางที่เว้น 32px ทั้งบนและล่าง ปิดท้ายด้วยปุ่มยืนยันใบเดียวชิดขวา (ไม่มีปุ่มยกเลิก
+// เหมือนกัน — ทางออกคือลิงก์ "กลับไปรายการหอพัก" ด้านบน)
 //
-// ต่างจากต้นแบบโดยตั้งใจ 2 อย่าง:
+// ต่างจากต้นแบบโดยตั้งใจ 3 อย่าง:
+// - ไม่มีหัวข้อ "โลโก้อพาร์ตเมนต์" (คอลัมน์ logo_url มีรออยู่ แต่ยังไม่ทำหน้าอัปโหลด)
 // - ไม่มีช่องเลขประจำตัวผู้เสียภาษี (หอนักศึกษาไม่ออกใบกำกับภาษีเต็มรูป)
 // - VAT เปิดได้เลย ไม่ต้องอัปเกรดแพ็กเกจ (ระบบนี้ไม่มีแพ็กเกจ)
 const EMPTY = {
@@ -25,7 +27,7 @@ const EMPTY = {
 
 const DUE_DATE_DAYS = Array.from({ length: MAX_DUE_DATE_DAY }, (_, i) => i + 1)
 
-export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
+export default function ApartmentFormPage({ apartmentId, onDone }) {
   const isEdit = Boolean(apartmentId)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
@@ -90,9 +92,9 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
         </div>
 
         <div className="form-section-body">
-          <div className="field">
+          <div className="field field-required">
             <label htmlFor="nameTh">
-              ชื่อหอพัก (ภาษาไทย) <Required />
+              ชื่อ (ภาษาไทย) <Required />
             </label>
             <input
               id="nameTh"
@@ -102,13 +104,13 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
             />
           </div>
 
-          <div className="field">
+          {/* ต้นแบบใช้ช่องบรรทัดเดียวสำหรับที่อยู่ ไม่ใช่กล่องหลายบรรทัด */}
+          <div className="field field-required">
             <label htmlFor="addressTh">
               ที่อยู่ (ภาษาไทย) <Required />
             </label>
-            <textarea
+            <input
               id="addressTh"
-              rows={2}
               value={form.addressTh}
               onChange={(e) => set('addressTh', e.target.value)}
             />
@@ -117,7 +119,7 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
           <hr className="divider" />
 
           <div className="field">
-            <label htmlFor="nameEn">ชื่อหอพัก (อังกฤษ)</label>
+            <label htmlFor="nameEn">ชื่อ (อังกฤษ)</label>
             <input
               id="nameEn"
               value={form.nameEn}
@@ -127,9 +129,8 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
 
           <div className="field">
             <label htmlFor="addressEn">ที่อยู่ (อังกฤษ)</label>
-            <textarea
+            <input
               id="addressEn"
-              rows={2}
               value={form.addressEn}
               onChange={(e) => set('addressEn', e.target.value)}
             />
@@ -157,12 +158,12 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
 
       <section className="form-section">
         <div className="form-section-head">
-          <h2>กำหนดชำระและค่าปรับ</h2>
-          <p>วันที่ที่ระบบจะเริ่มคิดค่าปรับ หากเลยกำหนดชำระเงิน</p>
+          <h2>กำหนดชำระค่าห้องและค่าปรับ</h2>
+          <p>วันที่ที่ต้องการให้ระบบเริ่มคิดค่าปรับอัตโนมัติกรณีเลยวันที่กำหนดชำระเงิน</p>
         </div>
 
         <div className="form-section-body">
-          <div className="field">
+          <div className="field field-required">
             <label htmlFor="dueDateDay">
               วันสุดท้ายของการชำระเงิน <Required />
             </label>
@@ -177,11 +178,13 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
                 </option>
               ))}
             </select>
-            {/* เหตุผลที่หยุดที่ 28 อยู่ใน db/apartments.js — เดือน ก.พ. ไม่มีวันที่ 29-31 */}
+            {/* ต้นแบบก็ให้เลือกได้ถึงวันที่ 28 เท่ากัน เหตุผลอยู่ใน db/apartments.js
+                (ก.พ. ไม่มีวันที่ 29-31) ต้นแบบไม่มีคำอธิบายบรรทัดนี้ เราใส่เพิ่มเอง
+                เพราะมีคนถามแล้วว่าทำไมเลื่อนต่อไม่ได้ */}
             <p className="field-hint">เลือกได้ถึงวันที่ {MAX_DUE_DATE_DAY} เพื่อให้มีวันนี้ครบทุกเดือน</p>
           </div>
 
-          <div className="field">
+          <div className="field field-required">
             <label htmlFor="lateFeePerDay">
               ค่าปรับชำระล่าช้าต่อวัน <Required />
             </label>
@@ -194,23 +197,25 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
               />
               <span className="input-suffix">บาท/วัน</span>
             </div>
-            <p className="field-hint">หอที่ไม่คิดค่าปรับ ให้ใส่ 0</p>
           </div>
 
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={form.isAutoLateFeeEnabled}
-              onChange={(e) => set('isAutoLateFeeEnabled', e.target.checked)}
-            />
-            <span>ให้ระบบเพิ่มค่าปรับอัตโนมัติเมื่อเลยกำหนดชำระ</span>
-          </label>
+          <div className="field checkbox-field">
+            <span>กรณีมีการชำระล่าช้ากว่าวันที่ระบุ ต้องการให้ระบบเพิ่มค่าปรับให้อัตโนมัติหรือไม่</span>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={form.isAutoLateFeeEnabled}
+                onChange={(e) => set('isAutoLateFeeEnabled', e.target.checked)}
+              />
+              <span>ต้องการ</span>
+            </label>
+          </div>
         </div>
       </section>
 
       <section className="form-section">
         <div className="form-section-head">
-          <h2>ภาษีมูลค่าเพิ่ม (VAT)</h2>
+          <h2>รายละเอียด VAT</h2>
           <p>เปิดเมื่อหอพักจดทะเบียน VAT และต้องแสดงภาษีในใบแจ้งหนี้</p>
         </div>
         <div className="form-section-body">
@@ -226,12 +231,8 @@ export default function ApartmentFormPage({ apartmentId, onDone, onCancel }) {
       </section>
 
       <div className="form-actions">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>
-          ยกเลิก
-        </button>
         <button type="submit" className="btn" disabled={busy}>
-          <Icon name="check" />
-          <span>{busy ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'สร้างหอพัก'}</span>
+          {busy ? 'กำลังบันทึก...' : isEdit ? 'บันทึก' : 'สร้าง'}
         </button>
       </div>
     </form>

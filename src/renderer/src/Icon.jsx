@@ -27,6 +27,8 @@ import lock from './assets/icons/heroicons/24/outline/lock-closed.svg?raw'
 import shield from './assets/icons/heroicons/24/outline/shield-check.svg?raw'
 import warning from './assets/icons/heroicons/24/outline/exclamation-triangle.svg?raw'
 import check from './assets/icons/heroicons/24/outline/check-circle.svg?raw'
+// แบบทึบไว้ใช้กับข้อความแจ้งผลมุมจอ — ต้นแบบใช้วงกลมทึบติ๊กถูก ไม่ใช่แบบเส้น
+import checkSolid from './assets/icons/heroicons/24/solid/check-circle.svg?raw'
 import copy from './assets/icons/heroicons/24/outline/clipboard-document.svg?raw'
 import back from './assets/icons/heroicons/24/outline/arrow-left.svg?raw'
 import logoutIcon from './assets/icons/heroicons/24/outline/arrow-right-on-rectangle.svg?raw'
@@ -55,6 +57,7 @@ const ICONS = {
   shield,
   warning,
   check,
+  checkSolid,
   copy,
   back,
   logout: logoutIcon,
