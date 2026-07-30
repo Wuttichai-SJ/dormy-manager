@@ -990,6 +990,113 @@ body {
   margin-bottom: 0;
 }
 
+/* แท็บสลับโหมดภายในหน้า */
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.mode-tab {
+  padding: 8px 18px;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.mode-tab.active {
+  color: #fff;
+  font-weight: 600;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.floor-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+}
+
+/* ห้องที่กดเลือกได้ (โหมดตั้งค่าหลายห้องพร้อมกัน) */
+.room-chip.selectable {
+  gap: 4px;
+}
+
+.room-chip.selected {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.status-badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.status-vacant {
+  color: var(--ok);
+  background: var(--accent-weak);
+}
+
+.status-occupied {
+  color: #7a6234;
+  background: #f6efdf;
+}
+
+.status-maintenance {
+  color: var(--err);
+  background: #f6e9e8;
+}
+
+/* แถบล่างค้างจอ — เลื่อนดูห้องได้โดยไม่ต้องเลื่อนกลับขึ้นไปกดปุ่ม */
+.bulk-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 -2px 10px rgba(42, 46, 44, 0.06);
+}
+
+.bulk-count {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.bulk-count strong {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.bulk-fields {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.bulk-fields .input-with-suffix input {
+  width: 170px;
+  padding: 8px 11px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
 /* ตารางข้อมูล */
 .data-table {
   width: 100%;

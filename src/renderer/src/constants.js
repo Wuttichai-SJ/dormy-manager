@@ -48,3 +48,13 @@ export const RECOMMENDED_MAX_ACCOUNTS = 2
 // ต้องตรงกับ MAX_FLOORS / MAX_ROOMS_PER_FLOOR ใน src/main/db/rooms.js
 export const MAX_FLOORS = 30
 export const MAX_ROOMS_PER_FLOOR = 50
+
+// ต้องตรงกับ ROOM_STATUSES / ROOM_STATUS_LABELS ใน src/main/db/rooms.js
+// และกับค่าที่ 001_init.sql ระบุไว้สำหรับ rooms.status
+export const ROOM_STATUSES = ['vacant', 'occupied', 'maintenance']
+
+export const ROOM_STATUS_LABELS = {
+  vacant: 'ว่าง',
+  occupied: 'ไม่ว่าง',
+  maintenance: 'ปิดปรับปรุง'
+}

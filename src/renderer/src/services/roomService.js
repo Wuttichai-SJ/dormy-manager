@@ -37,3 +37,11 @@ export function updateRoom(roomId, payload) {
 export function deleteRoom(roomId) {
   return invoke('room:deleteRoom', { roomId })
 }
+
+export function setRoomRates(roomIds, { monthlyRent, dailyRent }) {
+  return invoke('room:setRates', { roomIds, monthlyRent, dailyRent })
+}
+
+export function setRoomStatus(roomIds, status) {
+  return invoke('room:setStatus', { roomIds, status })
+}

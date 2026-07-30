@@ -10,8 +10,11 @@ import {
   generateFloorPlan,
   listFloors,
   renameFloor,
+  setRoomRates,
+  setRoomStatus,
   updateRoom,
-  validateFloorPlan
+  validateFloorPlan,
+  validateRoomRateInput
 } from '../db/rooms.js'
 
 function handle(channel, fn) {
@@ -63,6 +66,21 @@ export function registerRoomHandlers() {
   handle('room:deleteRoom', ({ roomId }) => {
     const result = deleteRoom(getDatabase(), roomId)
     logInfo(`ลบห้อง (room_id ${roomId})`)
+    return result
+  })
+
+  handle('room:setRates', ({ roomIds, monthlyRent, dailyRent }) => {
+    const errors = validateRoomRateInput({ monthlyRent, dailyRent })
+    if (errors.length > 0) throw new Error(errors.join('\n'))
+
+    const result = setRoomRates(getDatabase(), roomIds, { monthlyRent, dailyRent })
+    logInfo(`ตั้งค่าห้อง ${roomIds.length} ห้อง`)
+    return result
+  })
+
+  handle('room:setStatus', ({ roomIds, status }) => {
+    const result = setRoomStatus(getDatabase(), roomIds, status)
+    logInfo(`ตั้งสถานะห้อง ${roomIds.length} ห้อง เป็น ${status}`)
     return result
   })
 }

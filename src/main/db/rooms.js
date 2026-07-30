@@ -7,6 +7,7 @@
 // หมายเหตุ: ไฟล์ใน db/ ห้าม import logger.js หรืออะไรที่ดึง electron เข้ามา
 // (เหตุผลอยู่ใน db/bankAccounts.js) — การ log เป็นหน้าที่ของชั้น handlers
 import { getUtilityDefaults } from './utilityDefaults.js'
+import { toCents } from '../money.js'
 
 // ต้นแบบจำกัดไว้ที่ 50 ห้อง/ชั้น และ 30 ชั้น — ใช้ตัวเลขเดียวกัน
 // ไม่ใช่เพราะระบบทำมากกว่านี้ไม่ได้ แต่เกินจากนี้แปลว่าผู้ใช้พิมพ์ผิด
@@ -18,6 +19,18 @@ export const MAX_ROOMS_PER_FLOOR = 50
 // ตาราง rooms บังคับ room_type_id NOT NULL แต่ตอนสร้างผังห้องครั้งแรกผู้ใช้ยังไม่ได้
 // คิดเรื่องประเภทห้อง — สร้างประเภทกลางๆ ให้ก่อน แล้วค่อยแก้ทีหลังได้
 export const DEFAULT_ROOM_TYPE = 'ทั่วไป'
+
+// สถานะห้อง — ต้องตรงกับที่ 001_init.sql ระบุไว้
+// ต้นแบบมีให้เลือกแค่ ว่าง/ไม่ว่าง ตอนตั้งค่าครั้งแรก แต่ schema เรารองรับ maintenance
+// ด้วย ซึ่งจำเป็นเวลาห้องน้ำท่วม/ซ่อมอยู่ — ห้องแบบนั้นไม่ใช่ทั้ง "ว่างให้เช่า" และ
+// ไม่ใช่ "มีคนอยู่" ถ้าไม่มีสถานะนี้เจ้าของจะต้องปล่อยเป็นว่างแล้วเสี่ยงปล่อยเช่าซ้ำ
+export const ROOM_STATUSES = ['vacant', 'occupied', 'maintenance']
+
+export const ROOM_STATUS_LABELS = {
+  vacant: 'ว่าง',
+  occupied: 'ไม่ว่าง',
+  maintenance: 'ปิดปรับปรุง'
+}
 
 // -----------------------------------------------------
 // ตัวช่วย
@@ -352,6 +365,109 @@ export function deleteRoom(db, roomId) {
     db.prepare('DELETE FROM room_utility_settings WHERE room_id = ?').run(roomId)
     db.prepare('DELETE FROM room_services WHERE room_id = ?').run(roomId)
     db.prepare('DELETE FROM rooms WHERE room_id = ?').run(roomId)
+  })
+  run()
+
+  return listFloors(db, apartmentId)
+}
+
+// -----------------------------------------------------
+// ตั้งค่าหลายห้องพร้อมกัน (ขั้น 6-7 ของ wizard)
+// -----------------------------------------------------
+// หอ 40 ห้องส่วนใหญ่ราคาเท่ากันหมด ถ้าให้กรอกทีละห้องคือพิมพ์เลขเดิม 40 รอบ
+// ต้นแบบจึงทำเป็น "ติ๊กเลือกห้อง แล้วตั้งค่าทีเดียว" — ลอกมาเพราะเหตุผลถูก
+function assertRoomsBelongToSameApartment(db, roomIds) {
+  if (!Array.isArray(roomIds) || roomIds.length === 0) {
+    throw new Error('กรุณาเลือกห้องอย่างน้อย 1 ห้อง')
+  }
+
+  const placeholders = roomIds.map(() => '?').join(',')
+  const apartmentIds = db
+    .prepare(
+      `SELECT DISTINCT f.apartment_id AS id
+         FROM rooms r JOIN floors f ON f.floor_id = r.floor_id
+        WHERE r.room_id IN (${placeholders})`
+    )
+    .all(...roomIds)
+    .map((r) => r.id)
+
+  if (apartmentIds.length === 0) throw new Error('ไม่พบห้องที่เลือก')
+  // กันไม่ให้คำสั่งเดียวข้ามหอ — ถ้าเกิดขึ้นแปลว่าฝั่งหน้าจอส่งข้อมูลผิด
+  if (apartmentIds.length > 1) throw new Error('ไม่สามารถตั้งค่าห้องข้ามหอพักในครั้งเดียวได้')
+
+  return apartmentIds[0]
+}
+
+export function validateRoomRateInput({ monthlyRent, dailyRent }) {
+  const errors = []
+
+  try {
+    toCents(monthlyRent, 'ค่าเช่ารายเดือน')
+  } catch (err) {
+    errors.push(err.message)
+  }
+
+  // ค่าเช่ารายวันไม่บังคับ — หอที่ไม่รับรายวันเว้นว่างไว้ได้ (ต้นแบบก็เขียนแบบนี้)
+  if (String(dailyRent ?? '').trim() !== '') {
+    try {
+      toCents(dailyRent, 'ค่าเช่ารายวัน')
+    } catch (err) {
+      errors.push(err.message)
+    }
+  }
+
+  return errors
+}
+
+export function setRoomRates(db, roomIds, { monthlyRent, dailyRent }) {
+  const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
+
+  const monthly = toCents(monthlyRent, 'ค่าเช่ารายเดือน')
+  // เว้นว่าง = ไม่รับรายวัน เก็บเป็น NULL ไม่ใช่ 0
+  // เพราะ 0 แปลว่า "รับรายวันแต่ฟรี" ซึ่งคนละความหมายกัน
+  const daily = String(dailyRent ?? '').trim() === '' ? null : toCents(dailyRent, 'ค่าเช่ารายวัน')
+
+  const stmt = db.prepare(
+    'UPDATE rooms SET monthly_rent_cents = ?, daily_rent_cents = ?, updated_at = ? WHERE room_id = ?'
+  )
+  const now = new Date().toISOString()
+  const run = db.transaction(() => {
+    for (const roomId of roomIds) stmt.run(monthly, daily, now, roomId)
+  })
+  run()
+
+  return listFloors(db, apartmentId)
+}
+
+export function setRoomStatus(db, roomIds, status) {
+  if (!ROOM_STATUSES.includes(status)) throw new Error('สถานะห้องไม่ถูกต้อง')
+  const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
+
+  // ห้องที่มีสัญญาเช่าอยู่จะถูกตั้งเป็น "ว่าง" ด้วยมือไม่ได้
+  // ถ้าปล่อยให้ทำได้ ห้องนั้นจะโผล่ในรายการห้องว่างทั้งที่มีคนอยู่ แล้วอาจถูกปล่อยเช่าซ้ำ
+  // การทำให้ห้องว่างต้องเกิดจากการย้ายออกเท่านั้น
+  if (status === 'vacant') {
+    const placeholders = roomIds.map(() => '?').join(',')
+    const occupied = db
+      .prepare(
+        `SELECT r.room_number FROM rooms r
+           JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+          WHERE r.room_id IN (${placeholders})`
+      )
+      .all(...roomIds)
+      .map((r) => r.room_number)
+
+    if (occupied.length > 0) {
+      throw new Error(
+        `ตั้งเป็นห้องว่างไม่ได้ เพราะห้อง ${occupied.join(', ')} ยังมีสัญญาเช่าที่ใช้งานอยู่ กรุณาแจ้งย้ายออกก่อน`
+      )
+    }
+  }
+
+  const stmt = db.prepare('UPDATE rooms SET status = ?, updated_at = ? WHERE room_id = ?')
+  const now = new Date().toISOString()
+  const run = db.transaction(() => {
+    for (const roomId of roomIds) stmt.run(status, now, roomId)
   })
   run()
 

@@ -297,5 +297,113 @@ check('ลบชั้นที่ว่างแล้วได้', () => {
 })
 
 // -----------------------------------------------------
+group('ตั้งค่าหลายห้องพร้อมกัน')
+
+const bulkApartment = newApartment('หอทดสอบตั้งค่าหลายห้อง')
+const bulkPlan = rooms.generateFloorPlan(db, bulkApartment.apartmentId, [
+  { roomCount: 3 },
+  { roomCount: 2 }
+])
+const floor1Ids = bulkPlan[0].rooms.map((r) => r.roomId)
+const allIds = bulkPlan.flatMap((f) => f.rooms.map((r) => r.roomId))
+
+check('ตั้งค่าเช่าทีเดียวหลายห้องได้', () => {
+  const result = rooms.setRoomRates(db, floor1Ids, { monthlyRent: '3500', dailyRent: '' })
+  const updated = result[0].rooms
+  assert(
+    updated.every((r) => r.monthlyRentCents === 350000),
+    updated.map((r) => r.monthlyRentCents).join(',')
+  )
+  // ห้องชั้นอื่นที่ไม่ได้เลือกต้องไม่ถูกแตะ
+  assert(
+    result[1].rooms.every((r) => r.monthlyRentCents === 0),
+    'ห้องที่ไม่ได้เลือกถูกแก้ไปด้วย'
+  )
+})
+
+check('ค่าเช่ารายวันเว้นว่าง = NULL ไม่ใช่ 0', () => {
+  // 0 แปลว่า "รับรายวันแต่ฟรี" ซึ่งคนละความหมายกับ "ไม่รับรายวัน"
+  const room = rooms.listFloors(db, bulkApartment.apartmentId)[0].rooms[0]
+  assert(room.dailyRentCents === null, `ได้ ${room.dailyRentCents}`)
+})
+
+check('กรอกค่าเช่ารายวันแล้วเก็บเป็นสตางค์', () => {
+  const result = rooms.setRoomRates(db, floor1Ids, { monthlyRent: '3500', dailyRent: '450.50' })
+  assert(result[0].rooms[0].dailyRentCents === 45050, `ได้ ${result[0].rooms[0].dailyRentCents}`)
+})
+
+check('ค่าเช่ารายเดือนบังคับกรอก รายวันไม่บังคับ', () => {
+  assert(rooms.validateRoomRateInput({ monthlyRent: '', dailyRent: '' }).length === 1, 'ต้องบังคับรายเดือน')
+  assert(rooms.validateRoomRateInput({ monthlyRent: '3500', dailyRent: '' }).length === 0, 'รายวันไม่ควรบังคับ')
+  assert(
+    rooms.validateRoomRateInput({ monthlyRent: '3500', dailyRent: 'abc' }).length === 1,
+    'รายวันที่กรอกผิดต้องไม่ผ่าน'
+  )
+})
+
+check('ไม่เลือกห้องเลยต้องแจ้งเตือน', () => {
+  throws(
+    () => rooms.setRoomRates(db, [], { monthlyRent: '3500' }),
+    'เลือกห้องอย่างน้อย',
+    'ควรบังคับให้เลือกห้อง'
+  )
+})
+
+check('ตั้งค่าข้ามหอในครั้งเดียวไม่ได้', () => {
+  const otherRoom = rooms.listFloors(db, id)[0].rooms[0]
+  throws(
+    () => rooms.setRoomRates(db, [...floor1Ids, otherRoom.roomId], { monthlyRent: '1' }),
+    'ข้ามหอพัก',
+    'ควรกันการตั้งค่าข้ามหอ'
+  )
+})
+
+check('ตั้งสถานะหลายห้องพร้อมกันได้', () => {
+  const result = rooms.setRoomStatus(db, allIds, 'maintenance')
+  const statuses = result.flatMap((f) => f.rooms.map((r) => r.status))
+  assert(
+    statuses.every((s) => s === 'maintenance'),
+    statuses.join(',')
+  )
+})
+
+check('สถานะที่ไม่รู้จักถูกปฏิเสธ', () => {
+  throws(() => rooms.setRoomStatus(db, allIds, 'มั่วๆ'), 'สถานะห้องไม่ถูกต้อง', 'ควรปฏิเสธ')
+})
+
+check('ตั้งห้องที่มีสัญญาใช้งานอยู่ให้เป็น "ว่าง" ไม่ได้ และต้องบอกเลขห้อง', () => {
+  // ห้องที่มีคนอยู่แต่ถูกตั้งเป็นว่าง จะโผล่ในรายการห้องว่างแล้วเสี่ยงปล่อยเช่าซ้ำ
+  const room = bulkPlan[1].rooms[0]
+  const now = new Date().toISOString()
+  const tenantId = db
+    .prepare(
+      `INSERT INTO tenants (first_name, last_name, phone, id_card_no, created_at)
+       VALUES ('ทดสอบ','สอง','0810000001','9999999999999',?)`
+    )
+    .run(now).lastInsertRowid
+  db.prepare(
+    `INSERT INTO contracts (room_id, tenant_id, rent_type, start_date, rent_amount_cents,
+                            deposit_amount_cents, deposit_payment_method, booking_fee_cents,
+                            advance_payment_amount_cents, water_meter_start,
+                            electric_meter_start, status, created_at)
+     VALUES (?, ?, 'monthly', '2026-01-01', 350000, 700000, 'cash', 0, 0, 0, 0, 'active', ?)`
+  ).run(room.roomId, tenantId, now)
+
+  throws(
+    () => rooms.setRoomStatus(db, allIds, 'vacant'),
+    room.roomNumber,
+    'ควรบอกเลขห้องที่ติดสัญญา'
+  )
+})
+
+check('ห้องที่ไม่มีสัญญายังตั้งเป็นว่างได้ตามปกติ', () => {
+  const result = rooms.setRoomStatus(db, floor1Ids, 'vacant')
+  assert(
+    result[0].rooms.every((r) => r.status === 'vacant'),
+    result[0].rooms.map((r) => r.status).join(',')
+  )
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลผังห้องทำงานครบทุกเส้นทาง')
