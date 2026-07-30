@@ -11,6 +11,7 @@
     "dev:web": "vite",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "test:auth": "node scripts/auth-smoke.mjs",
     "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
