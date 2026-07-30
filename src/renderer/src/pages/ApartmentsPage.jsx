@@ -10,7 +10,7 @@ import { deleteApartment, listApartments } from '../services/apartmentService.js
 // ตัวเลข "บิลค้างชำระ" ของต้นแบบยังไม่ใส่ เพราะตาราง invoices ยังไม่มีข้อมูล (Phase 3)
 // จงใจไม่โชว์ 0 ไปก่อน — เลข 0 ที่ไม่ได้มาจากการนับจริงทำให้เจ้าของหอเข้าใจผิดว่า
 // "ไม่มีใครค้างเลย" ทั้งที่ระบบยังไม่ได้เริ่มออกบิล
-export default function ApartmentsPage() {
+export default function ApartmentsPage({ onOpen }) {
   const [apartments, setApartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -84,6 +84,7 @@ export default function ApartmentsPage() {
             <ApartmentCard
               key={a.apartmentId}
               apartment={a}
+              onOpen={() => onOpen(a)}
               onEdit={() => setView({ mode: 'edit', apartmentId: a.apartmentId })}
               onDelete={() => remove(a)}
             />
@@ -94,7 +95,7 @@ export default function ApartmentsPage() {
   )
 }
 
-function ApartmentCard({ apartment, onEdit, onDelete }) {
+function ApartmentCard({ apartment, onOpen, onEdit, onDelete }) {
   return (
     <article className="apartment-card">
       <header>{apartment.nameTh}</header>
@@ -112,6 +113,11 @@ function ApartmentCard({ apartment, onEdit, onDelete }) {
         </div>
 
         <div className="apartment-card-actions">
+          {/* ทางเข้าหลักของการ์ด — กดแล้วเข้าไปทำงานในบริบทของหอนี้ (มีเมนูข้าง)
+              ส่วน "แก้ไข" คือแก้ข้อมูลหอเอง ซึ่งเป็นคนละเรื่องกัน */}
+          <button type="button" className="btn btn-sm" onClick={onOpen}>
+            จัดการ
+          </button>
           <button type="button" className="link-btn" onClick={onEdit}>
             แก้ไข
           </button>

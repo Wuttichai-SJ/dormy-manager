@@ -3,32 +3,23 @@ import Icon from './Icon.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
-import SecuritySettingsPage from './pages/SecuritySettingsPage.jsx'
-import ApartmentsPage from './pages/ApartmentsPage.jsx'
+import HubPage from './layouts/HubPage.jsx'
+import WorkspaceShell from './layouts/WorkspaceShell.jsx'
 import { getAuthStatus, logout } from './services/authService.js'
 
-// Navigation mirrors app.yeeraf.com's module grouping (layout follows the source site;
-// colors deliberately differ — muted, not garish). Real pages arrive per build phase.
-const NAV = [
-  { key: 'dashboard', label: 'ภาพรวม' },
-  { key: 'apartments', label: 'หอพัก' },
-  { key: 'rooms', label: 'ห้องพัก' },
-  { key: 'tenants', label: 'ผู้เช่า' },
-  { key: 'contracts', label: 'สัญญา' },
-  { key: 'bookings', label: 'การจอง' },
-  { key: 'meters', label: 'จดมิเตอร์' },
-  { key: 'invoices', label: 'ใบแจ้งหนี้' },
-  { key: 'payments', label: 'การชำระเงิน' },
-  { key: 'maintenance', label: 'แจ้งซ่อม' },
-  { key: 'settings', label: 'ตั้งค่า' }
-]
-
-// ด่านหน้าของทั้งแอป: ตัดสินจาก auth:status ว่าจะแสดงหน้าตั้งค่าครั้งแรก / หน้าเข้าสู่ระบบ
+// ด่านหน้าของทั้งแอป: ตัดสินจาก auth:status ว่าจะแสดงหน้าลงทะเบียน / หน้าเข้าสู่ระบบ
 // / หรือตัวแอปจริง เซสชันตัวจริงอยู่ในหน่วยความจำของ main process ฝั่งนี้เก็บแค่สำเนา
 // ไว้แสดงผล — ปิดแอปแล้วเปิดใหม่ต้องเข้าสู่ระบบเสมอ ไม่มี auto-login โดยตั้งใจ
+//
+// หลังเข้าสู่ระบบยังแบ่งอีกสองระดับตามต้นแบบ:
+//   ยังไม่เลือกหอ → HubPage (เลือก/สร้างหอพัก ไม่มีเมนูข้าง)
+//   เลือกหอแล้ว   → WorkspaceShell (เมนูข้างครบ ทำงานในบริบทของหอนั้น)
 export default function App() {
   const [status, setStatus] = useState({ phase: 'loading' })
   const [showForgot, setShowForgot] = useState(false)
+  // หอที่กำลังทำงานอยู่ เก็บไว้ในหน่วยความจำของหน้าจอเท่านั้น ไม่ได้จำข้ามการเปิดแอป
+  // ตั้งใจให้เลือกใหม่ทุกครั้ง จะได้ไม่เผลอแก้ข้อมูลผิดหอเพราะระบบจำหอเดิมไว้ให้
+  const [apartment, setApartment] = useState(null)
 
   const loadStatus = useCallback(async () => {
     setStatus({ phase: 'loading' })
@@ -56,6 +47,9 @@ export default function App() {
 
   async function handleLogout() {
     await logout()
+    // ต้องล้างหอที่เลือกไว้ด้วย ไม่งั้นคนถัดไปที่เข้าสู่ระบบบนเครื่องเดียวกัน
+    // จะเด้งเข้าไปในหอที่คนก่อนหน้าเปิดค้างไว้ทันที
+    setApartment(null)
     // อ่านสถานะใหม่จาก main แทนการเดาเอง จะได้ได้ lastIdentifier ล่าสุดมาเติมช่องให้ด้วย
     loadStatus()
   }
@@ -114,56 +108,23 @@ export default function App() {
     )
   }
 
-  return <AppShell user={status.user} onLogout={handleLogout} />
-}
-
-function AppShell({ user, onLogout }) {
-  const [active, setActive] = useState('dashboard')
-  const activeLabel = NAV.find((n) => n.key === active)?.label
+  // เลือกหอแล้วหรือยัง คือสิ่งที่แยกว่าจะเห็นหน้ารวมหรือหน้าทำงานที่มีเมนูข้าง
+  if (!apartment) {
+    return (
+      <HubPage
+        user={status.user}
+        onLogout={handleLogout}
+        onOpenApartment={setApartment}
+      />
+    )
+  }
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">Dormy Manager</div>
-        <nav>
-          {NAV.map((item) => (
-            <button
-              key={item.key}
-              className={'nav-item' + (item.key === active ? ' active' : '')}
-              onClick={() => setActive(item.key)}
-            >
-              <Icon name={item.key} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="content">
-        <header className="topbar">
-          <h1>{activeLabel}</h1>
-          <div className="topbar-user">
-            <Icon name="account" />
-            <span>{user.fullName}</span>
-            <button className="btn btn-ghost btn-sm" onClick={onLogout}>
-              <Icon name="logout" />
-              <span>ออกจากระบบ</span>
-            </button>
-          </div>
-        </header>
-
-        <div className="page">
-          {active === 'apartments' ? (
-            <ApartmentsPage />
-          ) : active === 'settings' ? (
-            <SecuritySettingsPage user={user} />
-          ) : (
-            <section className="panel">
-              <p className="muted">หน้านี้ยังเป็นโครงเปล่า — เนื้อหาจะถูกเติมตามแผนแต่ละเฟส</p>
-            </section>
-          )}
-        </div>
-      </main>
-    </div>
+    <WorkspaceShell
+      apartment={apartment}
+      user={status.user}
+      onExit={() => setApartment(null)}
+      onLogout={handleLogout}
+    />
   )
 }
