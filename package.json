@@ -13,7 +13,8 @@
     "preview": "electron-vite preview",
     "test:auth": "node scripts/auth-smoke.mjs",
     "test:apartments": "node scripts/apartments-smoke.mjs",
-    "test": "npm run test:auth && npm run test:apartments",
+    "test:services": "node scripts/services-smoke.mjs",
+    "test": "npm run test:auth && npm run test:apartments && npm run test:services",
     "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {

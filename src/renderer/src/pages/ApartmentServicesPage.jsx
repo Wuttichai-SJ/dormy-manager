@@ -1,0 +1,227 @@
+import React, { useCallback, useEffect, useState } from 'react'
+import Alert from '../components/Alert.jsx'
+import { centsToInput, formatBaht } from '../format.js'
+import {
+  createService,
+  deleteService,
+  listServices,
+  updateService
+} from '../services/apartmentServiceService.js'
+
+// ค่าบริการของหอ — ขั้นแรกของการตั้งค่าหอพัก (ตามลำดับของต้นแบบ)
+//
+// รายการที่นี่เป็นแค่ "แคตตาล็อก" ยังไม่ผูกกับห้องไหน การเลือกว่าห้องไหนใช้บริการอะไร
+// เป็นอีกหน้าหนึ่ง (ค่าบริการรายห้อง) — แยกกันเพราะหอส่วนใหญ่มีบริการไม่กี่รายการ
+// แต่มีหลายสิบห้อง ถ้าให้กรอกรายห้องตั้งแต่แรกจะพิมพ์ชื่อเดิมซ้ำหลายสิบรอบ
+
+// ต้นแบบเขียนว่า "เลือกจากรายการที่มี หรือพิมพ์ชื่อค่าบริการเองได้"
+// ใช้ datalist เพื่อให้ได้ทั้งสองอย่างในช่องเดียว โดยไม่ต้องเพิ่ม dependency dropdown
+const PRESET_NAMES = [
+  'ค่าอินเทอร์เน็ต',
+  'ค่าที่จอดรถ',
+  'ค่าส่วนกลาง',
+  'ค่าเก็บขยะ',
+  'ค่าทำความสะอาด',
+  'ค่ารักษาความปลอดภัย',
+  'ค่าเคเบิลทีวี',
+  'ค่าเฟอร์นิเจอร์'
+]
+
+const EMPTY = { name: '', price: '', isMeterBased: false, isVatEnabled: false }
+
+export default function ApartmentServicesPage({ apartment }) {
+  const [services, setServices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState(EMPTY)
+  const [editingId, setEditingId] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const res = await listServices(apartment.apartmentId)
+    setLoading(false)
+    if (!res.success) return setError(res.error)
+    setError('')
+    setServices(res.data)
+  }, [apartment.apartmentId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  function set(key, value) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
+  function resetForm() {
+    setForm(EMPTY)
+    setEditingId(null)
+  }
+
+  async function submit(e) {
+    e.preventDefault()
+    setError('')
+    setBusy(true)
+    const res = editingId
+      ? await updateService(editingId, form)
+      : await createService(apartment.apartmentId, form)
+    setBusy(false)
+
+    if (!res.success) return setError(res.error)
+    resetForm()
+    load()
+  }
+
+  function startEdit(service) {
+    setEditingId(service.serviceId)
+    setForm({
+      name: service.name,
+      price: centsToInput(service.priceCents),
+      isMeterBased: service.isMeterBased,
+      isVatEnabled: service.isVatEnabled
+    })
+  }
+
+  async function remove(service) {
+    setError('')
+    const res = await deleteService(service.serviceId)
+    if (!res.success) return setError(res.error)
+    if (editingId === service.serviceId) resetForm()
+    load()
+  }
+
+  return (
+    <>
+      <div className="info-banner">
+        <strong>ค่าบริการเพิ่มเติมที่เรียกเก็บ</strong>
+        <p>เช่น ค่าอินเทอร์เน็ต ค่าที่จอดรถ ค่าส่วนกลาง — จะนำไปผูกกับห้องพักในขั้นถัดไป</p>
+      </div>
+
+      <section className="panel">
+        <Alert>{error}</Alert>
+
+        <form className="service-form" onSubmit={submit}>
+          <div className="field">
+            <label htmlFor="serviceName">
+              ชื่อค่าบริการ <span className="required">* จำเป็น</span>
+            </label>
+            <input
+              id="serviceName"
+              list="service-name-presets"
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              autoComplete="off"
+            />
+            <datalist id="service-name-presets">
+              {PRESET_NAMES.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+            <p className="field-hint">เลือกจากรายการที่มี หรือพิมพ์ชื่อเองได้</p>
+          </div>
+
+          <div className="field service-form-price">
+            <label htmlFor="servicePrice">
+              ราคา <span className="required">* จำเป็น</span>
+            </label>
+            <div className="input-with-suffix">
+              <input
+                id="servicePrice"
+                value={form.price}
+                onChange={(e) => set('price', e.target.value)}
+                inputMode="decimal"
+              />
+              <span className="input-suffix">{form.isMeterBased ? 'บาท/หน่วย' : 'บาท'}</span>
+            </div>
+          </div>
+
+          <div className="service-form-submit">
+            <button type="submit" className="btn" disabled={busy}>
+              {busy ? 'กำลังบันทึก...' : editingId ? 'บันทึก' : 'เพิ่ม'}
+            </button>
+            {editingId && (
+              <button type="button" className="btn btn-ghost" onClick={resetForm}>
+                ยกเลิก
+              </button>
+            )}
+          </div>
+
+          <div className="service-form-options">
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={form.isMeterBased}
+                onChange={(e) => set('isMeterBased', e.target.checked)}
+              />
+              <span>ประเภทแปรผันตามมิเตอร์</span>
+            </label>
+            <p className="field-hint">
+              ติ๊กเมื่อคิดตามหน่วยที่ใช้จริง (ราคาข้างบนจะกลายเป็นราคาต่อหน่วย)
+              ไม่ติ๊ก = เหมาจ่ายเท่ากันทุกเดือน
+            </p>
+
+            {/* ช่อง VAT โผล่เฉพาะหอที่เปิด VAT ไว้ — หอที่ไม่ได้จด VAT ไม่ต้องเห็นตัวเลือกนี้ */}
+            {apartment.isVatEnabled && (
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={form.isVatEnabled}
+                  onChange={(e) => set('isVatEnabled', e.target.checked)}
+                />
+                <span>คิด VAT กับค่าบริการนี้</span>
+              </label>
+            )}
+          </div>
+        </form>
+
+        <hr className="divider" />
+
+        {loading ? (
+          <p className="muted">กำลังโหลด...</p>
+        ) : services.length === 0 ? (
+          <p className="muted table-empty">ยังไม่มีค่าบริการ</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>รายการ</th>
+                <th>คำนวณตาม</th>
+                <th className="align-right">ราคา</th>
+                <th className="align-right">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {services.map((s) => (
+                <tr key={s.serviceId} className={editingId === s.serviceId ? 'row-editing' : ''}>
+                  <td>
+                    {s.name}
+                    {s.isVatEnabled && <span className="tag">VAT</span>}
+                  </td>
+                  <td>{s.isMeterBased ? 'ตามมิเตอร์' : 'เหมาจ่าย'}</td>
+                  <td className="align-right">
+                    {formatBaht(s.priceCents)}
+                    <span className="unit">{s.isMeterBased ? ' บาท/หน่วย' : ' บาท'}</span>
+                  </td>
+                  <td className="align-right">
+                    <button type="button" className="link-btn" onClick={() => startEdit(s)}>
+                      แก้ไข
+                    </button>
+                    <button
+                      type="button"
+                      className="link-btn link-danger table-action"
+                      onClick={() => remove(s)}
+                      aria-label={`ลบ ${s.name}`}
+                    >
+                      ลบ
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </>
+  )
+}

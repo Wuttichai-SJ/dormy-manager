@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
-import SecuritySettingsPage from '../pages/SecuritySettingsPage.jsx'
+import SettingsPage from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
 //
@@ -72,7 +72,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
 
         <div className="page">
           {active === 'settings' ? (
-            <SecuritySettingsPage user={user} />
+            <SettingsPage apartment={apartment} user={user} />
           ) : (
             <section className="panel">
               <p className="muted">หน้านี้ยังเป็นโครงเปล่า — เนื้อหาจะถูกเติมตามแผนแต่ละเฟส</p>

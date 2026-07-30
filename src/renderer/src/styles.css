@@ -673,6 +673,172 @@ body {
   text-decoration: underline;
 }
 
+/* หน้าตั้งค่า: เมนูย่อยซ้าย เนื้อหาขวา */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 14px;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.settings-nav-item:hover:not(.disabled) {
+  background: var(--accent-weak);
+}
+
+.settings-nav-item.active {
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* หัวข้อที่ยังไม่ได้สร้าง — จางลงและกดไม่ได้ แต่ยังเห็นว่ามีอยู่ในแผน */
+.settings-nav-item.disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.settings-nav-soon {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+/* แถบคำอธิบายหัวหน้าจอ — ต้นแบบใช้กล่องสีอ่อนบอกว่าหน้านี้ใช้ทำอะไร */
+.info-banner {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--accent-weak);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.info-banner p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+/* ฟอร์มเพิ่มรายการแบบแถวเดียว (ชื่อ / ราคา / ปุ่ม) */
+.service-form {
+  display: grid;
+  grid-template-columns: 1fr 200px auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.service-form-options {
+  grid-column: 1 / -1;
+}
+
+.service-form-submit {
+  display: flex;
+  gap: 8px;
+  padding-top: 25px; /* ให้ปุ่มอยู่ระดับเดียวกับช่องกรอกที่มี label อยู่ข้างบน */
+}
+
+@media (max-width: 760px) {
+  .service-form {
+    grid-template-columns: 1fr;
+  }
+
+  .service-form-submit {
+    padding-top: 0;
+  }
+}
+
+/* ตารางข้อมูล */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table .row-editing {
+  background: var(--accent-weak);
+}
+
+.align-right {
+  text-align: right;
+}
+
+.table-action {
+  margin-left: 12px;
+}
+
+.table-empty {
+  padding: 20px 0;
+  text-align: center;
+}
+
+.unit {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-radius: 10px;
+}
+
 /* จอว่างเปล่า — บอกให้ชัดว่าต้องทำอะไรต่อ ไม่ใช่ปล่อยพื้นที่ว่างเฉยๆ */
 .empty-state {
   text-align: center;
