@@ -16,15 +16,91 @@ import RoomRatesPage from '../pages/RoomRatesPage.jsx'
 //
 // หลังตั้งครบแล้ว การกลับมาแก้ทีละเรื่องใช้เมนู "ตั้งค่า" ในหน้าทำงานแทน (ไม่ต้องเดิน
 // ผ่าน wizard ใหม่ทุกครั้ง) — ต้นแบบก็แยกสองทางแบบนี้เหมือนกัน
+//
+// `brief` = แถบครีมหัวการ์ดที่ต้นแบบใช้บอกว่าขั้นนี้ต้องทำอะไร (หัวข้อ + ข้อย่อย หรือ
+// ประโยคเดียวถ้าอธิบายจบในบรรทัดเดียว) ข้อความเป็นของเราเอง เพราะบางขั้นทำงานไม่เหมือน
+// ต้นแบบเป๊ะ — ยกเว้นขั้น "ค่าบริการ" กับ "จัดการชั้น" ที่ลอกคำของต้นแบบมาตรงๆ
 const STEPS = [
-  { key: 'services', label: 'ค่าบริการ' },
-  { key: 'meters', label: 'การคิดค่าน้ำ / ค่าไฟ' },
-  { key: 'banks', label: 'บัญชีธนาคาร' },
-  { key: 'floors', label: 'จัดการชั้น' },
-  { key: 'plan', label: 'ผังห้อง' },
-  { key: 'rate', label: 'ค่าห้อง' },
-  { key: 'status', label: 'สถานะห้อง' },
-  { key: 'roomServices', label: 'ค่าบริการรายห้อง' }
+  {
+    key: 'services',
+    label: 'ค่าบริการ',
+    brief: { text: 'ค่าบริการเพิ่มเติมที่เรียกเก็บ เช่น ค่าอินเตอร์เน็ต, ค่าที่จอดรถ, ค่าฟิตเนส' }
+  },
+  {
+    key: 'meters',
+    label: 'การคิดค่าน้ำ / ค่าไฟ',
+    brief: {
+      title: 'วิธีคิดค่าน้ำและค่าไฟ',
+      points: [
+        'เลือกวิธีคิดแยกกันได้ระหว่างค่าน้ำกับค่าไฟ',
+        'ตามมิเตอร์ที่ใช้จริง / ตามมิเตอร์แบบมีขั้นต่ำ / เหมาจ่ายรายเดือน',
+        'ค่าที่ตั้งที่นี่จะถูกคัดลอกไปให้ห้องที่สร้างทีหลังโดยอัตโนมัติ'
+      ]
+    }
+  },
+  {
+    key: 'banks',
+    label: 'บัญชีธนาคาร',
+    brief: {
+      title: 'บัญชีรับชำระเงิน',
+      points: [
+        'บัญชีที่จะนำไปแสดงในใบแจ้งหนี้ให้ผู้เช่าโอนเข้า',
+        'แนะนำไม่เกิน 2 บัญชี ผู้เช่าจะได้ไม่สับสนว่าต้องโอนเข้าบัญชีไหน'
+      ]
+    }
+  },
+  {
+    key: 'floors',
+    label: 'จัดการชั้น',
+    brief: {
+      title: 'จำนวนชั้น',
+      points: ['เลือกจำนวนชั้น', 'ระบุจำนวนห้องต่อชั้น สูงสุดได้ไม่เกิน 50 ห้อง/ชั้น']
+    }
+  },
+  {
+    key: 'plan',
+    label: 'ผังห้อง',
+    brief: {
+      title: 'เลขห้องพัก',
+      points: [
+        'ระบบตั้งเลขห้องให้อัตโนมัติตามชั้น เช่น 101 102 201',
+        'แก้เลขห้องเป็นเลขที่ใช้จริงในหอได้ ห้ามซ้ำกันภายในหอเดียวกัน'
+      ]
+    }
+  },
+  {
+    key: 'rate',
+    label: 'ค่าห้อง',
+    brief: {
+      title: 'ค่าเช่าห้อง',
+      points: [
+        'ตั้งค่าเช่าทีเดียวได้หลายห้องพร้อมกัน',
+        'ค่าเช่ารายวันเว้นว่างไว้ได้ ถ้าหอนี้ไม่รับเช่ารายวัน'
+      ]
+    }
+  },
+  {
+    key: 'status',
+    label: 'สถานะห้อง',
+    brief: {
+      title: 'สถานะเริ่มต้นของห้อง',
+      points: [
+        'ห้องว่าง / ไม่ว่าง / ปิดปรับปรุง',
+        'ห้องที่มีผู้เช่าอยู่แล้วตั้งเป็น "ไม่ว่าง" ไว้ก่อน แล้วค่อยทำสัญญาย้อนหลัง'
+      ]
+    }
+  },
+  {
+    key: 'roomServices',
+    label: 'ค่าบริการรายห้อง',
+    brief: {
+      title: 'ผูกค่าบริการเข้ากับห้อง',
+      points: [
+        'เลือกค่าบริการจากขั้นที่ 1 แล้วผูกเข้าหลายห้องพร้อมกันได้',
+        'ห้องที่ไม่ได้ผูกค่าบริการไว้ จะไม่ถูกเรียกเก็บรายการนั้นในใบแจ้งหนี้'
+      ]
+    }
+  }
 ]
 
 export default function SetupWizard({ apartment, onFinish, onExit }) {
@@ -38,6 +114,7 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
     return (
       <div className="wizard">
         <WizardTopbar apartment={apartment} onExit={onExit} />
+        <div className="hub-band">หอพัก</div>
         <div className="wizard-complete">
           <div className="wizard-complete-card">
             <span className="wizard-check">
@@ -57,6 +134,7 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
   return (
     <div className="wizard">
       <WizardTopbar apartment={apartment} onExit={onExit} />
+      <div className="hub-band">หอพัก</div>
 
       <main className="wizard-body">
         <h1 className="wizard-title">ตั้งค่าหอพัก</h1>
@@ -78,30 +156,44 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
                 onClick={() => i < index && setIndex(i)}
                 disabled={i > index}
               >
-                <span className="wizard-step-number">{i < index ? '✓' : i + 1}</span>
+                {/* ต้นแบบคงเลขลำดับไว้ทุกขั้น ไม่ได้เปลี่ยนขั้นที่ผ่านแล้วเป็นเครื่องหมายถูก
+                    — ใช้สีของวงกลมบอกแทนว่าผ่านไปแล้ว */}
+                <span className="wizard-step-number">{i + 1}</span>
                 <span>{s.label}</span>
               </button>
             ))}
           </nav>
 
-          <section className="wizard-content">
-            <StepContent stepKey={step.key} apartment={apartment} />
-
-            <div className="wizard-actions">
-              {index > 0 && (
-                <button type="button" className="btn btn-ghost" onClick={() => setIndex(index - 1)}>
-                  ย้อนกลับ
-                </button>
+          <section className="wizard-card">
+            <div className="wizard-brief">
+              {step.brief.title ? (
+                <>
+                  <h2>{step.brief.title}</h2>
+                  <ul>
+                    {step.brief.points.map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p>{step.brief.text}</p>
               )}
-              <button
-                type="button"
-                className="btn"
-                onClick={() => (isLast ? setDone(true) : setIndex(index + 1))}
-              >
-                {isLast ? 'เสร็จสิ้น' : 'ต่อไป'}
-              </button>
+            </div>
+
+            <div className="wizard-card-body">
+              <StepContent stepKey={step.key} apartment={apartment} />
             </div>
           </section>
+        </div>
+
+        <div className="wizard-actions">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => (isLast ? setDone(true) : setIndex(index + 1))}
+          >
+            {isLast ? 'เสร็จสิ้น' : 'ต่อไป'}
+          </button>
         </div>
       </main>
     </div>

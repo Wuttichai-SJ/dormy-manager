@@ -1298,55 +1298,61 @@ body {
   margin-bottom: 0;
 }
 
-/* ตัวช่วยตั้งค่าหอพัก (wizard) */
+/* ตัวช่วยตั้งค่าหอพัก (wizard)
+   ระยะและสีในบล็อกนี้วัดจากหน้า "ตั้งค่าอพาร์ตเมนต์" ของต้นแบบทีละพิกเซล:
+   กรอบเนื้อหากว้าง 1088px (max-width 1152 + padding ข้างละ 32) แบ่ง 4 ส่วนเท่าๆ กัน
+   = รายการขั้นตอน 1 ส่วน (272px) / การ์ด 3 ส่วน (816px) ชิดกันไม่มีช่องว่างระหว่างคอลัมน์ */
 .wizard {
   min-height: 100vh;
   background: var(--bg);
 }
 
 .wizard-body {
-  max-width: 1100px;
+  max-width: 1152px;
   margin: 0 auto;
-  padding: 28px;
+  padding: 0 32px 48px;
 }
 
 .wizard-title {
-  margin: 0 0 24px;
-  font-size: 22px;
-  font-weight: 600;
+  margin: 32px 0;
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 500;
   text-align: center;
 }
 
 .wizard-layout {
   display: grid;
-  grid-template-columns: 230px 1fr;
-  gap: 28px;
+  grid-template-columns: 1fr 3fr;
   align-items: start;
 }
 
 @media (max-width: 900px) {
   .wizard-layout {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
 }
 
 .wizard-steps {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  /* เส้นแนวตั้งลากผ่านกลางวงกลมลำดับ — ต้นแบบใช้เส้นเดียวยาวตลอด ไม่ใช่ขีดทีละช่วง
+     เส้นอยู่ที่ 13px จากซ้าย = กึ่งกลางวงกลมขนาด 26px */
+  background: linear-gradient(var(--border-strong), var(--border-strong)) 13px 24px / 2px
+    calc(100% - 48px) no-repeat;
 }
 
 .wizard-step {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 0;
   text-align: left;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-muted);
   background: none;
   border: none;
-  border-radius: var(--radius);
   cursor: pointer;
 }
 
@@ -1354,52 +1360,112 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+  /* วงกลมต้องทึบพอจะบังเส้นแนวตั้งที่ลากผ่านข้างหลัง */
+  background: #e4e7ea;
+  border: none;
   border-radius: 50%;
 }
 
+/* ขั้นที่กำลังทำอยู่ — ต้นแบบขยายตัวอักษรและทำให้เข้มขึ้น ไม่ได้ใช้พื้นหลังไฮไลต์ */
 .wizard-step.current {
   color: var(--text);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 22px;
 }
 
 .wizard-step.current .wizard-step-number {
   color: var(--brand-ink);
   background: var(--brand);
-  border-color: var(--brand-strong);
 }
 
-.wizard-step.done {
-  color: var(--text);
-}
-
+/* ขั้นที่ผ่านแล้วเป็นวงกลมเขียวมิ้นต์ แต่ตัวอักษรยังจางเหมือนขั้นที่ยังไม่ถึง
+   (ความเข้มของตัวอักษรสงวนไว้บอก "ตอนนี้อยู่ขั้นไหน" อย่างเดียว) */
 .wizard-step.done .wizard-step-number {
-  color: var(--ok);
-  background: var(--accent-weak);
-  border-color: var(--ok);
+  color: #1d6b4f;
+  background: #bdeedb;
 }
 
 /* ขั้นที่ยังไปไม่ถึง กดไม่ได้ — ต้นแบบก็เด้งกลับถ้าพยายามข้าม */
 .wizard-step.future {
   cursor: default;
-  opacity: 0.55;
 }
 
+/* การ์ดเนื้อหา: แถบครีมอธิบายขั้นตอนอยู่บนสุด ขีดเส้นส้มใต้แถบ แล้วจึงเป็นพื้นที่กรอก */
+.wizard-card {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.wizard-brief {
+  padding: 24px;
+  background: #fcfdeb;
+  border-bottom: 1px solid #c37800;
+}
+
+.wizard-brief h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.wizard-brief ul {
+  margin: 6px 0 0;
+  padding-left: 22px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+
+/* คำอธิบายสั้นๆ ที่ไม่มีหัวข้อย่อย ให้เป็นบรรทัดเดียวไม่ต้องมีจุดนำ */
+.wizard-brief p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+.wizard-card-body {
+  padding: 24px;
+}
+
+/* หน้าของแต่ละขั้นถูกใช้สองที่: เดี่ยวๆ ในเมนู "ตั้งค่า" (ต้องเป็นการ์ดของตัวเอง) และ
+   ในตัวช่วยตั้งค่าตรงนี้ (อยู่ในการ์ดของ wizard อยู่แล้ว) จึงถอดเปลือกการ์ดชั้นในออก
+   ด้วย CSS แทนการแก้ไฟล์หน้าเหล่านั้น — ต้นแบบก็ไม่มีการ์ดซ้อนการ์ดในขั้นตอนพวกนี้
+
+   ยกเว้น .floor-card / .empty-state ซึ่งเป็น "การ์ดในรายการ" จริงๆ (ชั้นละใบ) ไม่ใช่เปลือก
+   ของทั้งหน้า — พวกนั้นต้องคงหน้าตาการ์ดไว้ ไม่งั้นรายการชั้นจะกลายเป็นข้อความติดกันพืด */
+.wizard-card-body .panel:not(.floor-card):not(.empty-state) {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.wizard-card-body .panel:not(.floor-card):not(.empty-state) + .panel:not(.floor-card):not(.empty-state) {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+/* แถวปุ่มอยู่นอกการ์ด กว้างเท่ากรอบเนื้อหาทั้งหมด (คร่อมทั้งคอลัมน์ขั้นตอนและการ์ด)
+   ไม่มีปุ่ม "ย้อนกลับ" เหมือนต้นแบบ — ย้อนกลับด้วยการกดขั้นที่ผ่านมาแล้วในรายการซ้าย */
 .wizard-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border-strong);
 }
 
 .wizard-complete {
