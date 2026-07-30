@@ -1,29 +1,36 @@
-/* Base palette — muted / low-saturation on purpose (not garish, different from yeeraf).
-   Central variables so the whole theme can be retuned once real screenshots arrive.
+/* ธีมสี — ใช้โทนเดียวกับต้นแบบ (app.yeeraf.com) ตามที่ผู้ใช้สั่งเปลี่ยน
+   (เดิมตั้งใจใช้โทนเขียวสาบเพื่อให้ต่างจากต้นแบบ — ยกเลิกข้อนั้นแล้ว)
+   สามสีหลักที่เก็บมาจากหน้าจอจริง:
+     เหลืองแบรนด์ = แถบหัวและจุดที่ต้องสะดุดตา
+     น้ำตาลเข้ม   = ปุ่มหลักและลิงก์ (ตัดกับเหลืองได้ดี อ่านง่ายบนพื้นขาว)
+     ครีมอ่อน     = พื้นช่องกรอก ซึ่งเป็นเอกลักษณ์ของเว็บนี้ ทำให้รู้ทันทีว่าตรงไหนกรอกได้
 
-   ปรับรอบที่ 2: ของเดิมสีอ่อนใกล้กันหมดจนแยกไม่ออกว่าอะไรสำคัญกว่าอะไร
-   รอบนี้ยัง "ไม่ฉูดฉาด" เหมือนเดิม แต่เพิ่ม 3 อย่างเพื่อให้อ่านง่ายขึ้น:
-     1. เพิ่มคอนทราสต์ของตัวอักษรกับพื้น (ตัวหลักเข้มขึ้น ตัวรองยังจางแต่ไม่จนอ่านไม่ออก)
-     2. ไล่ระดับสีเน้น 3 ขั้น (weak / accent / strong) ให้ปุ่มหลักเด่นกว่าปุ่มรองชัดเจน
-     3. เพิ่มสีประจำเรื่อง — น้ำ=น้ำเงินหม่น ไฟ=เหลืองอำพันหม่น ใช้เป็นจุดสังเกต
-        แบบเดียวกับต้นแบบ โดยไม่ต้องใช้สีสดแบบเขา */
+   ตัวอักษรใช้โทนน้ำตาลอมเทาแทนเทากลาง เพื่อให้เข้าชุดกับสีแบรนด์
+   สีสถานะ (เขียว/เหลือง/แดง) และสีน้ำ-ไฟ ยังเป็นโทนหม่นเหมือนเดิม
+   จะได้ไม่ไปแย่งความสนใจกับเหลืองแบรนด์ */
 :root {
-  --bg: #f2f4f1; /* warm off-white */
+  --brand: #ffd43b; /* เหลืองแบรนด์ */
+  --brand-strong: #f5c518;
+  --brand-ink: #3d2f00; /* ตัวอักษรบนพื้นเหลือง */
+
+  --bg: #faf7f4; /* warm off-white แบบเดียวกับพื้นหลังเว็บ */
   --surface: #ffffff;
-  --sidebar: #232a28; /* deep muted slate-green */
-  --sidebar-text: #c9d1cd;
-  --sidebar-active: #3d4744;
+  --sidebar: #2b2117; /* น้ำตาลเข้มเกือบดำ ให้เข้าชุดกับปุ่มน้ำตาล */
+  --sidebar-text: #d7cabb;
+  --sidebar-active: #43342450;
 
-  --border: #dcdfda;
-  --border-strong: #c2c8c1; /* ใช้กับขอบที่ต้องเห็นชัด เช่นหัวตาราง/การ์ดที่เลือกอยู่ */
+  --border: #e6e0d9;
+  --border-strong: #cfc4b7; /* ใช้กับขอบที่ต้องเห็นชัด เช่นหัวตาราง/การ์ดที่เลือกอยู่ */
 
-  --text: #1e2422; /* เข้มขึ้นจาก #2a2e2c เพื่อคอนทราสต์กับพื้นขาว */
-  --text-soft: #4a534f; /* ระดับกลาง สำหรับเนื้อความที่ยังต้องอ่านจริง */
-  --text-muted: #6d756f; /* คำอธิบาย/หน่วย — จางได้แต่ยังผ่านเกณฑ์อ่านออก */
+  --text: #241d15;
+  --text-soft: #55493d; /* ระดับกลาง สำหรับเนื้อความที่ยังต้องอ่านจริง */
+  --text-muted: #7b6f63; /* คำอธิบาย/หน่วย — จางได้แต่ยังผ่านเกณฑ์อ่านออก */
 
-  --accent: #4c7263; /* muted sage/teal เข้มขึ้นเพื่อให้ปุ่มหลักเด่น */
-  --accent-strong: #3a5a4d; /* ตอน hover/active */
-  --accent-weak: #e4ece7;
+  --accent: #8f4213; /* น้ำตาลเข้ม = ปุ่มหลัก/ลิงก์ */
+  --accent-strong: #6f320d; /* ตอน hover/active */
+  --accent-weak: #f7ece1;
+
+  --input-bg: #fffbea; /* ครีมอ่อน — เอกลักษณ์ช่องกรอกของต้นแบบ */
 
   --ok: #3f6b4c;
   --ok-weak: #e3eee6;
@@ -39,7 +46,7 @@
   --electric-weak: #f7efdb;
 
   --radius: 8px;
-  --shadow-card: 0 1px 2px rgba(30, 36, 34, 0.05);
+  --shadow-card: 0 1px 2px rgba(43, 33, 23, 0.06);
 }
 
 * {
@@ -135,6 +142,7 @@ body {
   background: var(--sidebar-active);
   color: #fff;
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 /* Content */
@@ -355,7 +363,7 @@ body {
   padding: 9px 11px;
   font-size: 14px;
   color: var(--text);
-  background: var(--surface);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
@@ -383,6 +391,7 @@ body {
 .code-segment {
   flex: 1;
   min-width: 0;
+  background: var(--input-bg);
   padding: 10px 4px;
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 17px;
@@ -446,13 +455,24 @@ body {
   letter-spacing: 0.3px;
 }
 
+/* ขีดเหลืองใต้แบรนด์ ให้เห็นสีแบรนด์แม้ในแถบพื้นขาว */
+.brand-mark::after {
+  content: "";
+  display: block;
+  width: 34px;
+  height: 3px;
+  margin-top: 3px;
+  background: var(--brand);
+  border-radius: 2px;
+}
+
 /* แถบบอกบริบท — ต้นแบบใช้แถบสีเหลืองสด ของเราใช้โทนเดียวกับธีมแต่ไม่ฉูดฉาด */
 .hub-band {
   padding: 12px 28px;
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
-  background: var(--sidebar);
+  color: var(--brand-ink);
+  background: var(--brand);
 }
 
 .hub-tabs {
@@ -481,8 +501,9 @@ body {
 
 .hub-tab.active {
   color: var(--accent);
-  font-weight: 600;
-  border-bottom-color: var(--accent);
+  font-weight: 700;
+  border-bottom-color: var(--brand);
+  border-bottom-width: 3px;
 }
 
 .hub-content {
@@ -604,7 +625,7 @@ body {
   padding: 9px 11px;
   font-size: 14px;
   color: var(--text);
-  background: var(--surface);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   resize: vertical;
@@ -1201,9 +1222,9 @@ body {
 }
 
 .wizard-step.current .wizard-step-number {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
+  color: var(--brand-ink);
+  background: var(--brand);
+  border-color: var(--brand-strong);
 }
 
 .wizard-step.done {
