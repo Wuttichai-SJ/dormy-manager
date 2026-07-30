@@ -14,7 +14,8 @@
     "test:auth": "node scripts/auth-smoke.mjs",
     "test:apartments": "node scripts/apartments-smoke.mjs",
     "test:services": "node scripts/services-smoke.mjs",
-    "test": "npm run test:auth && npm run test:apartments && npm run test:services",
+    "test:utility": "node scripts/utility-smoke.mjs",
+    "test": "npm run test:auth && npm run test:apartments && npm run test:services && npm run test:utility",
     "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {

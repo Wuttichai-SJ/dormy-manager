@@ -9,3 +9,13 @@
 
 // ต้องตรงกับ MAX_DUE_DATE_DAY ใน src/main/db/apartments.js
 export const MAX_DUE_DATE_DAY = 28
+
+// ต้องตรงกับ BILLING_TYPES / BILLING_TYPE_LABELS ใน src/main/db/utilityDefaults.js
+// และกับค่าที่ 001_init.sql ระบุไว้สำหรับ room_utility_settings.water_billing_type
+export const BILLING_TYPES = ['actual', 'minimum', 'flat']
+
+export const BILLING_TYPE_LABELS = {
+  actual: 'ตามมิเตอร์ที่ใช้จริง',
+  minimum: 'ตามมิเตอร์แบบมีขั้นต่ำ',
+  flat: 'เหมาจ่ายรายเดือน'
+}

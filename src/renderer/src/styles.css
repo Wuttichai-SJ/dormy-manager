@@ -780,6 +780,33 @@ body {
   }
 }
 
+/* ค่าน้ำ / ค่าไฟ วางคู่กัน ตั้งค่าแยกอิสระ */
+.utility-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 860px) {
+  .utility-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.utility-card .panel-title {
+  margin-bottom: 12px;
+}
+
+.utility-toggle {
+  margin-bottom: 16px;
+}
+
+.utility-footnote {
+  margin-top: 16px;
+  line-height: 1.7;
+}
+
 /* ตารางข้อมูล */
 .data-table {
   width: 100%;
