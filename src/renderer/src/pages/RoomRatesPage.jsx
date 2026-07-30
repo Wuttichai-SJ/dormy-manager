@@ -20,7 +20,11 @@ import { listServices } from '../services/apartmentServiceService.js'
 export default function RoomRatesPage({ apartment, only }) {
   const [floors, setFloors] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
-  const [mode, setMode] = useState(only ?? 'rate') // rate | status | services
+  // แท็บใช้เฉพาะตอนเปิดหน้านี้เดี่ยวๆ จากเมนูตั้งค่า ส่วนใน wizard โหมดมาจาก prop `only`
+  // ห้ามเอา `only` ไปตั้งเป็นค่าเริ่มต้นของ useState เด็ดขาด — ค่าเริ่มต้นถูกอ่านครั้งเดียว
+  // ตอน mount แรก พอ wizard เปลี่ยนขั้นแล้วส่ง only ใหม่มา state จะยังค้างค่าเก่า
+  const [tab, setTab] = useState('rate') // rate | status | services
+  const mode = only ?? tab
   const [error, setError] = useState('')
   const [monthlyRent, setMonthlyRent] = useState('')
   const [dailyRent, setDailyRent] = useState('')
@@ -96,21 +100,21 @@ export default function RoomRatesPage({ apartment, only }) {
           <button
             type="button"
             className={'mode-tab' + (mode === 'rate' ? ' active' : '')}
-            onClick={() => setMode('rate')}
+            onClick={() => setTab('rate')}
           >
             ตั้งค่าห้อง
           </button>
           <button
             type="button"
             className={'mode-tab' + (mode === 'status' ? ' active' : '')}
-            onClick={() => setMode('status')}
+            onClick={() => setTab('status')}
           >
             ตั้งสถานะห้อง
           </button>
           <button
             type="button"
             className={'mode-tab' + (mode === 'services' ? ' active' : '')}
-            onClick={() => setMode('services')}
+            onClick={() => setTab('services')}
           >
             ค่าบริการรายห้อง
           </button>

@@ -20,7 +20,10 @@ export function ensureElectronRuntime(metaUrl) {
   if (process.versions.electron) return
 
   const electronBin = path.join(projectRoot, 'node_modules', 'electron', 'dist', 'electron.exe')
-  const child = spawnSync(fs.existsSync(electronBin) ? electronBin : 'electron', [fileURLToPath(metaUrl)], {
+  // ต้องส่ง argv ต่อให้รอบที่รันจริงด้วย ไม่งั้นสคริปต์ที่รับตัวเลือกบรรทัดคำสั่ง
+  // (เช่น inspect-apartment.mjs --delete-id 3) จะเห็น argv ว่าง แล้วทำงานเงียบๆ ไม่ครบ
+  const args = [fileURLToPath(metaUrl), ...process.argv.slice(2)]
+  const child = spawnSync(fs.existsSync(electronBin) ? electronBin : 'electron', args, {
     stdio: 'inherit',
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
   })

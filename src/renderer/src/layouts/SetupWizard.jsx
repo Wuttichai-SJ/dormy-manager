@@ -180,8 +180,12 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
               )}
             </div>
 
+            {/* key = ขั้นที่กำลังอยู่ บังคับให้ React สร้างหน้าใหม่ทุกครั้งที่เปลี่ยนขั้น
+                ขั้น 6/7/8 ใช้คอมโพเนนต์ตัวเดียวกัน (RoomRatesPage) ถ้าไม่มี key React จะ
+                มองว่าเป็นตัวเดิมแล้วแค่ส่ง prop ใหม่ — state ที่ตั้งต้นจาก prop จะไม่อัปเดต
+                กลายเป็นกดไปขั้นอื่นแล้วยังเห็นหน้าเดิม */}
             <div className="wizard-card-body">
-              <StepContent stepKey={step.key} apartment={apartment} />
+              <StepContent key={step.key} stepKey={step.key} apartment={apartment} />
             </div>
           </section>
         </div>

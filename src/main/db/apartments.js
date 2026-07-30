@@ -167,6 +167,12 @@ export function deleteApartment(db, apartmentId) {
 
   const run = db.transaction(() => {
     // ตารางลูกที่ไม่มีห้องมาเกี่ยวข้อง ลบพร้อมกันได้ในธุรกรรมเดียว
+    //
+    // ทุกตารางที่มี apartment_id ต้องอยู่ในรายการนี้ครบ ถ้าตกไปตารางเดียว FK จะบล็อก
+    // การลบแล้วโยนข้อความดิบของ SQLite ("FOREIGN KEY constraint failed") ออกไปที่หน้าจอ
+    // ซึ่งเจ้าของหออ่านไม่รู้เรื่องและดูเหมือนปุ่มลบเสีย — เคยหลุด apartment_utility_defaults
+    // มาแล้วครั้งหนึ่ง เพิ่มตารางใหม่ที่ผูกกับหอเมื่อไหร่ ต้องกลับมาเพิ่มที่นี่ด้วย
+    db.prepare('DELETE FROM apartment_utility_defaults WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM apartment_services WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM apartment_bank_accounts WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM users_apartments WHERE apartment_id = ?').run(apartmentId)

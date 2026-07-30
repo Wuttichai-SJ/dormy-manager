@@ -217,6 +217,42 @@ check('ลบหอที่ไม่มีอยู่ต้องแจ้ง�
   throws(() => apartments.deleteApartment(db, 9999), 'ไม่พบหอพัก', 'ควรแจ้งว่าไม่พบ')
 })
 
+// เคยพลาดมาแล้ว: deleteApartment ลืม apartment_utility_defaults ทำให้หอที่เดินตัวช่วย
+// ตั้งค่าไปถึงขั้น "ค่าน้ำ/ค่าไฟ" ลบไม่ออก และเด้ง "FOREIGN KEY constraint failed"
+// ออกหน้าจอ เทสต์นี้จึงสร้างหอที่มี "ลูก" ครบทุกตารางที่ผูก apartment_id แล้วสั่งลบ
+check('ลบหอที่ตั้งค่าน้ำ/ค่าไฟ ค่าบริการ และบัญชีไว้แล้วได้ (ไม่ติด FK)', () => {
+  const created = apartments.insertApartment(db, {
+    nameTh: 'หอพักทดสอบ ลบพร้อมลูก',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0'
+  })
+  const id = created.apartmentId
+  const now = new Date().toISOString()
+
+  db.prepare(
+    `INSERT INTO apartment_utility_defaults
+       (apartment_id, is_water_enabled, water_billing_type, water_unit_price_cents,
+        is_electric_enabled, electric_billing_type, electric_unit_price_cents, created_at)
+     VALUES (?, 1, 'actual', 1800, 1, 'actual', 800, ?)`
+  ).run(id, now)
+  db.prepare(
+    'INSERT INTO apartment_services (apartment_id, name, price_cents, created_at) VALUES (?, ?, ?, ?)'
+  ).run(id, 'ค่าอินเทอร์เน็ต', 30000, now)
+  db.prepare(
+    `INSERT INTO apartment_bank_accounts (apartment_id, bank_name, account_name, account_number, is_default, created_at)
+     VALUES (?, ?, ?, ?, 1, ?)`
+  ).run(id, 'กสิกรไทย (Kasikorn)', 'ทดสอบ', '1234567890', now)
+
+  apartments.deleteApartment(db, id)
+
+  assert(apartments.getApartmentById(db, id) === null, 'หอต้องถูกลบจริง')
+  const leftovers = ['apartment_utility_defaults', 'apartment_services', 'apartment_bank_accounts']
+    .map((t) => `${t}:${db.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE apartment_id = ?`).get(id).n}`)
+    .filter((s) => !s.endsWith(':0'))
+  assert(leftovers.length === 0, `ยังเหลือข้อมูลค้าง ${leftovers.join(', ')}`)
+})
+
 // -----------------------------------------------------
 group('นับห้องว่าง')
 
