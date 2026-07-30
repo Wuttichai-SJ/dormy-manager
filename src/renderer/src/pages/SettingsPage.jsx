@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import ApartmentServicesPage from './ApartmentServicesPage.jsx'
 import UtilitySettingsPage from './UtilitySettingsPage.jsx'
+import BankAccountsPage from './BankAccountsPage.jsx'
 import SecuritySettingsPage from './SecuritySettingsPage.jsx'
 
 // หน้าตั้งค่าของหอพัก — รวมทุกอย่างที่ต้องตั้งก่อนเริ่มใช้งานจริงไว้ที่เดียว
@@ -11,7 +12,7 @@ import SecuritySettingsPage from './SecuritySettingsPage.jsx'
 const SECTIONS = [
   { key: 'services', label: 'ค่าบริการ', ready: true },
   { key: 'meters', label: 'การคิดค่าน้ำ / ค่าไฟ', ready: true },
-  { key: 'banks', label: 'บัญชีธนาคาร', ready: false },
+  { key: 'banks', label: 'บัญชีธนาคาร', ready: true },
   { key: 'floors', label: 'จัดการชั้นและห้องพัก', ready: false },
   { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false },
   { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true }
@@ -45,6 +46,7 @@ export default function SettingsPage({ apartment, user }) {
       <div className="settings-content">
         {section === 'services' && <ApartmentServicesPage apartment={apartment} />}
         {section === 'meters' && <UtilitySettingsPage apartment={apartment} />}
+        {section === 'banks' && <BankAccountsPage apartment={apartment} />}
         {section === 'security' && <SecuritySettingsPage user={user} />}
       </div>
     </div>

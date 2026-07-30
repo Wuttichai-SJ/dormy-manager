@@ -19,3 +19,28 @@ export const BILLING_TYPE_LABELS = {
   minimum: 'ตามมิเตอร์แบบมีขั้นต่ำ',
   flat: 'เหมาจ่ายรายเดือน'
 }
+
+// ต้องตรงกับ BANKS ใน src/main/db/bankAccounts.js (main เป็นฝ่ายตรวจว่าค่าที่ส่งมาถูกต้อง)
+export const BANKS = [
+  'กรุงเทพ (Bangkok Bank)',
+  'กสิกรไทย (Kasikorn)',
+  'กรุงไทย (Krungthai)',
+  'ไทยพาณิชย์ (SCB)',
+  'กรุงศรีอยุธยา (Krungsri)',
+  'เกียรตินาคิน',
+  'ซีไอเอ็มบีไทย',
+  'ทิสโก้',
+  'ยูโอบี',
+  'สแตนดาร์ดชาร์เตอร์ด',
+  'ไทยเครดิตเพื่อรายย่อย',
+  'แลนด์ แอนด์ เฮาส์',
+  'ไอซีบีซี',
+  'ออมสิน',
+  'พร้อมเพย์',
+  'ทีเอ็มบีธนชาต (TTB)',
+  'อิสลามแห่งประเทศไทย (ibank)',
+  'ธกส (BAAC)'
+]
+
+// ต้องตรงกับ RECOMMENDED_MAX_ACCOUNTS ใน src/main/db/bankAccounts.js
+export const RECOMMENDED_MAX_ACCOUNTS = 2

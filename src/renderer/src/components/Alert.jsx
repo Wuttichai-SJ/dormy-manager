@@ -8,7 +8,8 @@ export default function Alert({ kind = 'error', children }) {
   if (!children) return null
 
   const lines = typeof children === 'string' ? children.split('\n').filter(Boolean) : null
-  const icon = kind === 'error' ? 'warning' : 'check'
+  // เฉพาะ success เท่านั้นที่ใช้เครื่องหมายถูก — คำเตือนต้องไม่ดูเหมือนว่าทุกอย่างเรียบร้อย
+  const icon = kind === 'success' ? 'check' : 'warning'
 
   return (
     <div className={`alert alert-${kind}`} role={kind === 'error' ? 'alert' : 'status'}>
