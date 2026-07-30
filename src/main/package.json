@@ -1,0 +1,7 @@
+{
+  "//": "ประกาศให้ไฟล์ .js ทุกไฟล์ใต้ src/main เป็น ES module สำหรับ Node/Electron ตอนรันตรงๆ",
+  "//2": "แอปจริงใช้ไฟล์ที่ vite bundle ไว้แล้ว (out/main) ไม่ได้อ่านจากที่นี่ — ไฟล์นี้มีเพื่อให้",
+  "//3": "ชุดทดสอบใน test/ `import` โมดูลเหล่านี้ได้ตรงๆ โดยไม่ต้อง build ก่อน",
+  "//4": "(root package.json ไม่มี type: module จึงถือว่า .js เป็น CommonJS ซึ่ง import จะพัง)",
+  "type": "module"
+}

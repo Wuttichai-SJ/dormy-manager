@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'path'
-import { getDatabase } from './database'
-import { logInfo, logError, getLogPath } from './logger'
+import { getDatabase } from './database.js'
+import { logInfo, logError, getLogPath } from './logger.js'
+import { registerAuthHandlers } from './handlers/authHandlers.js'
 
 // ตาข่ายชั้นสุดท้าย: อะไรที่หลุดจาก try/catch ทั้งหมดต้องถูกบันทึกไว้ ไม่ใช่หายเงียบ
 process.on('uncaughtException', (err) => logError('uncaughtException', err))
@@ -90,6 +91,11 @@ app.whenReady().then(() => {
 
   // Skeleton IPC handler — proves the main<->renderer bridge works.
   ipcMain.handle('app:ping', () => ({ success: true, data: 'pong' }))
+
+  // ต้องลงทะเบียนให้ครบ "ก่อน" สร้างหน้าต่าง ไม่งั้นหน้าจอที่โหลดเร็วกว่าจะยิง
+  // auth:status ไปหาช่องที่ยังไม่มีใครรับ แล้วได้ error "No handler registered"
+  registerAuthHandlers()
+  logInfo('ลงทะเบียน IPC ของระบบเข้าสู่ระบบแล้ว')
 
   createWindow()
 
