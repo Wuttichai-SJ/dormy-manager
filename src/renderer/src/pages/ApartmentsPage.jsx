@@ -10,7 +10,7 @@ import { deleteApartment, listApartments } from '../services/apartmentService.js
 // ตัวเลข "บิลค้างชำระ" ของต้นแบบยังไม่ใส่ เพราะตาราง invoices ยังไม่มีข้อมูล (Phase 3)
 // จงใจไม่โชว์ 0 ไปก่อน — เลข 0 ที่ไม่ได้มาจากการนับจริงทำให้เจ้าของหอเข้าใจผิดว่า
 // "ไม่มีใครค้างเลย" ทั้งที่ระบบยังไม่ได้เริ่มออกบิล
-export default function ApartmentsPage({ onOpen }) {
+export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
   const [apartments, setApartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -46,9 +46,12 @@ export default function ApartmentsPage({ onOpen }) {
         <ApartmentFormPage
           apartmentId={view.apartmentId}
           onCancel={() => setView({ mode: 'list' })}
-          onDone={() => {
+          onDone={(apartment) => {
             setView({ mode: 'list' })
-            load()
+            // สร้างหอใหม่ = พาเข้าตัวช่วยตั้งค่าทันที (ตามต้นแบบ) ไม่ใช่ทิ้งไว้ที่รายการหอ
+            // แล้วให้เจ้าของเดาเองว่าต้องไปตั้งอะไรต่อที่ไหน
+            if (view.mode === 'create') onCreated?.(apartment)
+            else load()
           }}
         />
       </>
@@ -85,6 +88,7 @@ export default function ApartmentsPage({ onOpen }) {
               key={a.apartmentId}
               apartment={a}
               onOpen={() => onOpen(a)}
+              onSetup={() => onSetup?.(a)}
               onEdit={() => setView({ mode: 'edit', apartmentId: a.apartmentId })}
               onDelete={() => remove(a)}
             />
@@ -95,10 +99,17 @@ export default function ApartmentsPage({ onOpen }) {
   )
 }
 
-function ApartmentCard({ apartment, onOpen, onEdit, onDelete }) {
+function ApartmentCard({ apartment, onOpen, onSetup, onEdit, onDelete }) {
+  // หอที่ยังไม่มีห้องเลย = ยังตั้งค่าไม่เสร็จ ต้องเห็นทางกลับเข้าตัวช่วยตั้งค่า
+  // ไม่ใช่ปล่อยให้กด "จัดการ" เข้าไปเจอหน้าเปล่าๆ แล้วงงว่าต้องทำอะไรต่อ
+  const needsSetup = apartment.totalRooms === 0
+
   return (
-    <article className="apartment-card">
-      <header>{apartment.nameTh}</header>
+    <article className={'apartment-card' + (needsSetup ? ' needs-setup' : '')}>
+      <header>
+        {apartment.nameTh}
+        {needsSetup && <span className="tag tag-warn">ยังตั้งค่าไม่เสร็จ</span>}
+      </header>
 
       <div className="apartment-card-body">
         <span className="apartment-card-icon">
@@ -115,9 +126,15 @@ function ApartmentCard({ apartment, onOpen, onEdit, onDelete }) {
         <div className="apartment-card-actions">
           {/* ทางเข้าหลักของการ์ด — กดแล้วเข้าไปทำงานในบริบทของหอนี้ (มีเมนูข้าง)
               ส่วน "แก้ไข" คือแก้ข้อมูลหอเอง ซึ่งเป็นคนละเรื่องกัน */}
-          <button type="button" className="btn btn-sm" onClick={onOpen}>
-            จัดการ
-          </button>
+          {needsSetup ? (
+            <button type="button" className="btn btn-sm" onClick={onSetup}>
+              ตั้งค่าต่อ
+            </button>
+          ) : (
+            <button type="button" className="btn btn-sm" onClick={onOpen}>
+              จัดการ
+            </button>
+          )}
           <button type="button" className="link-btn" onClick={onEdit}>
             แก้ไข
           </button>

@@ -990,6 +990,162 @@ body {
   margin-bottom: 0;
 }
 
+/* ตัวช่วยตั้งค่าหอพัก (wizard) */
+.wizard {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.wizard-body {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.wizard-title {
+  margin: 0 0 24px;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.wizard-layout {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .wizard-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wizard-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.wizard-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.wizard-step.current {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.wizard-step.current .wizard-step-number {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.wizard-step.done {
+  color: var(--text);
+}
+
+.wizard-step.done .wizard-step-number {
+  color: var(--ok);
+  background: var(--accent-weak);
+  border-color: var(--ok);
+}
+
+/* ขั้นที่ยังไปไม่ถึง กดไม่ได้ — ต้นแบบก็เด้งกลับถ้าพยายามข้าม */
+.wizard-step.future {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.wizard-complete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+}
+
+.wizard-complete-card {
+  text-align: center;
+  padding: 40px 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.wizard-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  color: #fff;
+  background: var(--ok);
+  border-radius: 50%;
+}
+
+.wizard-check svg {
+  width: 30px;
+  height: 30px;
+}
+
+.wizard-complete-card h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.wizard-complete-card .muted {
+  margin-bottom: 20px;
+}
+
+/* การ์ดหอที่ยังตั้งค่าไม่เสร็จ */
+.apartment-card.needs-setup header {
+  background: #f6efdf;
+}
+
+.tag-warn {
+  color: #7a6234;
+  background: #f6efdf;
+}
+
 /* แท็บสลับโหมดภายในหน้า */
 .mode-tabs {
   display: flex;

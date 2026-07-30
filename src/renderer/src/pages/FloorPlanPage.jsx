@@ -17,7 +17,11 @@ import {
 // หอที่ยังไม่มีชั้นเลยจะเห็น "ตัวสร้างผังห้อง" (เลือกจำนวนชั้น แล้วกรอกจำนวนห้องต่อชั้น)
 // ระบบสร้างเลขห้องให้อัตโนมัติ 101/102/201/202 — เจ้าของหอ 40 ห้องไม่ต้องพิมพ์ทีละห้อง
 // พอมีผังแล้วหน้าจะเปลี่ยนเป็นโหมดแก้ไข เพิ่ม/ลบ/แก้รายห้องได้
-export default function FloorPlanPage({ apartment }) {
+// stage: ใช้ตอนอยู่ใน wizard ที่แยกขั้น "จัดการชั้น" กับ "ผังห้อง" ออกจากกันตามต้นแบบ
+//   builder = ขั้นกำหนดจำนวนชั้น/ห้อง (ถ้าสร้างไปแล้วแสดงสรุปแทน)
+//   editor  = ขั้นแก้ผังห้องที่ได้มา
+//   ไม่ระบุ = แสดงตามสถานะจริง (ใช้ในหน้าตั้งค่าปกติ)
+export default function FloorPlanPage({ apartment, stage }) {
   const [floors, setFloors] = useState(null)
   const [error, setError] = useState('')
 
@@ -58,6 +62,17 @@ export default function FloorPlanPage({ apartment }) {
         <FloorPlanBuilder
           onGenerate={(specs) => act(() => generateFloorPlan(apartment.apartmentId, specs))}
         />
+      ) : stage === 'builder' ? (
+        // ขั้น "จัดการชั้น" ที่สร้างผังไปแล้ว — สรุปให้ดูแล้วให้กดต่อไป
+        // ไม่แสดงตัวสร้างซ้ำ เพราะสร้างได้ครั้งเดียว (ฝั่ง main กันไว้)
+        <section className="panel">
+          <p className="muted">
+            สร้างผังห้องแล้ว — {floors.length} ชั้น{' '}
+            {floors.reduce((sum, f) => sum + f.rooms.length, 0)} ห้อง
+            <br />
+            กด "ต่อไป" เพื่อตรวจและแก้ไขผังห้องรายห้อง
+          </p>
+        </section>
       ) : (
         <FloorPlanEditor
           floors={floors}

@@ -5,6 +5,7 @@ import RegisterPage from './pages/RegisterPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import HubPage from './layouts/HubPage.jsx'
 import WorkspaceShell from './layouts/WorkspaceShell.jsx'
+import SetupWizard from './layouts/SetupWizard.jsx'
 import { getAuthStatus, logout } from './services/authService.js'
 
 // ด่านหน้าของทั้งแอป: ตัดสินจาก auth:status ว่าจะแสดงหน้าลงทะเบียน / หน้าเข้าสู่ระบบ
@@ -20,6 +21,9 @@ export default function App() {
   // หอที่กำลังทำงานอยู่ เก็บไว้ในหน่วยความจำของหน้าจอเท่านั้น ไม่ได้จำข้ามการเปิดแอป
   // ตั้งใจให้เลือกใหม่ทุกครั้ง จะได้ไม่เผลอแก้ข้อมูลผิดหอเพราะระบบจำหอเดิมไว้ให้
   const [apartment, setApartment] = useState(null)
+  // หอที่กำลังเดินตัวช่วยตั้งค่าอยู่ — คนละตัวกับ apartment ข้างบน เพราะยังไม่ได้
+  // เข้าไปทำงานในหอนั้น แค่กำลังตั้งค่าให้เสร็จก่อน
+  const [setupApartment, setSetupApartment] = useState(null)
 
   const loadStatus = useCallback(async () => {
     setStatus({ phase: 'loading' })
@@ -50,6 +54,7 @@ export default function App() {
     // ต้องล้างหอที่เลือกไว้ด้วย ไม่งั้นคนถัดไปที่เข้าสู่ระบบบนเครื่องเดียวกัน
     // จะเด้งเข้าไปในหอที่คนก่อนหน้าเปิดค้างไว้ทันที
     setApartment(null)
+    setSetupApartment(null)
     // อ่านสถานะใหม่จาก main แทนการเดาเอง จะได้ได้ lastIdentifier ล่าสุดมาเติมช่องให้ด้วย
     loadStatus()
   }
@@ -108,6 +113,20 @@ export default function App() {
     )
   }
 
+  // เพิ่งสร้างหอใหม่ (หรือกด "ตั้งค่าต่อ") — เดินตัวช่วยตั้งค่าให้จบก่อน
+  if (setupApartment) {
+    return (
+      <SetupWizard
+        apartment={setupApartment}
+        onFinish={(a) => {
+          setSetupApartment(null)
+          setApartment(a)
+        }}
+        onExit={() => setSetupApartment(null)}
+      />
+    )
+  }
+
   // เลือกหอแล้วหรือยัง คือสิ่งที่แยกว่าจะเห็นหน้ารวมหรือหน้าทำงานที่มีเมนูข้าง
   if (!apartment) {
     return (
@@ -115,6 +134,7 @@ export default function App() {
         user={status.user}
         onLogout={handleLogout}
         onOpenApartment={setApartment}
+        onSetupApartment={setSetupApartment}
       />
     )
   }

@@ -16,10 +16,11 @@ import { listServices } from '../services/apartmentServiceService.js'
 // สองเรื่องนี้อยู่หน้าเดียวกันเพราะใช้วิธีเดียวกันเป๊ะ: ติ๊กเลือกห้อง แล้วสั่งทีเดียว
 // หอ 40 ห้องส่วนใหญ่ราคาเท่ากันหมด ถ้าให้กรอกทีละห้องคือพิมพ์เลขเดิม 40 รอบ
 // (ต้นแบบแยกเป็นสองขั้น แต่หน้าจอเหมือนกันจนไม่มีเหตุผลให้เขียนซ้ำสองไฟล์)
-export default function RoomRatesPage({ apartment }) {
+// only: ล็อกไว้โหมดเดียวและซ่อนแท็บ ใช้ตอนอยู่ใน wizard ที่แยกเป็นคนละขั้นตามต้นแบบ
+export default function RoomRatesPage({ apartment, only }) {
   const [floors, setFloors] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
-  const [mode, setMode] = useState('rate') // rate | status | services
+  const [mode, setMode] = useState(only ?? 'rate') // rate | status | services
   const [error, setError] = useState('')
   const [monthlyRent, setMonthlyRent] = useState('')
   const [dailyRent, setDailyRent] = useState('')
@@ -90,29 +91,31 @@ export default function RoomRatesPage({ apartment }) {
 
       <Alert>{error}</Alert>
 
-      <nav className="mode-tabs">
-        <button
-          type="button"
-          className={'mode-tab' + (mode === 'rate' ? ' active' : '')}
-          onClick={() => setMode('rate')}
-        >
-          ตั้งค่าห้อง
-        </button>
-        <button
-          type="button"
-          className={'mode-tab' + (mode === 'status' ? ' active' : '')}
-          onClick={() => setMode('status')}
-        >
-          ตั้งสถานะห้อง
-        </button>
-        <button
-          type="button"
-          className={'mode-tab' + (mode === 'services' ? ' active' : '')}
-          onClick={() => setMode('services')}
-        >
-          ค่าบริการรายห้อง
-        </button>
-      </nav>
+      {!only && (
+        <nav className="mode-tabs">
+          <button
+            type="button"
+            className={'mode-tab' + (mode === 'rate' ? ' active' : '')}
+            onClick={() => setMode('rate')}
+          >
+            ตั้งค่าห้อง
+          </button>
+          <button
+            type="button"
+            className={'mode-tab' + (mode === 'status' ? ' active' : '')}
+            onClick={() => setMode('status')}
+          >
+            ตั้งสถานะห้อง
+          </button>
+          <button
+            type="button"
+            className={'mode-tab' + (mode === 'services' ? ' active' : '')}
+            onClick={() => setMode('services')}
+          >
+            ค่าบริการรายห้อง
+          </button>
+        </nav>
+      )}
 
       {floors.map((floor) => {
         const allSelected = floor.rooms.length > 0 && floor.rooms.every((r) => selected.has(r.roomId))

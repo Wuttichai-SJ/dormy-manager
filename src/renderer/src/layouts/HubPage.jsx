@@ -8,7 +8,7 @@ import ApartmentsPage from '../pages/ApartmentsPage.jsx'
 // เหตุผลที่แยกสองระดับแทนที่จะยัดทุกอย่างไว้ในเมนูเดียว: เจ้าของหอมีหลายหอ และเกือบทุก
 // หน้าจอในระบบ (ห้อง สัญญา บิล มิเตอร์) ล้วนต้องรู้ว่า "ของหอไหน" ถ้าไม่บังคับเลือกก่อน
 // ทุกหน้าจะต้องมี dropdown เลือกหอของตัวเอง แล้วมีโอกาสที่คนกดผิดหอโดยไม่รู้ตัว
-export default function HubPage({ user, onLogout, onOpenApartment }) {
+export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartment }) {
   const [tab, setTab] = useState('apartments')
 
   return (
@@ -46,7 +46,11 @@ export default function HubPage({ user, onLogout, onOpenApartment }) {
 
       <main className="hub-content">
         {tab === 'apartments' ? (
-          <ApartmentsPage onOpen={onOpenApartment} />
+          <ApartmentsPage
+            onOpen={onOpenApartment}
+            onCreated={onSetupApartment}
+            onSetup={onSetupApartment}
+          />
         ) : (
           <section className="panel empty-state">
             <Icon name="tenants" />
