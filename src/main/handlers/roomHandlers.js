@@ -4,9 +4,11 @@ import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import {
   addFloor,
+  attachServicesToRooms,
   addRoom,
   deleteFloor,
   deleteRoom,
+  detachServicesFromRooms,
   generateFloorPlan,
   listFloors,
   renameFloor,
@@ -75,6 +77,18 @@ export function registerRoomHandlers() {
 
     const result = setRoomRates(getDatabase(), roomIds, { monthlyRent, dailyRent })
     logInfo(`ตั้งค่าห้อง ${roomIds.length} ห้อง`)
+    return result
+  })
+
+  handle('room:attachServices', ({ roomIds, serviceIds }) => {
+    const result = attachServicesToRooms(getDatabase(), roomIds, serviceIds)
+    logInfo(`ผูกค่าบริการ ${serviceIds.length} รายการเข้ากับ ${roomIds.length} ห้อง`)
+    return result
+  })
+
+  handle('room:detachServices', ({ roomIds, serviceIds }) => {
+    const result = detachServicesFromRooms(getDatabase(), roomIds, serviceIds)
+    logInfo(`นำค่าบริการ ${serviceIds.length} รายการออกจาก ${roomIds.length} ห้อง`)
     return result
   })
 

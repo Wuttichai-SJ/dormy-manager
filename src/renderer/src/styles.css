@@ -1089,6 +1089,17 @@ body {
   margin-left: auto;
 }
 
+/* รายการค่าบริการให้ติ๊กเลือกในแถบล่าง — ยาวได้ก็ให้เลื่อนในกล่องตัวเอง
+   ไม่ใช่ดันแถบล่างสูงจนบังห้อง */
+.service-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-height: 76px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
 .bulk-fields .input-with-suffix input {
   width: 170px;
   padding: 8px 11px;

@@ -405,5 +405,96 @@ check('ห้องที่ไม่มีสัญญายังตั้ง�
 })
 
 // -----------------------------------------------------
+group('ค่าบริการรายห้อง')
+
+const svc = await import('../src/main/db/apartmentServices.js')
+
+const internet = svc.insertService(db, bulkApartment.apartmentId, {
+  name: 'ค่าอินเทอร์เน็ต',
+  price: '300',
+  isMeterBased: false,
+  isVatEnabled: false
+})
+const parking = svc.insertService(db, bulkApartment.apartmentId, {
+  name: 'ค่าที่จอดรถ',
+  price: '500',
+  isMeterBased: false,
+  isVatEnabled: false
+})
+
+check('ผูกค่าบริการเข้าหลายห้องพร้อมกันได้', () => {
+  const result = rooms.attachServicesToRooms(db, floor1Ids, [internet.serviceId])
+  assert(
+    result[0].rooms.every((r) => r.services.some((s) => s.serviceId === internet.serviceId)),
+    'ยังมีห้องที่ไม่ได้รับค่าบริการ'
+  )
+  // ห้องชั้นอื่นที่ไม่ได้เลือกต้องไม่ถูกแตะ
+  assert(
+    result[1].rooms.every((r) => r.services.length === 0),
+    'ห้องที่ไม่ได้เลือกถูกผูกไปด้วย'
+  )
+})
+
+check('ผูกซ้ำห้องเดิมไม่พัง (ข้ามไปเงียบๆ)', () => {
+  // เลือกทั้งชั้นแล้วบางห้องมีอยู่แล้วเป็นเรื่องปกติ ไม่ใช่ข้อผิดพลาด
+  const result = rooms.attachServicesToRooms(db, floor1Ids, [
+    internet.serviceId,
+    parking.serviceId
+  ])
+  const first = result[0].rooms[0]
+  assert(first.services.length === 2, `ได้ ${first.services.length} รายการ`)
+})
+
+check('ค่าบริการที่ผูกมาพร้อมชื่อและราคาให้หน้าจอใช้ได้เลย', () => {
+  const room = rooms.listFloors(db, bulkApartment.apartmentId)[0].rooms[0]
+  const found = room.services.find((s) => s.serviceId === parking.serviceId)
+  assert(found.name === 'ค่าที่จอดรถ', found.name)
+  assert(found.priceCents === 50000, `ได้ ${found.priceCents}`)
+})
+
+check('นำค่าบริการออกจากห้องได้', () => {
+  const result = rooms.detachServicesFromRooms(db, floor1Ids, [parking.serviceId])
+  assert(
+    result[0].rooms.every((r) => !r.services.some((s) => s.serviceId === parking.serviceId)),
+    'ยังมีห้องที่ค่าบริการไม่ถูกนำออก'
+  )
+  // ตัวที่ไม่ได้สั่งนำออกต้องยังอยู่
+  assert(
+    result[0].rooms.every((r) => r.services.some((s) => s.serviceId === internet.serviceId)),
+    'ค่าบริการอื่นถูกนำออกไปด้วย'
+  )
+})
+
+check('ค่าบริการของหออื่นผูกเข้าไม่ได้', () => {
+  const foreign = svc.insertService(db, id, {
+    name: 'ค่าบริการหออื่น',
+    price: '100',
+    isMeterBased: false,
+    isVatEnabled: false
+  })
+  throws(
+    () => rooms.attachServicesToRooms(db, floor1Ids, [foreign.serviceId]),
+    'ไม่ได้อยู่ในหอพักนี้',
+    'ควรกันค่าบริการข้ามหอ'
+  )
+})
+
+check('ไม่เลือกค่าบริการเลยต้องแจ้งเตือน', () => {
+  throws(
+    () => rooms.attachServicesToRooms(db, floor1Ids, []),
+    'เลือกค่าบริการอย่างน้อย',
+    'ควรบังคับให้เลือก'
+  )
+})
+
+check('ลบค่าบริการที่ผูกกับห้องอยู่ไม่ได้ (กันจากฝั่งค่าบริการ)', () => {
+  throws(
+    () => svc.deleteService(db, internet.serviceId),
+    'ผูกกับห้องพักอยู่',
+    'ควรกันการลบค่าบริการที่ห้องใช้อยู่'
+  )
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลผังห้องทำงานครบทุกเส้นทาง')

@@ -45,3 +45,11 @@ export function setRoomRates(roomIds, { monthlyRent, dailyRent }) {
 export function setRoomStatus(roomIds, status) {
   return invoke('room:setStatus', { roomIds, status })
 }
+
+export function attachServices(roomIds, serviceIds) {
+  return invoke('room:attachServices', { roomIds, serviceIds })
+}
+
+export function detachServices(roomIds, serviceIds) {
+  return invoke('room:detachServices', { roomIds, serviceIds })
+}

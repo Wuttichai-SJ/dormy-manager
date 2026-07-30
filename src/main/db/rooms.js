@@ -126,11 +126,38 @@ export function listFloors(db, apartmentId) {
     )
     .all(apartmentId)
 
+  // ดึงค่าบริการที่ผูกกับห้องมาในคำสั่งเดียว แล้วค่อยจับกลุ่มใน JS
+  // ดีกว่ายิง query แยกทีละห้อง ซึ่งหอ 40 ห้องจะกลายเป็น 40 คำสั่ง
+  const links = db
+    .prepare(
+      `SELECT rs.room_id, s.service_id, s.name, s.price_cents, s.is_meter_based
+         FROM room_services rs
+         JOIN apartment_services s ON s.service_id = rs.apartment_service_id
+         JOIN rooms r ON r.room_id = rs.room_id
+         JOIN floors f ON f.floor_id = r.floor_id
+        WHERE f.apartment_id = ?
+        ORDER BY s.name COLLATE NOCASE ASC`
+    )
+    .all(apartmentId)
+
+  const servicesByRoom = new Map()
+  for (const link of links) {
+    if (!servicesByRoom.has(link.room_id)) servicesByRoom.set(link.room_id, [])
+    servicesByRoom.get(link.room_id).push({
+      serviceId: link.service_id,
+      name: link.name,
+      priceCents: link.price_cents,
+      isMeterBased: link.is_meter_based === 1
+    })
+  }
+
   return floors.map((floor) => ({
     floorId: floor.floor_id,
     apartmentId: floor.apartment_id,
     floorName: floor.floor_name,
-    rooms: rooms.filter((r) => r.floor_id === floor.floor_id).map(toPublicRoom)
+    rooms: rooms
+      .filter((r) => r.floor_id === floor.floor_id)
+      .map((r) => ({ ...toPublicRoom(r), services: servicesByRoom.get(r.room_id) ?? [] }))
   }))
 }
 
@@ -468,6 +495,71 @@ export function setRoomStatus(db, roomIds, status) {
   const now = new Date().toISOString()
   const run = db.transaction(() => {
     for (const roomId of roomIds) stmt.run(status, now, roomId)
+  })
+  run()
+
+  return listFloors(db, apartmentId)
+}
+
+// -----------------------------------------------------
+// ค่าบริการรายห้อง (ขั้น 8 ของ wizard)
+// -----------------------------------------------------
+// ผูกค่าบริการจากแคตตาล็อกของหอ (apartment_services) เข้ากับห้องที่เลือก
+// ราคาไม่ได้ถูกคัดลอกมาที่นี่ — ตาราง room_services เก็บแค่ "ห้องนี้มีบริการนี้"
+// ราคาจริงถูกคัดลอกอีกทีตอนทำสัญญา (contract_services) เพื่อให้การขึ้นราคาภายหลัง
+// ไม่ย้อนไปเปลี่ยนสัญญาที่เซ็นไปแล้ว
+function assertServicesBelongToApartment(db, apartmentId, serviceIds) {
+  if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
+    throw new Error('กรุณาเลือกค่าบริการอย่างน้อย 1 รายการ')
+  }
+
+  const placeholders = serviceIds.map(() => '?').join(',')
+  const found = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM apartment_services
+        WHERE apartment_id = ? AND service_id IN (${placeholders})`
+    )
+    .get(apartmentId, ...serviceIds).n
+
+  if (found !== serviceIds.length) {
+    throw new Error('มีค่าบริการที่ไม่ได้อยู่ในหอพักนี้')
+  }
+}
+
+export function attachServicesToRooms(db, roomIds, serviceIds) {
+  const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
+  assertServicesBelongToApartment(db, apartmentId, serviceIds)
+
+  // OR IGNORE เพราะ (apartment_service_id, room_id) เป็น UNIQUE อยู่แล้ว
+  // ห้องที่มีบริการนั้นอยู่แล้วให้ข้ามไปเงียบๆ ไม่ใช่ทำให้ทั้งคำสั่งล้มเหลว
+  // ผู้ใช้เลือกทั้งชั้นแล้วบางห้องมีอยู่แล้วเป็นเรื่องปกติ ไม่ใช่ข้อผิดพลาด
+  const stmt = db.prepare(
+    'INSERT OR IGNORE INTO room_services (apartment_service_id, room_id, created_at) VALUES (?,?,?)'
+  )
+  const now = new Date().toISOString()
+  const run = db.transaction(() => {
+    for (const roomId of roomIds) {
+      for (const serviceId of serviceIds) stmt.run(serviceId, roomId, now)
+    }
+  })
+  run()
+
+  return listFloors(db, apartmentId)
+}
+
+// การนำออกจากห้องไม่กระทบสัญญาที่ทำไปแล้ว เพราะ contract_services เก็บสำเนาของตัวเอง
+// ผู้เช่าที่ยังอยู่จึงถูกเก็บค่าบริการต่อไปตามสัญญาจนกว่าจะหมดสัญญา — ตั้งใจให้เป็นแบบนี้
+export function detachServicesFromRooms(db, roomIds, serviceIds) {
+  const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
+  assertServicesBelongToApartment(db, apartmentId, serviceIds)
+
+  const stmt = db.prepare(
+    'DELETE FROM room_services WHERE apartment_service_id = ? AND room_id = ?'
+  )
+  const run = db.transaction(() => {
+    for (const roomId of roomIds) {
+      for (const serviceId of serviceIds) stmt.run(serviceId, roomId)
+    }
   })
   run()
 

@@ -2,7 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import { formatBaht } from '../format.js'
 import { ROOM_STATUSES, ROOM_STATUS_LABELS } from '../constants.js'
-import { listFloors, setRoomRates, setRoomStatus } from '../services/roomService.js'
+import {
+  attachServices,
+  detachServices,
+  listFloors,
+  setRoomRates,
+  setRoomStatus
+} from '../services/roomService.js'
+import { listServices } from '../services/apartmentServiceService.js'
 
 // ขั้นที่ 6-7 ของการตั้งค่าหอ — ค่าห้อง และสถานะห้อง
 //
@@ -12,16 +19,22 @@ import { listFloors, setRoomRates, setRoomStatus } from '../services/roomService
 export default function RoomRatesPage({ apartment }) {
   const [floors, setFloors] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
-  const [mode, setMode] = useState('rate') // rate | status
+  const [mode, setMode] = useState('rate') // rate | status | services
   const [error, setError] = useState('')
   const [monthlyRent, setMonthlyRent] = useState('')
   const [dailyRent, setDailyRent] = useState('')
+  const [catalogue, setCatalogue] = useState([])
+  const [pickedServices, setPickedServices] = useState(() => new Set())
 
   const load = useCallback(async () => {
-    const res = await listFloors(apartment.apartmentId)
-    if (!res.success) return setError(res.error)
+    const [floorRes, serviceRes] = await Promise.all([
+      listFloors(apartment.apartmentId),
+      listServices(apartment.apartmentId)
+    ])
+    if (!floorRes.success) return setError(floorRes.error)
     setError('')
-    setFloors(res.data)
+    setFloors(floorRes.data)
+    if (serviceRes.success) setCatalogue(serviceRes.data)
   }, [apartment.apartmentId])
 
   useEffect(() => {
@@ -92,6 +105,13 @@ export default function RoomRatesPage({ apartment }) {
         >
           ตั้งสถานะห้อง
         </button>
+        <button
+          type="button"
+          className={'mode-tab' + (mode === 'services' ? ' active' : '')}
+          onClick={() => setMode('services')}
+        >
+          ค่าบริการรายห้อง
+        </button>
       </nav>
 
       {floors.map((floor) => {
@@ -128,9 +148,15 @@ export default function RoomRatesPage({ apartment }) {
                         {room.dailyRentCents === null ? 'ไม่รับ' : formatBaht(room.dailyRentCents)}
                       </span>
                     </>
-                  ) : (
+                  ) : mode === 'status' ? (
                     <span className={`status-badge status-${room.status}`}>
                       {ROOM_STATUS_LABELS[room.status] ?? room.status}
+                    </span>
+                  ) : room.services.length === 0 ? (
+                    <span className="room-chip-type">ไม่มีค่าบริการ</span>
+                  ) : (
+                    <span className="room-chip-type">
+                      {room.services.map((s) => s.name).join(', ')}
                     </span>
                   )}
                 </button>
@@ -178,7 +204,7 @@ export default function RoomRatesPage({ apartment }) {
               ระบุค่าห้อง
             </button>
           </div>
-        ) : (
+        ) : mode === 'status' ? (
           <div className="bulk-fields">
             {ROOM_STATUSES.map((status) => (
               <button
@@ -191,6 +217,53 @@ export default function RoomRatesPage({ apartment }) {
                 {ROOM_STATUS_LABELS[status]}
               </button>
             ))}
+          </div>
+        ) : (
+          <div className="bulk-fields">
+            {catalogue.length === 0 ? (
+              <span className="muted">
+                ยังไม่มีค่าบริการในหอพักนี้ — เพิ่มได้ที่หัวข้อ "ค่าบริการ"
+              </span>
+            ) : (
+              <>
+                <div className="service-picker">
+                  {catalogue.map((s) => (
+                    <label key={s.serviceId} className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={pickedServices.has(s.serviceId)}
+                        onChange={() =>
+                          setPickedServices((prev) => {
+                            const next = new Set(prev)
+                            next.has(s.serviceId)
+                              ? next.delete(s.serviceId)
+                              : next.add(s.serviceId)
+                            return next
+                          })
+                        }
+                      />
+                      <span>{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={roomIds.length === 0 || pickedServices.size === 0}
+                  onClick={() => act(() => attachServices(roomIds, [...pickedServices]))}
+                >
+                  เพิ่มค่าบริการ
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={roomIds.length === 0 || pickedServices.size === 0}
+                  onClick={() => act(() => detachServices(roomIds, [...pickedServices]))}
+                >
+                  นำออก
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
