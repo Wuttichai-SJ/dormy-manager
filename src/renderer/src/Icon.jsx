@@ -31,6 +31,11 @@ import copy from './assets/icons/heroicons/24/outline/clipboard-document.svg?raw
 import back from './assets/icons/heroicons/24/outline/arrow-left.svg?raw'
 import logoutIcon from './assets/icons/heroicons/24/outline/arrow-right-on-rectangle.svg?raw'
 import account from './assets/icons/heroicons/24/outline/user-circle.svg?raw'
+// ค่าน้ำ/ค่าไฟใช้ไอคอน "ทึบ" ไม่ใช่เส้น เพราะต้องการให้เป็นจุดสังเกตที่มีสีของตัวเอง
+// (น้ำ=น้ำเงิน ไฟ=เหลืองอำพัน) แบบเดียวกับต้นแบบ ไอคอนเส้นบางจะจมหายไปกับพื้น
+import electric from './assets/icons/heroicons/24/solid/bolt.svg?raw'
+// heroicons ไม่มีหยดน้ำ — วาดเองแล้วเก็บเป็นไฟล์ในเครื่องเหมือนไอคอนอื่น ไม่ดึงจากเน็ต
+import water from './assets/icons/custom/water-drop.svg?raw'
 
 const ICONS = {
   dashboard,
@@ -53,7 +58,9 @@ const ICONS = {
   copy,
   back,
   logout: logoutIcon,
-  account
+  account,
+  water,
+  electric
 }
 
 export default function Icon({ name, className = '' }) {

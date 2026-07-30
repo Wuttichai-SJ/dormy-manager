@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import { centsToInput } from '../format.js'
 import { BILLING_TYPE_LABELS, BILLING_TYPES } from '../constants.js'
@@ -80,8 +81,22 @@ export default function UtilitySettingsPage({ apartment }) {
         {saved && <Alert kind="success">บันทึกวิธีคิดค่าน้ำ/ค่าไฟเรียบร้อยแล้ว</Alert>}
 
         <div className="utility-grid">
-          <UtilitySide title="ค่าน้ำ" unitLabel="หน่วย" value={water} onChange={setWater} />
-          <UtilitySide title="ค่าไฟ" unitLabel="หน่วย" value={electric} onChange={setElectric} />
+          <UtilitySide
+            title="ค่าน้ำ"
+            kind="water"
+            icon="water"
+            unitLabel="หน่วย"
+            value={water}
+            onChange={setWater}
+          />
+          <UtilitySide
+            title="ค่าไฟ"
+            kind="electric"
+            icon="electric"
+            unitLabel="หน่วย"
+            value={electric}
+            onChange={setElectric}
+          />
         </div>
 
         <div className="form-actions">
@@ -99,14 +114,21 @@ export default function UtilitySettingsPage({ apartment }) {
   )
 }
 
-function UtilitySide({ title, unitLabel, value, onChange }) {
+function UtilitySide({ title, kind, icon, unitLabel, value, onChange }) {
   function set(key, v) {
     onChange({ ...value, [key]: v })
   }
 
   return (
-    <section className="panel utility-card">
-      <h2 className="panel-title">{title}</h2>
+    <section className={`panel utility-card utility-${kind}`}>
+      {/* ไอคอนสีประจำเรื่องแบบต้นแบบ (น้ำ=หยดน้ำน้ำเงิน ไฟ=สายฟ้าเหลือง)
+          ทำให้แยกซ้าย/ขวาออกจากกันได้ทันทีโดยไม่ต้องอ่านหัวข้อ */}
+      <header className="utility-card-head">
+        <span className="utility-icon">
+          <Icon name={icon} />
+        </span>
+        <h2>{title}</h2>
+      </header>
 
       <label className="checkbox-row utility-toggle">
         <input
