@@ -1,4 +1,0 @@
-ฐานข้อมูล: C:\Users\User\AppData\Roaming\dormy-manager\dormy-dev.sqlite
-
-id  | ชื่อหอ                | ชั้น | ห้อง | ค่าบริการ | บัญชี
-5   | หอนาโร               | 2   | 4    | 0        | 1
