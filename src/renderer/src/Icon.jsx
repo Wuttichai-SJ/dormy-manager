@@ -19,6 +19,18 @@ import invoices from './assets/icons/heroicons/24/outline/receipt-percent.svg?ra
 import payments from './assets/icons/heroicons/24/outline/banknotes.svg?raw'
 import maintenance from './assets/icons/heroicons/24/outline/wrench-screwdriver.svg?raw'
 import settings from './assets/icons/heroicons/24/outline/cog-6-tooth.svg?raw'
+// ไอคอนของระบบเข้าสู่ระบบ — ตั้งชื่อตามหน้าที่ ไม่ใช่ตามชื่อไฟล์ heroicons
+// จะได้เปลี่ยนรูปทีหลังโดยไม่ต้องไล่แก้ทุกที่ที่เรียกใช้
+import eye from './assets/icons/heroicons/24/outline/eye.svg?raw'
+import eyeOff from './assets/icons/heroicons/24/outline/eye-slash.svg?raw'
+import lock from './assets/icons/heroicons/24/outline/lock-closed.svg?raw'
+import shield from './assets/icons/heroicons/24/outline/shield-check.svg?raw'
+import warning from './assets/icons/heroicons/24/outline/exclamation-triangle.svg?raw'
+import check from './assets/icons/heroicons/24/outline/check-circle.svg?raw'
+import copy from './assets/icons/heroicons/24/outline/clipboard-document.svg?raw'
+import back from './assets/icons/heroicons/24/outline/arrow-left.svg?raw'
+import logoutIcon from './assets/icons/heroicons/24/outline/arrow-right-on-rectangle.svg?raw'
+import account from './assets/icons/heroicons/24/outline/user-circle.svg?raw'
 
 const ICONS = {
   dashboard,
@@ -31,7 +43,17 @@ const ICONS = {
   invoices,
   payments,
   maintenance,
-  settings
+  settings,
+  eye,
+  eyeOff,
+  lock,
+  shield,
+  warning,
+  check,
+  copy,
+  back,
+  logout: logoutIcon,
+  account
 }
 
 export default function Icon({ name, className = '' }) {
