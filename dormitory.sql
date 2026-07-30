@@ -127,6 +127,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`apartments` (
   `show_tenant_info_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
   `show_unit_qty_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
   `default_rent_item_text` VARCHAR(255) NULL DEFAULT 'ค่าเช่าห้อง/Rent',
+  -- ค่าตั้งต้นกฎคืนเงินประกัน (migration 004) — NULL = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
+  `default_deposit_min_stay_months` INT NULL,
+  `default_deposit_notice_days` INT NOT NULL DEFAULT 15,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`apartment_id`))
@@ -366,6 +369,15 @@ CREATE TABLE IF NOT EXISTS `mydb`.`contracts` (
   `electric_meter_start` DECIMAL(10,2) NOT NULL,
   `note` TEXT NULL,
   `status` ENUM('active', 'inactive') NOT NULL,
+  -- กฎคืนเงินประกัน (migration 004) — snapshot ไว้ที่สัญญาตอนเซ็น ไม่อ่านจาก apartments
+  -- ตอนคำนวณ เพื่อให้การเปลี่ยนกฎของหอไม่ย้อนหลังไปกระทบสัญญาที่เซ็นไปแล้ว
+  `term_months` INT NULL,
+  `deposit_refund_policy` ENUM('on_full_term', 'always', 'never') NOT NULL DEFAULT 'on_full_term',
+  `deposit_min_stay_months` INT NULL,
+  `deposit_notice_days` INT NOT NULL DEFAULT 15,
+  -- สายการต่อสัญญา: ใช้ไล่ย้อนเพื่อนับเดือนที่อยู่ต่อเนื่องข้ามสัญญาหลายใบ
+  `previous_contract_id` INT NULL,
+  `is_deposit_carried_over` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`contract_id`, `room_id`, `tenant_id`),
@@ -448,7 +460,19 @@ CREATE TABLE IF NOT EXISTS `mydb`.`contract_terminations` (
   `deposit_snapshot_cents` INTEGER NOT NULL,
   `unpaid_invoices_total_cents` INTEGER NOT NULL,
   `additional_adjustments_total_cents` INTEGER NOT NULL,
+  -- ยอดสุทธิ "ติดลบได้" = ริบเงินประกันแล้วผู้เช่ายังค้างบิลอยู่ ต้องเรียกเก็บเพิ่ม
   `net_refund_amount_cents` INTEGER NOT NULL,
+  -- ผลการตัดสินตามกฎคืนเงินประกัน (migration 004)
+  -- notice_date เป็น NOT NULL อยู่แล้ว คนที่ออกโดยไม่แจ้งจึงใช้ is_notice_given = 0
+  -- แล้วใส่ notice_date เป็นวันที่ทราบว่าย้ายออกแทน
+  `is_notice_given` TINYINT(1) NOT NULL DEFAULT 1,
+  `notice_days_given` INT NULL,
+  `months_stayed_total` INT NULL,
+  `is_deposit_refundable` TINYINT(1) NOT NULL DEFAULT 1,
+  `forfeit_reason` ENUM('early_move_out', 'insufficient_notice', 'both', 'policy_never') NULL,
+  `refundable_deposit_cents` INTEGER NOT NULL DEFAULT 0,
+  `is_manual_override` TINYINT(1) NOT NULL DEFAULT 0,
+  `override_reason` TEXT NULL,
   `status` ENUM('draft', 'completed', 'cancelled') NOT NULL,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
