@@ -7,6 +7,7 @@ import { registerApartmentHandlers } from './handlers/apartmentHandlers.js'
 import { registerApartmentServiceHandlers } from './handlers/apartmentServiceHandlers.js'
 import { registerUtilityHandlers } from './handlers/utilityHandlers.js'
 import { registerBankAccountHandlers } from './handlers/bankAccountHandlers.js'
+import { registerRoomHandlers } from './handlers/roomHandlers.js'
 
 // ตาข่ายชั้นสุดท้าย: อะไรที่หลุดจาก try/catch ทั้งหมดต้องถูกบันทึกไว้ ไม่ใช่หายเงียบ
 process.on('uncaughtException', (err) => logError('uncaughtException', err))
@@ -103,6 +104,7 @@ app.whenReady().then(() => {
   registerApartmentServiceHandlers()
   registerUtilityHandlers()
   registerBankAccountHandlers()
+  registerRoomHandlers()
   logInfo('ลงทะเบียน IPC ของระบบเข้าสู่ระบบและโมดูลหอพักแล้ว')
 
   createWindow()

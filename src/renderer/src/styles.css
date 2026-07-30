@@ -831,6 +831,165 @@ body {
   }
 }
 
+/* ผังห้อง */
+.field-narrow {
+  max-width: 260px;
+}
+
+.floor-count-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.floor-count-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.floor-count-row label {
+  min-width: 66px;
+  font-size: 13px;
+}
+
+.floor-count-row input {
+  width: 72px;
+  padding: 7px 9px;
+  font-size: 14px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.plan-summary {
+  margin-bottom: 12px;
+}
+
+.floor-card {
+  margin-bottom: 14px;
+}
+
+.floor-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ชื่อชั้นแก้ได้ในที่ ไม่ต้องเปิดฟอร์มแยก — บันทึกตอนคลิกออกจากช่อง */
+.floor-name-input {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 9px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  max-width: 220px;
+}
+
+.floor-name-input:hover {
+  border-color: var(--border);
+}
+
+.floor-name-input:focus {
+  outline: none;
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.room-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.room-chip:hover {
+  border-color: var(--accent);
+}
+
+.room-chip.inactive {
+  background: var(--bg);
+  opacity: 0.7;
+}
+
+.room-chip.editing {
+  grid-column: span 2;
+  gap: 8px;
+  cursor: default;
+}
+
+.room-chip.editing input[type='text'],
+.room-chip.editing input:not([type]) {
+  width: 100%;
+  padding: 6px 9px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.room-chip-number {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.room-chip-type {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.room-chip-flag {
+  font-size: 10px;
+  color: var(--err);
+}
+
+.room-chip-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.add-room-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.add-room-row input {
+  width: 130px;
+  padding: 7px 10px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.add-floor {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.add-floor .field {
+  margin-bottom: 0;
+}
+
 /* ตารางข้อมูล */
 .data-table {
   width: 100%;

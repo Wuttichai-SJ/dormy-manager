@@ -44,3 +44,7 @@ export const BANKS = [
 
 // ต้องตรงกับ RECOMMENDED_MAX_ACCOUNTS ใน src/main/db/bankAccounts.js
 export const RECOMMENDED_MAX_ACCOUNTS = 2
+
+// ต้องตรงกับ MAX_FLOORS / MAX_ROOMS_PER_FLOOR ใน src/main/db/rooms.js
+export const MAX_FLOORS = 30
+export const MAX_ROOMS_PER_FLOOR = 50
