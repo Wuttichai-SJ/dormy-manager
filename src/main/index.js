@@ -3,6 +3,7 @@ import path from 'path'
 import { getDatabase } from './database.js'
 import { logInfo, logError, getLogPath } from './logger.js'
 import { registerAuthHandlers } from './handlers/authHandlers.js'
+import { registerApartmentHandlers } from './handlers/apartmentHandlers.js'
 
 // ตาข่ายชั้นสุดท้าย: อะไรที่หลุดจาก try/catch ทั้งหมดต้องถูกบันทึกไว้ ไม่ใช่หายเงียบ
 process.on('uncaughtException', (err) => logError('uncaughtException', err))
@@ -95,7 +96,8 @@ app.whenReady().then(() => {
   // ต้องลงทะเบียนให้ครบ "ก่อน" สร้างหน้าต่าง ไม่งั้นหน้าจอที่โหลดเร็วกว่าจะยิง
   // auth:status ไปหาช่องที่ยังไม่มีใครรับ แล้วได้ error "No handler registered"
   registerAuthHandlers()
-  logInfo('ลงทะเบียน IPC ของระบบเข้าสู่ระบบแล้ว')
+  registerApartmentHandlers()
+  logInfo('ลงทะเบียน IPC ของระบบเข้าสู่ระบบและโมดูลหอพักแล้ว')
 
   createWindow()
 

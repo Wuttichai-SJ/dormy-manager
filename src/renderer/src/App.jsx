@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import SecuritySettingsPage from './pages/SecuritySettingsPage.jsx'
+import ApartmentsPage from './pages/ApartmentsPage.jsx'
 import { getAuthStatus, logout } from './services/authService.js'
 
 // Navigation mirrors app.yeeraf.com's module grouping (layout follows the source site;
@@ -152,7 +153,9 @@ function AppShell({ user, onLogout }) {
         </header>
 
         <div className="page">
-          {active === 'settings' ? (
+          {active === 'apartments' ? (
+            <ApartmentsPage />
+          ) : active === 'settings' ? (
             <SecuritySettingsPage user={user} />
           ) : (
             <section className="panel">

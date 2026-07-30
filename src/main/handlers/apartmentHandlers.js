@@ -1,0 +1,67 @@
+// IPC ของโมดูลหอพัก — เปลือกบางๆ ครอบ db/apartments.js
+// กฎเดียวกับ authHandlers: คืน { success, data | error } เท่านั้น ห้าม throw ข้ามสะพาน
+import { ipcMain } from 'electron'
+import { getDatabase } from '../database.js'
+import { logError, logInfo } from '../logger.js'
+import {
+  deleteApartment,
+  getApartmentById,
+  insertApartment,
+  listApartments,
+  reorderApartments,
+  updateApartment,
+  validateApartmentInput
+} from '../db/apartments.js'
+
+function handle(channel, fn) {
+  ipcMain.handle(channel, async (_event, payload) => {
+    try {
+      return { success: true, data: await fn(payload ?? {}) }
+    } catch (err) {
+      logError(`IPC ${channel} ล้มเหลว`, err)
+      return { success: false, error: err.message }
+    }
+  })
+}
+
+function assertValid(payload) {
+  const errors = validateApartmentInput(payload)
+  if (errors.length > 0) throw new Error(errors.join('\n'))
+}
+
+export function registerApartmentHandlers() {
+  handle('apartment:list', () => listApartments(getDatabase()))
+
+  handle('apartment:get', ({ apartmentId }) => {
+    const apartment = getApartmentById(getDatabase(), apartmentId)
+    if (!apartment) throw new Error('ไม่พบหอพักที่ต้องการ')
+    return apartment
+  })
+
+  handle('apartment:create', (payload) => {
+    assertValid(payload)
+    const apartment = insertApartment(getDatabase(), payload)
+    logInfo(`สร้างหอพัก "${apartment.nameTh}" (apartment_id ${apartment.apartmentId})`)
+    return apartment
+  })
+
+  handle('apartment:update', ({ apartmentId, ...payload }) => {
+    assertValid(payload)
+    const apartment = updateApartment(getDatabase(), apartmentId, payload)
+    logInfo(`แก้ไขหอพัก "${apartment.nameTh}" (apartment_id ${apartmentId})`)
+    return apartment
+  })
+
+  handle('apartment:reorder', ({ orderedIds }) => {
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      throw new Error('ไม่ได้ระบุลำดับใหม่')
+    }
+    return reorderApartments(getDatabase(), orderedIds)
+  })
+
+  handle('apartment:delete', ({ apartmentId }) => {
+    const result = deleteApartment(getDatabase(), apartmentId)
+    logInfo(`ลบหอพัก (apartment_id ${apartmentId})`)
+    return result
+  })
+}
