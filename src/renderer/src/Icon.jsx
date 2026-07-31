@@ -29,6 +29,7 @@ import warning from './assets/icons/heroicons/24/outline/exclamation-triangle.sv
 import check from './assets/icons/heroicons/24/outline/check-circle.svg?raw'
 // แบบทึบไว้ใช้กับข้อความแจ้งผลมุมจอ — ต้นแบบใช้วงกลมทึบติ๊กถูก ไม่ใช่แบบเส้น
 import checkSolid from './assets/icons/heroicons/24/solid/check-circle.svg?raw'
+import warningSolid from './assets/icons/heroicons/24/solid/exclamation-circle.svg?raw'
 import copy from './assets/icons/heroicons/24/outline/clipboard-document.svg?raw'
 // ไอคอนของตัวช่วยตั้งค่า — ปุ่มเลือก/ยกเลิกทั้งชั้น ปุ่มปิดหน้าต่างซ้อน และจุดคำอธิบาย
 import minusCircle from './assets/icons/heroicons/24/outline/minus-circle.svg?raw'
@@ -64,6 +65,7 @@ const ICONS = {
   warning,
   check,
   checkSolid,
+  warningSolid,
   minusCircle,
   close,
   info,

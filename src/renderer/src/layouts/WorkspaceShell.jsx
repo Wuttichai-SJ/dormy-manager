@@ -72,7 +72,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
 
         <div className="page">
           {active === 'settings' ? (
-            <SettingsPage apartment={apartment} user={user} />
+            <SettingsPage apartment={apartment} user={user} onApartmentDeleted={onExit} />
           ) : (
             <section className="panel">
               <p className="muted">หน้านี้ยังเป็นโครงเปล่า — เนื้อหาจะถูกเติมตามแผนแต่ละเฟส</p>

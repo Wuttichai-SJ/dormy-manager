@@ -11,8 +11,10 @@ import Icon from '../Icon.jsx'
 const listeners = new Set()
 let nextId = 1
 
-export function showToast(message) {
-  const toast = { id: nextId++, message }
+// kind: 'success' (เขียว) | 'error' (แดง) — ต้นแบบใช้แถบแดงตัวเดียวกันนี้บอกว่า
+// "ยังติดตั้งค่าตั้งต้นไม่สมบูรณ์" ตอนพยายามเข้าหอที่ยังตั้งค่าไม่ครบ
+export function showToast(message, kind = 'success') {
+  const toast = { id: nextId++, message, kind }
   listeners.forEach((fn) => fn(toast))
 }
 
@@ -60,9 +62,14 @@ function ToastItem({ toast, onDismiss }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const isError = toast.kind === 'error'
+
   return (
-    <div className={'toast' + (leaving ? ' leaving' : '')} role="status">
-      <Icon name="checkSolid" />
+    <div
+      className={`toast toast-${toast.kind}` + (leaving ? ' leaving' : '')}
+      role={isError ? 'alert' : 'status'}
+    >
+      <Icon name={isError ? 'warningSolid' : 'checkSolid'} />
       <span>{toast.message}</span>
     </div>
   )

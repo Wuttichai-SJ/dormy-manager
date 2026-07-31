@@ -3,7 +3,7 @@ import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import { showToast } from '../components/Toast.jsx'
 import ApartmentFormPage from './ApartmentFormPage.jsx'
-import { deleteApartment, listApartments } from '../services/apartmentService.js'
+import { listApartments } from '../services/apartmentService.js'
 
 // หน้าหอพัก — โครงตามหน้า "จัดการอพาร์ตเมนต์" ของต้นแบบ: การ์ดหนึ่งใบต่อหนึ่งหอ
 // บอกจำนวนห้องว่าง/ทั้งหมด แล้วมีทางเข้าไปจัดการต่อ
@@ -29,13 +29,6 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
   useEffect(() => {
     load()
   }, [load])
-
-  async function remove(apartment) {
-    setError('')
-    const res = await deleteApartment(apartment.apartmentId)
-    if (!res.success) return setError(res.error)
-    load()
-  }
 
   if (view.mode === 'create' || view.mode === 'edit') {
     return (
@@ -90,10 +83,14 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
             <ApartmentCard
               key={a.apartmentId}
               apartment={a}
-              onOpen={() => onOpen(a)}
-              onSetup={() => onSetup?.(a)}
+              // หอที่ยังเดินตัวช่วยตั้งค่าไม่ครบ 8 ขั้น เข้าหน้าทำงานที่มีเมนูข้างไม่ได้
+              // ต้องบอกด้วยว่าทำไมถึงเข้าไม่ได้ ไม่ใช่เด้งกลับเฉยๆ ให้เดาเอง
+              onOpen={() => {
+                if (a.isSetupComplete) return onOpen(a)
+                showToast('ยังตั้งค่าตั้งต้นไม่สมบูรณ์', 'error')
+                onSetup?.(a)
+              }}
               onEdit={() => setView({ mode: 'edit', apartmentId: a.apartmentId })}
-              onDelete={() => remove(a)}
             />
           ))}
         </div>
@@ -102,7 +99,7 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
   )
 }
 
-function ApartmentCard({ apartment, onOpen, onSetup, onEdit, onDelete }) {
+function ApartmentCard({ apartment, onOpen, onEdit }) {
   // "ตั้งค่าเสร็จ" ต้องมาจากการกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่าเท่านั้น
   //
   // เดิมเดาจาก "มีห้องแล้ว = เสร็จ" ซึ่งผิด — หอที่สร้างผังห้องเสร็จ (ขั้น 5) แต่ยังไม่ได้
@@ -132,24 +129,16 @@ function ApartmentCard({ apartment, onOpen, onSetup, onEdit, onDelete }) {
         <div className="apartment-card-actions">
           {/* ทางเข้าหลักของการ์ด — กดแล้วเข้าไปทำงานในบริบทของหอนี้ (มีเมนูข้าง)
               ส่วน "แก้ไข" คือแก้ข้อมูลหอเอง ซึ่งเป็นคนละเรื่องกัน */}
-          {needsSetup ? (
-            <button type="button" className="btn btn-sm" onClick={onSetup}>
-              ตั้งค่าต่อ
-            </button>
-          ) : (
-            <button type="button" className="btn btn-sm" onClick={onOpen}>
-              จัดการ
-            </button>
-          )}
+          {/* ปุ่มเดียวเสมอ ไม่ว่าตั้งค่าเสร็จหรือยัง — หอที่ยังไม่เสร็จกดแล้วจะถูกพากลับ
+              เข้าตัวช่วยตั้งค่าพร้อมข้อความแจ้งเตือน (เหมือนต้นแบบ) ไม่ใช่ซ่อนปุ่มไว้ */}
+          <button type="button" className="btn btn-sm" onClick={onOpen}>
+            จัดการ
+          </button>
           <button type="button" className="link-btn" onClick={onEdit}>
             แก้ไข
           </button>
-          {/* ลบได้เฉพาะหอที่ยังไม่มีชั้น/ห้อง — ฝั่ง main เป็นคนกันและส่งข้อความอธิบายกลับมา */}
-          {apartment.totalRooms === 0 && (
-            <button type="button" className="link-btn link-danger" onClick={onDelete}>
-              ลบ
-            </button>
-          )}
+          {/* ปุ่มลบไม่ได้อยู่ตรงนี้ — อยู่ในหอนั้นเอง ที่ ตั้งค่า > ข้อมูลหอพัก (ตามต้นแบบ)
+              จึงต้องตั้งค่าให้เสร็จก่อนถึงจะลบได้ */}
         </div>
       </div>
     </article>
