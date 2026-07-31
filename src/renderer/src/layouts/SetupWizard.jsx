@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import { completeApartmentSetup } from '../services/apartmentService.js'
@@ -107,12 +107,33 @@ const STEPS = [
 
 export default function SetupWizard({ apartment, onFinish, onExit }) {
   const [index, setIndex] = useState(0)
+  // บางขั้นต้อง "ลงมือ" ก่อนถึงจะไปขั้นถัดไปได้ (ขั้นจัดการชั้น: กด "ต่อไป" = สร้างผังห้อง
+  // แล้วค่อยเด้งไปขั้นผังห้อง) ต้นแบบไม่มีปุ่มลงมือแยกในขั้นพวกนั้น มีแต่ "ต่อไป"
+  //
+  // หน้าไหนต้องการแบบนั้นให้เรียก registerNext(fn) ไว้ — fn คืน false เมื่อทำไม่สำเร็จ
+  // แล้ว wizard จะไม่เลื่อนขั้น เก็บใน ref ไม่ใช่ state เพราะเปลี่ยนทุกครั้งที่ผู้ใช้พิมพ์
+  // ถ้าเป็น state จะ re-render ทั้งขั้นตอนทุกตัวอักษร
+  const nextHandler = useRef(null)
   const [done, setDone] = useState(null) // หอที่ตั้งค่าเสร็จแล้ว (มี setupCompletedAt)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   const step = STEPS[index]
   const isLast = index === STEPS.length - 1
+
+  // ไปขั้นถัดไป — ถ้าขั้นนี้ลงทะเบียนงานที่ต้องทำก่อนไว้ ต้องทำให้สำเร็จก่อนถึงจะเลื่อน
+  async function goNext() {
+    setError('')
+    const handler = nextHandler.current
+    if (handler) {
+      setBusy(true)
+      const ok = await handler()
+      setBusy(false)
+      if (!ok) return
+    }
+    nextHandler.current = null
+    setIndex((i) => i + 1)
+  }
 
   // ปิดงานตั้งค่าที่ฝั่ง main ก่อน แล้วค่อยขึ้นจอ "พร้อมใช้งาน"
   // ถ้าขึ้นจอก่อนแล้วบันทึกพลาด เจ้าของหอจะเห็นติ๊กถูกทั้งที่หอยังไม่ถูกปลดล็อก
@@ -170,7 +191,11 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
                 }
                 // ย้อนกลับไปแก้ขั้นที่ผ่านมาแล้วได้ แต่กระโดดข้ามไปข้างหน้าไม่ได้
                 // (ต้นแบบก็เด้งกลับถ้าพยายามข้าม — ลองมาแล้ว)
-                onClick={() => i < index && setIndex(i)}
+                onClick={() => {
+                  if (i >= index) return
+                  nextHandler.current = null
+                  setIndex(i)
+                }}
                 disabled={i > index}
               >
                 {/* ต้นแบบคงเลขลำดับไว้ทุกขั้น ไม่ได้เปลี่ยนขั้นที่ผ่านแล้วเป็นเครื่องหมายถูก
@@ -202,7 +227,12 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
                 มองว่าเป็นตัวเดิมแล้วแค่ส่ง prop ใหม่ — state ที่ตั้งต้นจาก prop จะไม่อัปเดต
                 กลายเป็นกดไปขั้นอื่นแล้วยังเห็นหน้าเดิม */}
             <div className="wizard-card-body">
-              <StepContent key={step.key} stepKey={step.key} apartment={apartment} />
+              <StepContent
+                key={step.key}
+                stepKey={step.key}
+                apartment={apartment}
+                registerNext={(fn) => (nextHandler.current = fn)}
+              />
             </div>
           </section>
         </div>
@@ -212,7 +242,7 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
             type="button"
             className="btn"
             disabled={busy}
-            onClick={() => (isLast ? finish() : setIndex(index + 1))}
+            onClick={() => (isLast ? finish() : goNext())}
           >
             {isLast ? (busy ? 'กำลังบันทึก...' : 'เสร็จสิ้น') : 'ต่อไป'}
           </button>
@@ -238,7 +268,7 @@ function WizardTopbar({ apartment, onExit }) {
   )
 }
 
-function StepContent({ stepKey, apartment }) {
+function StepContent({ stepKey, apartment, registerNext }) {
   switch (stepKey) {
     case 'services':
       return <ApartmentServicesPage apartment={apartment} />
@@ -247,7 +277,7 @@ function StepContent({ stepKey, apartment }) {
     case 'banks':
       return <BankAccountsPage apartment={apartment} />
     case 'floors':
-      return <FloorPlanPage apartment={apartment} stage="builder" />
+      return <FloorPlanPage apartment={apartment} stage="builder" registerNext={registerNext} />
     case 'plan':
       return <FloorPlanPage apartment={apartment} stage="editor" />
     case 'rate':

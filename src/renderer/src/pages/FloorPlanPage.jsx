@@ -23,7 +23,7 @@ import {
 //   builder = ขั้นกำหนดจำนวนชั้น/ห้อง (ถ้าสร้างไปแล้วแสดงสรุปแทน)
 //   editor  = ขั้นแก้ผังห้องที่ได้มา
 //   ไม่ระบุ = แสดงตามสถานะจริง (ใช้ในหน้าตั้งค่าปกติ)
-export default function FloorPlanPage({ apartment, stage }) {
+export default function FloorPlanPage({ apartment, stage, registerNext }) {
   const [floors, setFloors] = useState(null)
   const [error, setError] = useState('')
 
@@ -39,12 +39,24 @@ export default function FloorPlanPage({ apartment, stage }) {
   }, [load])
 
   // ทุกคำสั่งคืนผังทั้งก้อนกลับมา จึงเอามาแทนของเดิมได้เลย ไม่ต้องโหลดใหม่
-  async function act(fn) {
+  // คืน false เมื่อทำไม่สำเร็จ เพื่อให้ปุ่ม "ต่อไป" ของ wizard รู้ว่าห้ามเลื่อนขั้น
+  const act = useCallback(async (fn) => {
     setError('')
     const res = await fn()
-    if (!res.success) return setError(res.error)
+    if (!res.success) {
+      setError(res.error)
+      return false
+    }
     setFloors(res.data)
-  }
+    return true
+  }, [])
+
+  // ห่อด้วย useCallback เพราะ FloorPlanBuilder เอาไปใส่ใน useEffect ที่ลงทะเบียนปุ่ม
+  // "ต่อไป" — ถ้าฟังก์ชันเป็นตัวใหม่ทุก render effect จะวิ่งใหม่ทุกครั้งไม่จบ
+  const generate = useCallback(
+    (specs) => act(() => generateFloorPlan(apartment.apartmentId, specs)),
+    [act, apartment.apartmentId]
+  )
 
   if (floors === null) return <p className="muted">กำลังโหลด...</p>
 
@@ -61,9 +73,7 @@ export default function FloorPlanPage({ apartment, stage }) {
       <Alert>{error}</Alert>
 
       {floors.length === 0 ? (
-        <FloorPlanBuilder
-          onGenerate={(specs) => act(() => generateFloorPlan(apartment.apartmentId, specs))}
-        />
+        <FloorPlanBuilder registerNext={registerNext} onGenerate={generate} />
       ) : stage === 'builder' ? (
         // ขั้น "จัดการชั้น" ที่สร้างผังไปแล้ว — สรุปให้ดูแล้วให้กดต่อไป
         // ไม่แสดงตัวสร้างซ้ำ เพราะสร้างได้ครั้งเดียว (ฝั่ง main กันไว้)
@@ -89,7 +99,7 @@ export default function FloorPlanPage({ apartment, stage }) {
 // -----------------------------------------------------
 // โหมดสร้างครั้งแรก
 // -----------------------------------------------------
-function FloorPlanBuilder({ onGenerate }) {
+function FloorPlanBuilder({ onGenerate, registerNext }) {
   const [floorCount, setFloorCount] = useState('')
   const [roomCounts, setRoomCounts] = useState([])
   const [busy, setBusy] = useState(false)
@@ -102,16 +112,21 @@ function FloorPlanBuilder({ onGenerate }) {
     setRoomCounts((prev) => Array.from({ length: count }, (_, i) => prev[i] ?? ''))
   }
 
-  async function submit(e) {
-    e.preventDefault()
-    setBusy(true)
-    await onGenerate(roomCounts.map((count) => ({ roomCount: Number(count) })))
-    setBusy(false)
-  }
+  // ไม่มีปุ่ม "สร้างผังห้อง" ของตัวเอง — ปุ่ม "ต่อไป" ของ wizard เป็นคนสั่งสร้าง
+  // แล้วพาไปขั้น "ผังห้อง" ต่อในจังหวะเดียว (ต้นแบบก็มีแค่ปุ่มต่อไปปุ่มเดียว)
+  //
+  // ลงทะเบียนใหม่ทุกครั้งที่ค่าเปลี่ยน เพราะ closure ต้องเห็น roomCounts ล่าสุด
+  useEffect(() => {
+    if (!registerNext) return
+    registerNext(async () => {
+      const res = await onGenerate(roomCounts.map((count) => ({ roomCount: Number(count) })))
+      return res !== false
+    })
+  }, [registerNext, onGenerate, roomCounts])
 
   return (
     <section className="panel">
-      <form onSubmit={submit}>
+      <form onSubmit={(e) => e.preventDefault()}>
         <div className="field field-narrow">
           <label htmlFor="floorCount">
             จำนวนชั้น <span className="required">* จำเป็น</span>
@@ -149,11 +164,24 @@ function FloorPlanBuilder({ onGenerate }) {
             </div>
             <p className="field-hint">สูงสุด {MAX_ROOMS_PER_FLOOR} ห้องต่อชั้น</p>
 
-            <div className="form-actions">
-              <button type="submit" className="btn" disabled={busy}>
-                {busy ? 'กำลังสร้าง...' : 'สร้างผังห้อง'}
-              </button>
-            </div>
+            {/* ในตัวช่วยตั้งค่าไม่มีปุ่มนี้ ปุ่ม "ต่อไป" เป็นคนสั่งสร้างให้
+                แต่ตอนเปิดหน้านี้เดี่ยวๆ จากเมนูตั้งค่าไม่มีปุ่มต่อไป จึงต้องมีปุ่มของตัวเอง */}
+            {!registerNext && (
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true)
+                    await onGenerate(roomCounts.map((count) => ({ roomCount: Number(count) })))
+                    setBusy(false)
+                  }}
+                >
+                  {busy ? 'กำลังสร้าง...' : 'สร้างผังห้อง'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </form>

@@ -40,16 +40,28 @@ export function ToastHost() {
   )
 }
 
+// อยู่ 4 วินาทีแล้วเลื่อนออกทางขวา = ทางเดียวกับที่เลื่อนเข้ามา
+// แยกเป็นสองจังหวะ (ตั้ง leaving ก่อน แล้วค่อยถอดออกจริง) เพราะถ้าถอด DOM ทิ้งเลย
+// อนิเมชันขาออกจะไม่มีโอกาสได้เล่น ข้อความจะหายวับไปเฉยๆ
+const LIFETIME_MS = 4000
+const LEAVE_MS = 220
+
 function ToastItem({ toast, onDismiss }) {
+  const [leaving, setLeaving] = useState(false)
+
   useEffect(() => {
-    const timer = setTimeout(onDismiss, 4000)
-    return () => clearTimeout(timer)
+    const start = setTimeout(() => setLeaving(true), LIFETIME_MS)
+    const remove = setTimeout(onDismiss, LIFETIME_MS + LEAVE_MS)
+    return () => {
+      clearTimeout(start)
+      clearTimeout(remove)
+    }
     // onDismiss ผูกกับ id ที่ไม่เปลี่ยน จึงตั้งเวลาครั้งเดียวพอ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
-    <div className="toast" role="status">
+    <div className={'toast' + (leaving ? ' leaving' : '')} role="status">
       <Icon name="checkSolid" />
       <span>{toast.message}</span>
     </div>

@@ -747,8 +747,21 @@ body {
   height: 20px;
 }
 
+/* ขาออกเลื่อนไปทางขวาเหมือนตอนเข้า ไม่ใช่จางหายอยู่กับที่
+   ต้องมี forwards ไม่งั้นพอเล่นจบเฟรมสุดท้ายจะเด้งกลับมาโผล่ให้เห็นอีกวูบก่อนถูกถอด */
+.toast.leaving {
+  animation: toast-out 0.22s ease-in forwards;
+}
+
 @keyframes toast-in {
   from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes toast-out {
+  to {
     opacity: 0;
     transform: translateX(100%);
   }
@@ -1564,15 +1577,22 @@ body {
   border-radius: 5px;
 }
 
+/* ต้องประกาศสีตัวอักษรซ้ำในตัวเลือกร่วมทุกอัน ไม่ใช่ประกาศครั้งเดียวที่ .room-badge
+   เพราะมีคลาส .status-vacant / .status-occupied / .status-maintenance ชุดเก่า (ป้ายพื้นอ่อน
+   ตัวอักษรเข้ม ใช้ที่หน้าอื่น) อยู่ท้ายไฟล์ ซึ่งมีความจำเพาะเท่ากับ .room-badge แต่มาทีหลัง
+   จึงชนะและย้อมตัวอักษรกลับเป็นสีเข้มจนอ่านไม่ออกบนพื้นสีเต็ม */
 .room-badge.status-vacant {
+  color: #fff;
   background: #12a150;
 }
 
 .room-badge.status-occupied {
+  color: #fff;
   background: #e02424;
 }
 
 .room-badge.status-maintenance {
+  color: #fff;
   background: #9a6b12;
 }
 
@@ -1839,10 +1859,11 @@ body {
 /* -----------------------------------------------------
    ขั้นที่ 4 — จัดการชั้น (แถว "ชั้นที่ N [n] ห้อง")
    ----------------------------------------------------- */
+/* เรียงลงมาทีละแถว ไม่ใช่วางต่อกันไปทางขวา — หอ 8 ชั้นจะได้อ่านไล่จากบนลงล่างได้ */
 .floor-count-grid {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px 40px;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .floor-count-row {
@@ -1851,7 +1872,9 @@ body {
   gap: 12px;
 }
 
+/* ป้าย "ชั้นที่ N" กว้างคงที่ ช่องกรอกทุกแถวจะได้ตรงกันเป็นคอลัมน์เดียว */
 .floor-count-row label {
+  width: 72px;
   margin: 0;
   font-size: 15px;
   color: var(--text-soft);
@@ -2430,11 +2453,36 @@ body {
   user-select: all;
 }
 
-/* คำเตือนใต้สวิตช์ค่าน้ำ/ค่าไฟ — เปิดเก็บเงินไว้แต่ยังไม่ได้ใส่ราคา */
-.utility-warning {
-  margin: 0;
-  font-size: 13px;
+/* กล่องสรุปวิธีคิดค่าน้ำ/ค่าไฟที่ตั้งไว้ — พื้นฟ้าอ่อน ข้อความกลาง สองบรรทัด (ตามต้นแบบ) */
+.utility-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
   text-align: center;
+  background: #eef2fb;
+  border-radius: var(--radius);
+}
+
+.utility-summary strong {
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.utility-summary span {
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+/* ยังไม่ได้ระบุราคา = ใช้โทนเตือนแทนโทนฟ้า จะได้ไม่ดูเหมือนตั้งค่าเรียบร้อยแล้ว */
+.utility-summary-empty {
+  background: var(--err-weak);
+}
+
+.utility-summary-empty strong {
+  font-size: 16px;
   color: var(--err);
 }
 

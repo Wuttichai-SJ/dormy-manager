@@ -51,6 +51,30 @@ function hasPrice(side) {
   return filled(side.unitPrice)
 }
 
+// สรุปสิ่งที่กรอกไปแล้วเป็นสองบรรทัด แบบเดียวกับต้นแบบ — เจ้าของหอต้องเห็นได้ทันที
+// ว่าตัวเองตั้งอะไรไว้ โดยไม่ต้องกดเข้าหน้าต่างไปดู ต้องมีครบทั้งสามประเภทการคิดเงิน
+//
+//   ตามมิเตอร์ที่ใช้จริง        / 8 บาท/ยูนิต
+//   ตามมิเตอร์แบบมีขั้นต่ำ 120 บาท / 30 บาท/ยูนิต
+//   เหมาจ่ายรายเดือน           / 500 บาท/เดือน
+function summarize(side) {
+  const amount = (value) => Number(value).toLocaleString('th-TH')
+
+  if (side.billingType === 'flat') {
+    return { headline: BILLING_TYPE_LABELS.flat, detail: `${amount(side.flatRate)} บาท/เดือน` }
+  }
+  if (side.billingType === 'minimum') {
+    return {
+      headline: `${BILLING_TYPE_LABELS.minimum} ${amount(side.minCharge)} บาท`,
+      detail: `${amount(side.unitPrice)} บาท/ยูนิต`
+    }
+  }
+  return {
+    headline: BILLING_TYPE_LABELS.actual,
+    detail: `${amount(side.unitPrice)} บาท/ยูนิต`
+  }
+}
+
 export default function UtilitySettingsPage({ apartment }) {
   const [sides, setSides] = useState({ water: EMPTY_SIDE, electric: EMPTY_SIDE })
   const [loading, setLoading] = useState(true)
@@ -115,6 +139,21 @@ export default function UtilitySettingsPage({ apartment }) {
               onChange={(showReadingInInvoice) => persist(key, { showReadingInInvoice })}
             />
 
+            {/* กรอกแล้ว = สรุปให้เห็นว่าตั้งอะไรไว้ / ยังไม่กรอก = เตือนว่าออกบิลจะได้ 0 บาท
+                ทั้งสองกรณีต้องเห็นตั้งแต่หน้านี้ ไม่ใช่ต้องกดเข้าหน้าต่างไปดูเอง */}
+            {sides[key].enabled &&
+              (hasPrice(sides[key]) ? (
+                <div className="utility-summary">
+                  <strong>{summarize(sides[key]).headline}</strong>
+                  <span>{summarize(sides[key]).detail}</span>
+                </div>
+              ) : (
+                <div className="utility-summary utility-summary-empty">
+                  <strong>ยังไม่ได้ระบุการคิด{meta.title}</strong>
+                  <span>ออกบิลตอนนี้จะคิดเป็น 0 บาท</span>
+                </div>
+              ))}
+
             <div className="utility-side-action">
               <button
                 type="button"
@@ -125,12 +164,6 @@ export default function UtilitySettingsPage({ apartment }) {
                 ระบุการคิด{meta.title}
               </button>
             </div>
-
-            {/* เปิดเก็บเงินไว้แต่ยังไม่ได้ใส่ราคา = ออกบิลไปจะได้ 0 บาททั้งหอ
-                ต้องเห็นชัดตรงนี้ ไม่ใช่ไปรู้ตัวตอนบิลออกแล้ว */}
-            {sides[key].enabled && !hasPrice(sides[key]) && (
-              <p className="utility-warning">ยังไม่ได้ระบุการคิด{meta.title}</p>
-            )}
           </section>
         ))}
       </div>
