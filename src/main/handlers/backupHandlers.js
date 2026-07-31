@@ -3,9 +3,10 @@
 // ตัวจัดการนี้ต่างจากตัวอื่นตรงที่แตะไฟล์และวงจรชีวิตของแอปโดยตรง (ปิดฐานข้อมูล ทับไฟล์
 // รีสตาร์ต) จึงเป็นที่เดียวที่ import electron ส่วนตรรกะล้วนๆ อยู่ที่ db/backups.js
 import fs from 'node:fs'
-import { app, dialog, ipcMain, shell } from 'electron'
-import { getDatabase, resolveDbPath } from '../database.js'
+import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
+import { closeDatabase, getDatabase, resolveDbPath } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { clearSession } from './authHandlers.js'
 import {
   createBackup,
   deleteBackup,
@@ -57,18 +58,27 @@ export function registerBackupHandlers() {
 
   // กู้คืน = เรื่องที่ย้อนกลับไม่ได้ ต้องถามยืนยันด้วยกล่องของระบบก่อนเสมอ
   //
+  // *** ไม่รีสตาร์ตแอป ***
+  // เคยทำด้วย app.relaunch() + app.exit(0) แล้วพังตอน dev: การ exit ฆ่าโปรเซสแม่ของ
+  // electron-vite ไปด้วย เซิร์ฟเวอร์ vite ที่พอร์ต 5173 จึงดับ แอปที่รีสตาร์ตขึ้นมาโหลด
+  // หน้าจอไม่ได้ (ERR_CONNECTION_REFUSED) เหลือแต่จอขาว
+  //
+  // การรีสตาร์ตไม่จำเป็นตั้งแต่แรก — ที่ต้องทำจริงๆ มีแค่ปิดฐานข้อมูลเพื่อให้ทับไฟล์ได้
+  // แล้วเปิดใหม่ ส่วนหน้าจอสั่ง reload เอาก็พอ วิธีนี้ทำงานเหมือนกันทั้ง dev และตอนแพ็กแล้ว
+  //
   // ลำดับสำคัญมาก:
   //   1) ตรวจว่าไฟล์สำรองใช้ได้จริงก่อน — ถ้าเสียแล้วเราไปทับของจริงไปแล้วคือจบ
   //   2) สำรองของปัจจุบันไว้ก่อนทับ เผื่อกู้ผิดไฟล์จะได้ยังมีทางกลับ
   //   3) ปิดฐานข้อมูล แล้วค่อยทับไฟล์ (Windows ล็อกไฟล์ที่เปิดอยู่ ทับไม่ได้)
-  //   4) รีสตาร์ตแอป — ทั้งแอปถือ instance ฐานข้อมูลตัวเดียวไว้ในหน่วยความจำ
-  //      การเปิดใหม่ระหว่างทางจะทำให้หน้าจอที่เปิดค้างอยู่ถือข้อมูลเก่าปนใหม่
+  //   4) เปิดฐานข้อมูลใหม่ — migrations จะวิ่งอีกรอบ ไฟล์สำรองจากแอปเวอร์ชันเก่าจึงถูก
+  //      อัปเกรดให้เองโดยอัตโนมัติ
+  //   5) ล้างเซสชัน + reload หน้าจอ
   handle('backup:restore', async ({ fileName }) => {
     const { source, info } = prepareRestore(userData(), fileName)
 
     const { response } = await dialog.showMessageBox({
       type: 'warning',
-      buttons: ['ยกเลิก', 'กู้คืนและรีสตาร์ต'],
+      buttons: ['ยกเลิก', 'กู้คืนข้อมูล'],
       defaultId: 0,
       cancelId: 0,
       title: 'ยืนยันการกู้คืนข้อมูล',
@@ -76,7 +86,7 @@ export function registerBackupHandlers() {
       detail:
         `ไฟล์นี้มีข้อมูลหอพัก ${info.apartments} หอ\n\n` +
         'ข้อมูลปัจจุบันทั้งหมดจะถูกแทนที่ ระบบจะสำรองข้อมูลปัจจุบันไว้ให้ก่อนอัตโนมัติ ' +
-        'แล้วปิดและเปิดโปรแกรมใหม่'
+        'แล้วให้เข้าสู่ระบบใหม่'
     })
     if (response !== 1) return { cancelled: true }
 
@@ -86,7 +96,7 @@ export function registerBackupHandlers() {
     logInfo(`สำรองก่อนกู้คืนไว้ที่ ${safety.fileName}`)
 
     const target = resolveDbPath()
-    getDatabase().close()
+    closeDatabase()
 
     fs.copyFileSync(source, target)
     // ไฟล์ WAL/SHM ของฐานข้อมูลเดิมต้องหายไปด้วย ไม่งั้น SQLite จะเอา WAL เก่ามาเล่นทับ
@@ -95,9 +105,17 @@ export function registerBackupHandlers() {
       if (fs.existsSync(target + suffix)) fs.rmSync(target + suffix)
     }
 
-    logInfo(`กู้คืนข้อมูลจาก ${fileName} แล้ว กำลังรีสตาร์ต`)
-    app.relaunch()
-    app.exit(0)
-    return { restarting: true }
+    // เปิดไฟล์ใหม่ทันทีตรงนี้ ไม่รอให้ handler ตัวถัดไปเป็นคนเปิด — จะได้รู้เดี๋ยวนี้เลย
+    // ถ้าไฟล์ที่กู้มาเปิดไม่ขึ้น แทนที่จะไปพังกลางทางตอนผู้ใช้กดอย่างอื่น
+    getDatabase()
+
+    // ไฟล์ที่กู้มาอาจมีชุดผู้ใช้คนละชุด — บังคับเข้าสู่ระบบใหม่เสมอ
+    clearSession()
+    logInfo(`กู้คืนข้อมูลจาก ${fileName} เรียบร้อย`)
+
+    // reload หน้าจอเพื่อให้ทุกหน้าดึงข้อมูลจากไฟล์ใหม่ และเด้งกลับไปหน้าเข้าสู่ระบบ
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.reload()
+
+    return { ok: true, apartments: info.apartments }
   })
 }

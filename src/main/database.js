@@ -40,3 +40,17 @@ export function getDatabase() {
   db = openDatabase(resolveDbPath())
   return db
 }
+
+// ปิดฐานข้อมูลแล้วลืมมันไป — ครั้งถัดไปที่ getDatabase() ถูกเรียก จะเปิดไฟล์ใหม่ให้เอง
+// พร้อมรัน migrations อีกรอบ
+//
+// ใช้ตอนกู้คืนข้อมูล: ต้องปิดก่อนถึงจะทับไฟล์ได้ (Windows ล็อกไฟล์ที่เปิดอยู่) แล้วพอเปิดใหม่
+// ไฟล์สำรองที่มาจากแอปเวอร์ชันเก่ากว่าจะถูกอัปเกรดด้วย migrations ที่ยังไม่เคยรันโดยอัตโนมัติ
+//
+// ปลอดภัยเพราะทุก handler เรียก getDatabase() ใหม่ทุกครั้งที่ทำงาน ไม่มีใครถือ instance
+// เก่าค้างไว้ (ดู handlers/*.js — ห้ามเก็บผลของ getDatabase() ไว้ในตัวแปรระดับโมดูล)
+export function closeDatabase() {
+  if (!db) return
+  db.close()
+  db = null
+}

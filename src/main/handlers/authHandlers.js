@@ -19,6 +19,14 @@ import {
 // เก็บไว้ฝั่ง main ไม่ใช่ฝั่ง renderer เพราะ renderer แก้ค่าตัวเองได้จาก DevTools
 let session = null
 
+// ล้างเซสชันโดยไม่ผ่าน IPC — ใช้ตอนกู้คืนข้อมูล
+//
+// ไฟล์สำรองที่กู้มาอาจมีชุดผู้ใช้คนละชุดกับที่ล็อกอินค้างอยู่ (คนละรหัสผ่าน หรือ user_id
+// เดียวกันแต่เป็นคนละคน) ถ้าไม่ล้าง จะกลายเป็นเข้าถึงข้อมูลในฐานะคนที่ฐานข้อมูลใหม่ไม่รู้จัก
+export function clearSession() {
+  session = null
+}
+
 function handle(channel, fn) {
   ipcMain.handle(channel, async (_event, payload) => {
     try {

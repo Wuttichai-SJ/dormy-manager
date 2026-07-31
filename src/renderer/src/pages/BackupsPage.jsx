@@ -46,10 +46,11 @@ export default function BackupsPage() {
 
   async function restore(backup) {
     setError('')
-    // คำเตือนและการยืนยันอยู่ที่ฝั่ง main (กล่องของระบบ) เพราะถ้ากดตกลงแล้วแอปจะรีสตาร์ตทันที
+    // คำเตือนและการยืนยันเป็นกล่องของระบบที่ฝั่ง main เพราะกดตกลงแล้วหน้านี้จะถูก reload ทิ้ง
     const res = await restoreBackup(backup.fileName)
     if (!res.success) return setError(res.error)
-    // ถ้าไม่ถูกยกเลิก แอปกำลังจะปิดตัวเองแล้วเปิดใหม่ — ไม่ต้องทำอะไรต่อ
+    // สำเร็จ = ฝั่ง main สั่ง reload หน้าจอแล้ว และล้างเซสชันไว้ จะเด้งไปหน้าเข้าสู่ระบบเอง
+    // ไม่ต้องทำอะไรต่อ (จะโชว์ toast ก็ไม่ทัน เพราะหน้าถูกโหลดใหม่)
   }
 
   async function remove(backup) {
