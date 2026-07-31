@@ -122,7 +122,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`apartments` (
   `is_auto_late_fee_enabled` TINYINT(1) NOT NULL DEFAULT 1,
   `due_date_day` INT NOT NULL,
   `is_vat_enabled` TINYINT NULL,
+  -- เลิกใช้ตั้งแต่ migration 011 — รูปย้ายไปเก็บเป็น BLOB ในตาราง images แล้ว
+  -- ไม่เคยมีโค้ดไหนเขียนค่าลงคอลัมน์นี้ ปล่อยว่างไว้ตลอด (ลบทิ้งต้องสร้างตารางใหม่ทั้งใบ)
   `qr_code_image` VARCHAR(255) NULL,
+  -- QR รับเงินตัวจริง (migration 011) — NULL = ยังไม่ได้อัปโหลด ใบแจ้งหนี้ก็ยังออกได้
+  `qr_code_image_id` INT NULL,
   `payment_instructions` TEXT NULL,
   `show_tenant_info_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
   `show_unit_qty_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
@@ -678,3 +682,34 @@ ENGINE = InnoDB;
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
+
+-- -----------------------------------------------------
+-- Table `mydb`.`images`  (migration 011)
+-- -----------------------------------------------------
+-- รูปภาพทุกใบในระบบเก็บเป็น BLOB ที่นี่ ไม่ใช่ไฟล์ในโฟลเดอร์
+-- เพราะการสำรองข้อมูลคัดลอกเฉพาะไฟล์ .sqlite — รูปที่อยู่นอกไฟล์จะไม่ติดไปด้วย
+--
+-- แยกเป็นตารางกลางแทนคอลัมน์ BLOB บนตารางที่ใช้ เพราะ SQLite อ่านทั้งแถวเวลา SELECT
+-- ถ้าแปะไว้บน apartments คำสั่ง `SELECT a.*` จะลากรูปขึ้นมาทุกครั้งที่เปิดหน้ารายการหอ
+CREATE TABLE IF NOT EXISTS `mydb`.`images` (
+  `image_id`   INT NOT NULL AUTO_INCREMENT,
+  `mime_type`  VARCHAR(50) NOT NULL,
+  `byte_size`  INT NOT NULL,
+  `bytes`      BLOB NOT NULL,
+  `created_at` TIMESTAMP NOT NULL,
+  PRIMARY KEY (`image_id`)
+);
+
+-- -----------------------------------------------------
+-- Table `mydb`.`maintenance_request_images`  (migration 011)
+-- -----------------------------------------------------
+-- หนึ่งงานแจ้งซ่อมมีรูปได้หลายใบ (ก่อนซ่อม / หลังซ่อม) และไม่บังคับว่าต้องมี
+CREATE TABLE IF NOT EXISTS `mydb`.`maintenance_request_images` (
+  `maintenance_id` INT NOT NULL,
+  `image_id`       INT NOT NULL,
+  `display_order`  INT NOT NULL DEFAULT 0,
+  `created_at`     TIMESTAMP NOT NULL,
+  PRIMARY KEY (`maintenance_id`, `image_id`),
+  FOREIGN KEY (`maintenance_id`) REFERENCES `mydb`.`maintenance_requests` (`maintenance_id`),
+  FOREIGN KEY (`image_id`) REFERENCES `mydb`.`images` (`image_id`)
+);

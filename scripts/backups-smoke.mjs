@@ -113,6 +113,35 @@ check('prepareRestore คืน path และสรุปข้อมูลใ�
 })
 
 // -----------------------------------------------------
+group('กันไฟล์จากแอปรุ่นใหม่กว่า')
+
+check('ไฟล์ที่มี migration ที่แอปรุ่นนี้ไม่รู้จัก กู้คืนไม่ได้', () => {
+  const list = backups.listBackups(userData)
+  // จำลองว่าแอปรุ่นนี้รู้จัก migration น้อยกว่าที่อยู่ในไฟล์สำรอง
+  // (= ไฟล์มาจากแอปรุ่นใหม่กว่า) โดยส่งรายการที่รู้จักไปแค่ไฟล์เดียว
+  throws(
+    () => backups.inspectBackup(list[0].path, ['001_init.sql']),
+    'รุ่นใหม่กว่า',
+    'ควรปฏิเสธไฟล์ที่สคีมาใหม่กว่าโค้ด'
+  )
+})
+
+check('ไฟล์ที่ migration ครบตามที่แอปรู้จัก กู้คืนได้', () => {
+  const list = backups.listBackups(userData)
+  const known = backups.listKnownMigrations('src/main/migrations')
+  const info = backups.inspectBackup(list[0].path, known)
+  assert(info.appliedMigrations.length > 0, 'ควรอ่านรายการ migration ได้')
+})
+
+// แอปรุ่นใหม่กว่ากู้ไฟล์เก่าได้ตามปกติ — migrations ที่ขาดจะถูกรันตอนเปิดไฟล์
+check('ไฟล์เก่ากว่า (migration น้อยกว่า) กู้คืนได้', () => {
+  const list = backups.listBackups(userData)
+  const known = [...backups.listKnownMigrations('src/main/migrations'), '999_ของอนาคต.sql']
+  const info = backups.inspectBackup(list[0].path, known)
+  assert(info.apartments === 2, `ได้ ${info.apartments}`)
+})
+
+// -----------------------------------------------------
 group('ลบสำเนา')
 
 check('ลบไฟล์สำรองได้ พร้อมไฟล์ป้ายกำกับ', () => {

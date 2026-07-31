@@ -96,7 +96,9 @@ function describeBackup(dir, fileName) {
 // ------------------------------------------------------------------
 // เปิดอ่านแบบ read-only แล้วดูว่ามีตาราง _migrations กับ apartments อยู่จริงไหม
 // กันการเอาไฟล์อะไรก็ไม่รู้มาทับฐานข้อมูลจริงแล้วพังทั้งระบบ
-export function inspectBackup(filePath) {
+// knownMigrations = ชื่อไฟล์ migration ทั้งหมดที่แอปเวอร์ชันนี้มี (จาก migrationsDir)
+// ส่งเข้ามาเพื่อกันการกู้คืนไฟล์ที่มาจากแอป "รุ่นใหม่กว่า" — ดูเหตุผลด้านล่าง
+export function inspectBackup(filePath, knownMigrations = null) {
   if (!fs.existsSync(filePath)) throw new Error('ไม่พบไฟล์สำรองที่ระบุ')
 
   let probe
@@ -109,16 +111,41 @@ export function inspectBackup(filePath) {
       throw new Error('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Dormy Manager')
     }
 
-    const applied = probe.prepare('SELECT COUNT(*) AS n FROM _migrations').get().n
+    const applied = probe.prepare('SELECT name FROM _migrations ORDER BY name').all().map((r) => r.name)
     const apartments = probe.prepare('SELECT COUNT(*) AS n FROM apartments').get().n
-    return { migrations: applied, apartments }
+
+    // *** กันการกู้คืนไฟล์จากแอปรุ่นใหม่กว่า ***
+    //
+    // migration runner เดินไปข้างหน้าอย่างเดียว ไม่มีทางย้อนกลับ ถ้าไฟล์สำรองผ่าน
+    // migration ที่แอปรุ่นนี้ยังไม่มีไฟล์ให้รู้จัก แปลว่าสคีมาข้างในใหม่กว่าที่โค้ดนี้เข้าใจ
+    // — กู้คืนไปแล้วจะ "เปิดได้แต่ทำงานเพี้ยน" ซึ่งอันตรายกว่าพังตรงๆ เพราะไม่มีใครสังเกต
+    //
+    // เกิดได้จริงตอนมีแอปหลายรุ่นในมือ: อัปเดตแอป → สำรอง → ย้อนกลับไปใช้รุ่นเก่า → กู้คืน
+    if (knownMigrations) {
+      const known = new Set(knownMigrations)
+      const unknown = applied.filter((name) => !known.has(name))
+      if (unknown.length > 0) {
+        throw new Error(
+          `ไฟล์สำรองนี้มาจากโปรแกรมรุ่นใหม่กว่าที่ใช้อยู่ (มีการอัปเดตฐานข้อมูล ${unknown.length} รายการที่รุ่นนี้ยังไม่รู้จัก) — กรุณาอัปเดตโปรแกรมให้เป็นรุ่นล่าสุดก่อนกู้คืน`
+        )
+      }
+    }
+
+    return { migrations: applied.length, appliedMigrations: applied, apartments }
   } catch (err) {
-    // ข้อความของ SQLite ("file is not a database") ผู้ใช้อ่านไม่รู้เรื่อง
-    if (err.message.includes('ไฟล์นี้ไม่ใช่')) throw err
+    // ข้อความของ SQLite ("file is not a database") ผู้ใช้อ่านไม่รู้เรื่อง — แต่ข้อความที่เรา
+    // ตั้งใจโยนเองต้องผ่านออกไปตามเดิม ไม่ถูกกลบด้วยข้อความรวม
+    if (err.message.includes('ไฟล์นี้ไม่ใช่') || err.message.includes('รุ่นใหม่กว่า')) throw err
     throw new Error('เปิดไฟล์สำรองไม่ได้ — ไฟล์อาจเสียหายหรือไม่ใช่ไฟล์ฐานข้อมูล')
   } finally {
     probe?.close()
   }
+}
+
+// อ่านรายชื่อไฟล์ migration ที่แอปเวอร์ชันนี้มี — ชุดเดียวกับที่ migrate.js ใช้
+export function listKnownMigrations(migrationsDir) {
+  if (!fs.existsSync(migrationsDir)) return []
+  return fs.readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort()
 }
 
 // ------------------------------------------------------------------
@@ -127,9 +154,9 @@ export function inspectBackup(filePath) {
 // คืนค่าเป็น path ที่ต้องเอาไปทับ ให้ฝั่ง handler เป็นคนปิดฐานข้อมูล/ทับไฟล์/รีสตาร์ตแอป
 // เพราะโมดูลนี้ต้องไม่รู้จัก electron (ชุดทดสอบรันใต้ ELECTRON_RUN_AS_NODE ที่ import
 // electron ไม่ได้ — กฎเดียวกับ db/*.js ตัวอื่น)
-export function prepareRestore(userDataPath, fileName) {
+export function prepareRestore(userDataPath, fileName, migrationsDir = null) {
   const source = path.join(resolveBackupDir(userDataPath), fileName)
-  const info = inspectBackup(source)
+  const info = inspectBackup(source, migrationsDir ? listKnownMigrations(migrationsDir) : null)
   return { source, info }
 }
 

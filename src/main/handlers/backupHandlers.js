@@ -4,7 +4,7 @@
 // รีสตาร์ต) จึงเป็นที่เดียวที่ import electron ส่วนตรรกะล้วนๆ อยู่ที่ db/backups.js
 import fs from 'node:fs'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
-import { closeDatabase, getDatabase, resolveDbPath } from '../database.js'
+import { closeDatabase, getDatabase, resolveDbPath, resolveMigrationsDir } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import { clearSession } from './authHandlers.js'
 import {
@@ -74,7 +74,8 @@ export function registerBackupHandlers() {
   //      อัปเกรดให้เองโดยอัตโนมัติ
   //   5) ล้างเซสชัน + reload หน้าจอ
   handle('backup:restore', async ({ fileName }) => {
-    const { source, info } = prepareRestore(userData(), fileName)
+    // ส่ง migrationsDir เข้าไปด้วยเพื่อให้ตรวจได้ว่าไฟล์นี้มาจากแอปรุ่นใหม่กว่าหรือเปล่า
+    const { source, info } = prepareRestore(userData(), fileName, resolveMigrationsDir())
 
     const { response } = await dialog.showMessageBox({
       type: 'warning',
