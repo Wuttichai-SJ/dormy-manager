@@ -6,6 +6,7 @@ import BankAccountsPage from './BankAccountsPage.jsx'
 import FloorPlanPage from './FloorPlanPage.jsx'
 import RoomRatesPage from './RoomRatesPage.jsx'
 import SecuritySettingsPage from './SecuritySettingsPage.jsx'
+import BackupsPage from './BackupsPage.jsx'
 
 // หัวข้อของเมนู "ตั้งค่า" — แบ่งสองกลุ่มตามต้นแบบ: เรื่องที่เป็นของ "ทั้งหอ" กับเรื่องที่
 // ลงไปถึง "รายห้อง" ป้ายกลุ่มเป็นแค่หัวข้อ กดไม่ได้
@@ -27,7 +28,10 @@ export const SETTINGS_GROUPS = [
       { key: 'banks', label: 'บัญชีธนาคาร', ready: true },
       { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true },
       { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false },
-      { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true }
+      { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true },
+      // สำรองข้อมูลเป็นเรื่องของ "ทั้งเครื่อง" ไม่ใช่ของหอใดหอหนึ่ง (ไฟล์ฐานข้อมูลมีไฟล์เดียว)
+      // แต่วางไว้กลุ่มนี้เพราะเป็นที่ที่คนไปหาเรื่องตั้งค่าระบบ
+      { key: 'backups', label: 'สำรองข้อมูล', ready: true }
     ]
   },
   {
@@ -54,6 +58,8 @@ export function SettingsSection({ section, apartment, user, onApartmentDeleted }
       return <UtilitySettingsPage apartment={apartment} />
     case 'security':
       return <SecuritySettingsPage user={user} />
+    case 'backups':
+      return <BackupsPage />
     case 'plan':
       return <FloorPlanPage apartment={apartment} />
     // สามหัวข้อนี้ใช้หน้าเดียวกัน ต่างกันที่โหมด — key บังคับให้สร้างใหม่ทุกครั้งที่สลับ

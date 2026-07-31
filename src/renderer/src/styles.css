@@ -3023,3 +3023,43 @@ body {
   color: var(--err);
   background: var(--err-weak);
 }
+
+/* -----------------------------------------------------
+   หน้าสำรองข้อมูล
+   ----------------------------------------------------- */
+/* คำเตือนเรื่องดิสก์เดียวกัน — ต้องสะดุดตา เพราะเป็นความเข้าใจผิดที่ทำให้สำรองแล้วยังหายอยู่ดี */
+.backup-warning {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: var(--warn-weak);
+  border-radius: var(--radius);
+}
+
+.backup-warning svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--warn);
+}
+
+.backup-warning p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.backup-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* เส้นทางไฟล์ยาวและต้องคัดลอกไปวางได้ จึงใช้ฟอนต์ความกว้างคงที่และตัดขึ้นบรรทัดใหม่ได้ */
+.backup-path {
+  margin-top: 12px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  word-break: break-all;
+  user-select: all;
+}
