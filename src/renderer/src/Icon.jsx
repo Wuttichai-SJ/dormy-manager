@@ -36,6 +36,7 @@ import minusCircle from './assets/icons/heroicons/24/outline/minus-circle.svg?ra
 import close from './assets/icons/heroicons/24/outline/x-mark.svg?raw'
 import info from './assets/icons/heroicons/24/outline/information-circle.svg?raw'
 import plus from './assets/icons/heroicons/24/outline/plus.svg?raw'
+import search from './assets/icons/heroicons/24/outline/magnifying-glass.svg?raw'
 import chevronDown from './assets/icons/heroicons/24/outline/chevron-down.svg?raw'
 import trash from './assets/icons/heroicons/24/outline/trash.svg?raw'
 import back from './assets/icons/heroicons/24/outline/arrow-left.svg?raw'
@@ -71,6 +72,7 @@ const ICONS = {
   close,
   info,
   plus,
+  search,
   chevronDown,
   trash,
   copy,

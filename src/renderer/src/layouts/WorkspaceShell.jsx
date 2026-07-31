@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
+import TenantsPage from '../pages/TenantsPage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
@@ -117,7 +118,9 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
         </header>
 
         <div className="page">
-          {settingsItem ? (
+          {active === 'tenants' ? (
+            <TenantsPage apartment={apartment} />
+          ) : settingsItem ? (
             <SettingsSection
               section={active}
               apartment={apartment}

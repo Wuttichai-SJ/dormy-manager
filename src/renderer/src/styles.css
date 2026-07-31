@@ -2617,3 +2617,63 @@ body {
 .utility-side .toggle-input:checked + .toggle-track {
   background: #12a150;
 }
+
+/* -----------------------------------------------------
+   หน้าผู้เช่า
+   ----------------------------------------------------- */
+.tenants-toolbar {
+  align-items: center;
+  gap: 16px;
+  /* ช่องค้นหาอยู่ซ้าย ปุ่มเพิ่มอยู่ขวาสุด */
+  justify-content: flex-start;
+}
+
+.tenants-toolbar .btn {
+  margin-left: auto;
+}
+
+/* ช่องค้นหาที่มีไอคอนแว่นขยายอยู่ข้างใน */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 380px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.search-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+.search-field .icon {
+  color: var(--text-muted);
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  font-size: 14px;
+  color: var(--text);
+  background: none;
+  border: none;
+}
+
+.search-field input:focus {
+  outline: none;
+}
+
+/* ช่องกรอกในหน้าต่างซ้อนที่วางเรียงกันเป็นแถว */
+.modal-body .field-row {
+  gap: 16px;
+}
+
+.modal-body .field-row + .field,
+.modal-body .field + .field-row,
+.modal-body .field-row + .field-row {
+  margin-top: 16px;
+}
