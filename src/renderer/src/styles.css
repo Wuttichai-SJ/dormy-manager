@@ -952,6 +952,25 @@ body {
   padding: 6px;
 }
 
+.settings-nav-group + .settings-nav-group {
+  margin-top: 14px;
+}
+
+/* ป้ายกำกับกลุ่ม ("ระดับอพาร์ตเมนต์" / "ระดับห้อง") — เป็นหัวข้อเฉยๆ กดไม่ได้
+   จึงต้องดูต่างจากรายการที่กดได้ชัดเจน: เล็กกว่า จางกว่า และไม่มีสถานะ hover */
+.settings-nav-group-label {
+  margin: 0 0 4px;
+  padding: 6px 12px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* รายการลูกเยื้องเข้าไป ให้เห็นว่าอยู่ใต้ป้ายกำกับกลุ่มไหน */
+.settings-nav-group .settings-nav-item {
+  padding-left: 22px;
+}
+
 .settings-nav-item {
   display: flex;
   align-items: center;
@@ -1768,8 +1787,10 @@ body {
   transition: transform 0.15s;
 }
 
+/* เปิดแล้วเป็นส้ม ไม่ใช่เขียว — ตามต้นแบบ และเข้าชุดกับโทนน้ำตาล/เหลืองของแบรนด์
+   (สีเขียวสงวนไว้ให้ป้ายสถานะ "ว่าง" กับข้อความแจ้งผลสำเร็จเท่านั้น) */
 .toggle-input:checked + .toggle-track {
-  background: #12a150;
+  background: #e5860f;
 }
 
 .toggle-input:checked + .toggle-track .toggle-knob {
@@ -1783,6 +1804,19 @@ body {
 
 .toggle-label {
   color: var(--text-soft);
+}
+
+/* ในตารางใช้สวิตช์เปล่าๆ ไม่มีข้อความกำกับและไม่มีพื้นแถบ (หัวคอลัมน์บอกอยู่แล้วว่าคืออะไร) */
+.data-table .toggle-row {
+  gap: 0;
+  padding: 0;
+  background: none;
+}
+
+/* ปุ่มที่มีแต่ไอคอน ไม่ต้องเว้นระยะแบบปุ่มข้อความ */
+.link-btn.icon-only svg {
+  width: 18px;
+  height: 18px;
 }
 
 /* หน้าแต่ละขั้นมีแถบคำอธิบายของตัวเอง (.info-banner) ไว้ใช้ตอนเปิดเดี่ยวๆ จากเมนูตั้งค่า
@@ -2199,6 +2233,16 @@ body {
 .data-table td {
   padding: 11px 12px;
   border-bottom: 1px solid var(--border);
+  /* ทุกช่องต้องนั่งกลางแนวตั้งเท่ากันหมด ไม่งั้นช่องที่มีปุ่ม/ป้ายอยู่ข้างในจะดันตัวหนังสือ
+     ของช่องอื่นในแถวเดียวกันให้ลอยขึ้นไปคนละระดับ */
+  vertical-align: middle;
+}
+
+/* หัวตารางกับข้อมูลต้องชิดข้างเดียวกันเสมอ — เขียน text-align ที่ <col> ไม่ได้
+   จึงบังคับผ่านคลาสเดียวกันทั้ง th และ td (ดู .align-right ข้างล่าง) */
+.data-table th.align-right,
+.data-table td.align-right {
+  text-align: right;
 }
 
 .data-table tr:last-child td {
@@ -2529,4 +2573,24 @@ body {
 .danger-confirm-actions {
   display: flex;
   gap: 10px;
+}
+
+/* หน้า ตั้งค่า > ข้อมูลหอพัก ใช้ฟอร์มโครงเดียวกับหน้าเพิ่มหอ ซึ่งออกแบบมาสำหรับพื้นที่
+   เต็มจอ พอมาอยู่ในกรอบเนื้อหาที่แคบลง (มีเมนูตั้งค่าเบียดอยู่ซ้าย) คอลัมน์หัวข้อกับการ์ด
+   จะชิดกันจนอ่านยาก — เว้นระยะให้กว้างขึ้นเหมือนต้นแบบ */
+.settings-content .form-section {
+  gap: 40px;
+}
+
+.settings-content .form-section + .form-section,
+.settings-content .form-actions {
+  margin-top: 48px;
+  padding-top: 48px;
+}
+
+/* โซนลบหอพักต้องห่างจากส่วนที่เหลือมากเป็นพิเศษ จะได้ไม่กดพลาดต่อจากปุ่มบันทึก */
+.settings-content .danger-zone {
+  margin-top: 64px;
+  padding-top: 48px;
+  border-top: 1px solid var(--border-strong);
 }

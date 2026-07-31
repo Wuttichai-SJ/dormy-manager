@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { BANKS, RECOMMENDED_MAX_ACCOUNTS } from '../constants.js'
 import {
   createBankAccount,
@@ -165,7 +167,12 @@ export default function BankAccountsPage({ apartment }) {
                 <th>ธนาคาร</th>
                 <th>ชื่อบัญชี</th>
                 <th>เลขบัญชี</th>
-                <th>บัญชีหลัก</th>
+                <th>
+                  ค่าเริ่มต้น{' '}
+                  <span className="hint-icon" title="บัญชีที่จะขึ้นเป็นตัวเลือกแรกในใบแจ้งหนี้">
+                    <Icon name="info" />
+                  </span>
+                </th>
                 <th className="align-right">จัดการ</th>
               </tr>
             </thead>
@@ -176,17 +183,14 @@ export default function BankAccountsPage({ apartment }) {
                   <td>{a.accountName}</td>
                   <td>{a.accountNumber}</td>
                   <td>
-                    {a.isDefault ? (
-                      <span className="tag">บัญชีหลัก</span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="link-btn"
-                        onClick={() => act(() => setDefaultBankAccount(a.bankAccountId))}
-                      >
-                        ตั้งเป็นหลัก
-                      </button>
-                    )}
+                    {/* สวิตช์แทนลิงก์ "ตั้งเป็นหลัก" ตามต้นแบบ — เห็นได้ทันทีว่าอันไหนเป็น
+                        ค่าเริ่มต้นอยู่ ปิดเองไม่ได้ ต้องไปเปิดของอีกบัญชีแทน (มีได้ทีละอัน) */}
+                    <ToggleSwitch
+                      label=""
+                      checked={a.isDefault}
+                      disabled={a.isDefault}
+                      onChange={() => act(() => setDefaultBankAccount(a.bankAccountId))}
+                    />
                   </td>
                   <td className="align-right">
                     <button
@@ -205,10 +209,11 @@ export default function BankAccountsPage({ apartment }) {
                     </button>
                     <button
                       type="button"
-                      className="link-btn link-danger table-action"
+                      className="link-btn link-danger table-action icon-only"
                       onClick={() => act(() => deleteBankAccount(a.bankAccountId))}
+                      aria-label={`ลบบัญชี ${a.accountName}`}
                     >
-                      ลบ
+                      <Icon name="trash" />
                     </button>
                   </td>
                 </tr>
