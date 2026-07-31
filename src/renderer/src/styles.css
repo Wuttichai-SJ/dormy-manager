@@ -992,127 +992,49 @@ body {
 }
 
 /* ฟอร์มเพิ่มรายการแบบแถวเดียว (ชื่อ / ราคา / ปุ่ม) */
-.service-form {
+/* แถวเดียว: ชื่อค่าบริการ (ยืดได้) | ราคา | คิด VAT — ตามต้นแบบ */
+.service-form-row {
   display: grid;
   grid-template-columns: 1fr 200px auto;
-  gap: 14px;
+  gap: 20px;
   align-items: start;
 }
 
-.service-form-options {
-  grid-column: 1 / -1;
+.service-form-row .field {
+  margin-bottom: 0;
+}
+
+.service-form-vat .checkbox-row {
+  margin-top: 8px;
+}
+
+.service-form-meter {
+  margin-top: 18px;
+}
+
+/* จุดคำอธิบายท้ายข้อความ — ชี้แล้วขึ้น tooltip ของเบราว์เซอร์เอง ไม่ต้องมี dependency */
+.hint-icon {
+  display: inline-flex;
+  color: var(--water);
+  cursor: help;
+}
+
+.hint-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .service-form-submit {
   display: flex;
+  justify-content: flex-end;
   gap: 8px;
-  padding-top: 25px; /* ให้ปุ่มอยู่ระดับเดียวกับช่องกรอกที่มี label อยู่ข้างบน */
+  margin-top: 18px;
 }
 
 @media (max-width: 760px) {
-  .service-form {
+  .service-form-row {
     grid-template-columns: 1fr;
   }
-
-  .service-form-submit {
-    padding-top: 0;
-  }
-}
-
-/* ค่าน้ำ / ค่าไฟ วางคู่กัน ตั้งค่าแยกอิสระ */
-.utility-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-@media (max-width: 860px) {
-  .utility-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* หัวการ์ดค่าน้ำ/ค่าไฟ — แถบสีอ่อนเต็มความกว้าง + ไอคอนวงกลมสีเข้ม
-   เป็นจุดที่ตาจับก่อนเพื่อน ทำให้รู้ทันทีว่าฝั่งไหนคือน้ำ ฝั่งไหนคือไฟ */
-.utility-card {
-  padding: 0;
-  overflow: hidden;
-}
-
-.utility-card-head {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.utility-card-head h2 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.utility-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  color: #fff;
-}
-
-.utility-icon svg {
-  width: 20px;
-  height: 20px;
-}
-
-.utility-water .utility-card-head {
-  background: var(--water-weak);
-  border-bottom-color: var(--water);
-}
-
-.utility-water .utility-icon {
-  background: var(--water);
-}
-
-.utility-water .utility-card-head h2 {
-  color: var(--water);
-}
-
-.utility-electric .utility-card-head {
-  background: var(--electric-weak);
-  border-bottom-color: var(--electric);
-}
-
-.utility-electric .utility-icon {
-  background: var(--electric);
-}
-
-.utility-electric .utility-card-head h2 {
-  color: var(--electric);
-}
-
-/* เนื้อในการ์ดต้องมี padding เอง เพราะการ์ดถูกตั้ง padding: 0 ไว้ให้หัวเต็มขอบ */
-.utility-toggle {
-  margin: 18px 20px 16px;
-}
-
-.utility-card .field,
-.utility-card > .checkbox-row:not(.utility-toggle) {
-  margin-left: 20px;
-  margin-right: 20px;
-}
-
-.utility-card > .checkbox-row:last-child {
-  margin-bottom: 20px;
-}
-
-.utility-footnote {
-  margin-top: 16px;
-  line-height: 1.7;
 }
 
 /* ฟอร์มเพิ่มบัญชีธนาคาร — ธนาคาร / ชื่อบัญชี / เลขบัญชี / ปุ่ม เรียงแถวเดียว */
@@ -1337,23 +1259,32 @@ body {
 .wizard-steps {
   display: flex;
   flex-direction: column;
-  /* เส้นแนวตั้งลากผ่านกลางวงกลมลำดับ — ต้นแบบใช้เส้นเดียวยาวตลอด ไม่ใช่ขีดทีละช่วง
-     เส้นอยู่ที่ 13px จากซ้าย = กึ่งกลางวงกลมขนาด 26px */
-  background: linear-gradient(var(--border-strong), var(--border-strong)) 13px 24px / 2px
-    calc(100% - 48px) no-repeat;
 }
 
+/* เส้นเชื่อมเป็น "ช่วง" ระหว่างวงกลมสองใบ ไม่ใช่เส้นยาวเส้นเดียวลากทับทุกวง
+   (ต้นแบบทำแบบนี้ — สังเกตได้ว่าช่วงที่ตัวอักษรโตขึ้นเส้นจะยาวตามไปด้วย) */
 .wizard-step {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 0;
+  padding: 10px 0;
   text-align: left;
   font-size: 16px;
   color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
+}
+
+.wizard-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: calc(50% + 14px);
+  bottom: calc(-50% + 14px);
+  width: 2px;
+  background: var(--border-strong);
 }
 
 .wizard-step-number {
@@ -1366,7 +1297,6 @@ body {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-soft);
-  /* วงกลมต้องทึบพอจะบังเส้นแนวตั้งที่ลากผ่านข้างหลัง */
   background: #e4e7ea;
   border: none;
   border-radius: 50%;
@@ -1397,19 +1327,21 @@ body {
 }
 
 /* การ์ดเนื้อหา: แถบครีมอธิบายขั้นตอนอยู่บนสุด ขีดเส้นส้มใต้แถบ แล้วจึงเป็นพื้นที่กรอก */
+/* ห้ามใส่ overflow:hidden ที่การ์ดใบนี้ — แถบล่างค้างจอ (.select-bar) ใช้ position:sticky
+   ซึ่งจะตายทันทีถ้ามีบรรพบุรุษตัวไหนตัดขอบ มุมโค้งจึงไปทำที่ลูกแต่ละตัวเองแทน */
 .wizard-card {
   background: var(--surface);
   border-radius: 12px;
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.1),
     0 1px 2px -1px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
 }
 
 .wizard-brief {
   padding: 24px;
   background: #fcfdeb;
   border-bottom: 1px solid #c37800;
+  border-radius: 12px 12px 0 0;
 }
 
 .wizard-brief h2 {
@@ -1466,6 +1398,558 @@ body {
   margin-top: 32px;
   padding-top: 32px;
   border-top: 1px solid var(--border-strong);
+}
+
+/* ปุ่ม "ต่อไป" ของต้นแบบเป็นสีดำ ไม่ใช่น้ำตาลเหมือนปุ่มบันทึกทั่วไป — จงใจให้ต่างกัน
+   เพราะมันไม่ได้บันทึกอะไร แค่พาไปขั้นถัดไป */
+.wizard-actions .btn {
+  background: #18181b;
+  padding: 10px 22px;
+}
+
+.wizard-actions .btn:hover:not(:disabled) {
+  background: #000;
+}
+
+/* -----------------------------------------------------
+   ชิ้นส่วนที่ขั้นตอนหลายขั้นใช้ร่วมกัน (ลอกจากต้นแบบ)
+   ----------------------------------------------------- */
+
+/* กลุ่มรายชั้น: หัวแถบสีครีมเหลืองพร้อมปุ่มเลือกทั้งชั้น แล้วตัวห้องอยู่บนพื้นขาว */
+.floor-group {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px -1px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.floor-group + .floor-group {
+  margin-top: 20px;
+}
+
+.floor-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #fdf3d1;
+}
+
+.floor-group-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.floor-group-tools {
+  display: flex;
+  gap: 10px;
+}
+
+/* ปุ่มขอบบางพื้นขาว มีไอคอนนำ — ต้นแบบใช้คู่นี้ที่หัวทุกชั้น */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline .icon svg {
+  width: 17px;
+  height: 17px;
+  color: var(--text-muted);
+}
+
+.floor-group-body {
+  padding: 20px;
+}
+
+/* การ์ดห้อง — เลขห้องอยู่กลางด้านบน รายละเอียดอยู่ใต้ลงมา
+   เลือกอยู่ = พื้นครีม ขอบน้ำตาล (ต้นแบบใช้สีบอกอย่างเดียว ไม่มีช่องติ๊ก) */
+.room-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.room-card {
+  width: 232px;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.room-card:hover {
+  border-color: var(--border-strong);
+}
+
+.room-card.selected {
+  background: var(--input-bg);
+  border-color: var(--accent);
+}
+
+.room-card-number {
+  display: block;
+  padding: 12px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+}
+
+/* ลูกของ .room-card เป็น <span> ทั้งหมด (อยู่ใน <button>) จึงต้องสั่ง display เองทุกตัว
+   ไม่งั้นจะเรียงต่อกันเป็นบรรทัดเดียวแล้วล้นออกนอกการ์ด */
+.room-card-lines {
+  display: block;
+  padding: 0 14px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.room-card-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* แถบข้อความใต้เลขห้อง (ใช้กับ "ไม่มีค่าบริการ" / รายชื่อค่าบริการ) */
+.room-card-note {
+  display: block;
+  padding: 8px 14px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--text-muted);
+  background: #f4f5f6;
+}
+
+.room-card-badge {
+  display: block;
+  padding: 0 14px 14px;
+  text-align: center;
+}
+
+/* ป้ายสถานะห้อง — ต้นแบบใช้สีเต็มป้าย ไม่ใช่พื้นอ่อนตัวอักษรเข้ม */
+.room-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  border-radius: 5px;
+}
+
+.room-badge.status-vacant {
+  background: #12a150;
+}
+
+.room-badge.status-occupied {
+  background: #e02424;
+}
+
+.room-badge.status-maintenance {
+  background: #9a6b12;
+}
+
+/* แถบล่างค้างจอ: กึ่งกลางจอ บอกจำนวนที่เลือกแล้วตามด้วยปุ่มลงมือ
+   ค้างไว้เพื่อให้เลื่อนดูห้องได้เรื่อยๆ โดยไม่ต้องเลื่อนกลับขึ้นไปกดปุ่ม */
+.select-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  /* กินเต็มความกว้างการ์ด ไม่เว้นตาม padding ของ .wizard-card-body */
+  margin: 20px -24px -24px;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 12px 12px;
+}
+
+.select-bar-count {
+  font-size: 14px;
+  color: var(--text-soft);
+}
+
+.select-bar-count strong {
+  margin: 0 4px;
+  font-size: 20px;
+  color: var(--text);
+}
+
+/* -----------------------------------------------------
+   หน้าต่างซ้อน
+   ----------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(24, 20, 16, 0.45);
+}
+
+.modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.modal-head .icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.modal-close {
+  display: inline-flex;
+  padding: 4px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.modal-close .icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-body .field + .field {
+  margin-top: 16px;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px;
+  background: #f8f7f6;
+  border-top: 1px solid var(--border);
+}
+
+/* -----------------------------------------------------
+   สวิตช์เปิด/ปิด
+   ----------------------------------------------------- */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  font-size: 14px;
+  background: #f4f5f6;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.toggle-row.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ช่องติ๊กจริงยังอยู่ แค่มองไม่เห็น — โฟกัสด้วยแป้นพิมพ์จึงยังทำงาน */
+.toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  background: #c9ccd1;
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+
+.toggle-input:checked + .toggle-track {
+  background: #12a150;
+}
+
+.toggle-input:checked + .toggle-track .toggle-knob {
+  transform: translateX(18px);
+}
+
+.toggle-input:focus-visible + .toggle-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toggle-label {
+  color: var(--text-soft);
+}
+
+/* หน้าแต่ละขั้นมีแถบคำอธิบายของตัวเอง (.info-banner) ไว้ใช้ตอนเปิดเดี่ยวๆ จากเมนูตั้งค่า
+   แต่ใน wizard มีแถบครีมหัวการ์ดอยู่แล้ว ถ้าปล่อยไว้จะเห็นคำอธิบายซ้อนกันสองแถบ */
+.wizard-card-body .info-banner {
+  display: none;
+}
+
+/* -----------------------------------------------------
+   ขั้นที่ 2 — ค่าน้ำ / ค่าไฟ
+   ----------------------------------------------------- */
+.utility-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+@media (max-width: 900px) {
+  .utility-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.utility-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ไอคอนใหญ่นำหัวคอลัมน์ ไม่มีข้อความกำกับ — ต้นแบบใช้รูปอย่างเดียวบอกว่าฝั่งไหนคือน้ำ/ไฟ
+   จึงต้องเป็นสีประจำเรื่องที่ต่างกันชัด ไม่ใช่ไอคอนเส้นสีเดียวกันทั้งคู่ */
+.utility-mark {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.utility-mark svg {
+  width: 46px;
+  height: 46px;
+}
+
+.utility-mark-water {
+  color: var(--water);
+}
+
+.utility-mark-electric {
+  color: var(--brand-strong);
+}
+
+.utility-side-action {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.utility-footnote {
+  margin-top: 24px;
+}
+
+/* -----------------------------------------------------
+   ขั้นที่ 4 — จัดการชั้น (แถว "ชั้นที่ N [n] ห้อง")
+   ----------------------------------------------------- */
+.floor-count-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 40px;
+}
+
+.floor-count-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.floor-count-row label {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+.floor-count-row input {
+  width: 84px;
+  margin: 0;
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 16px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.floor-count-row .unit {
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+/* -----------------------------------------------------
+   ขั้นที่ 5 — ผังห้อง (การ์ดต่อชั้น หัวเทา ห้องละบรรทัด)
+   ----------------------------------------------------- */
+.plan-summary {
+  margin: 0 0 16px;
+}
+
+.plan-floor {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.plan-floor + .plan-floor {
+  margin-top: 20px;
+}
+
+.plan-floor-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #eceef0;
+}
+
+.plan-floor-head label {
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+.plan-floor-name {
+  width: 150px;
+  padding: 7px 12px;
+  font-size: 15px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.plan-floor-delete {
+  margin-left: auto;
+}
+
+.plan-floor-body {
+  padding: 20px;
+}
+
+/* หนึ่งห้องหนึ่งบรรทัด: เลขห้อง / ประเภทห้อง / สวิตช์ / ปุ่มลบ */
+.plan-room {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding-bottom: 14px;
+}
+
+.plan-room .field {
+  flex: 0 0 auto;
+  width: 170px;
+  margin: 0;
+}
+
+.plan-room .field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.plan-room .field input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 15px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.plan-room .field-required input {
+  background: var(--input-bg);
+}
+
+.plan-room .toggle-row {
+  background: none;
+  padding: 8px 0;
+}
+
+.plan-room-delete {
+  margin-left: auto;
+  padding: 8px;
+}
+
+.plan-room-delete svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ปุ่มเพิ่มชั้นเต็มความกว้างปิดท้ายรายการ ตามต้นแบบ */
+.plan-add-floor {
+  margin-top: 24px;
 }
 
 .wizard-complete {

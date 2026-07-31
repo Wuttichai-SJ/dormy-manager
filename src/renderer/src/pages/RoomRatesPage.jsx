@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import Modal from '../components/Modal.jsx'
 import { formatBaht } from '../format.js'
 import { ROOM_STATUSES, ROOM_STATUS_LABELS } from '../constants.js'
 import {
@@ -11,25 +13,31 @@ import {
 } from '../services/roomService.js'
 import { listServices } from '../services/apartmentServiceService.js'
 
-// ขั้นที่ 6-7 ของการตั้งค่าหอ — ค่าห้อง และสถานะห้อง
+// ขั้นที่ 6-8 ของการตั้งค่าหอ — ค่าห้อง / สถานะห้อง / ค่าบริการรายห้อง
 //
-// สองเรื่องนี้อยู่หน้าเดียวกันเพราะใช้วิธีเดียวกันเป๊ะ: ติ๊กเลือกห้อง แล้วสั่งทีเดียว
+// สามเรื่องนี้อยู่ไฟล์เดียวกันเพราะวิธีใช้เหมือนกันเป๊ะตามต้นแบบ: เลือกห้อง (ทีละห้อง
+// หรือทั้งชั้น) → กดปุ่มที่แถบล่าง → กรอกค่าในหน้าต่างซ้อน → สั่งทีเดียวทุกห้องที่เลือก
 // หอ 40 ห้องส่วนใหญ่ราคาเท่ากันหมด ถ้าให้กรอกทีละห้องคือพิมพ์เลขเดิม 40 รอบ
-// (ต้นแบบแยกเป็นสองขั้น แต่หน้าจอเหมือนกันจนไม่มีเหตุผลให้เขียนซ้ำสองไฟล์)
+//
 // only: ล็อกไว้โหมดเดียวและซ่อนแท็บ ใช้ตอนอยู่ใน wizard ที่แยกเป็นคนละขั้นตามต้นแบบ
+const MODES = {
+  rate: { tab: 'ตั้งค่าห้อง', action: 'ระบุค่าห้อง' },
+  status: { tab: 'ตั้งสถานะห้อง', action: null }, // สถานะกดปุ่มตรงๆ ไม่ต้องเปิดหน้าต่าง
+  services: { tab: 'ค่าบริการรายห้อง', action: 'เพิ่มค่าบริการ' }
+}
+
 export default function RoomRatesPage({ apartment, only }) {
   const [floors, setFloors] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
   // แท็บใช้เฉพาะตอนเปิดหน้านี้เดี่ยวๆ จากเมนูตั้งค่า ส่วนใน wizard โหมดมาจาก prop `only`
   // ห้ามเอา `only` ไปตั้งเป็นค่าเริ่มต้นของ useState เด็ดขาด — ค่าเริ่มต้นถูกอ่านครั้งเดียว
   // ตอน mount แรก พอ wizard เปลี่ยนขั้นแล้วส่ง only ใหม่มา state จะยังค้างค่าเก่า
-  const [tab, setTab] = useState('rate') // rate | status | services
+  const [tab, setTab] = useState('rate')
   const mode = only ?? tab
   const [error, setError] = useState('')
-  const [monthlyRent, setMonthlyRent] = useState('')
-  const [dailyRent, setDailyRent] = useState('')
   const [catalogue, setCatalogue] = useState([])
-  const [pickedServices, setPickedServices] = useState(() => new Set())
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
     const [floorRes, serviceRes] = await Promise.all([
@@ -48,9 +56,12 @@ export default function RoomRatesPage({ apartment, only }) {
 
   async function act(fn) {
     setError('')
+    setBusy(true)
     const res = await fn()
+    setBusy(false)
     if (!res.success) return setError(res.error)
     setFloors(res.data)
+    setDialogOpen(false)
     // ล้างการเลือกหลังสั่งสำเร็จ กันการกดซ้ำโดยไม่ตั้งใจกับชุดเดิม
     setSelected(new Set())
   }
@@ -79,7 +90,7 @@ export default function RoomRatesPage({ apartment, only }) {
     return (
       <section className="panel empty-state">
         <h2>ยังไม่มีผังห้อง</h2>
-        <p className="muted">กรุณาสร้างผังห้องที่หัวข้อ "จัดการชั้นและห้องพัก" ก่อน</p>
+        <p className="muted">กรุณาสร้างผังห้องที่ขั้นตอน "จัดการชั้น" ก่อน</p>
       </section>
     )
   }
@@ -88,192 +99,263 @@ export default function RoomRatesPage({ apartment, only }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>ค่าห้องและสถานะห้อง</strong>
-        <p>เลือกห้องที่ต้องการ (เลือกทั้งชั้นได้) แล้วตั้งค่าพร้อมกันทีเดียว</p>
-      </div>
-
       <Alert>{error}</Alert>
 
       {!only && (
         <nav className="mode-tabs">
-          <button
-            type="button"
-            className={'mode-tab' + (mode === 'rate' ? ' active' : '')}
-            onClick={() => setTab('rate')}
-          >
-            ตั้งค่าห้อง
-          </button>
-          <button
-            type="button"
-            className={'mode-tab' + (mode === 'status' ? ' active' : '')}
-            onClick={() => setTab('status')}
-          >
-            ตั้งสถานะห้อง
-          </button>
-          <button
-            type="button"
-            className={'mode-tab' + (mode === 'services' ? ' active' : '')}
-            onClick={() => setTab('services')}
-          >
-            ค่าบริการรายห้อง
-          </button>
+          {Object.entries(MODES).map(([key, m]) => (
+            <button
+              key={key}
+              type="button"
+              className={'mode-tab' + (mode === key ? ' active' : '')}
+              onClick={() => {
+                setTab(key)
+                setSelected(new Set())
+              }}
+            >
+              {m.tab}
+            </button>
+          ))}
         </nav>
       )}
 
       {floors.map((floor) => {
-        const allSelected = floor.rooms.length > 0 && floor.rooms.every((r) => selected.has(r.roomId))
+        const allSelected =
+          floor.rooms.length > 0 && floor.rooms.every((r) => selected.has(r.roomId))
         return (
-          <section className="panel floor-card" key={floor.floorId}>
-            <header className="floor-card-head">
-              <h3 className="floor-title">{floor.floorName}</h3>
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => toggleFloor(floor, !allSelected)}
-              >
-                {allSelected ? 'ยกเลิกเลือกทั้งชั้น' : 'เลือกทั้งชั้น'}
-              </button>
-            </header>
-
-            <div className="room-grid">
-              {floor.rooms.map((room) => (
+          <section className="floor-group" key={floor.floorId}>
+            <header className="floor-group-head">
+              <h3 className="floor-group-title">{floor.floorName}</h3>
+              <div className="floor-group-tools">
                 <button
                   type="button"
-                  key={room.roomId}
-                  className={'room-chip selectable' + (selected.has(room.roomId) ? ' selected' : '')}
-                  onClick={() => toggleRoom(room.roomId)}
+                  className="btn-outline"
+                  disabled={floor.rooms.length === 0 || allSelected}
+                  onClick={() => toggleFloor(floor, true)}
                 >
-                  <span className="room-chip-number">{room.roomNumber}</span>
-                  {mode === 'rate' ? (
-                    <>
-                      <span className="room-chip-type">
-                        รายเดือน: {formatBaht(room.monthlyRentCents)}
-                      </span>
-                      <span className="room-chip-type">
-                        รายวัน:{' '}
-                        {room.dailyRentCents === null ? 'ไม่รับ' : formatBaht(room.dailyRentCents)}
-                      </span>
-                    </>
-                  ) : mode === 'status' ? (
-                    <span className={`status-badge status-${room.status}`}>
-                      {ROOM_STATUS_LABELS[room.status] ?? room.status}
-                    </span>
-                  ) : room.services.length === 0 ? (
-                    <span className="room-chip-type">ไม่มีค่าบริการ</span>
-                  ) : (
-                    <span className="room-chip-type">
-                      {room.services.map((s) => s.name).join(', ')}
-                    </span>
-                  )}
+                  <Icon name="check" />
+                  <span>เลือกทั้งชั้น</span>
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className="btn-outline"
+                  disabled={!floor.rooms.some((r) => selected.has(r.roomId))}
+                  onClick={() => toggleFloor(floor, false)}
+                >
+                  <Icon name="minusCircle" />
+                  <span>ยกเลิกเลือกทั้งชั้น</span>
+                </button>
+              </div>
+            </header>
+
+            <div className="floor-group-body">
+              <div className="room-cards">
+                {floor.rooms.map((room) => (
+                  <button
+                    type="button"
+                    key={room.roomId}
+                    className={'room-card' + (selected.has(room.roomId) ? ' selected' : '')}
+                    onClick={() => toggleRoom(room.roomId)}
+                  >
+                    <span className="room-card-number">ห้อง {room.roomNumber}</span>
+                    <RoomCardDetail mode={mode} room={room} />
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
         )
       })}
 
-      {/* แถบล่างค้างจอ บอกจำนวนที่เลือกและปุ่มลงมือ — ตามต้นแบบ
-          ผู้ใช้เลื่อนดูห้องได้เรื่อยๆ โดยไม่ต้องเลื่อนกลับขึ้นไปกดปุ่ม */}
-      <div className="bulk-bar">
-        <span className="bulk-count">
-          เลือกแล้ว <strong>{roomIds.length}</strong> ห้อง
+      <div className="select-bar">
+        <span className="select-bar-count">
+          {mode === 'status' ? 'เลือก' : 'จำนวนห้องที่เลือก'}
+          <strong>{roomIds.length}</strong>
+          ห้อง
         </span>
 
-        {mode === 'rate' ? (
-          <div className="bulk-fields">
-            <div className="input-with-suffix">
-              <input
-                value={monthlyRent}
-                onChange={(e) => setMonthlyRent(e.target.value)}
-                placeholder="ค่าเช่ารายเดือน"
-                inputMode="decimal"
-                aria-label="ค่าเช่ารายเดือน"
-              />
-              <span className="input-suffix">บาท/เดือน</span>
-            </div>
-            <div className="input-with-suffix">
-              <input
-                value={dailyRent}
-                onChange={(e) => setDailyRent(e.target.value)}
-                placeholder="ค่าเช่ารายวัน (ไม่บังคับ)"
-                inputMode="decimal"
-                aria-label="ค่าเช่ารายวัน"
-              />
-              <span className="input-suffix">บาท/วัน</span>
-            </div>
+        {mode === 'status' ? (
+          // สถานะมีไม่กี่ค่า ต้นแบบจึงวางเป็นปุ่มตรงๆ ไม่ต้องเปิดหน้าต่างให้เสียจังหวะ
+          ROOM_STATUSES.map((status) => (
             <button
+              key={status}
               type="button"
               className="btn"
-              disabled={roomIds.length === 0}
-              onClick={() => act(() => setRoomRates(roomIds, { monthlyRent, dailyRent }))}
+              disabled={roomIds.length === 0 || busy}
+              onClick={() => act(() => setRoomStatus(roomIds, status))}
             >
-              ระบุค่าห้อง
+              {ROOM_STATUS_LABELS[status]}
             </button>
-          </div>
-        ) : mode === 'status' ? (
-          <div className="bulk-fields">
-            {ROOM_STATUSES.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className="btn"
-                disabled={roomIds.length === 0}
-                onClick={() => act(() => setRoomStatus(roomIds, status))}
-              >
-                {ROOM_STATUS_LABELS[status]}
-              </button>
-            ))}
-          </div>
+          ))
         ) : (
-          <div className="bulk-fields">
-            {catalogue.length === 0 ? (
-              <span className="muted">
-                ยังไม่มีค่าบริการในหอพักนี้ — เพิ่มได้ที่หัวข้อ "ค่าบริการ"
-              </span>
-            ) : (
-              <>
-                <div className="service-picker">
-                  {catalogue.map((s) => (
-                    <label key={s.serviceId} className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={pickedServices.has(s.serviceId)}
-                        onChange={() =>
-                          setPickedServices((prev) => {
-                            const next = new Set(prev)
-                            next.has(s.serviceId)
-                              ? next.delete(s.serviceId)
-                              : next.add(s.serviceId)
-                            return next
-                          })
-                        }
-                      />
-                      <span>{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={roomIds.length === 0 || pickedServices.size === 0}
-                  onClick={() => act(() => attachServices(roomIds, [...pickedServices]))}
-                >
-                  เพิ่มค่าบริการ
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  disabled={roomIds.length === 0 || pickedServices.size === 0}
-                  onClick={() => act(() => detachServices(roomIds, [...pickedServices]))}
-                >
-                  นำออก
-                </button>
-              </>
-            )}
-          </div>
+          <button
+            type="button"
+            className="btn"
+            disabled={roomIds.length === 0}
+            onClick={() => setDialogOpen(true)}
+          >
+            {MODES[mode].action}
+          </button>
         )}
       </div>
+
+      {dialogOpen && mode === 'rate' && (
+        <RateDialog
+          busy={busy}
+          onClose={() => setDialogOpen(false)}
+          onSubmit={(values) => act(() => setRoomRates(roomIds, values))}
+        />
+      )}
+
+      {dialogOpen && mode === 'services' && (
+        <ServiceDialog
+          catalogue={catalogue}
+          busy={busy}
+          onClose={() => setDialogOpen(false)}
+          onSubmit={(serviceId) => act(() => attachServices(roomIds, [serviceId]))}
+          onDetach={(serviceId) => act(() => detachServices(roomIds, [serviceId]))}
+        />
+      )}
     </>
+  )
+}
+
+// รายละเอียดใต้เลขห้อง เปลี่ยนตามขั้นที่กำลังอยู่ — ค่าเช่า / สถานะ / ค่าบริการที่ผูกไว้
+function RoomCardDetail({ mode, room }) {
+  if (mode === 'rate') {
+    return (
+      <span className="room-card-lines">
+        <span className="room-card-line">
+          <span>รายเดือน:</span>
+          <span>{formatBaht(room.monthlyRentCents)} บาท</span>
+        </span>
+        <span className="room-card-line">
+          <span>รายวัน:</span>
+          <span>{room.dailyRentCents === null ? 'ไม่รับ' : `${formatBaht(room.dailyRentCents)} บาท`}</span>
+        </span>
+      </span>
+    )
+  }
+
+  if (mode === 'status') {
+    return (
+      <span className="room-card-badge">
+        <span className={`room-badge status-${room.status}`}>
+          {ROOM_STATUS_LABELS[room.status] ?? room.status}
+        </span>
+      </span>
+    )
+  }
+
+  return (
+    <span className="room-card-note">
+      {room.services.length === 0 ? 'ไม่มีค่าบริการ' : room.services.map((s) => s.name).join(', ')}
+    </span>
+  )
+}
+
+// -----------------------------------------------------
+// หน้าต่างซ้อน
+// -----------------------------------------------------
+function RateDialog({ onClose, onSubmit, busy }) {
+  const [monthlyRent, setMonthlyRent] = useState('')
+  const [dailyRent, setDailyRent] = useState('')
+
+  return (
+    <Modal
+      title="ระบุค่าห้อง"
+      busy={busy}
+      onClose={onClose}
+      onSubmit={() => onSubmit({ monthlyRent, dailyRent })}
+    >
+      <div className="field field-required">
+        <label htmlFor="monthlyRent">
+          ราคาค่าเช่ารายเดือน <span className="required">* จำเป็น</span>
+        </label>
+        <div className="input-with-suffix">
+          <input
+            id="monthlyRent"
+            value={monthlyRent}
+            onChange={(e) => setMonthlyRent(e.target.value)}
+            inputMode="decimal"
+            autoFocus
+          />
+          <span className="input-suffix">บาท / เดือน</span>
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="dailyRent">ราคาค่าเช่ารายวัน</label>
+        <div className="input-with-suffix">
+          <input
+            id="dailyRent"
+            value={dailyRent}
+            onChange={(e) => setDailyRent(e.target.value)}
+            inputMode="decimal"
+          />
+          <span className="input-suffix">บาท / วัน</span>
+        </div>
+        <p className="field-hint">
+          หากไม่มีราคาสำหรับรายวัน สามารถเว้นว่างไว้หรือกำหนดเป็น 0 บาท
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+// รายการในช่องเลือกมาจากค่าบริการที่กรอกไว้ในขั้นที่ 1 ของหอนี้ (apartment_services)
+// ไม่ใช่รายการตายตัว — ตั้งชื่ออะไรไว้ที่ขั้นแรกก็เห็นอันนั้นที่นี่
+//
+// ต้นแบบมีแค่ปุ่ม "บันทึก" (เพิ่มอย่างเดียว) แต่เราเพิ่มลิงก์ "นำออก" ไว้ด้วย ไม่งั้น
+// ผูกผิดห้องแล้วแก้ไม่ได้เลย — ยังไม่มีหน้าอื่นในระบบที่ถอดค่าบริการออกจากห้องได้
+function ServiceDialog({ catalogue, onClose, onSubmit, onDetach, busy }) {
+  const [serviceId, setServiceId] = useState('')
+
+  if (catalogue.length === 0) {
+    return (
+      <Modal title="ระบุค่าบริการเพิ่มเติม" onClose={onClose} onSubmit={onClose} submitLabel="เข้าใจแล้ว">
+        <p className="muted">
+          ยังไม่มีค่าบริการในหอพักนี้ — กลับไปเพิ่มที่ขั้นตอนที่ 1 "ค่าบริการ" ก่อน
+        </p>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal
+      title="ระบุค่าบริการเพิ่มเติม"
+      busy={busy}
+      onClose={onClose}
+      onSubmit={() => serviceId && onSubmit(Number(serviceId))}
+    >
+      <div className="field field-required">
+        <label htmlFor="serviceId">
+          บริการ <span className="required">* จำเป็น</span>
+        </label>
+        <select
+          id="serviceId"
+          value={serviceId}
+          onChange={(e) => setServiceId(e.target.value)}
+          autoFocus
+        >
+          <option value="">เลือกค่าบริการ</option>
+          {catalogue.map((s) => (
+            <option key={s.serviceId} value={s.serviceId}>
+              {s.name} ({formatBaht(s.priceCents)} บาท)
+            </option>
+          ))}
+        </select>
+        <p className="field-hint">
+          <button
+            type="button"
+            className="link-btn link-danger"
+            disabled={!serviceId || busy}
+            onClick={() => onDetach(Number(serviceId))}
+          >
+            นำค่าบริการนี้ออกจากห้องที่เลือกแทน
+          </button>
+        </p>
+      </div>
+    </Modal>
   )
 }

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import { centsToInput, formatBaht } from '../format.js'
 import {
@@ -101,77 +102,86 @@ export default function ApartmentServicesPage({ apartment }) {
       <section className="panel">
         <Alert>{error}</Alert>
 
+        {/* ต้นแบบวางช่องกรอกเรียงเป็นแถวเดียว: ชื่อ | ราคา | คิด VAT
+            แล้วค่อยเป็นตัวเลือก "แปรผันตามมิเตอร์" กับปุ่มเพิ่มด้านล่าง */}
         <form className="service-form" onSubmit={submit}>
-          <div className="field">
-            <label htmlFor="serviceName">
-              ชื่อค่าบริการ <span className="required">* จำเป็น</span>
-            </label>
-            <input
-              id="serviceName"
-              list="service-name-presets"
-              value={form.name}
-              onChange={(e) => set('name', e.target.value)}
-              autoComplete="off"
-            />
-            <datalist id="service-name-presets">
-              {PRESET_NAMES.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-            <p className="field-hint">เลือกจากรายการที่มี หรือพิมพ์ชื่อเองได้</p>
+          <div className="service-form-row">
+            <div className="field field-required service-form-name">
+              <label htmlFor="serviceName">
+                ชื่อค่าบริการ <span className="required">* จำเป็น</span>
+              </label>
+              <input
+                id="serviceName"
+                list="service-name-presets"
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+                autoComplete="off"
+              />
+              <datalist id="service-name-presets">
+                {PRESET_NAMES.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+              <p className="field-hint">สามารถเลือกจากรายการที่มี หรือพิมพ์ชื่อค่าบริการเองได้</p>
+            </div>
+
+            <div className="field field-required service-form-price">
+              <label htmlFor="servicePrice">
+                {apartment.isVatEnabled ? 'ราคา (ก่อน Vat)' : 'ราคา'}{' '}
+                <span className="required">* จำเป็น</span>
+              </label>
+              <div className="input-with-suffix">
+                <input
+                  id="servicePrice"
+                  value={form.price}
+                  onChange={(e) => set('price', e.target.value)}
+                  inputMode="decimal"
+                />
+                <span className="input-suffix">{form.isMeterBased ? 'บาท/หน่วย' : 'บาท'}</span>
+              </div>
+            </div>
+
+            {/* ช่อง VAT โผล่เฉพาะหอที่เปิด VAT ไว้ — หอที่ไม่ได้จด VAT ไม่ต้องเห็นตัวเลือกนี้ */}
+            {apartment.isVatEnabled && (
+              <div className="field service-form-vat">
+                <label htmlFor="serviceVat">คำนวณ VAT</label>
+                <label className="checkbox-row">
+                  <input
+                    id="serviceVat"
+                    type="checkbox"
+                    checked={form.isVatEnabled}
+                    onChange={(e) => set('isVatEnabled', e.target.checked)}
+                  />
+                  <span>คำนวณ</span>
+                </label>
+              </div>
+            )}
           </div>
 
-          <div className="field service-form-price">
-            <label htmlFor="servicePrice">
-              ราคา <span className="required">* จำเป็น</span>
-            </label>
-            <div className="input-with-suffix">
-              <input
-                id="servicePrice"
-                value={form.price}
-                onChange={(e) => set('price', e.target.value)}
-                inputMode="decimal"
-              />
-              <span className="input-suffix">{form.isMeterBased ? 'บาท/หน่วย' : 'บาท'}</span>
-            </div>
-          </div>
+          <label className="checkbox-row service-form-meter">
+            <input
+              type="checkbox"
+              checked={form.isMeterBased}
+              onChange={(e) => set('isMeterBased', e.target.checked)}
+            />
+            <span>ประเภทแปรผันตามมิเตอร์</span>
+            <span
+              className="hint-icon"
+              title="คิดตามหน่วยที่ใช้จริง (ราคาข้างบนจะกลายเป็นราคาต่อหน่วย) ไม่ติ๊ก = เหมาจ่ายเท่ากันทุกเดือน"
+            >
+              <Icon name="info" />
+            </span>
+          </label>
 
           <div className="service-form-submit">
-            <button type="submit" className="btn" disabled={busy}>
-              {busy ? 'กำลังบันทึก...' : editingId ? 'บันทึก' : 'เพิ่ม'}
-            </button>
             {editingId && (
               <button type="button" className="btn btn-ghost" onClick={resetForm}>
                 ยกเลิก
               </button>
             )}
-          </div>
-
-          <div className="service-form-options">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={form.isMeterBased}
-                onChange={(e) => set('isMeterBased', e.target.checked)}
-              />
-              <span>ประเภทแปรผันตามมิเตอร์</span>
-            </label>
-            <p className="field-hint">
-              ติ๊กเมื่อคิดตามหน่วยที่ใช้จริง (ราคาข้างบนจะกลายเป็นราคาต่อหน่วย)
-              ไม่ติ๊ก = เหมาจ่ายเท่ากันทุกเดือน
-            </p>
-
-            {/* ช่อง VAT โผล่เฉพาะหอที่เปิด VAT ไว้ — หอที่ไม่ได้จด VAT ไม่ต้องเห็นตัวเลือกนี้ */}
-            {apartment.isVatEnabled && (
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={form.isVatEnabled}
-                  onChange={(e) => set('isVatEnabled', e.target.checked)}
-                />
-                <span>คิด VAT กับค่าบริการนี้</span>
-              </label>
-            )}
+            <button type="submit" className="btn" disabled={busy}>
+              {busy ? 'กำลังบันทึก...' : editingId ? 'บันทึก' : 'เพิ่ม'}
+            </button>
           </div>
         </form>
 
@@ -188,21 +198,20 @@ export default function ApartmentServicesPage({ apartment }) {
                 <th>รายการ</th>
                 <th>คำนวณตาม</th>
                 <th className="align-right">ราคา</th>
+                {apartment.isVatEnabled && <th>VAT</th>}
                 <th className="align-right">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               {services.map((s) => (
                 <tr key={s.serviceId} className={editingId === s.serviceId ? 'row-editing' : ''}>
-                  <td>
-                    {s.name}
-                    {s.isVatEnabled && <span className="tag">VAT</span>}
-                  </td>
+                  <td>{s.name}</td>
                   <td>{s.isMeterBased ? 'ตามมิเตอร์' : 'เหมาจ่าย'}</td>
                   <td className="align-right">
                     {formatBaht(s.priceCents)}
                     <span className="unit">{s.isMeterBased ? ' บาท/หน่วย' : ' บาท'}</span>
                   </td>
+                  {apartment.isVatEnabled && <td>{s.isVatEnabled ? 'คำนวณ' : '—'}</td>}
                   <td className="align-right">
                     <button type="button" className="link-btn" onClick={() => startEdit(s)}>
                       แก้ไข

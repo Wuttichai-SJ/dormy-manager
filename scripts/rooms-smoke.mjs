@@ -226,6 +226,22 @@ check('เพิ่มห้องเดี่ยวพร้อมประเ�
   assert(setting === 1, 'ห้องที่เพิ่มทีหลังต้องมีการตั้งค่าค่าน้ำ/ไฟด้วย')
 })
 
+// ปุ่ม "เพิ่มห้อง" ในผังห้องเรียกโดยไม่ส่งเลขห้องมา ระบบต้องตั้งเลขให้เอง
+// และต้องข้ามเลขที่มีคนใช้ไปแล้ว ไม่ใช่ +1 แล้วชนจนโยน error ใส่หน้าคนกด
+check('เพิ่มห้องโดยไม่ระบุเลข ระบบตั้งเลขว่างถัดไปให้เอง', () => {
+  const floor1 = rooms.listFloors(db, id)[0]
+  const before = new Set(floor1.rooms.map((r) => r.roomNumber))
+
+  const result = rooms.addRoom(db, floor1.floorId)
+  const added = result[0].rooms.filter((r) => !before.has(r.roomNumber))
+
+  assert(added.length === 1, `ควรได้ห้องใหม่ 1 ห้อง ได้ ${added.length}`)
+  assert(/^1\d\d$/.test(added[0].roomNumber), `เลขห้องควรเป็นของชั้น 1 ได้ ${added[0].roomNumber}`)
+
+  // เก็บกวาดให้เรียบร้อย เทสต์ถัดๆ ไปนับจำนวนห้องของชั้นนี้อยู่
+  rooms.deleteRoom(db, added[0].roomId)
+})
+
 check('เปลี่ยนชื่อชั้นได้', () => {
   const floor1 = rooms.listFloors(db, id)[0]
   const result = rooms.renameFloor(db, floor1.floorId, '  ชั้นล่าง  ')

@@ -89,6 +89,35 @@ function insertRoomUtilitySettings(db, roomId, defaults, now) {
 
 // เลขห้องต้องไม่ซ้ำทั้งหอ ไม่ใช่แค่ในชั้นเดียวกัน (unique index กันได้แค่ระดับชั้น)
 // เพราะเวลาผู้เช่าบอกว่า "ห้อง 205" ไม่มีใครถามต่อว่าชั้นไหน
+// เลขห้องถัดไปของชั้นหนึ่ง — นับจาก "จำนวนห้องที่มีอยู่" แล้วเดินหน้าจนกว่าจะเจอเลขที่ว่าง
+// ไล่หาเลขว่างแทนการ +1 เฉยๆ เพราะห้องกลางชั้นอาจถูกลบไปแล้ว หรือเจ้าของหอพิมพ์เลขเอง
+// จนชนกับเลขที่ระบบจะตั้งให้ ถ้าไม่ไล่หาจะโยน "มีห้องนี้อยู่แล้ว" ใส่หน้าคนกดปุ่มเฉยๆ
+function nextRoomNumber(db, apartmentId, floorId) {
+  const floorNumber = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM floors
+        WHERE apartment_id = ? AND floor_id <= ?`
+    )
+    .get(apartmentId, floorId).n
+
+  const taken = new Set(
+    db
+      .prepare(
+        `SELECT r.room_number AS number FROM rooms r
+           JOIN floors f ON f.floor_id = r.floor_id
+          WHERE f.apartment_id = ?`
+      )
+      .all(apartmentId)
+      .map((r) => r.number)
+  )
+
+  for (let i = 0; i < MAX_ROOMS_PER_FLOOR; i++) {
+    const candidate = buildRoomNumber(floorNumber, i)
+    if (!taken.has(candidate)) return candidate
+  }
+  throw new Error(`ชั้นนี้มีห้องครบ ${MAX_ROOMS_PER_FLOOR} ห้องแล้ว`)
+}
+
 function assertRoomNumberAvailable(db, apartmentId, roomNumber, exceptRoomId = null) {
   const row = db
     .prepare(
@@ -331,11 +360,13 @@ export function deleteFloor(db, floorId) {
 // -----------------------------------------------------
 // ห้อง
 // -----------------------------------------------------
-export function addRoom(db, floorId, { roomNumber, roomTypeName }) {
-  const number = String(roomNumber ?? '').trim()
-  if (!number) throw new Error('กรุณากรอกเลขห้อง')
-
+// เว้น roomNumber ไว้ได้ = ให้ระบบตั้งเลขต่อจากห้องสุดท้ายของชั้นนั้นให้เอง
+// (ปุ่ม "เพิ่มห้อง" ในผังห้องเรียกแบบไม่ส่งเลขมา แล้วให้เจ้าของหอพิมพ์ทับทีหลังถ้าอยากได้
+// เลขอื่น — ต้นแบบก็เพิ่มแถวว่างที่มีเลขให้แล้วทันทีโดยไม่ถามก่อน)
+export function addRoom(db, floorId, { roomNumber, roomTypeName } = {}) {
   const apartmentId = apartmentIdOfFloor(db, floorId)
+  const number = String(roomNumber ?? '').trim() || nextRoomNumber(db, apartmentId, floorId)
+
   assertRoomNumberAvailable(db, apartmentId, number)
 
   const defaults = getUtilityDefaults(db, apartmentId)

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { MAX_FLOORS, MAX_ROOMS_PER_FLOOR } from '../constants.js'
 import {
   addFloor,
@@ -163,7 +165,6 @@ function FloorPlanBuilder({ onGenerate }) {
 // โหมดแก้ไข
 // -----------------------------------------------------
 function FloorPlanEditor({ floors, apartmentId, act }) {
-  const [newFloorRooms, setNewFloorRooms] = useState('')
   const totalRooms = floors.reduce((sum, f) => sum + f.rooms.length, 0)
 
   return (
@@ -176,52 +177,40 @@ function FloorPlanEditor({ floors, apartmentId, act }) {
         <FloorCard key={floor.floorId} floor={floor} act={act} />
       ))}
 
-      <section className="panel add-floor">
-        <div className="field field-narrow">
-          <label htmlFor="newFloorRooms">เพิ่มชั้นใหม่ — จำนวนห้อง</label>
-          <input
-            id="newFloorRooms"
-            value={newFloorRooms}
-            inputMode="numeric"
-            onChange={(e) => setNewFloorRooms(e.target.value)}
-            placeholder="0"
-          />
-        </div>
-        <button
-          type="button"
-          className="btn"
-          onClick={async () => {
-            await act(() => addFloor(apartmentId, { roomCount: Number(newFloorRooms || 0) }))
-            setNewFloorRooms('')
-          }}
-        >
-          เพิ่มชั้น
-        </button>
-      </section>
+      {/* ปุ่มเต็มความกว้างปิดท้ายรายการชั้น ตามต้นแบบ — ชั้นใหม่เกิดมาว่างเปล่า
+          แล้วค่อยกด "เพิ่มห้อง" ในชั้นนั้น ไม่ต้องกรอกจำนวนห้องล่วงหน้า */}
+      <button
+        type="button"
+        className="btn btn-block plan-add-floor"
+        onClick={() => act(() => addFloor(apartmentId, { roomCount: 0 }))}
+      >
+        เพิ่มชั้น
+      </button>
     </>
   )
 }
 
+// การ์ดหนึ่งใบต่อหนึ่งชั้น — หัวการ์ดพื้นเทาที่แก้ชื่อชั้นได้ในตัว แล้วห้องเรียงเป็นแถว
+// ห้องละบรรทัด (เลขห้อง / ประเภทห้อง / สวิตช์เปิดใช้งาน) ตามต้นแบบ
 function FloorCard({ floor, act }) {
   const [name, setName] = useState(floor.floorName)
-  const [newRoom, setNewRoom] = useState('')
 
   return (
-    <section className="panel floor-card">
-      <header className="floor-card-head">
+    <section className="plan-floor">
+      <header className="plan-floor-head">
+        <label htmlFor={`floor-name-${floor.floorId}`}>ชั้น</label>
         <input
-          className="floor-name-input"
+          id={`floor-name-${floor.floorId}`}
+          className="plan-floor-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => name !== floor.floorName && act(() => renameFloor(floor.floorId, name))}
-          aria-label="ชื่อชั้น"
         />
-        <span className="muted">{floor.rooms.length} ห้อง</span>
         {/* ปุ่มลบชั้นโผล่เฉพาะชั้นที่ไม่มีห้องแล้ว — ฝั่ง main กันไว้อีกชั้นพร้อมข้อความอธิบาย */}
         {floor.rooms.length === 0 && (
           <button
             type="button"
-            className="link-btn link-danger"
+            className="link-btn link-danger plan-floor-delete"
             onClick={() => act(() => deleteFloor(floor.floorId))}
           >
             ลบชั้นนี้
@@ -229,27 +218,17 @@ function FloorCard({ floor, act }) {
         )}
       </header>
 
-      <div className="room-grid">
+      <div className="plan-floor-body">
         {floor.rooms.map((room) => (
-          <RoomChip key={room.roomId} room={room} act={act} />
+          <RoomRow key={room.roomId} room={room} act={act} />
         ))}
-      </div>
 
-      <div className="add-room-row">
-        <input
-          value={newRoom}
-          onChange={(e) => setNewRoom(e.target.value)}
-          placeholder="เลขห้อง"
-          aria-label="เลขห้องใหม่"
-        />
+        <hr className="divider" />
+
         <button
           type="button"
-          className="btn btn-ghost btn-sm"
-          onClick={async () => {
-            if (!newRoom.trim()) return
-            await act(() => addRoom(floor.floorId, { roomNumber: newRoom }))
-            setNewRoom('')
-          }}
+          className="btn-outline"
+          onClick={() => act(() => addRoom(floor.floorId, {}))}
         >
           เพิ่มห้อง
         </button>
@@ -258,72 +237,58 @@ function FloorCard({ floor, act }) {
   )
 }
 
-function RoomChip({ room, act }) {
-  const [editing, setEditing] = useState(false)
+// แก้ได้ในที่ ไม่ต้องกดเข้าโหมดแก้ไขก่อน — บันทึกตอนออกจากช่อง (onBlur) หรือตอนสลับสวิตช์
+// ต้นแบบก็ทำแบบนี้: ทั้งชั้นเป็นฟอร์มเดียวที่พิมพ์ทับได้เลย
+function RoomRow({ room, act }) {
   const [form, setForm] = useState({
     roomNumber: room.roomNumber,
     roomTypeName: room.roomTypeName ?? '',
     isActive: room.isActive
   })
 
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        className={'room-chip' + (room.isActive ? '' : ' inactive')}
-        onClick={() => setEditing(true)}
-        title="กดเพื่อแก้ไข"
-      >
-        <span className="room-chip-number">{room.roomNumber}</span>
-        <span className="room-chip-type">{room.roomTypeName || '—'}</span>
-        {!room.isActive && <span className="room-chip-flag">ปิดใช้งาน</span>}
-      </button>
-    )
+  function save(next) {
+    setForm(next)
+    return act(() => updateRoom(room.roomId, next))
   }
 
   return (
-    <div className="room-chip editing">
-      <input
-        value={form.roomNumber}
-        onChange={(e) => setForm({ ...form, roomNumber: e.target.value })}
-        aria-label="เลขห้อง"
-      />
-      <input
-        value={form.roomTypeName}
-        onChange={(e) => setForm({ ...form, roomTypeName: e.target.value })}
-        placeholder="ประเภทห้อง"
-        aria-label="ประเภทห้อง"
-      />
-      <label className="checkbox-row">
+    <div className="plan-room">
+      <div className="field field-required">
+        <label htmlFor={`room-no-${room.roomId}`}>
+          ห้อง <span className="required">*</span>
+        </label>
         <input
-          type="checkbox"
-          checked={form.isActive}
-          onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+          id={`room-no-${room.roomId}`}
+          value={form.roomNumber}
+          onChange={(e) => setForm({ ...form, roomNumber: e.target.value })}
+          onBlur={() => form.roomNumber !== room.roomNumber && save(form)}
         />
-        <span>เปิดใช้งาน</span>
-      </label>
-      <div className="room-chip-actions">
-        <button
-          type="button"
-          className="btn btn-sm"
-          onClick={async () => {
-            await act(() => updateRoom(room.roomId, form))
-            setEditing(false)
-          }}
-        >
-          บันทึก
-        </button>
-        <button type="button" className="link-btn" onClick={() => setEditing(false)}>
-          ยกเลิก
-        </button>
-        <button
-          type="button"
-          className="link-btn link-danger"
-          onClick={() => act(() => deleteRoom(room.roomId))}
-        >
-          ลบ
-        </button>
       </div>
+
+      <div className="field">
+        <label htmlFor={`room-type-${room.roomId}`}>ประเภทห้อง</label>
+        <input
+          id={`room-type-${room.roomId}`}
+          value={form.roomTypeName}
+          onChange={(e) => setForm({ ...form, roomTypeName: e.target.value })}
+          onBlur={() => form.roomTypeName !== (room.roomTypeName ?? '') && save(form)}
+        />
+      </div>
+
+      <ToggleSwitch
+        label="เปิดใช้งาน"
+        checked={form.isActive}
+        onChange={(isActive) => save({ ...form, isActive })}
+      />
+
+      <button
+        type="button"
+        className="link-btn link-danger plan-room-delete"
+        onClick={() => act(() => deleteRoom(room.roomId))}
+        aria-label={`ลบห้อง ${room.roomNumber}`}
+      >
+        <Icon name="trash" />
+      </button>
     </div>
   )
 }
