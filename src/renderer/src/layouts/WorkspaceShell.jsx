@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
+import RoomsPage from '../pages/RoomsPage.jsx'
+import RoomDetailPage from '../pages/RoomDetailPage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
@@ -27,6 +29,8 @@ const SETTINGS_ITEMS = SETTINGS_GROUPS.flatMap((g) => g.items)
 export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
   const [active, setActive] = useState('dashboard')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // ห้องที่กำลังเปิดรายละเอียดอยู่ — null = อยู่ที่ตารางห้อง
+  const [openRoom, setOpenRoom] = useState(null)
 
   const settingsItem = SETTINGS_ITEMS.find((i) => i.key === active)
   const activeLabel = settingsItem?.label ?? NAV.find((n) => n.key === active)?.label
@@ -52,7 +56,10 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
             <button
               key={item.key}
               className={'nav-item' + (item.key === active ? ' active' : '')}
-              onClick={() => setActive(item.key)}
+              onClick={() => {
+                setActive(item.key)
+                setOpenRoom(null)
+              }}
             >
               <Icon name={item.key} />
               <span>{item.label}</span>
@@ -116,7 +123,17 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
         </header>
 
         <div className="page">
-          {settingsItem ? (
+          {active === 'rooms' ? (
+            openRoom ? (
+              <RoomDetailPage
+                apartment={apartment}
+                room={openRoom}
+                onBack={() => setOpenRoom(null)}
+              />
+            ) : (
+              <RoomsPage apartment={apartment} onOpenRoom={setOpenRoom} />
+            )
+          ) : settingsItem ? (
             <SettingsSection
               section={active}
               apartment={apartment}

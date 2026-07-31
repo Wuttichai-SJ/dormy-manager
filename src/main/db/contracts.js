@@ -111,6 +111,108 @@ export function getActiveContractByRoom(db, roomId) {
   return row ? toPublicContract(db, row) : null
 }
 
+// รายการห้องทั้งหอสำหรับหน้า "ห้องพัก" — ต้นแบบใช้หน้านี้เป็นหน้าหลักของระบบ
+// (คอลัมน์ ห้อง | ลูกค้า | ประเภท | ค่าเช่า | บริการเสริม | ...)
+//
+// ดึงผู้เช่าหลักของสัญญาที่ยัง active มาด้วยในคำถามเดียว ไม่ใช่ยิงถามทีละห้อง
+// หอ 40 ห้องจะได้ไม่กลายเป็น 40 คำถาม
+export function listRoomsForApartment(db, apartmentId, { search, tenant, rentType } = {}) {
+  const rows = db
+    .prepare(
+      `SELECT
+         r.room_id, r.room_number, r.status, r.monthly_rent_cents, r.daily_rent_cents,
+         rt.name AS room_type_name,
+         f.floor_name,
+         c.contract_id, c.rent_type, c.start_date, c.end_date, c.rent_amount_cents
+       FROM rooms r
+       JOIN floors f ON f.floor_id = r.floor_id
+       LEFT JOIN room_types rt ON rt.room_type_id = r.room_type_id
+       LEFT JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+      WHERE f.apartment_id = ?
+      ORDER BY r.room_number`
+    )
+    .all(apartmentId)
+
+  const tenantsByContract = new Map()
+  for (const row of db
+    .prepare(
+      `SELECT ct.contract_id, t.tenant_id, t.first_name, t.last_name, t.phone, ct.is_primary
+         FROM contract_tenants ct
+         JOIN tenants t ON t.tenant_id = ct.tenant_id
+         JOIN contracts c ON c.contract_id = ct.contract_id
+         JOIN rooms r ON r.room_id = c.room_id
+         JOIN floors f ON f.floor_id = r.floor_id
+        WHERE f.apartment_id = ? AND c.status = 'active'
+        ORDER BY ct.is_primary DESC`
+    )
+    .all(apartmentId)) {
+    const list = tenantsByContract.get(row.contract_id) ?? []
+    list.push({
+      tenantId: row.tenant_id,
+      fullName: `${row.first_name} ${row.last_name}`,
+      phone: row.phone,
+      isPrimary: row.is_primary === 1
+    })
+    tenantsByContract.set(row.contract_id, list)
+  }
+
+  const servicesByRoom = new Map()
+  for (const row of db
+    .prepare(
+      `SELECT rs.room_id, s.name
+         FROM room_services rs
+         JOIN apartment_services s ON s.service_id = rs.apartment_service_id
+         JOIN rooms r ON r.room_id = rs.room_id
+         JOIN floors f ON f.floor_id = r.floor_id
+        WHERE f.apartment_id = ?
+        ORDER BY s.name`
+    )
+    .all(apartmentId)) {
+    const list = servicesByRoom.get(row.room_id) ?? []
+    list.push(row.name)
+    servicesByRoom.set(row.room_id, list)
+  }
+
+  const rooms = rows.map((row) => {
+    const occupants = row.contract_id ? (tenantsByContract.get(row.contract_id) ?? []) : []
+    return {
+      roomId: row.room_id,
+      roomNumber: row.room_number,
+      floorName: row.floor_name,
+      roomTypeName: row.room_type_name ?? null,
+      status: row.status,
+      monthlyRentCents: row.monthly_rent_cents,
+      dailyRentCents: row.daily_rent_cents,
+      services: servicesByRoom.get(row.room_id) ?? [],
+      contractId: row.contract_id ?? null,
+      rentType: row.rent_type ?? null,
+      startDate: row.start_date ?? null,
+      endDate: row.end_date ?? null,
+      contractRentCents: row.rent_amount_cents ?? null,
+      tenants: occupants,
+      primaryTenant: occupants.find((t) => t.isPrimary) ?? occupants[0] ?? null
+    }
+  })
+
+  // กรองในหน่วยความจำ ไม่ใช่ต่อ WHERE เข้าไปใน SQL — หอใหญ่สุดที่รองรับคือ 30 ชั้น x 50 ห้อง
+  // = 1,500 แถว ซึ่งเล็กมาก แต่การกรองข้ามหลายตาราง (ชื่อผู้เช่าอยู่คนละตาราง) ถ้าเขียนเป็น
+  // SQL จะกลายเป็นคำสั่งยาวที่อ่านยากและแก้ทีหลังพลาดง่าย
+  const digits = (value) => String(value ?? '').replace(/\D/g, '')
+  return rooms.filter((room) => {
+    if (search && !room.roomNumber.includes(String(search).trim())) return false
+    if (rentType && room.rentType !== rentType) return false
+    if (tenant) {
+      const keyword = String(tenant).trim()
+      const asDigits = digits(keyword)
+      const hit = room.tenants.some(
+        (t) => t.fullName.includes(keyword) || (asDigits && digits(t.phone).includes(asDigits))
+      )
+      if (!hit) return false
+    }
+    return true
+  })
+}
+
 export function listContractsByRoom(db, roomId) {
   return db
     .prepare('SELECT * FROM contracts WHERE room_id = ? ORDER BY start_date DESC, contract_id DESC')

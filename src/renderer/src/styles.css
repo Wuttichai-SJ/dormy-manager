@@ -2677,3 +2677,306 @@ body {
 .modal-body .field-row + .field-row {
   margin-top: 16px;
 }
+
+/* -----------------------------------------------------
+   หน้าห้องพัก (หน้าหลักของระบบ ตามต้นแบบ)
+   ----------------------------------------------------- */
+.room-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  padding: 18px 20px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ใบแรก (ห้องทั้งหมด) เน้นด้วยขอบเขียวแบบต้นแบบ */
+.stat-card.highlight {
+  border-color: #12a150;
+}
+
+.stat-card-value {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.stat-card-label {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.room-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.room-filters select {
+  padding: 9px 12px;
+  font-size: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.room-cell-number {
+  margin-right: 10px;
+  font-weight: 600;
+}
+
+.room-cell-sub {
+  font-size: 12px;
+}
+
+.room-cell-services {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+/* -----------------------------------------------------
+   หน้ารายละเอียดห้อง
+   ----------------------------------------------------- */
+.room-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 20px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.room-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .room-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.room-detail-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.room-detail-empty {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 16px;
+  color: var(--text-soft);
+}
+
+/* ปุ่มเลือกประเภทสัญญาของห้องว่าง — ใบใหญ่สองใบตามต้นแบบ */
+.contract-type-picker {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.contract-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 180px;
+  padding: 22px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  background: var(--surface);
+  border: 2px solid;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.contract-type svg {
+  width: 26px;
+  height: 26px;
+}
+
+.contract-type-monthly {
+  color: #4361c9;
+  border-color: #b9c5ee;
+}
+
+.contract-type-daily {
+  color: #b07a12;
+  border-color: var(--brand-strong);
+}
+
+.contract-type:hover {
+  background: var(--bg);
+}
+
+/* รายการ ป้าย/ค่า ของสัญญา */
+.contract-rows {
+  margin: 0;
+}
+
+.contract-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.contract-row:last-child {
+  border-bottom: none;
+}
+
+.contract-row dt {
+  color: var(--text-muted);
+}
+
+.contract-row dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.meter-start-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.meter-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.meter-start strong {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.meter-start span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.meter-start svg {
+  width: 26px;
+  height: 26px;
+}
+
+.meter-start-water svg {
+  color: var(--water);
+}
+
+.meter-start-electric svg {
+  color: var(--brand-strong);
+}
+
+/* -----------------------------------------------------
+   ตัวช่วยทำสัญญา 3 ขั้น
+   ----------------------------------------------------- */
+.contract-steps {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.contract-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.contract-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  background: #e4e7ea;
+  border-radius: 50%;
+}
+
+.contract-step.current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.contract-step.current .contract-step-number {
+  color: var(--brand-ink);
+  background: var(--brand);
+}
+
+/* กล่องสรุปเงินสีฟ้าแบบต้นแบบ */
+.contract-summary {
+  margin: 20px 0;
+  padding: 16px 18px;
+  background: #eef2fb;
+  border-radius: var(--radius);
+}
+
+.contract-summary h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.contract-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.contract-summary-row .negative {
+  color: var(--err);
+}
+
+.contract-summary-row.total {
+  margin-top: 4px;
+  padding-top: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  border-top: 1px solid #ccd7ef;
+}
+
+.contract-tenant {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius);
+}
+
+.contract-tenant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.contract-tenant .field-row + .field-row,
+.contract-tenant .field-row + .field {
+  margin-top: 14px;
+}
