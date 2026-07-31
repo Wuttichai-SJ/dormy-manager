@@ -15,9 +15,12 @@
 
   --bg: #faf7f4; /* warm off-white แบบเดียวกับพื้นหลังเว็บ */
   --surface: #ffffff;
-  --sidebar: #2b2117; /* น้ำตาลเข้มเกือบดำ ให้เข้าชุดกับปุ่มน้ำตาล */
-  --sidebar-text: #d7cabb;
-  --sidebar-active: #43342450;
+  /* แถบเมนูซ้ายเป็นเทาอ่อนพื้นสว่างแบบต้นแบบ ไม่ใช่แถบทึบสีเข้ม
+     รายการที่เลือกอยู่ = พื้นเหลืองแบรนด์ ตัวอักษรเข้ม (วัดจากหน้าจริง) */
+  --sidebar: #f9fafb;
+  --sidebar-text: #111827;
+  --sidebar-hover: #e5e7eb;
+  --sidebar-active: #fdd835;
 
   --border: #e6e0d9;
   --border-strong: #cfc4b7; /* ใช้กับขอบที่ต้องเห็นชัด เช่นหัวตาราง/การ์ดที่เลือกอยู่ */
@@ -87,19 +90,21 @@ body {
 
 /* Sidebar */
 .sidebar {
-  width: 220px;
+  width: 240px;
   flex-shrink: 0;
   background: var(--sidebar);
   color: var(--sidebar-text);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 16px 10px;
+  padding: 16px 12px;
 }
 
 .brand {
   font-size: 18px;
   font-weight: 600;
-  color: #fff;
+  color: var(--accent);
   padding: 8px 12px 20px;
   letter-spacing: 0.3px;
 }
@@ -137,14 +142,14 @@ body {
 }
 
 .nav-item:hover {
-  background: var(--sidebar-active);
+  background: var(--sidebar-hover);
 }
 
+/* รายการที่เลือกอยู่ = ยาเม็ดเหลือง ตัวอักษรเข้ม ไม่ใช่ขีดข้างซ้าย (ตามต้นแบบ) */
 .nav-item.active {
   background: var(--sidebar-active);
-  color: #fff;
+  color: var(--brand-ink);
   font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 /* Content */
@@ -522,14 +527,14 @@ body {
   margin-bottom: 14px;
   padding: 10px 12px;
   color: var(--sidebar-text);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
 }
 
 .apartment-switch:hover {
-  background: var(--sidebar-active);
+  background: var(--sidebar-hover);
 }
 
 .apartment-switch-label {
@@ -929,80 +934,8 @@ body {
 }
 
 /* หน้าตั้งค่า: เมนูย่อยซ้าย เนื้อหาขวา */
-.settings-layout {
-  display: grid;
-  grid-template-columns: 230px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .settings-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px;
-}
-
-.settings-nav-group + .settings-nav-group {
-  margin-top: 14px;
-}
-
-/* ป้ายกำกับกลุ่ม ("ระดับอพาร์ตเมนต์" / "ระดับห้อง") — เป็นหัวข้อเฉยๆ กดไม่ได้
-   จึงต้องดูต่างจากรายการที่กดได้ชัดเจน: เล็กกว่า จางกว่า และไม่มีสถานะ hover */
-.settings-nav-group-label {
-  margin: 0 0 4px;
-  padding: 6px 12px 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-/* รายการลูกเยื้องเข้าไป ให้เห็นว่าอยู่ใต้ป้ายกำกับกลุ่มไหน */
-.settings-nav-group .settings-nav-item {
-  padding-left: 22px;
-}
-
-.settings-nav-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  text-align: left;
-  padding: 9px 12px;
-  font-size: 14px;
-  color: var(--text);
-  background: none;
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-
-.settings-nav-item:hover:not(.disabled) {
-  background: var(--accent-weak);
-}
-
-.settings-nav-item.active {
-  background: var(--accent-weak);
-  color: var(--accent-strong);
-  font-weight: 700;
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-/* หัวข้อที่ยังไม่ได้สร้าง — จางลงและกดไม่ได้ แต่ยังเห็นว่ามีอยู่ในแผน */
-.settings-nav-item.disabled {
-  color: var(--text-muted);
-  cursor: default;
-}
-
+/* เมนูตั้งค่าย้ายไปอยู่ในแถบเมนูซ้ายแล้ว (.nav-group / .nav-subitem)
+   เหลือไว้แค่ป้าย "เร็วๆ นี้" ที่ยังใช้ร่วมกัน */
 .settings-nav-soon {
   font-size: 10px;
   padding: 2px 6px;
@@ -2578,19 +2511,109 @@ body {
 /* หน้า ตั้งค่า > ข้อมูลหอพัก ใช้ฟอร์มโครงเดียวกับหน้าเพิ่มหอ ซึ่งออกแบบมาสำหรับพื้นที่
    เต็มจอ พอมาอยู่ในกรอบเนื้อหาที่แคบลง (มีเมนูตั้งค่าเบียดอยู่ซ้าย) คอลัมน์หัวข้อกับการ์ด
    จะชิดกันจนอ่านยาก — เว้นระยะให้กว้างขึ้นเหมือนต้นแบบ */
-.settings-content .form-section {
+.page .form-section {
   gap: 40px;
 }
 
-.settings-content .form-section + .form-section,
-.settings-content .form-actions {
+.page .form-section + .form-section,
+.page .form-actions {
   margin-top: 48px;
   padding-top: 48px;
 }
 
 /* โซนลบหอพักต้องห่างจากส่วนที่เหลือมากเป็นพิเศษ จะได้ไม่กดพลาดต่อจากปุ่มบันทึก */
-.settings-content .danger-zone {
+.page .danger-zone {
   margin-top: 64px;
   padding-top: 48px;
   border-top: 1px solid var(--border-strong);
+}
+
+/* -----------------------------------------------------
+   เมนู "ตั้งค่า" ที่กางอยู่ในแถบเมนูซ้าย (ตามต้นแบบ)
+   ----------------------------------------------------- */
+.nav-parent {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* ลูกศรชี้ลง หมุนเมื่อกางออก บอกว่ากดแล้วมีของซ่อนอยู่ข้างใน */
+.nav-caret {
+  margin-left: auto;
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+
+.nav-caret svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nav-caret.open {
+  transform: rotate(180deg);
+}
+
+/* อยู่ในหัวข้อย่อยของตั้งค่าอยู่ แต่ยังไม่ได้กางเมนู — ให้ตัวแม่เข้มขึ้นเป็นร่องรอย */
+.nav-parent.has-active {
+  font-weight: 600;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+/* ป้ายกำกับกลุ่ม กดไม่ได้ จึงต้องดูต่างจากรายการที่กดได้ชัดเจน */
+.nav-group-label {
+  margin: 10px 0 2px;
+  padding-left: 40px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  padding: 6px 6px 6px 8px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--sidebar-text);
+  background: none;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.nav-subitem:hover:not(.disabled) {
+  background: var(--sidebar-hover);
+}
+
+.nav-subitem.active {
+  background: var(--sidebar-active);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+
+.nav-subitem.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nav-subitem-mark {
+  color: var(--text-muted);
+}
+
+/* เนื้อหาตั้งค่ากินเต็มพื้นที่แล้ว (เมนูย้ายไปอยู่แถบซ้าย) จึงไม่ต้องมี .settings-layout */
+.page > .form-section:first-child {
+  margin-top: 0;
+}
+
+/* ข้อยกเว้น: สวิตช์ของค่าน้ำ/ค่าไฟเปิดแล้วเป็น "เขียว" ไม่ใช่ส้มเหมือนที่อื่น
+   ต้นแบบใช้เขียวเฉพาะสองสวิตช์นี้ (ยืนยันจากหน้าจริง 2026-07-31) — ผู้ใช้ขอให้คงไว้ */
+.utility-side .toggle-input:checked + .toggle-track {
+  background: #12a150;
 }
