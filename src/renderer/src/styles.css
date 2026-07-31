@@ -2980,3 +2980,46 @@ body {
 .contract-tenant .field-row + .field {
   margin-top: 14px;
 }
+
+/* หัวการ์ดที่มีปุ่มอยู่ขวาสุด (เช่น การ์ดรายชื่อคนจอง) */
+.panel-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.panel-head-row .panel-title,
+.panel-head-row .panel-subtitle {
+  margin-bottom: 0;
+}
+
+/* ป้ายสถานะการจอง — สีบอกว่ายังกันห้องอยู่ไหม */
+.booking-status {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 5px;
+}
+
+.booking-pending {
+  color: #8a6b28;
+  background: var(--warn-weak);
+}
+
+.booking-confirmed {
+  color: #fff;
+  background: #12a150;
+}
+
+.booking-converted_to_contract {
+  color: var(--text-soft);
+  background: var(--border);
+}
+
+.booking-cancelled {
+  color: var(--err);
+  background: var(--err-weak);
+}

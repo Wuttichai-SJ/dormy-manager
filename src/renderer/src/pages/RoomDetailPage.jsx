@@ -6,6 +6,7 @@ import { formatPhone } from '../components/TenantDialog.jsx'
 import { formatBaht } from '../format.js'
 import { ROOM_STATUS_LABELS } from '../constants.js'
 import { getContractsForRoom } from '../services/contractService.js'
+import BookingsCard from '../components/BookingsCard.jsx'
 import ContractWizard from './ContractWizard.jsx'
 
 // หน้ารายละเอียดห้อง — ศูนย์กลางของทั้งระบบตามต้นแบบ (สำรวจหน้าจริง 2026-07-31)
@@ -19,6 +20,8 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(null) // 'monthly' | 'daily' | null
+  // ใบจองที่กำลังแปลงเป็นสัญญา — ตัวช่วยจะเติมข้อมูลจากใบจองให้ก่อน
+  const [converting, setConverting] = useState(null)
 
   const load = useCallback(async () => {
     const res = await getContractsForRoom(room.roomId)
@@ -31,15 +34,20 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
     load()
   }, [load])
 
-  if (creating) {
+  if (creating || converting) {
     return (
       <ContractWizard
         apartment={apartment}
         room={room}
-        rentType={creating}
-        onCancel={() => setCreating(null)}
+        rentType={converting ? converting.rentType : creating}
+        booking={converting}
+        onCancel={() => {
+          setCreating(null)
+          setConverting(null)
+        }}
         onDone={() => {
           setCreating(null)
+          setConverting(null)
           showToast('บันทึกข้อมูลสำเร็จ')
           load()
         }}
@@ -104,6 +112,8 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
           <div className="room-detail-column">
             <ServicesCard contract={active} room={room} />
             {active && <TenantsCard contract={active} />}
+            {/* ต้นแบบแสดงคิวจองไว้ในหน้าห้องเสมอ ไม่ว่าห้องจะว่างหรือไม่ */}
+            <BookingsCard room={room} onConvert={setConverting} />
           </div>
         </div>
       )}

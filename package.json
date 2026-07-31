@@ -17,10 +17,11 @@
     "test:utility": "node scripts/utility-smoke.mjs",
     "test:banks": "node scripts/banks-smoke.mjs",
     "test:rooms": "node scripts/rooms-smoke.mjs",
-    "test": "npm run test:auth && npm run test:apartments && npm run test:services && npm run test:utility && npm run test:banks && npm run test:rooms && npm run test:tenants && npm run test:contracts",
+    "test": "npm run test:auth && npm run test:apartments && npm run test:services && npm run test:utility && npm run test:banks && npm run test:rooms && npm run test:tenants && npm run test:contracts && npm run test:bookings",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "test:tenants": "node scripts/tenants-smoke.mjs",
-    "test:contracts": "node scripts/contracts-smoke.mjs"
+    "test:contracts": "node scripts/contracts-smoke.mjs",
+    "test:bookings": "node scripts/bookings-smoke.mjs"
   },
   "dependencies": {
     "better-sqlite3": "11.7.0",

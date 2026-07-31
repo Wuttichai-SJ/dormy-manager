@@ -4,6 +4,7 @@ import { centsToInput, formatBaht } from '../format.js'
 import { EMPTY_TENANT } from '../components/TenantDialog.jsx'
 import { createTenant, listTenants } from '../services/tenantService.js'
 import { createContract } from '../services/contractService.js'
+import { convertBookingToContract } from '../services/bookingService.js'
 
 // ตัวช่วยทำสัญญา 3 ขั้น — ลอกจากหน้าจริงของต้นแบบ `/rooms/{id}/agreements/create`
 //   1 สัญญา · 2 ค่าเช่าล่วงหน้า · 3 มิเตอร์น้ำ-ไฟ
@@ -19,27 +20,36 @@ const DEPOSIT_METHODS = [
   { value: 'other', label: 'อื่นๆ' }
 ]
 
-export default function ContractWizard({ apartment, room, rentType, onCancel, onDone }) {
+export default function ContractWizard({ apartment, room, rentType, booking, onCancel, onDone }) {
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // มาจากใบจอง = เติมสิ่งที่ตกลงกันไว้แล้วให้ก่อน (วันเข้าพัก ราคา เงินจอง)
+  // เจ้าหน้าที่จะได้ไม่ต้องเปิดใบจองอีกจอเพื่อลอกตัวเลข แล้วลอกผิด
   const [form, setForm] = useState({
-    startDate: today(),
-    endDate: '',
+    startDate: booking?.checkInDate ?? today(),
+    endDate: booking?.checkOutDate ?? '',
     // เติมค่าเช่าจากราคาตั้งของห้องให้ก่อน (ต้นแบบก็ทำ) แต่แก้ได้ เพราะต่อรองราคากันได้
-    rentAmount: centsToInput(rentType === 'daily' ? room.dailyRentCents : room.monthlyRentCents),
+    rentAmount: centsToInput(
+      booking?.rentPriceCents ?? (rentType === 'daily' ? room.dailyRentCents : room.monthlyRentCents)
+    ),
     deposit: '',
     depositPaymentMethod: 'cash',
-    bookingFee: '',
+    bookingFee: booking ? centsToInput(booking.bookingFeeCents) : '',
     bookingReceiptNo: '',
-    note: '',
+    note: booking?.note ?? '',
     waterMeterStart: '',
     electricMeterStart: ''
   })
 
   // ผู้เช่าของสัญญานี้ — คนแรกคือผู้เช่าหลัก (ดู 010_contract_tenants.sql)
-  const [tenants, setTenants] = useState([{ ...EMPTY_TENANT }])
+  //
+  // ใบจองเก็บชื่อไว้เป็นข้อความก้อนเดียว ("สมชาย ใจดี") แยกชื่อ/นามสกุลอัตโนมัติแล้วผิดบ่อย
+  // (ชื่อสองพยางค์ นามสกุลมีเว้นวรรค) จึงเดาให้แค่คำแรก แล้วให้คนตรวจก่อนบันทึก
+  const [tenants, setTenants] = useState([
+    booking ? tenantFromBooking(booking) : { ...EMPTY_TENANT }
+  ])
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 
@@ -74,14 +84,21 @@ export default function ContractWizard({ apartment, room, rentType, onCancel, on
       tenantIds.push(created.data.tenantId)
     }
 
-    const res = await createContract({
+    const payload = {
       roomId: room.roomId,
       rentType,
       ...form,
       endDate: form.endDate || null,
       bookingFee: form.bookingFee || '0',
       tenants: tenantIds
-    })
+    }
+
+    // มาจากใบจอง = ต้องปิดใบจองในธุรกรรมเดียวกับที่สร้างสัญญา ไม่ใช่สร้างสัญญาแล้วค่อยไป
+    // ปิดใบจองทีหลัง — ถ้าขั้นที่สองพลาด ห้องจะมีทั้งสัญญาและใบจองค้างพร้อมกัน
+    const res = booking
+      ? await convertBookingToContract(booking.bookingId, payload)
+      : await createContract(payload)
+
     setBusy(false)
     if (!res.success) return setError(res.error)
     onDone(res.data)
@@ -416,4 +433,16 @@ function advanceRentCents(rentCents, startDate) {
   if (Number.isNaN(date.getTime())) return 0
   const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
   return Math.round((rentCents * (daysInMonth - date.getDate() + 1)) / daysInMonth)
+}
+
+// ใบจองเก็บชื่อเป็นข้อความก้อนเดียว — เดาให้แค่ "คำแรกคือชื่อ ที่เหลือคือนามสกุล"
+// แล้วให้คนตรวจ ไม่ใช่บันทึกตามที่เดาไปเลย
+function tenantFromBooking(booking) {
+  const parts = String(booking.customerName ?? '').trim().split(/\s+/)
+  return {
+    ...EMPTY_TENANT,
+    firstName: parts[0] ?? '',
+    lastName: parts.slice(1).join(' '),
+    phone: booking.customerPhone ?? ''
+  }
 }
