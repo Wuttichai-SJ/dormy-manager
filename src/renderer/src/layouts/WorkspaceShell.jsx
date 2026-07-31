@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
-import TenantsPage from '../pages/TenantsPage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
@@ -15,7 +14,6 @@ import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 const NAV = [
   { key: 'dashboard', label: 'ภาพรวม' },
   { key: 'rooms', label: 'ห้องพัก' },
-  { key: 'tenants', label: 'ผู้เช่า' },
   { key: 'contracts', label: 'สัญญา' },
   { key: 'bookings', label: 'การจอง' },
   { key: 'meters', label: 'จดมิเตอร์' },
@@ -118,9 +116,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
         </header>
 
         <div className="page">
-          {active === 'tenants' ? (
-            <TenantsPage apartment={apartment} />
-          ) : settingsItem ? (
+          {settingsItem ? (
             <SettingsSection
               section={active}
               apartment={apartment}

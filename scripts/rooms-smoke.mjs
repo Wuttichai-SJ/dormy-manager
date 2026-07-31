@@ -286,13 +286,19 @@ check('ลบห้องที่เคยมีสัญญาไม่ได�
        VALUES ('ทดสอบ','ผู้เช่า','0810000000','1234567890123',?)`
     )
     .run(now).lastInsertRowid
+  // ผู้เช่าผูกกับสัญญาผ่าน contract_tenants แล้ว ไม่ใช่คอลัมน์บน contracts (ดู 010_*.sql)
+  const contractId = db
+    .prepare(
+      `INSERT INTO contracts (room_id, rent_type, start_date, rent_amount_cents,
+                              deposit_amount_cents, deposit_payment_method, booking_fee_cents,
+                              advance_payment_amount_cents, water_meter_start,
+                              electric_meter_start, status, created_at)
+       VALUES (?, 'monthly', '2026-01-01', 350000, 700000, 'cash', 0, 0, 0, 0, 'active', ?)`
+    )
+    .run(room.roomId, now).lastInsertRowid
   db.prepare(
-    `INSERT INTO contracts (room_id, tenant_id, rent_type, start_date, rent_amount_cents,
-                            deposit_amount_cents, deposit_payment_method, booking_fee_cents,
-                            advance_payment_amount_cents, water_meter_start,
-                            electric_meter_start, status, created_at)
-     VALUES (?, ?, 'monthly', '2026-01-01', 350000, 700000, 'cash', 0, 0, 0, 0, 'active', ?)`
-  ).run(room.roomId, tenantId, now)
+    'INSERT INTO contract_tenants (contract_id, tenant_id, is_primary, created_at) VALUES (?, ?, 1, ?)'
+  ).run(contractId, tenantId, now)
 
   throws(
     () => rooms.deleteRoom(db, room.roomId),
@@ -397,13 +403,19 @@ check('ตั้งห้องที่มีสัญญาใช้งาน�
        VALUES ('ทดสอบ','สอง','0810000001','9999999999999',?)`
     )
     .run(now).lastInsertRowid
+  // ผู้เช่าผูกกับสัญญาผ่าน contract_tenants แล้ว ไม่ใช่คอลัมน์บน contracts (ดู 010_*.sql)
+  const contractId = db
+    .prepare(
+      `INSERT INTO contracts (room_id, rent_type, start_date, rent_amount_cents,
+                              deposit_amount_cents, deposit_payment_method, booking_fee_cents,
+                              advance_payment_amount_cents, water_meter_start,
+                              electric_meter_start, status, created_at)
+       VALUES (?, 'monthly', '2026-01-01', 350000, 700000, 'cash', 0, 0, 0, 0, 'active', ?)`
+    )
+    .run(room.roomId, now).lastInsertRowid
   db.prepare(
-    `INSERT INTO contracts (room_id, tenant_id, rent_type, start_date, rent_amount_cents,
-                            deposit_amount_cents, deposit_payment_method, booking_fee_cents,
-                            advance_payment_amount_cents, water_meter_start,
-                            electric_meter_start, status, created_at)
-     VALUES (?, ?, 'monthly', '2026-01-01', 350000, 700000, 'cash', 0, 0, 0, 0, 'active', ?)`
-  ).run(room.roomId, tenantId, now)
+    'INSERT INTO contract_tenants (contract_id, tenant_id, is_primary, created_at) VALUES (?, ?, 1, ?)'
+  ).run(contractId, tenantId, now)
 
   throws(
     () => rooms.setRoomStatus(db, allIds, 'vacant'),

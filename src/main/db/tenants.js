@@ -83,11 +83,14 @@ function assertNotDuplicate(db, row, exceptTenantId = null) {
 // ------------------------------------------------------------------
 // นับสัญญาที่ยัง active มาด้วย เพื่อให้หน้าจอบอกได้ทันทีว่าใครกำลังเช่าอยู่/ใครย้ายออกแล้ว
 // โดยไม่ต้องยิงคำถามเพิ่มรายคน
+// ผู้เช่าผูกกับสัญญาผ่านตาราง contract_tenants (หนึ่งสัญญามีได้หลายคน — ดู 010_*.sql)
+// ไม่ใช่คอลัมน์ tenant_id บน contracts อีกต่อไป
 const LIST_SQL = `
   SELECT
     t.*,
-    (SELECT COUNT(*) FROM contracts c
-      WHERE c.tenant_id = t.tenant_id AND c.status = 'active') AS active_contracts
+    (SELECT COUNT(*)
+       FROM contract_tenants ct JOIN contracts c ON c.contract_id = ct.contract_id
+      WHERE ct.tenant_id = t.tenant_id AND c.status = 'active') AS active_contracts
   FROM tenants t
 `
 
@@ -121,10 +124,11 @@ export function listTenantsByApartment(db, apartmentId) {
     .prepare(
       `${LIST_SQL}
        WHERE EXISTS (
-         SELECT 1 FROM contracts c
+         SELECT 1 FROM contract_tenants ct
+           JOIN contracts c ON c.contract_id = ct.contract_id
            JOIN rooms r ON r.room_id = c.room_id
            JOIN floors f ON f.floor_id = r.floor_id
-          WHERE c.tenant_id = t.tenant_id AND f.apartment_id = ?
+          WHERE ct.tenant_id = t.tenant_id AND f.apartment_id = ?
        )
        ORDER BY t.first_name, t.last_name`
     )
@@ -188,7 +192,7 @@ export function updateTenant(db, tenantId, input) {
 // คนที่เคยเช่าจริงห้ามลบ เพราะบิลและใบเสร็จย้อนหลังอ้างถึงสัญญาที่อ้างถึงคนนี้
 export function deleteTenant(db, tenantId) {
   const contracts = db
-    .prepare('SELECT COUNT(*) AS n FROM contracts WHERE tenant_id = ?')
+    .prepare('SELECT COUNT(*) AS n FROM contract_tenants WHERE tenant_id = ?')
     .get(tenantId).n
   if (contracts > 0) {
     throw new Error('ลบไม่ได้ เพราะผู้เช่ารายนี้มีประวัติสัญญาเช่าอยู่ในระบบ')
