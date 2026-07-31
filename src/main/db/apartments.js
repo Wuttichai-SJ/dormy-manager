@@ -90,6 +90,24 @@ export function countApartments(db) {
   return db.prepare('SELECT COUNT(*) AS n FROM apartments').get().n
 }
 
+// ปิดงานตั้งค่า — เรียกตอนเจ้าของหอกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่าเท่านั้น
+// ก่อนหน้านั้นหอยังเข้าหน้าทำงาน (ที่มีเมนูข้าง) ไม่ได้ ดู 008_apartment_setup_completed.sql
+//
+// กดซ้ำได้ไม่เป็นไร แต่ไม่ทับเวลาเดิม เพราะอยากได้เวลาที่ "ตั้งค่าเสร็จครั้งแรก"
+export function markSetupCompleted(db, apartmentId) {
+  const result = db
+    .prepare(
+      `UPDATE apartments SET setup_completed_at = ?
+        WHERE apartment_id = ? AND setup_completed_at IS NULL`
+    )
+    .run(new Date().toISOString(), apartmentId)
+
+  if (result.changes === 0 && !getApartmentById(db, apartmentId)) {
+    throw new Error('ไม่พบหอพักที่ต้องการ')
+  }
+  return getApartmentById(db, apartmentId)
+}
+
 // -----------------------------------------------------
 // เขียน
 // -----------------------------------------------------
@@ -202,6 +220,9 @@ export function toPublicApartment(row) {
     dueDateDay: row.due_date_day,
     isVatEnabled: row.is_vat_enabled === 1,
     displayOrder: row.display_order,
+    // null = ยังเดินตัวช่วยตั้งค่าไม่ครบ หน้าจอใช้ค่านี้ตัดสินว่าจะให้เข้าหน้าทำงานได้ไหม
+    setupCompletedAt: row.setup_completed_at ?? null,
+    isSetupComplete: Boolean(row.setup_completed_at),
     // มีเฉพาะตอนดึงจากรายการ (LIST_SQL) — หน้าฟอร์มไม่ต้องใช้
     totalRooms: row.total_rooms,
     vacantRooms: row.vacant_rooms,

@@ -103,9 +103,12 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
 }
 
 function ApartmentCard({ apartment, onOpen, onSetup, onEdit, onDelete }) {
-  // หอที่ยังไม่มีห้องเลย = ยังตั้งค่าไม่เสร็จ ต้องเห็นทางกลับเข้าตัวช่วยตั้งค่า
-  // ไม่ใช่ปล่อยให้กด "จัดการ" เข้าไปเจอหน้าเปล่าๆ แล้วงงว่าต้องทำอะไรต่อ
-  const needsSetup = apartment.totalRooms === 0
+  // "ตั้งค่าเสร็จ" ต้องมาจากการกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่าเท่านั้น
+  //
+  // เดิมเดาจาก "มีห้องแล้ว = เสร็จ" ซึ่งผิด — หอที่สร้างผังห้องเสร็จ (ขั้น 5) แต่ยังไม่ได้
+  // ตั้งค่าเช่า/สถานะ/ค่าบริการ (ขั้น 6-8) ก็มีห้องเหมือนกัน แล้วหลุดเข้าหน้าทำงานที่มี
+  // เมนูข้างไปทั้งที่ค่าเช่ายังเป็น 0 ทุกห้อง — ออกบิลไปได้ศูนย์บาททั้งหอ
+  const needsSetup = !apartment.isSetupComplete
 
   return (
     <article className={'apartment-card' + (needsSetup ? ' needs-setup' : '')}>

@@ -44,6 +44,13 @@ const SIDES = {
   electric: { title: 'ค่าไฟ', icon: 'electric', unitLabel: 'หน่วย' }
 }
 
+// "ระบุแล้ว" = ช่องราคาที่โหมดนั้นใช้จริงมีค่ามากกว่าศูนย์
+function hasPrice(side) {
+  const filled = (value) => Number(value) > 0
+  if (side.billingType === 'flat') return filled(side.flatRate)
+  return filled(side.unitPrice)
+}
+
 export default function UtilitySettingsPage({ apartment }) {
   const [sides, setSides] = useState({ water: EMPTY_SIDE, electric: EMPTY_SIDE })
   const [loading, setLoading] = useState(true)
@@ -66,16 +73,19 @@ export default function UtilitySettingsPage({ apartment }) {
 
   // บันทึกทันทีที่สลับสวิตช์หรือกดบันทึกในหน้าต่างซ้อน — หน้านี้ไม่มีปุ่มบันทึกรวม
   // (ต้นแบบก็ไม่มี) ถ้าเก็บไว้รอกดทีเดียว คนจะกด "ต่อไป" แล้วค่าหายโดยไม่รู้ตัว
-  async function persist(next) {
+  //
+  // ส่งไปเฉพาะ "ฝั่งที่แก้" และเฉพาะ "ช่องที่แก้" ฝั่ง main จะเอาไปผสมกับของเดิมเอง
+  // ถ้าส่งทั้งก้อนทุกครั้ง ฝั่งที่ยังไม่ได้กรอกราคาจะทำให้การตรวจล้มแล้วบล็อกอีกฝั่ง
+  async function persist(key, patch) {
     setError('')
     setBusy(true)
-    const res = await saveUtilityDefaults(apartment.apartmentId, next)
+    const res = await saveUtilityDefaults(apartment.apartmentId, { [key]: patch })
     setBusy(false)
     if (!res.success) {
       setError(res.error)
       return false
     }
-    setSides(next)
+    setSides({ water: toFormSide(res.data.water), electric: toFormSide(res.data.electric) })
     return true
   }
 
@@ -96,17 +106,13 @@ export default function UtilitySettingsPage({ apartment }) {
               label={`มีการคิด${meta.title}`}
               checked={sides[key].enabled}
               disabled={busy}
-              onChange={(enabled) =>
-                persist({ ...sides, [key]: { ...sides[key], enabled } })
-              }
+              onChange={(enabled) => persist(key, { enabled })}
             />
             <ToggleSwitch
               label="แสดงจำนวนเลขมิเตอร์ที่ใบแจ้งหนี้"
               checked={sides[key].showReadingInInvoice}
               disabled={busy || !sides[key].enabled}
-              onChange={(showReadingInInvoice) =>
-                persist({ ...sides, [key]: { ...sides[key], showReadingInInvoice } })
-              }
+              onChange={(showReadingInInvoice) => persist(key, { showReadingInInvoice })}
             />
 
             <div className="utility-side-action">
@@ -119,6 +125,12 @@ export default function UtilitySettingsPage({ apartment }) {
                 ระบุการคิด{meta.title}
               </button>
             </div>
+
+            {/* เปิดเก็บเงินไว้แต่ยังไม่ได้ใส่ราคา = ออกบิลไปจะได้ 0 บาททั้งหอ
+                ต้องเห็นชัดตรงนี้ ไม่ใช่ไปรู้ตัวตอนบิลออกแล้ว */}
+            {sides[key].enabled && !hasPrice(sides[key]) && (
+              <p className="utility-warning">ยังไม่ได้ระบุการคิด{meta.title}</p>
+            )}
           </section>
         ))}
       </div>
@@ -135,7 +147,7 @@ export default function UtilitySettingsPage({ apartment }) {
           busy={busy}
           onClose={() => setEditing(null)}
           onSave={async (side) => {
-            const ok = await persist({ ...sides, [editing]: side })
+            const ok = await persist(editing, side)
             if (ok) setEditing(null)
           }}
         />

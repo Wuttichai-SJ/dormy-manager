@@ -2429,3 +2429,17 @@ body {
   color: var(--text);
   user-select: all;
 }
+
+/* คำเตือนใต้สวิตช์ค่าน้ำ/ค่าไฟ — เปิดเก็บเงินไว้แต่ยังไม่ได้ใส่ราคา */
+.utility-warning {
+  margin: 0;
+  font-size: 13px;
+  text-align: center;
+  color: var(--err);
+}
+
+/* ข้อความบอกว่าขั้นตอนนี้ข้ามได้ */
+.step-optional {
+  margin: 0 0 16px;
+  font-size: 14px;
+}

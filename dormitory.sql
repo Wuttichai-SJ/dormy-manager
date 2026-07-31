@@ -127,6 +127,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`apartments` (
   `show_tenant_info_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
   `show_unit_qty_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
   `default_rent_item_text` VARCHAR(255) NULL DEFAULT 'ค่าเช่าห้อง/Rent',
+  -- เวลาที่เดินตัวช่วยตั้งค่าครบ 8 ขั้น (migration 008) — NULL = ยังตั้งค่าไม่เสร็จ
+  -- หอที่ยัง NULL อยู่จะเข้าหน้าทำงานที่มีเมนูข้างไม่ได้ ต้องกลับไปตั้งค่าให้จบก่อน
+  `setup_completed_at` TIMESTAMP NULL,
   -- ค่าตั้งต้นกฎคืนเงินประกัน (migration 004) — NULL = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
   `default_deposit_min_stay_months` INT NULL,
   `default_deposit_notice_days` INT NOT NULL DEFAULT 15,

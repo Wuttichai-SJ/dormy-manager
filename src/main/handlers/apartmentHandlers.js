@@ -7,6 +7,7 @@ import {
   deleteApartment,
   getApartmentById,
   insertApartment,
+  markSetupCompleted,
   listApartments,
   reorderApartments,
   updateApartment,
@@ -57,6 +58,13 @@ export function registerApartmentHandlers() {
       throw new Error('ไม่ได้ระบุลำดับใหม่')
     }
     return reorderApartments(getDatabase(), orderedIds)
+  })
+
+  // เรียกตอนกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่า — ก่อนหน้านั้นหอยังเข้าหน้าทำงานไม่ได้
+  handle('apartment:completeSetup', ({ apartmentId }) => {
+    const result = markSetupCompleted(getDatabase(), apartmentId)
+    logInfo(`ตั้งค่าหอพักเสร็จ (apartment_id ${apartmentId})`)
+    return result
   })
 
   handle('apartment:delete', ({ apartmentId }) => {

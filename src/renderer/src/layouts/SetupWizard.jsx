@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
+import Alert from '../components/Alert.jsx'
+import { completeApartmentSetup } from '../services/apartmentService.js'
 import ApartmentServicesPage from '../pages/ApartmentServicesPage.jsx'
 import UtilitySettingsPage from '../pages/UtilitySettingsPage.jsx'
 import BankAccountsPage from '../pages/BankAccountsPage.jsx'
@@ -105,10 +107,23 @@ const STEPS = [
 
 export default function SetupWizard({ apartment, onFinish, onExit }) {
   const [index, setIndex] = useState(0)
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState(null) // หอที่ตั้งค่าเสร็จแล้ว (มี setupCompletedAt)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const step = STEPS[index]
   const isLast = index === STEPS.length - 1
+
+  // ปิดงานตั้งค่าที่ฝั่ง main ก่อน แล้วค่อยขึ้นจอ "พร้อมใช้งาน"
+  // ถ้าขึ้นจอก่อนแล้วบันทึกพลาด เจ้าของหอจะเห็นติ๊กถูกทั้งที่หอยังไม่ถูกปลดล็อก
+  async function finish() {
+    setError('')
+    setBusy(true)
+    const res = await completeApartmentSetup(apartment.apartmentId)
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    setDone(res.data)
+  }
 
   if (done) {
     return (
@@ -122,7 +137,7 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
             </span>
             <h2>การตั้งค่าเสร็จเรียบร้อย</h2>
             <p className="muted">{apartment.nameTh} พร้อมใช้งานแล้ว</p>
-            <button type="button" className="btn" onClick={() => onFinish(apartment)}>
+            <button type="button" className="btn" onClick={() => onFinish(done)}>
               เริ่มต้นใช้งาน
             </button>
           </div>
@@ -138,6 +153,8 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
 
       <main className="wizard-body">
         <h1 className="wizard-title">ตั้งค่าหอพัก</h1>
+
+        <Alert>{error}</Alert>
 
         <div className="wizard-layout">
           <nav className="wizard-steps">
@@ -194,9 +211,10 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
           <button
             type="button"
             className="btn"
-            onClick={() => (isLast ? setDone(true) : setIndex(index + 1))}
+            disabled={busy}
+            onClick={() => (isLast ? finish() : setIndex(index + 1))}
           >
-            {isLast ? 'เสร็จสิ้น' : 'ต่อไป'}
+            {isLast ? (busy ? 'กำลังบันทึก...' : 'เสร็จสิ้น') : 'ต่อไป'}
           </button>
         </div>
       </main>

@@ -189,6 +189,39 @@ check('สลับลำดับแล้วรายการเรียง�
 })
 
 // -----------------------------------------------------
+// หอต้องเข้าหน้าทำงาน (ที่มีเมนูข้าง) ไม่ได้จนกว่าจะกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของ
+// ตัวช่วยตั้งค่า — เดิมเดาจาก "มีห้องแล้ว = เสร็จ" ซึ่งปล่อยหอที่ค่าเช่ายังเป็น 0 ผ่านไปได้
+group('ปิดงานตั้งค่า')
+
+check('หอที่เพิ่งสร้างยังไม่นับว่าตั้งค่าเสร็จ', () => {
+  const created = apartments.insertApartment(db, {
+    nameTh: 'หอพักทดสอบ ตั้งค่า',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0'
+  })
+  assert(created.isSetupComplete === false, 'หอใหม่ไม่ควรนับว่าเสร็จ')
+  assert(created.setupCompletedAt === null, `ได้ ${created.setupCompletedAt}`)
+})
+
+check('กดเสร็จสิ้นแล้วปลดล็อก และเวลาที่บันทึกไว้ไม่ถูกทับถ้ากดซ้ำ', () => {
+  const target = apartments.listApartments(db).find((a) => a.nameTh === 'หอพักทดสอบ ตั้งค่า')
+  const first = apartments.markSetupCompleted(db, target.apartmentId)
+  assert(first.isSetupComplete === true, 'ควรปลดล็อกแล้ว')
+  assert(typeof first.setupCompletedAt === 'string', 'ควรมีเวลาที่ตั้งค่าเสร็จ')
+
+  const again = apartments.markSetupCompleted(db, target.apartmentId)
+  assert(
+    again.setupCompletedAt === first.setupCompletedAt,
+    `เวลาถูกทับ ${first.setupCompletedAt} -> ${again.setupCompletedAt}`
+  )
+})
+
+check('ปิดงานตั้งค่าให้หอที่ไม่มีอยู่ต้องแจ้งเตือน', () => {
+  throws(() => apartments.markSetupCompleted(db, 9999), 'ไม่พบหอพัก', 'ควรแจ้งว่าไม่พบ')
+})
+
+// -----------------------------------------------------
 group('ลบ')
 
 check('ลบหอที่ยังไม่มีชั้น/ห้องได้', () => {

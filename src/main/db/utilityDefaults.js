@@ -3,7 +3,7 @@
 // เป็น "ค่าตั้งต้น" ที่จะถูกคัดลอกลง room_utility_settings ตอนสร้างห้อง
 // การแก้ที่นี่ทีหลังจะ *ไม่* ย้อนไปเปลี่ยนห้องที่สร้างไว้แล้ว โดยตั้งใจ — ไม่งั้น
 // ห้องที่เจ้าของตั้งราคาพิเศษไว้จะถูกทับหายโดยไม่มีใครรู้ตัว
-import { toCents } from '../money.js'
+import { centsToBaht, toCents } from '../money.js'
 
 // SQLite ไม่มี ENUM — เก็บเป็น TEXT แล้วตรวจค่าที่ JS ก่อนเขียนทุกครั้ง
 // ค่าเหล่านี้ต้องตรงกับที่ระบุไว้ใน 001_init.sql (room_utility_settings) เป๊ะๆ
@@ -23,6 +23,9 @@ export const BILLING_TYPE_LABELS = {
 function validateSide(input, label, errors) {
   // ปิดการคิดค่าบริการนี้ = ไม่ต้องตรวจอะไรเลย ราคาจะถูกเก็บเป็น 0
   if (!input.enabled) return
+
+  // ไม่ได้ส่ง billingType มา = ก้อนนี้แค่สลับสวิตช์ ไม่ได้มาตั้งวิธีคิดเงิน ปล่อยผ่าน
+  if (input.billingType === undefined) return
 
   if (!BILLING_TYPES.includes(input.billingType)) {
     errors.push(`กรุณาเลือกประเภทการคิด${label}`)
@@ -56,10 +59,19 @@ function validateSide(input, label, errors) {
   }
 }
 
-export function validateUtilityInput({ water, electric }) {
+// รับได้ทั้งก้อนเต็ม {water, electric} และก้อนบางส่วน {water} — ฝั่งที่ไม่ได้ส่งมา
+// แปลว่า "ไม่ได้แก้" จึงไม่ต้องตรวจ
+//
+// ทำไมต้องตรวจแยกฝั่ง: หน้าจอตั้งค่าน้ำกับค่าไฟทีละฝั่ง ถ้าตรวจรวมทุกครั้ง ฝั่งที่ยัง
+// ไม่ได้กรอกราคาจะโยน error ออกมาบล็อกฝั่งที่กำลังกรอกอยู่ กลายเป็น "ระบุอะไรไม่ได้เลย"
+//
+// และตรวจ "ราคา" เฉพาะตอนที่ผู้เรียกส่ง billingType มาด้วย = เจตนามาตั้งวิธีคิดเงินจริงๆ
+// ส่วนการสลับสวิตช์เปิด/ปิด ส่งมาแค่ enabled จึงบันทึกได้โดยไม่ต้องมีราคาก่อน
+// (ต้นแบบก็เปิดสวิตช์ได้ก่อนแล้วค่อยกดเข้าไประบุราคาทีหลัง)
+export function validateUtilityInput(input) {
   const errors = []
-  validateSide(water ?? {}, 'ค่าน้ำ', errors)
-  validateSide(electric ?? {}, 'ค่าไฟ', errors)
+  if (input?.water) validateSide(input.water, 'ค่าน้ำ', errors)
+  if (input?.electric) validateSide(input.electric, 'ค่าไฟ', errors)
   return errors
 }
 
@@ -119,12 +131,38 @@ function emptySide() {
   }
 }
 
+// รวมค่าที่ส่งมาใหม่ทับค่าที่เก็บอยู่ — คืนรูปแบบ "ฟอร์ม" (ราคาเป็นข้อความบาท)
+// ให้ sideToRow เอาไปแปลงเป็นสตางค์ต่อ
+//
+// ค่าที่เก็บอยู่เป็น *Cents ส่วนค่าที่ส่งมาจากฟอร์มเป็นบาท จึงต้องแปลงกลับก่อนผสม
+// ไม่งั้นราคา 18 บาทที่เก็บเป็น 1800 จะถูกอ่านเป็น 1800 บาทในรอบบันทึกถัดไป
+function mergeSide(stored, patch) {
+  const base = {
+    enabled: stored.enabled,
+    billingType: stored.billingType,
+    unitPrice: centsToBaht(stored.unitPriceCents),
+    minCharge: centsToBaht(stored.minChargeCents),
+    flatRate: centsToBaht(stored.flatRateCents),
+    showReadingInInvoice: stored.showReadingInInvoice
+  }
+  if (!patch) return base
+
+  const merged = { ...base }
+  for (const key of Object.keys(base)) {
+    if (patch[key] !== undefined) merged[key] = patch[key]
+  }
+  return merged
+}
+
 // UPSERT — หอหนึ่งมีได้แถวเดียว (apartment_id UNIQUE)
 // ใช้ ON CONFLICT แทนการ SELECT แล้วค่อยตัดสินใจ INSERT/UPDATE เพราะสั้นกว่า
 // และไม่มีช่องว่างระหว่างสองคำสั่งให้เกิดแถวซ้ำได้
 export function saveUtilityDefaults(db, apartmentId, input) {
-  const water = sideToRow(input.water)
-  const electric = sideToRow(input.electric)
+  // ก้อนที่ส่งมาเป็น "เฉพาะสิ่งที่แก้" ได้ ฝั่งไหน/ช่องไหนไม่ได้ส่งมาให้ใช้ของเดิมต่อ
+  // ถ้าไม่ merge ก่อน การกดสวิตช์ฝั่งเดียวจะล้างราคาของอีกฝั่งเป็น 0 ทันที
+  const current = getUtilityDefaults(db, apartmentId)
+  const water = sideToRow(mergeSide(current.water, input?.water))
+  const electric = sideToRow(mergeSide(current.electric, input?.electric))
   const now = new Date().toISOString()
 
   db.prepare(

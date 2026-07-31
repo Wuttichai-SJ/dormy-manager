@@ -25,3 +25,7 @@ export function reorderApartments(orderedIds) {
 export function deleteApartment(apartmentId) {
   return invoke('apartment:delete', { apartmentId })
 }
+
+export function completeApartmentSetup(apartmentId) {
+  return invoke('apartment:completeSetup', { apartmentId })
+}

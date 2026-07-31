@@ -119,6 +119,52 @@ check('เก็บ toggle แสดงเลขมิเตอร์แยก�
   assert(saved.electric.showReadingInInvoice === false, 'ไฟไม่ควรแสดงเลขมิเตอร์')
 })
 
+// หน้าจอตั้งค่าน้ำกับค่าไฟทีละฝั่ง จึงส่งมาแค่ฝั่งเดียว/ช่องเดียว
+// เคยพลาด: ตรวจรวมทุกครั้ง ฝั่งที่ยังไม่มีราคาเลยบล็อกฝั่งที่กำลังกรอก = "ระบุอะไรไม่ได้เลย"
+group('บันทึกทีละฝั่ง')
+
+check('ส่งมาฝั่งเดียว อีกฝั่งต้องไม่ถูกล้าง', () => {
+  const after = util.saveUtilityDefaults(db, id, {
+    water: { enabled: true, billingType: 'flat', flatRate: '150' }
+  })
+  assert(after.water.flatRateCents === 15000, `น้ำ ${after.water.flatRateCents}`)
+  assert(after.electric.unitPriceCents === 800, `ไฟหายไป ${after.electric.unitPriceCents}`)
+  assert(after.electric.minChargeCents === 10000, `ขั้นต่ำไฟหาย ${after.electric.minChargeCents}`)
+})
+
+check('สลับสวิตช์อย่างเดียวไม่ต้องมีราคา และไม่ทับราคาเดิม', () => {
+  const before = util.getUtilityDefaults(db, id)
+  const errors = util.validateUtilityInput({ electric: { enabled: true } })
+  assert(errors.length === 0, `ไม่ควรมี error ได้ ${errors.join(', ')}`)
+
+  const after = util.saveUtilityDefaults(db, id, { electric: { showReadingInInvoice: true } })
+  assert(after.electric.showReadingInInvoice === true, 'สวิตช์ไม่เปลี่ยน')
+  assert(
+    after.electric.unitPriceCents === before.electric.unitPriceCents,
+    `ราคาไฟถูกทับ ${after.electric.unitPriceCents}`
+  )
+  assert(after.water.flatRateCents === 15000, `ราคาน้ำถูกทับ ${after.water.flatRateCents}`)
+})
+
+check('ฝั่งที่ยังไม่มีราคา ต้องไม่บล็อกการบันทึกของอีกฝั่ง', () => {
+  const fresh = apartments.insertApartment(db, {
+    nameTh: 'หอทดสอบ บันทึกฝั่งเดียว',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0'
+  })
+  // หอใหม่ยังไม่มีราคาสักฝั่ง — ตั้งค่าน้ำอย่างเดียวต้องผ่าน
+  const errors = util.validateUtilityInput({
+    water: { enabled: true, billingType: 'actual', unitPrice: '20' }
+  })
+  assert(errors.length === 0, `ไม่ควรมี error ได้ ${errors.join(', ')}`)
+
+  const after = util.saveUtilityDefaults(db, fresh.apartmentId, {
+    water: { enabled: true, billingType: 'actual', unitPrice: '20' }
+  })
+  assert(after.water.unitPriceCents === 2000, `น้ำ ${after.water.unitPriceCents}`)
+})
+
 check('บันทึกซ้ำเป็นการทับของเดิม ไม่ใช่เพิ่มแถวใหม่', () => {
   util.saveUtilityDefaults(db, id, {
     water: { enabled: true, billingType: 'flat', flatRate: '150', showReadingInInvoice: false },

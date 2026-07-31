@@ -167,6 +167,15 @@ export default function RoomRatesPage({ apartment, only }) {
         )
       })}
 
+      {/* หอที่ไม่มีค่าบริการเลยข้ามขั้นนี้ได้ ไม่ต้องกลับไปกรอกขั้นที่ 1 ก่อน
+          ต้นแบบก็ไม่บังคับ — หอหลายแห่งไม่มีค่าบริการเพิ่มเติมอะไรเลยจริงๆ */}
+      {mode === 'services' && catalogue.length === 0 && (
+        <p className="muted step-optional">
+          หอพักนี้ยังไม่มีค่าบริการเพิ่มเติม — ข้ามขั้นนี้ได้เลย
+          หรือกลับไปเพิ่มที่ขั้นตอนที่ 1 "ค่าบริการ" ถ้าต้องการ
+        </p>
+      )}
+
       <div className="select-bar">
         <span className="select-bar-count">
           {mode === 'status' ? 'เลือก' : 'จำนวนห้องที่เลือก'}
@@ -191,7 +200,8 @@ export default function RoomRatesPage({ apartment, only }) {
           <button
             type="button"
             className="btn"
-            disabled={roomIds.length === 0}
+            // ขั้นค่าบริการรายห้องข้ามได้ ถ้าหอนี้ไม่มีค่าบริการเลย (ต้นแบบก็ไม่บังคับ)
+            disabled={roomIds.length === 0 || (mode === 'services' && catalogue.length === 0)}
             onClick={() => setDialogOpen(true)}
           >
             {MODES[mode].action}
@@ -310,16 +320,6 @@ function RateDialog({ onClose, onSubmit, busy }) {
 // ผูกผิดห้องแล้วแก้ไม่ได้เลย — ยังไม่มีหน้าอื่นในระบบที่ถอดค่าบริการออกจากห้องได้
 function ServiceDialog({ catalogue, onClose, onSubmit, onDetach, busy }) {
   const [serviceId, setServiceId] = useState('')
-
-  if (catalogue.length === 0) {
-    return (
-      <Modal title="ระบุค่าบริการเพิ่มเติม" onClose={onClose} onSubmit={onClose} submitLabel="เข้าใจแล้ว">
-        <p className="muted">
-          ยังไม่มีค่าบริการในหอพักนี้ — กลับไปเพิ่มที่ขั้นตอนที่ 1 "ค่าบริการ" ก่อน
-        </p>
-      </Modal>
-    )
-  }
 
   return (
     <Modal
