@@ -246,9 +246,10 @@ export default function BankAccountsPage({ apartment }) {
             </p>
           </div>
 
-          <div className="form-actions">
+          {/* ปุ่มบันทึกอยู่ในแถบเทาท้ายการ์ดตามต้นแบบ ไม่ลอยอยู่กับเนื้อหา */}
+          <div className="card-foot">
             <button type="submit" className="btn">
-              บันทึกข้อความ
+              บันทึก
             </button>
           </div>
         </form>

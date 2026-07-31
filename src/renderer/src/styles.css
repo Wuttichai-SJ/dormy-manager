@@ -1756,9 +1756,32 @@ body {
 }
 
 /* หน้าแต่ละขั้นมีแถบคำอธิบายของตัวเอง (.info-banner) ไว้ใช้ตอนเปิดเดี่ยวๆ จากเมนูตั้งค่า
-   แต่ใน wizard มีแถบครีมหัวการ์ดอยู่แล้ว ถ้าปล่อยไว้จะเห็นคำอธิบายซ้อนกันสองแถบ */
-.wizard-card-body .info-banner {
+   ใน wizard แถบแรกซ้ำกับแถบครีมหัวการ์ด จึงซ่อนทิ้ง — แต่ซ่อนเฉพาะแถบแรกเท่านั้น
+   บางขั้น (บัญชีธนาคาร) มีสองหัวข้อในหน้าเดียว แถบที่สองคือหัวข้อของจริง ห้ามซ่อน */
+.wizard-card-body > .info-banner:first-child {
   display: none;
+}
+
+/* แถบหัวข้อที่สองเป็นต้นไป ทำให้หน้าตาเหมือนแถบครีมหัวการ์ด และกินเต็มความกว้าง */
+.wizard-card-body > .info-banner {
+  margin: 32px -24px 24px;
+  padding: 20px 24px;
+  background: #fcfdeb;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid #c37800;
+  border-radius: 0;
+}
+
+/* แถบล่างการ์ดที่มีแต่ปุ่มบันทึก — ต้นแบบใช้พื้นเทาอ่อนแยกจากเนื้อหาข้างบน */
+.card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin: 24px -24px -24px;
+  padding: 14px 24px;
+  background: #f8f7f6;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 12px 12px;
 }
 
 /* -----------------------------------------------------
