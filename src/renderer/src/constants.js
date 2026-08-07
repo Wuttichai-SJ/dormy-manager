@@ -59,6 +59,14 @@ export const ROOM_STATUS_LABELS = {
   maintenance: 'ปิดปรับปรุง'
 }
 
+// ต้องตรงกับ INVOICE_STATUSES / INVOICE_STATUS_LABELS ใน src/main/db/invoices.js
+export const INVOICE_STATUS_LABELS = {
+  unpaid: 'ค้างชำระ',
+  partial_paid: 'ชำระบางส่วน',
+  paid: 'ชำระแล้ว',
+  cancelled: 'ยกเลิก'
+}
+
 // ต้องตรงกับ METER_SIDES / METER_SIDE_LABELS ใน src/main/db/meterReadings.js
 // หน้าจอกรอกเลขมิเตอร์ทีละฝั่งตามต้นแบบ จึงต้องมีชื่อกับไอคอนของแต่ละฝั่งไว้ทำปุ่ม
 export const METER_SIDES = [

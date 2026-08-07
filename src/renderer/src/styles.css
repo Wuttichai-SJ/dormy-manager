@@ -3088,7 +3088,7 @@ body {
   justify-content: center;
   width: 36px;
   height: calc(100% - 2px);
-  color: var(--muted);
+  color: var(--text-muted);
   background: none;
   border: 0;
   border-radius: 0 7px 7px 0;
@@ -3117,6 +3117,104 @@ body {
   border: 0;
   opacity: 0;
   pointer-events: none;
+}
+
+/* -----------------------------------------------------
+   ตัวช่วยออกบิล
+   ----------------------------------------------------- */
+/* แถบขั้นตอนของตัวช่วยออกบิลเป็นแนวนอน ต่างจากตัวช่วยตั้งค่าหอที่เป็นแนวตั้ง
+   เพราะมีแค่สองขั้นและเนื้อหาขั้นที่สองเป็นตารางกว้างเต็มจอ (ตามต้นแบบ) */
+.billing-steps {
+  display: flex;
+  gap: 40px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--border);
+}
+
+.billing-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font-size: 15px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.billing-step.future {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.billing-step.current {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.billing-step.current .wizard-step-number {
+  color: var(--brand-ink);
+  background: var(--brand);
+}
+
+.billing-step.done .wizard-step-number {
+  color: #1d6b4f;
+  background: #bdeedb;
+}
+
+/* ค่าน้ำ/ค่าไฟในตารางพรีวิวขึ้นสองบรรทัด: จำนวนหน่วยเด่น เงินที่คิดได้ตัวเล็กใต้ลงมา
+   คนกวาดตาหาหน่วยที่ผิดปกติก่อน แล้วค่อยดูว่าเป็นเงินเท่าไหร่ */
+.billing-charge {
+  display: block;
+  font-size: 12px;
+}
+
+.billing-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--ok);
+}
+
+.billing-done .icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ช่องค้นหาเลขห้องเหนือตารางบิล ไม่ต้องกว้างเต็มแถว */
+.invoice-filter {
+  max-width: 220px;
+}
+
+.invoice-status {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 5px;
+}
+
+.invoice-unpaid {
+  color: var(--err);
+  background: var(--err-weak);
+}
+
+.invoice-partial_paid {
+  color: var(--warn);
+  background: var(--warn-weak);
+}
+
+.invoice-paid {
+  color: var(--ok);
+  background: var(--ok-weak);
+}
+
+.invoice-cancelled {
+  color: var(--text-muted);
+  background: #eceaea;
 }
 
 /* -----------------------------------------------------
@@ -3167,11 +3265,11 @@ body {
 
 /* ปุ่มน้ำ/ไฟใช้สีเดียวกับไอคอนของแต่ละฝั่ง เพื่อให้กวาดตาแล้วรู้ทันทีว่ากำลังจะเข้าฝั่งไหน */
 .meter-side-water .icon {
-  color: #2f7fbf;
+  color: var(--water);
 }
 
 .meter-side-electric .icon {
-  color: #c37800;
+  color: var(--electric);
 }
 
 /* ช่องกรอกในตารางแคบกว่าช่องในฟอร์ม และชิดขวาให้หลักตรงกันทั้งคอลัมน์
@@ -3190,7 +3288,7 @@ body {
   gap: 5px;
   margin-top: 5px;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text-muted);
   cursor: pointer;
 }
 
@@ -3207,7 +3305,7 @@ body {
 /* เลขปัจจุบันน้อยกว่าครั้งก่อนโดยยังไม่ติ๊กเกินรอบ — ขึ้นเครื่องหมายเตือนแทนตัวเลข
    เพราะยังไม่รู้ว่าผู้ใช้พิมพ์ผิดหรือมิเตอร์หมุนครบรอบ ให้เขาตัดสินใจเอง */
 .meter-units-bad .icon {
-  color: var(--danger);
+  color: var(--err);
 }
 
 /* แถบท้ายการ์ดของตารางนี้มีข้อความบอกความคืบหน้าอยู่ซ้ายด้วย ไม่ใช่มีแต่ปุ่ม */

@@ -3,6 +3,7 @@ import Icon from '../Icon.jsx'
 import RoomsPage from '../pages/RoomsPage.jsx'
 import RoomDetailPage from '../pages/RoomDetailPage.jsx'
 import MetersPage from '../pages/MetersPage.jsx'
+import InvoicesPage from '../pages/InvoicesPage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
@@ -136,6 +137,8 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
             )
           ) : active === 'meters' ? (
             <MetersPage apartment={apartment} />
+          ) : active === 'invoices' ? (
+            <InvoicesPage apartment={apartment} />
           ) : settingsItem ? (
             <SettingsSection
               section={active}
