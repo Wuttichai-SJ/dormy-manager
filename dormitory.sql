@@ -606,6 +606,10 @@ CREATE TABLE IF NOT EXISTS `mydb`.`invoices` (
   `issue_date` DATE NOT NULL,
   `due_date` DATE NOT NULL,
   `status` ENUM('unpaid', 'partial_paid', 'paid', 'cancelled') NOT NULL,
+  -- เพิ่มใน 012: บิลรายเดือน (ออกยกล็อตจากใบจดมิเตอร์) vs ใบแจ้งหนี้ทั่วไป (ออกใบเดี่ยว)
+  `invoice_type` ENUM('monthly', 'general') NOT NULL DEFAULT 'monthly',
+  -- เพิ่มใน 012: บิลรายเดือนมาจากการจดมิเตอร์รอบไหน (ใบแจ้งหนี้ทั่วไปเป็น NULL)
+  `meter_batch_id` INT NULL,
   `exempt_amount_cents` INTEGER NOT NULL,
   `taxable_amount_cents` INTEGER NOT NULL,
   `vat_amount_cents` INTEGER NOT NULL,
@@ -613,7 +617,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`invoices` (
   `note` TEXT NULL,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
+  -- เพิ่มใน 012: บิลที่ถูกยกเลิกต้องรู้ว่ายกเลิกเมื่อไหร่
+  `cancelled_at` TIMESTAMP NULL,
   PRIMARY KEY (`invoice_id`),
+  -- 012: เลขที่ใบแจ้งหนี้ห้ามซ้ำ และหนึ่งสัญญาออกบิลรายเดือนได้เดือนละใบ (ที่ยังไม่ยกเลิก)
+  UNIQUE INDEX `idx_invoices_number` (`invoice_number` ASC) VISIBLE,
   INDEX `fk_invoices_contracts1_idx` (`contract_id` ASC) VISIBLE,
   CONSTRAINT `fk_invoices_contracts1`
     FOREIGN KEY (`contract_id`)
@@ -651,29 +659,64 @@ ENGINE = InnoDB;
 -- -----------------------------------------------------
 -- Table `mydb`.`payments`
 -- -----------------------------------------------------
+-- รื้อใหม่ทั้งตารางใน 012 — ของเดิมผูก invoice_item_id ซึ่งผิดสองชั้น:
+--   ก) หน้าจอรับเงินของต้นแบบรับเป็นยอดเดียวต่อทั้งใบ ไม่ได้จ่ายรายบรรทัด
+--   ข) รายงานใบเสร็จมีประเภท "สัญญา" = ใบเสร็จเงินประกัน/เงินล่วงหน้าตอนทำสัญญา
+--      ซึ่งไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
 CREATE TABLE IF NOT EXISTS `mydb`.`payments` (
   `payment_id` INT NOT NULL AUTO_INCREMENT,
-  `created_by` INT NOT NULL,
-  `invoice_item_id` INT NOT NULL,
+  `invoice_id` INT NULL,
+  `contract_id` INT NULL,
   `receipt_number` VARCHAR(50) NOT NULL,
   `payment_date` DATE NOT NULL,
+  -- ติดลบได้ = การคืนเงิน
   `amount_cents` INTEGER NOT NULL,
-  `vat_amount_cents` INTEGER NOT NULL,
+  `vat_amount_cents` INTEGER NOT NULL DEFAULT 0,
   `payment_method` VARCHAR(255) NOT NULL,
   `remark` TEXT NULL,
+  `created_by` INT NOT NULL,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`payment_id`),
-  INDEX `fk_payments_invoice_items1_idx` (`invoice_item_id` ASC) VISIBLE,
+  -- ใบเสร็จหนึ่งใบอ้างอิงต้นทางได้ทางเดียวเท่านั้น ไม่ใช่ทั้งคู่ และไม่ใช่ไม่มีเลย
+  CHECK ((`invoice_id` IS NOT NULL) <> (`contract_id` IS NOT NULL)),
+  UNIQUE INDEX `idx_payments_receipt_number` (`receipt_number` ASC) VISIBLE,
+  INDEX `fk_payments_invoices1_idx` (`invoice_id` ASC) VISIBLE,
+  INDEX `fk_payments_contracts1_idx` (`contract_id` ASC) VISIBLE,
   INDEX `fk_payments_users1_idx` (`created_by` ASC) VISIBLE,
-  CONSTRAINT `fk_payments_invoice_items1`
-    FOREIGN KEY (`invoice_item_id`)
-    REFERENCES `mydb`.`invoice_items` (`invoice_item_id`)
+  CONSTRAINT `fk_payments_invoices1`
+    FOREIGN KEY (`invoice_id`)
+    REFERENCES `mydb`.`invoices` (`invoice_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_payments_contracts1`
+    FOREIGN KEY (`contract_id`)
+    REFERENCES `mydb`.`contracts` (`contract_id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_payments_users1`
     FOREIGN KEY (`created_by`)
     REFERENCES `mydb`.`users` (`user_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
+-- Table `mydb`.`document_counters`   (เพิ่มใน 012)
+-- -----------------------------------------------------
+-- เดินเลขเอกสาร I2025030018 / R2025030010 = ตัวอักษร + YYYYMM + ลำดับ 4 หลัก
+-- ต้องมีตัวนับแยก ไม่ใช่ MAX()+1 เพราะบิลลบได้ ลบใบท้ายแล้วเลขจะถูกใช้ซ้ำ
+CREATE TABLE IF NOT EXISTS `mydb`.`document_counters` (
+  `apartment_id` INT NOT NULL,
+  `doc_type` ENUM('invoice', 'receipt') NOT NULL,
+  `period` VARCHAR(6) NOT NULL,
+  `last_seq` INT NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL,
+  PRIMARY KEY (`apartment_id`, `doc_type`, `period`),
+  CONSTRAINT `fk_document_counters_apartments1`
+    FOREIGN KEY (`apartment_id`)
+    REFERENCES `mydb`.`apartments` (`apartment_id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;

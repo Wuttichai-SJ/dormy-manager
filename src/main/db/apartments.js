@@ -194,6 +194,13 @@ export function deleteApartment(db, apartmentId) {
     db.prepare('DELETE FROM apartment_services WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM apartment_bank_accounts WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM users_apartments WHERE apartment_id = ?').run(apartmentId)
+    db.prepare('DELETE FROM document_counters WHERE apartment_id = ?').run(apartmentId)
+    // ใบจดมิเตอร์ที่ยังไม่มีห้องผูกอยู่เท่านั้นที่มาถึงตรงนี้ได้ (หอที่มีห้องถูกกันไปตั้งแต่ต้น)
+    db.prepare(
+      `DELETE FROM meter_readings
+        WHERE meter_batch_id IN (SELECT batch_id FROM meter_batches WHERE apartment_id = ?)`
+    ).run(apartmentId)
+    db.prepare('DELETE FROM meter_batches WHERE apartment_id = ?').run(apartmentId)
     const result = db.prepare('DELETE FROM apartments WHERE apartment_id = ?').run(apartmentId)
     if (result.changes === 0) throw new Error('ไม่พบหอพักที่ต้องการลบ')
   })
