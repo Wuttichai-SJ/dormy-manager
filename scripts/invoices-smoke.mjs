@@ -569,6 +569,94 @@ check('เพิ่มรายการเองแล้วสั่งให�
 })
 
 // -----------------------------------------------------
+// ลบบิลที่ยกเลิกแล้วออกจากระบบ พร้อมเหตุผลที่บังคับกรอก (ผู้ใช้สั่ง 2026-08-07)
+group('ลบใบแจ้งหนี้')
+
+const staffUser = (await import('../src/main/db/users.js')).insertUser(db, {
+  fullName: 'ผู้จัดการหอ',
+  phone: '0801112222',
+  email: 'manager@example.com',
+  passwordHash: 'x',
+  recoveryCodeHash: 'y'
+})
+
+check('บิลที่ยังไม่ยกเลิก ลบไม่ได้', () => {
+  const live = invoices.listInvoices(db, apartmentId, { status: 'unpaid' })[0]
+  throws(
+    () => invoices.deleteInvoice(db, live.invoiceId, { reason: 'x', deletedBy: staffUser.user_id }),
+    'ยกเลิกบิลก่อน',
+    'ต้องบังคับให้ยกเลิกก่อนลบ'
+  )
+})
+
+check('ไม่กรอกเหตุผล ลบไม่ได้', () => {
+  throws(
+    () => invoices.deleteInvoice(db, invoice1.invoiceId, { reason: '   ', deletedBy: staffUser.user_id }),
+    'เหตุผลในการลบ',
+    'เหตุผลต้องบังคับเสมอ'
+  )
+})
+
+check('ไม่รู้ว่าใครลบ ก็ลบไม่ได้', () => {
+  throws(
+    () => invoices.deleteInvoice(db, invoice1.invoiceId, { reason: 'ออกซ้ำ' }),
+    'ผู้ลบ',
+    'ต้องรู้ว่าใครเป็นคนลบ'
+  )
+})
+
+check('ลบแล้วใบและรายการในใบหายไปจากระบบ', () => {
+  const itemsBefore = db
+    .prepare('SELECT COUNT(*) AS n FROM invoice_items WHERE invoice_id = ?')
+    .get(invoice1.invoiceId).n
+  assert(itemsBefore > 0, 'ควรมีรายการอยู่ก่อนลบ')
+
+  invoices.deleteInvoice(db, invoice1.invoiceId, {
+    reason: 'ออกบิลผิดห้อง',
+    deletedBy: staffUser.user_id
+  })
+
+  assert(invoices.getInvoiceById(db, invoice1.invoiceId) === null, 'ใบต้องหายไป')
+  const itemsAfter = db
+    .prepare('SELECT COUNT(*) AS n FROM invoice_items WHERE invoice_id = ?')
+    .get(invoice1.invoiceId).n
+  assert(itemsAfter === 0, `เหลือรายการค้างอยู่ ${itemsAfter} แถว`)
+})
+
+check('เหตุผลถูกเก็บไว้ในประวัติการลบ ไม่ได้หายไปพร้อมใบ', () => {
+  const history = invoices.listInvoiceDeletions(db, apartmentId)
+  assert(history.length === 1, `ได้ ${history.length} รายการ`)
+  assert(history[0].invoiceNumber === invoice1.invoiceNumber, `ได้ ${history[0].invoiceNumber}`)
+  assert(history[0].reason === 'ออกบิลผิดห้อง', `ได้ ${history[0].reason}`)
+  assert(history[0].deletedByName === 'ผู้จัดการหอ', `ได้ ${history[0].deletedByName}`)
+  assert(history[0].roomNumber === '101', `ได้ ${history[0].roomNumber}`)
+})
+
+check('เลขที่ของใบที่ถูกลบไม่ถูกนำมาใช้ซ้ำ', () => {
+  // เดือน 08 ของห้องนี้มีใบที่ยังใช้งานอยู่แล้ว จึงออกของเดือนอื่นแทน
+  // (ตัวนับเลขที่นับตามเดือนของ "วันที่ออกบิล" ไม่ใช่รอบเดือน จึงยังอยู่ชุด 202608 เหมือนกัน)
+  const reissued = invoices.createMonthlyInvoice(db, {
+    contractId: contract1.contractId,
+    billingMonth: '2026-10',
+    meterBatchId: batch.batchId,
+    issueDate: '2026-08-31'
+  })
+  assert(
+    reissued.invoiceNumber !== invoice1.invoiceNumber,
+    `ใช้เลขซ้ำกับใบที่ลบไปแล้ว: ${reissued.invoiceNumber}`
+  )
+  invoices.cancelInvoice(db, reissued.invoiceId)
+})
+
+check('ลบใบที่ไม่มีอยู่ต้องแจ้งเตือน', () => {
+  throws(
+    () => invoices.deleteInvoice(db, 9999, { reason: 'x', deletedBy: staffUser.user_id }),
+    'ไม่พบใบแจ้งหนี้',
+    'ต้องแจ้งเตือน'
+  )
+})
+
+// -----------------------------------------------------
 group('รายการบิล')
 
 check('รายการบิลของหอไม่นับใบที่ยกเลิกออกจากยอดค้าง', () => {

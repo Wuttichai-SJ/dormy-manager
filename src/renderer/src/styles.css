@@ -3242,6 +3242,12 @@ body {
   color: var(--text) !important;
 }
 
+/* สรุปใบที่กำลังจะลบในหน้าต่างยืนยัน — กว้างเต็มหน้าต่าง ไม่ต้องชิดขวาแบบยอดบนบิล */
+.delete-summary {
+  width: 100%;
+  margin: 16px 0;
+}
+
 .invoice-confirm-actions {
   display: flex;
   gap: 8px;

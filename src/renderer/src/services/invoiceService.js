@@ -47,3 +47,12 @@ export function removeInvoiceItem(invoiceId, invoiceItemId) {
 export function cancelInvoice(invoiceId) {
   return invoke('invoice:cancel', { invoiceId })
 }
+
+// ลบถาวร — ได้เฉพาะใบที่ยกเลิกแล้ว และต้องมีเหตุผลเสมอ (เหตุผลถูกเก็บไว้ในประวัติการลบ)
+export function deleteInvoice(invoiceId, reason) {
+  return invoke('invoice:delete', { invoiceId, reason })
+}
+
+export function listInvoiceDeletions(apartmentId) {
+  return invoke('invoice:listDeletions', { apartmentId })
+}

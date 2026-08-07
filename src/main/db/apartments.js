@@ -195,6 +195,7 @@ export function deleteApartment(db, apartmentId) {
     db.prepare('DELETE FROM apartment_bank_accounts WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM users_apartments WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM document_counters WHERE apartment_id = ?').run(apartmentId)
+    db.prepare('DELETE FROM invoice_deletions WHERE apartment_id = ?').run(apartmentId)
     // ใบจดมิเตอร์ที่ยังไม่มีห้องผูกอยู่เท่านั้นที่มาถึงตรงนี้ได้ (หอที่มีห้องถูกกันไปตั้งแต่ต้น)
     db.prepare(
       `DELETE FROM meter_readings

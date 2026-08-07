@@ -3,12 +3,15 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireSessionUserId } from './authHandlers.js'
 import {
   addInvoiceItem,
   cancelInvoice,
   createMonthlyInvoice,
   createMonthlyInvoicesForApartment,
+  deleteInvoice,
   getInvoiceById,
+  listInvoiceDeletions,
   listInvoices,
   previewMonthlyBilling,
   removeInvoiceItem
@@ -87,4 +90,18 @@ export function registerInvoiceHandlers() {
     logInfo(`ยกเลิกบิล ${invoice.invoiceNumber}`)
     return invoice
   })
+
+  // ลบถาวร — ผู้ลบมาจากเซสชันฝั่ง main เหมือนใบเสร็จ ไม่ให้หน้าจอบอกว่าตัวเองเป็นใคร
+  handle('invoice:delete', ({ invoiceId, reason }) => {
+    const result = deleteInvoice(getDatabase(), invoiceId, {
+      reason,
+      deletedBy: requireSessionUserId()
+    })
+    logInfo(`ลบบิล ${result.invoiceNumber} — เหตุผล: ${String(reason ?? '').trim()}`)
+    return result
+  })
+
+  handle('invoice:listDeletions', ({ apartmentId }) =>
+    listInvoiceDeletions(getDatabase(), apartmentId)
+  )
 }

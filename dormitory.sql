@@ -729,6 +729,38 @@ CREATE TABLE IF NOT EXISTS `mydb`.`document_counters` (
 ENGINE = InnoDB;
 
 
+-- -----------------------------------------------------
+-- Table `mydb`.`invoice_deletions`   (เพิ่มใน 015)
+-- -----------------------------------------------------
+-- ลบใบแจ้งหนี้ที่ยกเลิกแล้วออกจากระบบได้ แต่ต้องกรอกเหตุผลเสมอ และเหตุผลถูกเก็บไว้ที่นี่
+-- ไม่ใช่ถามแล้วโยนทิ้งไปพร้อมแถวที่ลบ — เลขที่ที่หายไปจากรายการต้องตามได้ว่าเป็นใบอะไร
+-- คัดลอกข้อมูลไว้เป็นข้อความ ไม่ผูก FK กับใบที่ลบไปแล้ว (แถวนั้นไม่มีอยู่แล้ว)
+CREATE TABLE IF NOT EXISTS `mydb`.`invoice_deletions` (
+  `invoice_deletion_id` INT NOT NULL AUTO_INCREMENT,
+  `apartment_id` INT NOT NULL,
+  `invoice_number` VARCHAR(50) NOT NULL,
+  `room_number` VARCHAR(50) NULL,
+  `billing_month` VARCHAR(7) NULL,
+  `issue_date` DATE NULL,
+  `total_amount_cents` INTEGER NOT NULL,
+  `reason` TEXT NOT NULL,
+  `deleted_by` INT NOT NULL,
+  `deleted_at` TIMESTAMP NOT NULL,
+  PRIMARY KEY (`invoice_deletion_id`),
+  INDEX `idx_invoice_deletions_apartment` (`apartment_id` ASC) VISIBLE,
+  CONSTRAINT `fk_invoice_deletions_apartments1`
+    FOREIGN KEY (`apartment_id`)
+    REFERENCES `mydb`.`apartments` (`apartment_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_invoice_deletions_users1`
+    FOREIGN KEY (`deleted_by`)
+    REFERENCES `mydb`.`users` (`user_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;

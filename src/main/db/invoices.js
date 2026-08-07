@@ -728,6 +728,89 @@ export function cancelInvoice(db, invoiceId) {
 }
 
 // ------------------------------------------------------------------
+// ลบบิลที่ยกเลิกแล้วออกจากระบบ
+// ------------------------------------------------------------------
+// ลบได้เฉพาะใบที่ "ยกเลิกแล้ว" เท่านั้น — การยกเลิกเป็นด่านที่บังคับให้ตัดสินใจสองครั้ง
+// และด่านแรกกันไม่ให้ลบใบที่มีการรับเงินไปแล้วอยู่ก่อนหน้านี้
+//
+// เหตุผลบังคับกรอกเสมอ (ผู้ใช้สั่ง 2026-08-07) และถูกเก็บไว้ที่ invoice_deletions
+// ไม่ใช่ถามแล้วทิ้ง — เลขที่ใบที่หายไปจากรายการต้องตามได้ว่าเป็นใบอะไรและหายเพราะอะไร
+export function deleteInvoice(db, invoiceId, { reason, deletedBy }) {
+  const invoice = getInvoiceById(db, invoiceId)
+  if (!invoice) throw new Error('ไม่พบใบแจ้งหนี้ที่ต้องการลบ')
+
+  if (invoice.status !== 'cancelled') {
+    throw new Error('ลบได้เฉพาะใบแจ้งหนี้ที่ยกเลิกแล้ว กรุณายกเลิกบิลก่อน')
+  }
+
+  const note = String(reason ?? '').trim()
+  if (!note) throw new Error('กรุณาระบุเหตุผลในการลบใบแจ้งหนี้')
+  if (!deletedBy) throw new Error('ไม่ทราบผู้ลบ กรุณาเข้าสู่ระบบใหม่')
+
+  // ใบที่ยกเลิกแล้วไม่ควรมีใบเสร็จผูกอยู่ (cancelInvoice กันไว้) แต่ตรวจซ้ำก่อนลบจริง
+  // เพราะการลบเป็นทางเดียว ถ้าหลุดไปได้ใบเสร็จจะชี้ไปที่บิลที่ไม่มีอยู่
+  const payments = db
+    .prepare('SELECT COUNT(*) AS n FROM payments WHERE invoice_id = ?')
+    .get(invoiceId).n
+  if (payments > 0) {
+    throw new Error('ลบไม่ได้ เพราะใบแจ้งหนี้นี้มีรายการรับเงินอยู่')
+  }
+
+  const now = new Date().toISOString()
+  const run = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO invoice_deletions (
+         apartment_id, invoice_number, room_number, billing_month, issue_date,
+         total_amount_cents, reason, deleted_by, deleted_at
+       ) VALUES (
+         @apartmentId, @invoiceNumber, @roomNumber, @billingMonth, @issueDate,
+         @total, @reason, @deletedBy, @now
+       )`
+    ).run({
+      apartmentId: invoice.apartment.apartmentId,
+      invoiceNumber: invoice.invoiceNumber,
+      roomNumber: invoice.roomNumber,
+      billingMonth: invoice.billingMonth,
+      issueDate: invoice.issueDate,
+      total: invoice.totalAmountCents,
+      reason: note,
+      deletedBy,
+      now
+    })
+
+    db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoiceId)
+    db.prepare('DELETE FROM invoices WHERE invoice_id = ?').run(invoiceId)
+  })
+  run()
+
+  return { invoiceNumber: invoice.invoiceNumber }
+}
+
+// ประวัติการลบของหอ — ไว้ให้ตอบได้ว่าเลขที่ใบที่หายไปคือใบอะไร ใครลบ เพราะอะไร
+export function listInvoiceDeletions(db, apartmentId) {
+  return db
+    .prepare(
+      `SELECT d.*, u.full_name AS deleted_by_name
+         FROM invoice_deletions d
+         LEFT JOIN users u ON u.user_id = d.deleted_by
+        WHERE d.apartment_id = ?
+        ORDER BY d.deleted_at DESC`
+    )
+    .all(apartmentId)
+    .map((row) => ({
+      invoiceDeletionId: row.invoice_deletion_id,
+      invoiceNumber: row.invoice_number,
+      roomNumber: row.room_number,
+      billingMonth: row.billing_month,
+      issueDate: row.issue_date,
+      totalAmountCents: row.total_amount_cents,
+      reason: row.reason,
+      deletedByName: row.deleted_by_name,
+      deletedAt: row.deleted_at
+    }))
+}
+
+// ------------------------------------------------------------------
 function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }

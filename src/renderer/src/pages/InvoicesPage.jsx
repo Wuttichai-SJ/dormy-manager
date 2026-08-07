@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import Modal from '../components/Modal.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS } from '../constants.js'
 import { formatBaht } from '../format.js'
@@ -9,6 +10,7 @@ import { listMeterBatches } from '../services/meterService.js'
 import {
   createMonthlyInvoice,
   createMonthlyInvoicesForApartment,
+  deleteInvoice,
   listInvoices,
   previewMonthlyBilling
 } from '../services/invoiceService.js'
@@ -25,6 +27,8 @@ export default function InvoicesPage({ apartment }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [roomFilter, setRoomFilter] = useState('')
+  // บิลที่กำลังยืนยันจะลบอยู่ — null = ไม่มีหน้าต่างเปิดค้าง
+  const [deleting, setDeleting] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -141,6 +145,18 @@ export default function InvoicesPage({ apartment }) {
                     >
                       รายละเอียด
                     </button>
+                    {/* ลบได้เฉพาะใบที่ยกเลิกแล้ว — ใบที่ยังใช้งานอยู่ต้องยกเลิกก่อน
+                        เป็นด่านที่บังคับให้ตัดสินใจสองครั้งก่อนเอกสารการเงินจะหายไป */}
+                    {inv.status === 'cancelled' && (
+                      <button
+                        type="button"
+                        className="link-btn link-danger table-action icon-only"
+                        onClick={() => setDeleting(inv)}
+                        aria-label={`ลบใบแจ้งหนี้ ${inv.invoiceNumber}`}
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -148,7 +164,85 @@ export default function InvoicesPage({ apartment }) {
           </table>
         )}
       </section>
+
+      {deleting && (
+        <DeleteInvoiceDialog
+          invoice={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            showToast(`ลบใบแจ้งหนี้ ${deleting.invoiceNumber} แล้ว`)
+            setDeleting(null)
+            load()
+          }}
+          onError={setError}
+        />
+      )}
     </>
+  )
+}
+
+// หน้าต่างยืนยันการลบ — เหตุผลบังคับกรอกเสมอ (ผู้ใช้สั่ง 2026-08-07)
+//
+// ปุ่มลบถูกปิดไว้จนกว่าจะพิมพ์เหตุผล ไม่ใช่ปล่อยให้กดแล้วค่อยขึ้น error — คนที่ตั้งใจ
+// จะลบจริงจะได้รู้ตั้งแต่เห็นหน้าต่างว่าต้องเขียนอะไรสักอย่างก่อน
+function DeleteInvoiceDialog({ invoice, onClose, onDeleted, onError }) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const ready = reason.trim().length > 0
+
+  async function submit() {
+    if (!ready) return
+    onError('')
+    setBusy(true)
+    const res = await deleteInvoice(invoice.invoiceId, reason)
+    setBusy(false)
+    if (!res.success) return onError(res.error)
+    onDeleted()
+  }
+
+  return (
+    <Modal
+      title={`ลบใบแจ้งหนี้ ${invoice.invoiceNumber}`}
+      icon="trash"
+      submitLabel="ลบถาวร"
+      busy={busy || !ready}
+      onClose={onClose}
+      onSubmit={submit}
+    >
+      <Alert kind="warn">
+        ใบแจ้งหนี้และรายการทั้งหมดในใบจะถูกลบออกจากระบบถาวร กู้คืนไม่ได้ —
+        เลขที่ {invoice.invoiceNumber} จะไม่ถูกนำไปใช้ซ้ำ และเหตุผลที่กรอกจะถูกเก็บไว้ในประวัติการลบ
+      </Alert>
+
+      <dl className="invoice-totals delete-summary">
+        <div>
+          <dt>ห้อง</dt>
+          <dd>{invoice.roomNumber}</dd>
+        </div>
+        <div>
+          <dt>รอบเดือน</dt>
+          <dd>{formatBillingMonth(invoice.billingMonth)}</dd>
+        </div>
+        <div>
+          <dt>ยอดรวม</dt>
+          <dd>{formatBaht(invoice.totalAmountCents)}</dd>
+        </div>
+      </dl>
+
+      <div className="field field-required">
+        <label htmlFor="deleteReason">
+          เหตุผลในการลบ <span className="required">* จำเป็น</span>
+        </label>
+        <textarea
+          id="deleteReason"
+          rows={3}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="เช่น ออกบิลผิดห้อง / ออกซ้ำ / ทดลองใช้งาน"
+        />
+        {!ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะลบได้</p>}
+      </div>
+    </Modal>
   )
 }
 
