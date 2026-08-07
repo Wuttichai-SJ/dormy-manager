@@ -3120,6 +3120,211 @@ body {
 }
 
 /* -----------------------------------------------------
+   หน้าใบแจ้งหนี้
+   ----------------------------------------------------- */
+/* สองคอลัมน์ตามต้นแบบ: เอกสารซ้าย ยอดค้าง+รับเงินขวา
+   คอลัมน์ขวาแคบคงที่เพราะเป็นฟอร์มช่องเดียวเรียงลง ไม่ได้ต้องการความกว้าง */
+.invoice-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .invoice-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.invoice-main,
+.invoice-side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.invoice-doc-tools {
+  display: flex;
+  justify-content: flex-start;
+  min-height: 20px;
+}
+
+.invoice-doc-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+}
+
+.invoice-doc-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.invoice-apartment {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
+.invoice-doc-head .muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* หัวข้อ/ค่า เรียงเป็นคู่ชิดขวา ให้ค่าตรงหลังหัวข้อพอดีทุกบรรทัด */
+.invoice-doc-meta {
+  margin: 0;
+  font-size: 13px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.invoice-doc-meta > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.invoice-doc-meta dt {
+  color: var(--text-muted);
+}
+
+.invoice-doc-meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.invoice-col-no {
+  width: 36px;
+  color: var(--text-muted);
+}
+
+/* ยอดสรุปชิดขวาใต้ตาราง — บรรทัด "รวม" ตัวโตกว่าและมีเส้นคั่นเหนือ */
+.invoice-totals {
+  margin: 0;
+  margin-left: auto;
+  width: 260px;
+  font-size: 14px;
+}
+
+.invoice-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 0;
+}
+
+.invoice-totals dt {
+  color: var(--text-muted);
+}
+
+.invoice-totals dd {
+  margin: 0;
+}
+
+.invoice-total-row {
+  margin-top: 4px;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--border-strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.invoice-total-row dt {
+  color: var(--text) !important;
+}
+
+.invoice-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.invoice-tab-hint {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+/* กล่องยอดค้าง — แดงเมื่อยังค้าง เขียวเมื่อจ่ายครบ ตัวเลขต้องเห็นจากอีกฝั่งห้อง */
+.outstanding-box {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  color: var(--err);
+  background: var(--err-weak);
+  border: 1px solid #e8c9c5;
+  border-radius: 10px;
+}
+
+.outstanding-box strong {
+  font-size: 24px;
+  margin-left: auto;
+}
+
+.outstanding-unit {
+  font-size: 13px;
+}
+
+.outstanding-box.settled {
+  color: var(--ok);
+  background: var(--ok-weak);
+  border-color: #c3ddc9;
+}
+
+/* การ์ดรับเงินมีขอบเขียวตามต้นแบบ เพื่อแยกออกจากการ์ดอ่านอย่างเดียวรอบตัว */
+.payment-card {
+  border: 1px solid #c3ddc9;
+}
+
+.receipt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.receipt {
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.receipt-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.receipt .muted {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
+.receipt-remark {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* ใบคืนเงินมีแถบแดงด้านซ้าย — ในประวัติที่ไล่ลงมายาวๆ ต้องแยกออกจากใบรับเงินได้ทันที */
+.receipt.refund {
+  border-left: 3px solid var(--err);
+}
+
+/* -----------------------------------------------------
    ตัวช่วยออกบิล
    ----------------------------------------------------- */
 /* แถบขั้นตอนของตัวช่วยออกบิลเป็นแนวนอน ต่างจากตัวช่วยตั้งค่าหอที่เป็นแนวตั้ง

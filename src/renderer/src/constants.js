@@ -59,6 +59,17 @@ export const ROOM_STATUS_LABELS = {
   maintenance: 'ปิดปรับปรุง'
 }
 
+// ต้องตรงกับ PAYMENT_METHODS / PAYMENT_METHOD_LABELS ใน src/main/db/payments.js
+export const PAYMENT_METHODS = [
+  { key: 'cash', label: 'เงินสด' },
+  { key: 'transfer', label: 'เงินโอน' },
+  { key: 'other', label: 'อื่นๆ' }
+]
+
+// ต้องตรงกับ VAT_RATE ใน src/main/db/invoices.js — ใช้ขึ้นป้าย "VAT 7%" บนใบแจ้งหนี้เท่านั้น
+// การคำนวณจริงอยู่ฝั่ง main ทั้งหมด ห้ามเอาค่านี้ไปคูณอะไรที่นี่
+export const VAT_RATE = 7
+
 // ต้องตรงกับ INVOICE_STATUSES / INVOICE_STATUS_LABELS ใน src/main/db/invoices.js
 export const INVOICE_STATUS_LABELS = {
   unpaid: 'ค้างชำระ',

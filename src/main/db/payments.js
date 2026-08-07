@@ -12,7 +12,7 @@
 //
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
-import { nextDocumentNumber } from './invoices.js'
+import { nextDocumentNumber, refreshInvoiceStatus } from './invoices.js'
 
 export const PAYMENT_METHODS = ['cash', 'transfer', 'other']
 
@@ -187,32 +187,6 @@ function writePayment(
   })
 
   return getPaymentById(db, run())
-}
-
-// สถานะบิลเป็นผลของยอดที่รับมาเสมอ ไม่ใช่สิ่งที่ตั้งค่าแยก — คิดใหม่ทุกครั้งที่เงินขยับ
-// ทำแบบนี้แล้วบิลจะกลับไปเป็น "ค้างชำระ" เองถ้าคืนเงินจนหมด โดยไม่ต้องมีตรรกะย้อนกลับ
-function refreshInvoiceStatus(db, invoiceId, now) {
-  const row = db
-    .prepare(
-      `SELECT i.total_amount_cents AS total, i.status,
-              COALESCE((SELECT SUM(p.amount_cents) FROM payments p
-                         WHERE p.invoice_id = i.invoice_id), 0) AS paid
-         FROM invoices i WHERE i.invoice_id = ?`
-    )
-    .get(invoiceId)
-
-  // บิลที่ถูกยกเลิกไม่ถูกแตะ — สถานะ 'cancelled' ต้องชนะทุกอย่าง
-  if (row.status === 'cancelled') return
-
-  let status = 'unpaid'
-  if (row.paid >= row.total && row.total > 0) status = 'paid'
-  else if (row.paid > 0) status = 'partial_paid'
-
-  db.prepare('UPDATE invoices SET status = ?, updated_at = ? WHERE invoice_id = ?').run(
-    status,
-    now,
-    invoiceId
-  )
 }
 
 function loadInvoiceForPayment(db, invoiceId) {

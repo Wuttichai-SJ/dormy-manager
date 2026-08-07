@@ -610,6 +610,41 @@ export function removeInvoiceItem(db, invoiceId, invoiceItemId) {
   return getInvoiceById(db, invoiceId)
 }
 
+// สถานะบิลเป็น "ผล" ของยอดรวมกับยอดที่รับมาแล้วเสมอ ไม่ใช่ค่าที่ตั้งแยก
+// จึงต้องคิดใหม่ทุกครั้งที่ *ฝั่งใดฝั่งหนึ่ง* ขยับ — เงินเข้า/ออก (payments.js เรียกตัวนี้)
+// และยอดบิลเปลี่ยนเพราะเพิ่ม/ลบรายการ (recalculateTotals ข้างล่างเรียกตัวนี้)
+//
+// เคยพลาดมาแล้ว: เพิ่มรายการเข้าบิลที่จ่ายครบแล้ว ยอดรวมขึ้นแต่สถานะยังค้างเป็น 'paid'
+// กลายเป็นบิลที่เขียนว่า "ชำระแล้ว" ทั้งที่มียอดค้างอยู่
+//
+// อยู่ที่ไฟล์นี้ไม่ใช่ payments.js เพราะเป็นเรื่องของใบแจ้งหนี้ และ payments.js นำเข้าจาก
+// ไฟล์นี้อยู่แล้ว (ทางกลับกันจะกลายเป็นวงกลม)
+export function refreshInvoiceStatus(db, invoiceId, now) {
+  const row = db
+    .prepare(
+      `SELECT i.total_amount_cents AS total, i.status,
+              COALESCE((SELECT SUM(p.amount_cents) FROM payments p
+                         WHERE p.invoice_id = i.invoice_id), 0) AS paid
+         FROM invoices i WHERE i.invoice_id = ?`
+    )
+    .get(invoiceId)
+  if (!row) return
+
+  // บิลที่ถูกยกเลิกไม่ถูกแตะ — สถานะ 'cancelled' ต้องชนะทุกอย่าง
+  if (row.status === 'cancelled') return
+
+  let status = 'unpaid'
+  if (row.paid >= row.total && row.total > 0) status = 'paid'
+  else if (row.paid > 0) status = 'partial_paid'
+
+  if (status === row.status) return
+  db.prepare('UPDATE invoices SET status = ?, updated_at = ? WHERE invoice_id = ?').run(
+    status,
+    now,
+    invoiceId
+  )
+}
+
 // อ่านรายการทั้งหมดกลับมารวมใหม่ ไม่ใช่บวก/ลบส่วนต่างจากยอดเดิม
 // เพราะยอดเดิมอาจเพี้ยนมาก่อนแล้ว การรวมใหม่ทั้งใบทำให้บิลกลับมาถูกเสมอ
 function recalculateTotals(db, invoiceId, now) {
@@ -640,6 +675,9 @@ function recalculateTotals(db, invoiceId, now) {
     total: totals.totalAmountCents,
     now
   })
+
+  // ยอดรวมเพิ่งเปลี่ยน สถานะจึงอาจไม่ตรงกับความจริงแล้ว
+  refreshInvoiceStatus(db, invoiceId, now)
 }
 
 function requireOpenInvoice(db, invoiceId) {

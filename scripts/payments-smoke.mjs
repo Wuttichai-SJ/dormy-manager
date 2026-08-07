@@ -326,6 +326,49 @@ check('สัญญาที่ไม่มีอยู่ออกใบเส�
 })
 
 // -----------------------------------------------------
+// ยอดบิลเปลี่ยนได้หลังรับเงินไปแล้ว (เจ้าของหอเพิ่มค่าซ่อมเข้าบิลที่จ่ายครบแล้ว)
+// สถานะต้องตามไปด้วย ไม่ใช่ค้างเป็น "ชำระแล้ว" ทั้งที่มียอดค้างโผล่ขึ้นมาใหม่
+group('แก้ยอดบิลหลังรับเงินแล้ว')
+
+const editable = invoices.createMonthlyInvoice(db, {
+  contractId: contract1.contractId,
+  billingMonth: '2026-09',
+  meterBatchId: batch.batchId,
+  issueDate: '2026-09-30'
+})
+
+check('จ่ายครบแล้วบิลเป็นชำระแล้ว', () => {
+  payments.recordInvoicePayment(db, {
+    ...BASE,
+    invoiceId: editable.invoiceId,
+    amount: '5000',
+    paymentDate: '2026-10-01'
+  })
+  const after = invoices.getInvoiceById(db, editable.invoiceId)
+  assert(after.status === 'paid', `ได้ ${after.status}`)
+})
+
+check('เพิ่มรายการเข้าบิลที่จ่ายครบแล้ว ต้องกลับไปเป็นชำระบางส่วน', () => {
+  invoices.addInvoiceItem(db, editable.invoiceId, {
+    itemType: 'other',
+    description: 'ค่าซ่อมประตู',
+    amount: '500'
+  })
+  const after = invoices.getInvoiceById(db, editable.invoiceId)
+  assert(after.status === 'partial_paid', `ได้ ${after.status} ทั้งที่ค้างอยู่ 500`)
+  assert(after.outstandingCents === 50000, `ได้ ${after.outstandingCents}`)
+})
+
+check('ลบรายการนั้นออก ยอดกลับมาเท่าที่จ่ายไว้ สถานะกลับเป็นชำระแล้ว', () => {
+  const current = invoices.getInvoiceById(db, editable.invoiceId)
+  const extra = current.items.find((i) => i.description === 'ค่าซ่อมประตู')
+  invoices.removeInvoiceItem(db, editable.invoiceId, extra.invoiceItemId)
+  const after = invoices.getInvoiceById(db, editable.invoiceId)
+  assert(after.status === 'paid', `ได้ ${after.status}`)
+  assert(after.outstandingCents === 0, `ได้ ${after.outstandingCents}`)
+})
+
+// -----------------------------------------------------
 group('บิลที่ถูกยกเลิก')
 
 check('บิลที่ยกเลิกแล้วรับชำระไม่ได้', () => {
@@ -360,7 +403,8 @@ check('ยอดรวมหักใบคืนเงินออก จึง
 
 check('ไม่กรองเดือนได้ใบเสร็จทุกใบของหอ รวมใบของสัญญาด้วย', () => {
   const report = payments.listReceipts(db, apartmentId)
-  assert(report.receiptCount === 6, `ได้ ${report.receiptCount} ใบ`)
+  // ก.ย. 4 ใบ (รับ 2 คืน 2) + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน) + ต.ค. 1 ใบ (บิลรอบ 09)
+  assert(report.receiptCount === 7, `ได้ ${report.receiptCount} ใบ`)
   assert(
     report.receipts.some((r) => r.sourceType === 'contract'),
     'ต้องมีใบเสร็จของสัญญาปนอยู่ด้วย'

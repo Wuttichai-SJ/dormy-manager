@@ -4,6 +4,7 @@ import Alert from '../components/Alert.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS } from '../constants.js'
 import { formatBaht } from '../format.js'
+import InvoiceDetailPage from './InvoiceDetailPage.jsx'
 import { listMeterBatches } from '../services/meterService.js'
 import {
   createMonthlyInvoice,
@@ -18,6 +19,8 @@ import {
 // (เลือกใบจดมิเตอร์+เดือน → ตารางพรีวิวทุกห้องแล้วกดสร้าง) ไม่ใช่กรอกทีละห้องเอง
 export default function InvoicesPage({ apartment }) {
   const [wizard, setWizard] = useState(false)
+  // บิลที่กำลังเปิดดูอยู่ — null = อยู่ที่ตารางรายการ
+  const [openInvoiceId, setOpenInvoiceId] = useState(null)
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -37,6 +40,18 @@ export default function InvoicesPage({ apartment }) {
   useEffect(() => {
     load()
   }, [load])
+
+  if (openInvoiceId) {
+    return (
+      <InvoiceDetailPage
+        invoiceId={openInvoiceId}
+        onBack={() => {
+          setOpenInvoiceId(null)
+          load()
+        }}
+      />
+    )
+  }
 
   if (wizard) {
     return (
@@ -95,6 +110,7 @@ export default function InvoicesPage({ apartment }) {
                 <th>สถานะ</th>
                 <th className="align-right">ยอดรวม</th>
                 <th className="align-right">ค้างชำระ</th>
+                <th className="align-right" />
               </tr>
             </thead>
             <tbody>
@@ -116,6 +132,15 @@ export default function InvoicesPage({ apartment }) {
                     ) : (
                       <span className="muted">—</span>
                     )}
+                  </td>
+                  <td className="align-right">
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => setOpenInvoiceId(inv.invoiceId)}
+                    >
+                      รายละเอียด
+                    </button>
                   </td>
                 </tr>
               ))}
