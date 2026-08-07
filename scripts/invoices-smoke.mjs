@@ -73,7 +73,8 @@ const contract1 = contracts.createContract(db, {
   deposit: '5000',
   depositPaymentMethod: 'cash',
   bookingFee: '0',
-  waterMeterStart: 0,
+  // เลขมิเตอร์วันเข้าพัก = เลขครั้งก่อนของการจดรอบแรก (ระบบไล่หาให้ ห้ามกรอกทับ)
+  waterMeterStart: 2,
   electricMeterStart: 0,
   tenants: [somchai.tenantId]
 })
@@ -92,10 +93,10 @@ const contract2 = contracts.createContract(db, {
 
 const batch = meter.createBatch(db, apartmentId, '2026-08-31')
 meter.saveBatchReadings(db, batch.batchId, 'water', [
-  { roomId: room1.roomId, roomNumber: '101', previousReading: 2, currentReading: 100 }
+  { roomId: room1.roomId, roomNumber: '101', currentReading: 100 }
 ])
 meter.saveBatchReadings(db, batch.batchId, 'electric', [
-  { roomId: room1.roomId, roomNumber: '101', previousReading: 0, currentReading: 300 }
+  { roomId: room1.roomId, roomNumber: '101', currentReading: 300 }
 ])
 
 // -----------------------------------------------------

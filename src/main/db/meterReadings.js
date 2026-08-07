@@ -206,15 +206,19 @@ export function getBatchSheet(db, batchId, side) {
     readingDate: batch.readingDate,
     side,
     rooms: rows.map((row) => {
-      // แถวที่เคยบันทึกแล้วให้ยึดเลขที่บันทึกไว้ เพราะผู้ใช้อาจแก้ "จดครั้งก่อน" เอง
-      // (ช่องนี้แก้ได้ในต้นแบบ ไม่ได้ล็อกไว้)
-      const previous = row.savedPrevious ?? row.lastReading ?? row.contractStart ?? 0
+      // เลขครั้งก่อนที่ระบบไล่หาให้ — เลขปิดของรอบก่อนหน้า แล้วค่อยลงไปที่เลขมิเตอร์
+      // วันเข้าพักในสัญญา สุดท้ายคือ 0
+      const derived = Number(row.lastReading ?? row.contractStart ?? 0)
       return {
         roomId: row.room_id,
         roomNumber: row.room_number,
         floorName: row.floor_name,
         status: row.status,
-        previousReading: Number(previous),
+        // แถวที่บันทึกไปแล้วแสดงเลขที่บันทึกไว้จริง เพราะจำนวนหน่วยที่คิดไปแล้วมาจากเลขนั้น
+        // ถ้าแสดงเลขที่ไล่หาใหม่ ตัวเลขบนจอจะไม่ตรงกับหน่วยที่อยู่ข้างๆ
+        previousReading: Number(row.savedPrevious ?? derived),
+        // เลขที่ระบบไล่หาให้ — ตอนบันทึกใช้ตัวนี้เสมอ ไม่ใช้ค่าที่หน้าจอส่งมา
+        derivedPreviousReading: derived,
         currentReading: row.savedCurrent === null ? null : Number(row.savedCurrent),
         unitsUsed: row.savedUnits === null ? null : Number(row.savedUnits),
         isOverCycle: row.savedOverCycle === 1,
@@ -244,22 +248,39 @@ export function saveBatchReadings(db, batchId, side, rows) {
     throw new Error('แก้ไขไม่ได้ เพราะใบจดมิเตอร์นี้ถูกใช้ออกบิลไปแล้ว')
   }
 
+  // **เลขครั้งก่อนคิดจากฝั่งนี้เสมอ ไม่รับค่าที่หน้าจอส่งมา**
+  //
+  // เลขปิดของรอบก่อนคือเลขเปิดของรอบนี้ ไม่ใช่ตัวเลขที่ใครจะกรอกทับได้ ถ้าปล่อยให้แก้
+  // โซ่ของมิเตอร์จะขาดตรงไหนก็ได้ แล้วหน่วยที่หายไประหว่างสองรอบจะไม่มีใครเรียกเก็บ
+  // — และไม่มีทางรู้ย้อนหลังว่าขาดตรงไหน เพราะทุกแถวดูสมเหตุสมผลในตัวเอง
+  //
+  // ล็อกที่หน้าจออย่างเดียวไม่พอ ต้องบังคับที่นี่ด้วย ไม่งั้นก็ยังส่งค่าอื่นเข้ามาได้อยู่ดี
+  const derived = new Map(
+    getBatchSheet(db, batchId, side).rooms.map((r) => [r.roomId, r.derivedPreviousReading])
+  )
+
   // คำนวณและตรวจให้ครบทุกแถวก่อน แล้วค่อยเขียน — รวบ error ทุกแถวไว้บอกทีเดียว
   // ไม่ใช่ให้ผู้ใช้แก้ทีละแถวแล้วกดบันทึกใหม่รอบละห้อง
   const errors = []
   const prepared = []
   for (const row of rows ?? []) {
+    const label = row.roomNumber ?? `ห้อง #${row.roomId}`
+    if (!derived.has(row.roomId)) {
+      errors.push(`ห้อง ${label}: ไม่ได้อยู่ในหอพักของใบจดมิเตอร์นี้`)
+      continue
+    }
+
+    const previous = derived.get(row.roomId)
     try {
-      const units = calculateUnitsUsed(row.previousReading, row.currentReading, row.isOverCycle)
+      const units = calculateUnitsUsed(previous, row.currentReading, row.isOverCycle)
       prepared.push({
         roomId: row.roomId,
-        previous: Number(row.previousReading ?? 0),
+        previous,
         current: Number(row.currentReading ?? 0),
         units,
         overCycle: row.isOverCycle ? 1 : 0
       })
     } catch (err) {
-      const label = row.roomNumber ?? `ห้อง #${row.roomId}`
       errors.push(`ห้อง ${label}: ${err.message}`)
     }
   }

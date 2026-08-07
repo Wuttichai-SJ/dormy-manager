@@ -118,25 +118,26 @@ check('ฝั่งมิเตอร์ที่ไม่รู้จักต�
 group('บันทึกเลขมิเตอร์')
 
 const saved = meter.saveBatchReadings(db, batch1.batchId, 'water', [
-  { roomId: room1.roomId, roomNumber: '101', previousReading: 2, currentReading: 100 },
-  { roomId: room2.roomId, roomNumber: '102', previousReading: 0, currentReading: 0 }
+  { roomId: room1.roomId, roomNumber: '101', currentReading: 100 },
+  { roomId: room2.roomId, roomNumber: '102', currentReading: 0 }
 ])
 
 check('บันทึกแล้วคำนวณหน่วยให้ และห้องที่ไม่ได้ส่งมาไม่ถูกแตะ', () => {
   const r101 = saved.rooms.find((r) => r.roomNumber === '101')
   const r103 = saved.rooms.find((r) => r.roomNumber === '103')
-  assert(r101.unitsUsed === 98, `ได้ ${r101.unitsUsed}`)
+  // ห้องนี้ไม่เคยจดและไม่มีสัญญา เลขครั้งก่อนจึงเป็น 0 → ใช้ไป 100 หน่วยเต็ม
+  assert(r101.unitsUsed === 100, `ได้ ${r101.unitsUsed}`)
   assert(r101.isSaved === true, 'ห้อง 101 ต้องถือว่าบันทึกแล้ว')
   assert(r103.isSaved === false, 'ห้อง 103 ไม่ได้ส่งมา ต้องยังไม่บันทึก')
 })
 
 check('บันทึกซ้ำที่เดิมทับค่าเก่า ไม่สร้างแถวใหม่', () => {
   meter.saveBatchReadings(db, batch1.batchId, 'water', [
-    { roomId: room1.roomId, roomNumber: '101', previousReading: 2, currentReading: 50 }
+    { roomId: room1.roomId, roomNumber: '101', currentReading: 50 }
   ])
   const again = meter.getBatchSheet(db, batch1.batchId, 'water')
   const r101 = again.rooms.find((r) => r.roomNumber === '101')
-  assert(r101.unitsUsed === 48, `ได้ ${r101.unitsUsed}`)
+  assert(r101.unitsUsed === 50, `ได้ ${r101.unitsUsed}`)
   const count = db
     .prepare('SELECT COUNT(*) AS n FROM meter_readings WHERE meter_batch_id = ?')
     .get(batch1.batchId).n
@@ -145,11 +146,11 @@ check('บันทึกซ้ำที่เดิมทับค่าเก�
 
 check('บันทึกฝั่งไฟไม่ล้างเลขน้ำที่จดไว้แล้ว', () => {
   meter.saveBatchReadings(db, batch1.batchId, 'electric', [
-    { roomId: room1.roomId, roomNumber: '101', previousReading: 0, currentReading: 300 }
+    { roomId: room1.roomId, roomNumber: '101', currentReading: 300 }
   ])
   const water = meter.getBatchSheet(db, batch1.batchId, 'water')
   const electric = meter.getBatchSheet(db, batch1.batchId, 'electric')
-  assert(water.rooms.find((r) => r.roomNumber === '101').unitsUsed === 48, 'เลขน้ำต้องอยู่ครบ')
+  assert(water.rooms.find((r) => r.roomNumber === '101').unitsUsed === 50, 'เลขน้ำต้องอยู่ครบ')
   assert(
     electric.rooms.find((r) => r.roomNumber === '101').unitsUsed === 300,
     'เลขไฟต้องถูกบันทึก'
@@ -157,19 +158,33 @@ check('บันทึกฝั่งไฟไม่ล้างเลขน้�
 })
 
 check('แถวเดียวผิด ต้องไม่มีแถวไหนถูกเขียนเลย', () => {
+  // ห้อง 101 ปิดรอบก่อนไว้ที่ 50 — กรอก 5 ในรอบถัดไปคือเลขเดินถอยหลังโดยไม่ติ๊กเกินรอบ
+  const bad = meter.createBatch(db, apartmentId, '2026-09-15')
   throws(
     () =>
-      meter.saveBatchReadings(db, batch1.batchId, 'water', [
-        { roomId: room3.roomId, roomNumber: '103', previousReading: 0, currentReading: 10 },
-        { roomId: room2.roomId, roomNumber: '102', previousReading: 100, currentReading: 5 }
+      meter.saveBatchReadings(db, bad.batchId, 'water', [
+        { roomId: room3.roomId, roomNumber: '103', currentReading: 10 },
+        { roomId: room1.roomId, roomNumber: '101', currentReading: 5 }
       ]),
-    'ห้อง 102',
+    'ห้อง 101',
     'ต้องบอกว่าห้องไหนผิด'
   )
-  const after = meter.getBatchSheet(db, batch1.batchId, 'water')
+  const after = meter.getBatchSheet(db, bad.batchId, 'water')
   assert(
     after.rooms.find((r) => r.roomNumber === '103').isSaved === false,
     'ห้อง 103 ที่กรอกถูกต้องไม่ควรถูกเขียน เพราะทั้งใบต้องล้มพร้อมกัน'
+  )
+  meter.deleteBatch(db, bad.batchId)
+})
+
+check('ห้องที่ไม่ได้อยู่ในหอของใบจดนี้ บันทึกไม่ได้', () => {
+  throws(
+    () =>
+      meter.saveBatchReadings(db, batch1.batchId, 'water', [
+        { roomId: 9999, roomNumber: 'ไม่มีจริง', currentReading: 10 }
+      ]),
+    'ไม่ได้อยู่ในหอพัก',
+    'ต้องกันห้องนอกหอ'
   )
 })
 
@@ -219,16 +234,16 @@ check('ห้องที่มีสัญญาแต่ยังไม่เ�
 check('บันทึกฝั่งน้ำแล้ว ฝั่งไฟยังต้องเติมเลขครั้งก่อนให้อยู่', () => {
   const first = meter.createBatch(db, apartmentId, '2027-01-31')
   meter.saveBatchReadings(db, first.batchId, 'water', [
-    { roomId: room2.roomId, roomNumber: '102', previousReading: 10, currentReading: 20 }
+    { roomId: room2.roomId, roomNumber: '102', currentReading: 20 }
   ])
   meter.saveBatchReadings(db, first.batchId, 'electric', [
-    { roomId: room2.roomId, roomNumber: '102', previousReading: 500, currentReading: 700 }
+    { roomId: room2.roomId, roomNumber: '102', currentReading: 700 }
   ])
 
   // รอบถัดไป: ห้องนี้ต้องได้เลขปิดของรอบก่อนทั้งสองฝั่ง
   const second = meter.createBatch(db, apartmentId, '2027-02-28')
   meter.saveBatchReadings(db, second.batchId, 'water', [
-    { roomId: room2.roomId, roomNumber: '102', previousReading: 20, currentReading: 25 }
+    { roomId: room2.roomId, roomNumber: '102', currentReading: 25 }
   ])
 
   const elec = meter.getBatchSheet(db, second.batchId, 'electric')
@@ -245,7 +260,7 @@ check('รอบที่จดแต่ฝั่งน้ำ ต้องไม
   // รอบ 2027-03 จดแต่น้ำ — รอบ 2027-04 ฝั่งไฟต้องย้อนไปเอาเลขของ 2027-02 (=700)
   const marchBatch = meter.createBatch(db, apartmentId, '2027-03-31')
   meter.saveBatchReadings(db, marchBatch.batchId, 'water', [
-    { roomId: room2.roomId, roomNumber: '102', previousReading: 25, currentReading: 30 }
+    { roomId: room2.roomId, roomNumber: '102', currentReading: 30 }
   ])
 
   const aprilBatch = meter.createBatch(db, apartmentId, '2027-04-30')
@@ -254,14 +269,18 @@ check('รอบที่จดแต่ฝั่งน้ำ ต้องไม
   assert(r102.previousReading === 700, `ได้ ${r102.previousReading} ควรเป็น 700`)
 })
 
-check('เลขที่จดไว้แล้วชนะเลขที่ระบบหาให้ เพราะผู้ใช้แก้ช่องจดครั้งก่อนเองได้', () => {
+// เลขครั้งก่อนคือเลขปิดของรอบที่แล้ว ไม่ใช่ตัวเลขที่ใครจะกรอกทับได้ (ผู้ใช้สั่ง 2026-08-07)
+// ล็อกที่หน้าจออย่างเดียวไม่พอ — ฝั่ง main ต้องไม่รับค่าที่ส่งมาด้วย
+check('ส่งเลขครั้งก่อนมาเองก็ไม่ถูกใช้ ระบบยึดเลขปิดของรอบก่อนเสมอ', () => {
   const batch4 = meter.createBatch(db, apartmentId, '2026-11-30')
   meter.saveBatchReadings(db, batch4.batchId, 'water', [
+    // ยัด previousReading มั่วๆ เข้ามา — ต้องถูกเมิน
     { roomId: room1.roomId, roomNumber: '101', previousReading: 999, currentReading: 1000 }
   ])
   const sheet4 = meter.getBatchSheet(db, batch4.batchId, 'water')
   const r101 = sheet4.rooms.find((r) => r.roomNumber === '101')
-  assert(r101.previousReading === 999, `ได้ ${r101.previousReading} ควรเป็น 999`)
+  assert(r101.previousReading === 50, `ได้ ${r101.previousReading} ควรเป็น 50 (เลขปิดรอบก่อน)`)
+  assert(r101.unitsUsed === 950, `หน่วยต้องคิดจาก 50 ไม่ใช่ 999 — ได้ ${r101.unitsUsed}`)
 })
 
 // -----------------------------------------------------
@@ -270,7 +289,8 @@ group('ลบใบจดมิเตอร์')
 check('ลบใบที่ยังไม่ได้ออกบิลได้ และเลขที่จดไว้หายไปด้วย', () => {
   const batch = meter.createBatch(db, apartmentId, '2026-12-31')
   meter.saveBatchReadings(db, batch.batchId, 'water', [
-    { roomId: room1.roomId, roomNumber: '101', previousReading: 0, currentReading: 5 }
+    // รอบก่อนปิดที่ 1000 เลขรอบนี้จึงต้องมากกว่านั้น
+    { roomId: room1.roomId, roomNumber: '101', currentReading: 1005 }
   ])
   meter.deleteBatch(db, batch.batchId)
   assert(meter.getBatchById(db, batch.batchId) === null, 'ใบต้องหายไป')

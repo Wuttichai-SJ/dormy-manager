@@ -190,8 +190,7 @@ function MeterSheet({ batchId, side, onBack }) {
       res.data.rooms.map((room) => ({
         ...room,
         // ช่องกรอกเก็บเป็นข้อความ ไม่ใช่ตัวเลข — ไม่งั้นลบเลขจนว่างแล้วจะเด้งเป็น 0
-        // ทันทีจนพิมพ์ต่อไม่ได้
-        previousInput: String(room.previousReading ?? 0),
+        // ทันทีจนพิมพ์ต่อไม่ได้ (มีแค่ช่อง "ปัจจุบัน" ช่องเดียวที่กรอกได้)
         currentInput: room.currentReading === null ? '' : String(room.currentReading)
       }))
     )
@@ -237,10 +236,10 @@ function MeterSheet({ batchId, side, onBack }) {
     const res = await saveMeterReadings(
       batchId,
       side,
+      // ไม่ส่งเลขครั้งก่อนไป — ฝั่ง main คิดเองจากเลขปิดของรอบก่อน (ส่งไปก็ไม่ถูกใช้)
       filled.map((r) => ({
         roomId: r.roomId,
         roomNumber: r.roomNumber,
-        previousReading: Number(r.previousInput || 0),
         currentReading: Number(r.currentInput || 0),
         isOverCycle: r.isOverCycle
       }))
@@ -265,8 +264,8 @@ function MeterSheet({ batchId, side, onBack }) {
           จด{meta.label} — รอบวันที่ {sheet ? formatDate(sheet.readingDate) : '...'}
         </strong>
         <p>
-          ช่อง “จดครั้งก่อน” ระบบเติมให้จากรอบก่อนหน้า (หรือเลขมิเตอร์วันเข้าพักในสัญญา)
-          แก้ไขได้ · ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก ·{' '}
+          “จดครั้งก่อน” คือเลขปิดของรอบที่แล้ว (หรือเลขมิเตอร์วันเข้าพักในสัญญา ถ้ายังไม่เคยจด)
+          ระบบกำหนดให้เอง แก้ไม่ได้ · ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก ·{' '}
           <strong>กด Enter เพื่อลงไปกรอกห้องถัดไป</strong>
         </p>
       </div>
@@ -295,7 +294,7 @@ function MeterSheet({ batchId, side, onBack }) {
                   const pending = row.currentInput.trim() === ''
                   const units = pending
                     ? null
-                    : previewUnitsUsed(row.previousInput, row.currentInput, row.isOverCycle)
+                    : previewUnitsUsed(row.previousReading, row.currentInput, row.isOverCycle)
                   return (
                     <tr key={row.roomId}>
                       <td>{row.roomNumber}</td>
@@ -304,15 +303,9 @@ function MeterSheet({ batchId, side, onBack }) {
                           {ROOM_STATUS_LABELS[row.status] ?? row.status}
                         </span>
                       </td>
-                      <td className="align-right">
-                        <input
-                          className="meter-input"
-                          inputMode="decimal"
-                          value={row.previousInput}
-                          onChange={(e) => setRow(row.roomId, { previousInput: e.target.value })}
-                          aria-label={`เลขมิเตอร์ครั้งก่อน ห้อง ${row.roomNumber}`}
-                        />
-                      </td>
+                      {/* อ่านอย่างเดียว — เลขปิดของรอบก่อนคือเลขเปิดของรอบนี้ ไม่ใช่ตัวเลข
+                          ที่กรอกทับได้ แก้ได้เมื่อไหร่โซ่มิเตอร์ก็ขาดได้เมื่อนั้น */}
+                      <td className="align-right meter-previous">{row.previousReading}</td>
                       <td className="align-right">
                         <input
                           className="meter-input"
