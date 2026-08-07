@@ -243,11 +243,13 @@ export function calculateUtilityCharge(side, unitsUsed) {
 }
 
 // -----------------------------------------------------
-export function toPublicDefaults(row) {
-  if (!row) return null
+// แปลงแถวดิบเป็นก้อน {water, electric} ที่ calculateUtilityCharge กินได้
+//
+// ใช้ได้ทั้งกับ apartment_utility_defaults และ room_utility_settings เพราะสองตารางนี้
+// ตั้งใจให้มีคอลัมน์ชื่อเดียวกันทุกช่อง (ต่างแค่ apartment_id / room_id — ดู 006)
+// ตอนออกบิลต้องอ่านของ *รายห้อง* จึงต้องมีตัวแปลงที่ไม่ผูกกับตารางใดตารางหนึ่ง
+export function toUtilitySides(row) {
   return {
-    apartmentId: row.apartment_id,
-    isConfigured: true,
     water: {
       enabled: row.is_water_enabled === 1,
       billingType: row.water_billing_type,
@@ -263,7 +265,16 @@ export function toPublicDefaults(row) {
       minChargeCents: row.electric_min_charge_cents,
       flatRateCents: row.electric_flat_rate_cents,
       showReadingInInvoice: row.show_electric_reading_in_invoice === 1
-    },
+    }
+  }
+}
+
+export function toPublicDefaults(row) {
+  if (!row) return null
+  return {
+    apartmentId: row.apartment_id,
+    isConfigured: true,
+    ...toUtilitySides(row),
     updatedAt: row.updated_at
   }
 }
