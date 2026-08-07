@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Alert from '../components/Alert.jsx'
+import DateField from '../components/DateField.jsx'
 import { centsToInput, formatBaht } from '../format.js'
 import { EMPTY_TENANT } from '../components/TenantDialog.jsx'
 import { createTenant, listTenants } from '../services/tenantService.js'
@@ -129,21 +130,15 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                 <label htmlFor="startDate">
                   วันที่เข้าพัก <span className="required">* จำเป็น</span>
                 </label>
-                <input
+                <DateField
                   id="startDate"
-                  type="date"
                   value={form.startDate}
-                  onChange={(e) => set('startDate', e.target.value)}
+                  onChange={(v) => set('startDate', v)}
                 />
               </div>
               <div className="field">
                 <label htmlFor="endDate">วันที่ออก</label>
-                <input
-                  id="endDate"
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => set('endDate', e.target.value)}
-                />
+                <DateField id="endDate" value={form.endDate} onChange={(v) => set('endDate', v)} />
               </div>
               <div className="field field-required">
                 <label htmlFor="rentAmount">

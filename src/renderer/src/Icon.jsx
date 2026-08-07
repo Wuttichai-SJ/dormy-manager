@@ -14,6 +14,9 @@ import rooms from './assets/icons/heroicons/24/outline/key.svg?raw'
 import tenants from './assets/icons/heroicons/24/outline/users.svg?raw'
 import contracts from './assets/icons/heroicons/24/outline/document-text.svg?raw'
 import bookings from './assets/icons/heroicons/24/outline/calendar-days.svg?raw'
+// รูปเดียวกับ bookings แต่เรียกคนละชื่อตามหน้าที่ — ปุ่มเปิดปฏิทินในช่องกรอกวันที่
+// ถ้าวันหนึ่งอยากเปลี่ยนรูปของอย่างใดอย่างหนึ่ง จะแยกกันได้โดยไม่กระทบอีกอัน
+import calendar from './assets/icons/heroicons/24/outline/calendar-days.svg?raw'
 import meters from './assets/icons/heroicons/24/outline/bolt.svg?raw'
 import invoices from './assets/icons/heroicons/24/outline/receipt-percent.svg?raw'
 import payments from './assets/icons/heroicons/24/outline/banknotes.svg?raw'
@@ -80,7 +83,8 @@ const ICONS = {
   logout: logoutIcon,
   account,
   water,
-  electric
+  electric,
+  calendar
 }
 
 export default function Icon({ name, className = '' }) {

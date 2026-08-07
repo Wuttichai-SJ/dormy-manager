@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Alert from './Alert.jsx'
 import Modal from './Modal.jsx'
+import DateField from './DateField.jsx'
 import { showToast } from './Toast.jsx'
 import { formatPhone } from './TenantDialog.jsx'
 import { formatBaht, centsToInput } from '../format.js'
@@ -209,11 +210,11 @@ function BookingDialog({ value, onChange, onClose, onSubmit, busy }) {
           <label>
             วันที่เข้าพัก <span className="required">* จำเป็น</span>
           </label>
-          <input type="date" value={value.checkInDate} onChange={(e) => set('checkInDate', e.target.value)} />
+          <DateField value={value.checkInDate} onChange={(v) => set('checkInDate', v)} />
         </div>
         <div className="field">
           <label>วันที่ออก</label>
-          <input type="date" value={value.checkOutDate} onChange={(e) => set('checkOutDate', e.target.value)} />
+          <DateField value={value.checkOutDate} onChange={(v) => set('checkOutDate', v)} />
         </div>
       </div>
 

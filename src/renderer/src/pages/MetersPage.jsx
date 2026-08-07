@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import Modal from '../components/Modal.jsx'
+import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { METER_SIDES, ROOM_STATUS_LABELS, previewUnitsUsed } from '../constants.js'
 import {
@@ -155,12 +156,7 @@ export default function MetersPage({ apartment }) {
             <label htmlFor="readingDate">
               วันที่จดมิเตอร์ <span className="required">* จำเป็น</span>
             </label>
-            <input
-              id="readingDate"
-              type="date"
-              value={readingDate}
-              onChange={(e) => setReadingDate(e.target.value)}
-            />
+            <DateField id="readingDate" value={readingDate} onChange={setReadingDate} />
             <p className="field-hint">หนึ่งวันมีใบจดได้ใบเดียว</p>
           </div>
         </Modal>

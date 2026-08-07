@@ -3065,6 +3065,61 @@ body {
 }
 
 /* -----------------------------------------------------
+   ช่องกรอกวันที่ (วว/ดด/ปปปป)
+   ----------------------------------------------------- */
+.date-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.date-field-text {
+  width: 100%;
+  padding-right: 40px;
+}
+
+/* ปุ่มปฏิทินวางทับอยู่ในกรอบของช่องกรอก ไม่ใช่ต่อออกมาข้างนอก
+   เพื่อให้ความกว้างของช่องวันที่เท่ากับช่องกรอกอื่นในแถวเดียวกันพอดี */
+.date-field-btn {
+  position: absolute;
+  right: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: calc(100% - 2px);
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 0 7px 7px 0;
+  cursor: pointer;
+}
+
+.date-field-btn:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.date-field-btn .icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ตัวเลือกวันที่ของระบบต้องอยู่ใน DOM จริงๆ ถึงจะสั่ง showPicker() ได้ และต้องวางทับ
+   ปุ่มปฏิทินพอดี เพราะ Chromium กางปฏิทินตรงตำแหน่งของช่องนี้ ไม่ใช่ตรงปุ่มที่กด
+   จึงใช้ opacity:0 + pointer-events:none แทน display:none (ซึ่งจะสั่ง showPicker ไม่ได้) */
+.date-field-picker {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  width: 36px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* -----------------------------------------------------
    จดมิเตอร์
    ----------------------------------------------------- */
 /* ทางกลับจากหน้าย่อยที่ไม่ได้อยู่ในเมนูข้าง (ตารางกรอกเลขมิเตอร์)
