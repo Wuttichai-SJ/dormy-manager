@@ -674,6 +674,64 @@ check('กรองตามเลขห้องได้', () => {
   assert(filtered[0].roomNumber === '102', `ได้ห้อง ${filtered[0].roomNumber}`)
 })
 
+check('กรองตามเลขที่ใบแจ้งหนี้แบบบางส่วนได้', () => {
+  const all = invoices.listInvoices(db, apartmentId)
+  const target = all[0]
+  const filtered = invoices.listInvoices(db, apartmentId, {
+    invoiceNumber: target.invoiceNumber.slice(-4)
+  })
+  assert(
+    filtered.some((i) => i.invoiceNumber === target.invoiceNumber),
+    `หาไม่เจอ ${target.invoiceNumber}`
+  )
+})
+
+// ค้นหาตามวันที่ออกบิล (ผู้ใช้สั่ง 2026-08-07) — ใส่ข้างเดียวก็ต้องทำงาน
+group('ค้นหาตามวันที่ออกบิล')
+
+check('ระบุแต่วันเริ่ม = ตั้งแต่วันนั้นเป็นต้นไป', () => {
+  const from = invoices.listInvoices(db, apartmentId, { dateFrom: '2026-08-31' })
+  assert(from.length > 0, 'ควรเจอบิลที่ออกวันที่ 31 ส.ค.')
+  assert(
+    from.every((i) => i.issueDate >= '2026-08-31'),
+    'มีใบที่ออกก่อนวันเริ่มหลุดมา'
+  )
+})
+
+check('ระบุแต่วันสิ้นสุด = ถึงวันนั้น', () => {
+  const to = invoices.listInvoices(db, apartmentId, { dateTo: '2026-08-30' })
+  assert(to.length === 0, `ไม่ควรมีบิลที่ออกก่อน 30 ส.ค. แต่ได้ ${to.length} ใบ`)
+})
+
+check('ระบุทั้งช่วง และวันขอบทั้งสองข้างต้องนับรวมด้วย', () => {
+  const range = invoices.listInvoices(db, apartmentId, {
+    dateFrom: '2026-08-31',
+    dateTo: '2026-08-31'
+  })
+  assert(range.length > 0, 'วันเดียวกันทั้งเริ่มและจบ ต้องเจอบิลของวันนั้น')
+  assert(
+    range.every((i) => i.issueDate === '2026-08-31'),
+    'มีใบวันอื่นหลุดมา'
+  )
+})
+
+check('ช่วงวันที่กลับหัวได้ผลลัพธ์ว่าง ไม่ใช่ error', () => {
+  const none = invoices.listInvoices(db, apartmentId, {
+    dateFrom: '2026-09-01',
+    dateTo: '2026-08-01'
+  })
+  assert(none.length === 0, `ได้ ${none.length} ใบ`)
+})
+
+check('วันที่รวมกับเงื่อนไขอื่นได้', () => {
+  const combined = invoices.listInvoices(db, apartmentId, {
+    dateFrom: '2026-08-01',
+    roomNumber: '102'
+  })
+  assert(combined.length === 1, `ได้ ${combined.length} ใบ`)
+  assert(combined[0].roomNumber === '102', `ได้ห้อง ${combined[0].roomNumber}`)
+})
+
 // -----------------------------------------------------
 cleanup()
 summarize('โมดูลออกบิลทำงานครบทุกเส้นทาง')

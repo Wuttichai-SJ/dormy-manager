@@ -520,11 +520,22 @@ function toPublicItem(row) {
 }
 
 // รายการบิลค้างชำระของหอ — คอลัมน์ตามต้นแบบ: เลขใบแจ้งหนี้ | วันที่ | สถานะ | ห้อง | ยอดเงิน
-export function listInvoices(db, apartmentId, { status, billingMonth, roomNumber } = {}) {
+export function listInvoices(
+  db,
+  apartmentId,
+  { status, billingMonth, roomNumber, invoiceNumber, dateFrom, dateTo } = {}
+) {
   const where = ['f.apartment_id = @apartmentId']
   if (status) where.push('i.status = @status')
   if (billingMonth) where.push('i.billing_month = @billingMonth')
   if (roomNumber) where.push('r.room_number LIKE @roomNumber')
+  if (invoiceNumber) where.push('i.invoice_number LIKE @invoiceNumber')
+  // ช่วงวันที่ออกบิล — เทียบเป็นข้อความได้ตรงๆ เพราะเก็บเป็น 'YYYY-MM-DD' ซึ่งเรียงตามเวลา
+  // อยู่แล้ว ไม่ต้องแปลงเป็น date ก่อน (และไม่ต้องพึ่งฟังก์ชันวันที่ของ SQLite)
+  //
+  // ใส่มาข้างเดียวก็ได้ — ระบุแต่วันเริ่มคือ "ตั้งแต่วันนั้นเป็นต้นไป"
+  if (dateFrom) where.push('i.issue_date >= @dateFrom')
+  if (dateTo) where.push('i.issue_date <= @dateTo')
 
   return db
     .prepare(
@@ -543,7 +554,10 @@ export function listInvoices(db, apartmentId, { status, billingMonth, roomNumber
       apartmentId,
       status,
       billingMonth,
-      roomNumber: roomNumber ? `%${roomNumber}%` : null
+      roomNumber: roomNumber ? `%${roomNumber}%` : null,
+      invoiceNumber: invoiceNumber ? `%${invoiceNumber}%` : null,
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null
     })
     .map((row) => ({
       invoiceId: row.invoice_id,

@@ -64,8 +64,8 @@ export function registerInvoiceHandlers() {
 
   handle('invoice:get', ({ invoiceId }) => getInvoiceById(getDatabase(), invoiceId))
 
-  handle('invoice:list', ({ apartmentId, status, billingMonth, roomNumber }) =>
-    listInvoices(getDatabase(), apartmentId, { status, billingMonth, roomNumber })
+  handle('invoice:list', ({ apartmentId, ...filters }) =>
+    listInvoices(getDatabase(), apartmentId, filters)
   )
 
   handle('invoice:addItem', ({ invoiceId, itemType, description, amount, isTaxable }) => {

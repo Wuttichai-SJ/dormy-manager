@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import Modal from '../components/Modal.jsx'
+import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS } from '../constants.js'
 import { formatBaht } from '../format.js'
@@ -15,6 +16,8 @@ import {
   previewMonthlyBilling
 } from '../services/invoiceService.js'
 
+const EMPTY_FILTERS = { roomNumber: '', invoiceNumber: '', dateFrom: '', dateTo: '' }
+
 // หน้าใบแจ้งหนี้ — รายการบิลที่ออกไปแล้ว + ทางเข้าไปออกบิลรอบใหม่
 //
 // โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "ออกบิลรายเดือน"): กดปุ่มออกบิล → ตัวช่วย 2 ขั้น
@@ -26,20 +29,27 @@ export default function InvoicesPage({ apartment }) {
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [roomFilter, setRoomFilter] = useState('')
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
   // บิลที่กำลังยืนยันจะลบอยู่ — null = ไม่มีหน้าต่างเปิดค้าง
   const [deleting, setDeleting] = useState(null)
+
+  const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
+  const hasFilters = Object.values(filters).some((v) => v !== '')
 
   const load = useCallback(async () => {
     setLoading(true)
     const res = await listInvoices(apartment.apartmentId, {
-      roomNumber: roomFilter.trim() || undefined
+      roomNumber: filters.roomNumber.trim() || undefined,
+      invoiceNumber: filters.invoiceNumber.trim() || undefined,
+      // DateField คืน '' จนกว่าจะกรอกวันที่ครบและเป็นวันที่ที่มีอยู่จริง จึงส่งต่อได้เลย
+      dateFrom: filters.dateFrom || undefined,
+      dateTo: filters.dateTo || undefined
     })
     setLoading(false)
     if (!res.success) return setError(res.error)
     setError('')
     setInvoices(res.data)
-  }, [apartment.apartmentId, roomFilter])
+  }, [apartment.apartmentId, filters])
 
   useEffect(() => {
     load()
@@ -89,20 +99,68 @@ export default function InvoicesPage({ apartment }) {
           </button>
         </div>
 
-        <div className="field invoice-filter">
-          <label htmlFor="invoiceRoomFilter">ค้นหาเลขห้อง</label>
-          <input
-            id="invoiceRoomFilter"
-            value={roomFilter}
-            onChange={(e) => setRoomFilter(e.target.value)}
-            placeholder="เช่น 101"
-          />
+        {/* แถบค้นหาเรียงตามต้นแบบ: เลขที่ห้อง | เลขที่ใบแจ้งหนี้ | วันที่เริ่ม | วันที่สิ้นสุด | รีเซ็ต
+            ช่วงวันที่ใส่ข้างเดียวก็ได้ — ระบุแต่วันเริ่มคือ "ตั้งแต่วันนั้นเป็นต้นไป" */}
+        <div className="invoice-filters">
+          <div className="field">
+            <label htmlFor="filterRoom">เลขที่ห้อง</label>
+            <input
+              id="filterRoom"
+              value={filters.roomNumber}
+              onChange={(e) => setFilter('roomNumber', e.target.value)}
+              placeholder="เช่น 101"
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="filterNumber">เลขที่ใบแจ้งหนี้</label>
+            <input
+              id="filterNumber"
+              value={filters.invoiceNumber}
+              onChange={(e) => setFilter('invoiceNumber', e.target.value)}
+              placeholder="เช่น I2026080001"
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="filterFrom">วันที่ออกบิล ตั้งแต่</label>
+            <DateField
+              id="filterFrom"
+              value={filters.dateFrom}
+              onChange={(v) => setFilter('dateFrom', v)}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="filterTo">ถึง</label>
+            <DateField
+              id="filterTo"
+              value={filters.dateTo}
+              onChange={(v) => setFilter('dateTo', v)}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="link-btn invoice-filter-reset"
+            onClick={() => setFilters(EMPTY_FILTERS)}
+            disabled={!hasFilters}
+          >
+            รีเซ็ต
+          </button>
         </div>
+
+        {/* ช่วงวันที่กลับหัวไม่เจออะไรเลย ต้องบอกว่าเป็นเพราะอะไร ไม่ใช่ขึ้น "ไม่มีข้อมูล" เฉยๆ */}
+        {filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo && (
+          <Alert kind="warn">วันที่เริ่มอยู่หลังวันที่สิ้นสุด จึงไม่มีใบแจ้งหนี้ใดเข้าเงื่อนไข</Alert>
+        )}
 
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
         ) : invoices.length === 0 ? (
-          <p className="muted table-empty">ยังไม่มีใบแจ้งหนี้</p>
+          <p className="muted table-empty">
+            {hasFilters ? 'ไม่พบใบแจ้งหนี้ตามเงื่อนไขที่ค้นหา' : 'ยังไม่มีใบแจ้งหนี้'}
+          </p>
         ) : (
           <table className="data-table">
             <thead>

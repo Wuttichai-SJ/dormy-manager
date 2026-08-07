@@ -3395,9 +3395,26 @@ body {
   height: 16px;
 }
 
-/* ช่องค้นหาเลขห้องเหนือตารางบิล ไม่ต้องกว้างเต็มแถว */
-.invoice-filter {
-  max-width: 220px;
+/* แถบค้นหาเหนือตารางบิล — พื้นครีมแบบเดียวกับต้นแบบ ช่องเรียงแถวเดียวแล้วตัดบรรทัดเอง
+   เมื่อจอแคบ ปุ่มรีเซ็ตอยู่ท้ายสุดและวางให้ตรงกับแถวของช่องกรอก ไม่ใช่ตรงกับป้ายชื่อ */
+.invoice-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: var(--input-bg);
+  border-radius: 10px;
+}
+
+.invoice-filters .field {
+  width: 180px;
+  margin: 0;
+}
+
+.invoice-filter-reset {
+  padding-bottom: 9px;
 }
 
 .invoice-status {
