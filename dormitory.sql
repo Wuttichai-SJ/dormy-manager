@@ -433,6 +433,10 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `mydb`.`room_bookings` (
   `booking_id` INT NOT NULL AUTO_INCREMENT,
   `room_id` INT NOT NULL,
+  -- เพิ่มใน 013: เลขที่ใบจอง B2026080001 = 'B' + YYYYMM + ลำดับ 4 หลัก
+  -- เดินเลขด้วย document_counters ชุดเดียวกับใบแจ้งหนี้/ใบเสร็จ (doc_type = 'booking')
+  -- NULL ได้ เพราะใบจองที่บันทึกไว้ก่อนหน้านี้ไม่มีเลข
+  `booking_number` VARCHAR(50) NULL,
   `rent_type` ENUM('monthly', 'daily') NOT NULL,
   `check_in_date` DATE NOT NULL,
   `check_out_date` DATE NULL,
@@ -447,6 +451,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`room_bookings` (
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`booking_id`),
+  UNIQUE INDEX `idx_room_bookings_number` (`booking_number` ASC) VISIBLE,
   INDEX `fk_room_bookings_rooms1_idx` (`room_id` ASC) VISIBLE,
   CONSTRAINT `fk_room_bookings_rooms1`
     FOREIGN KEY (`room_id`)
@@ -709,7 +714,7 @@ ENGINE = InnoDB;
 -- ต้องมีตัวนับแยก ไม่ใช่ MAX()+1 เพราะบิลลบได้ ลบใบท้ายแล้วเลขจะถูกใช้ซ้ำ
 CREATE TABLE IF NOT EXISTS `mydb`.`document_counters` (
   `apartment_id` INT NOT NULL,
-  `doc_type` ENUM('invoice', 'receipt') NOT NULL,
+  `doc_type` ENUM('invoice', 'receipt', 'booking') NOT NULL,
   `period` VARCHAR(6) NOT NULL,
   `last_seq` INT NOT NULL,
   `updated_at` TIMESTAMP NOT NULL,

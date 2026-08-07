@@ -62,6 +62,18 @@ group('สร้างการจอง')
 
 const booking = bookings.createBooking(db, { ...BASE, roomId: room1.roomId })
 
+check('ระบบออกเลขที่ใบจองให้เอง รูปแบบ B + YYYYMM + ลำดับ 4 หลัก', () => {
+  const period = new Date().toISOString().slice(0, 7).replace('-', '')
+  assert(booking.bookingNumber === `B${period}0001`, `ได้ ${booking.bookingNumber}`)
+})
+
+check('ใบจองใบถัดไปได้เลขถัดไป ไม่ซ้ำกัน', () => {
+  const second = bookings.createBooking(db, { ...BASE, roomId: room2.roomId })
+  const period = new Date().toISOString().slice(0, 7).replace('-', '')
+  assert(second.bookingNumber === `B${period}0002`, `ได้ ${second.bookingNumber}`)
+  bookings.deleteBooking(db, second.bookingId)
+})
+
 check('เก็บเงินเป็นสตางค์ เบอร์เป็นตัวเลขล้วน และเริ่มที่สถานะรอยืนยัน', () => {
   assert(booking.bookingFeeCents === 100000, `เงินจอง ${booking.bookingFeeCents}`)
   assert(booking.rentPriceCents === 500000, `ราคาห้อง ${booking.rentPriceCents}`)
@@ -134,6 +146,14 @@ const contract = bookings.convertBookingToContract(db, booking.bookingId, {
 // จุดสำคัญ: เงินจองที่รับไว้แล้วต้องไหลเข้าสัญญา ไม่ใช่หายไป
 check('เงินจองถูกยกไปเป็นเงินจองของสัญญา', () => {
   assert(contract.bookingFeeCents === 100000, `ได้ ${contract.bookingFeeCents}`)
+})
+
+// เลขที่ต้องเป็นใบเดียวกัน ไม่ใช่ออกเลขใหม่ — ผู้เช่าถือใบจองที่มีเลขนี้อยู่ในมือ
+check('สัญญาอ้างเลขที่ใบจองใบเดิม ไม่ออกเลขใหม่', () => {
+  assert(
+    contract.bookingReceiptNo === booking.bookingNumber,
+    `สัญญาได้ ${contract.bookingReceiptNo} แต่ใบจองคือ ${booking.bookingNumber}`
+  )
 })
 
 check('การจองเปลี่ยนสถานะเป็นทำสัญญาแล้ว และไม่กันห้องอีก', () => {

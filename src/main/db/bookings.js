@@ -10,6 +10,7 @@
 // เลขที่/วันที่จอง | ประเภท | ลูกค้า | วันที่เข้าพัก | ราคา | เงินจอง | สถานะ
 import { toCents } from '../money.js'
 import { createContract, RENT_TYPES } from './contracts.js'
+import { nextDocumentNumber } from './invoices.js'
 
 export const BOOKING_STATUSES = ['pending', 'confirmed', 'converted_to_contract', 'cancelled']
 
@@ -97,7 +98,15 @@ export function getBookingById(db, bookingId) {
 // ------------------------------------------------------------------
 export function createBooking(db, input) {
   const roomId = Number(input.roomId)
-  const room = db.prepare('SELECT room_id, room_number FROM rooms WHERE room_id = ?').get(roomId)
+  // ต้องรู้ว่าห้องนี้อยู่หอไหน เพราะเลขที่ใบจองเดินแยกกันรายหอ
+  const room = db
+    .prepare(
+      `SELECT r.room_id, r.room_number, f.apartment_id
+         FROM rooms r
+         JOIN floors f ON f.floor_id = r.floor_id
+        WHERE r.room_id = ?`
+    )
+    .get(roomId)
   if (!room) throw new Error('ไม่พบห้องพักที่ต้องการจอง')
 
   // ห้องหนึ่งมีคนจองค้างอยู่ได้รายเดียว — กันการรับเงินจองซ้อนสองคนสำหรับห้องเดียวกัน
@@ -113,35 +122,43 @@ export function createBooking(db, input) {
   }
 
   const now = new Date().toISOString()
-  const result = db
-    .prepare(
-      `INSERT INTO room_bookings (
-         room_id, rent_type, check_in_date, check_out_date, booking_date,
-         rent_price_cents, booking_fee_cents, payment_method,
-         customer_name, customer_phone, note, status, created_at
-       ) VALUES (
-         @roomId, @rentType, @checkInDate, @checkOutDate, @bookingDate,
-         @rentPriceCents, @bookingFeeCents, @paymentMethod,
-         @customerName, @customerPhone, @note, 'pending', @now
-       )`
-    )
-    .run({
-      roomId,
-      rentType: input.rentType,
-      checkInDate: input.checkInDate,
-      checkOutDate: input.checkOutDate || null,
-      // วันที่จอง = วันนี้เสมอ ไม่ให้กรอกย้อนหลัง เพราะเป็นหลักฐานว่ารับเงินจองเมื่อไหร่
-      bookingDate: now.slice(0, 10),
-      rentPriceCents: toCents(input.rentPrice, 'ราคาห้อง'),
-      bookingFeeCents: toCents(input.bookingFee, 'เงินจอง'),
-      paymentMethod: input.paymentMethod,
-      customerName: String(input.customerName).trim(),
-      customerPhone: String(input.customerPhone).replace(/\D/g, ''),
-      note: String(input.note ?? '').trim() || null,
-      now
-    })
+  // วันที่จอง = วันนี้เสมอ ไม่ให้กรอกย้อนหลัง เพราะเป็นหลักฐานว่ารับเงินจองเมื่อไหร่
+  const bookingDate = now.slice(0, 10)
 
-  return getBookingById(db, result.lastInsertRowid)
+  // ออกเลขที่กับเขียนแถวต้องอยู่ในธุรกรรมเดียวกัน ไม่งั้นตัวนับเดินไปแล้วแต่ใบจองไม่เกิด
+  const run = db.transaction(() => {
+    const bookingNumber = nextDocumentNumber(db, room.apartment_id, 'booking', bookingDate)
+    const result = db
+      .prepare(
+        `INSERT INTO room_bookings (
+           room_id, booking_number, rent_type, check_in_date, check_out_date, booking_date,
+           rent_price_cents, booking_fee_cents, payment_method,
+           customer_name, customer_phone, note, status, created_at
+         ) VALUES (
+           @roomId, @bookingNumber, @rentType, @checkInDate, @checkOutDate, @bookingDate,
+           @rentPriceCents, @bookingFeeCents, @paymentMethod,
+           @customerName, @customerPhone, @note, 'pending', @now
+         )`
+      )
+      .run({
+        roomId,
+        bookingNumber,
+        rentType: input.rentType,
+        checkInDate: input.checkInDate,
+        checkOutDate: input.checkOutDate || null,
+        bookingDate,
+        rentPriceCents: toCents(input.rentPrice, 'ราคาห้อง'),
+        bookingFeeCents: toCents(input.bookingFee, 'เงินจอง'),
+        paymentMethod: input.paymentMethod,
+        customerName: String(input.customerName).trim(),
+        customerPhone: String(input.customerPhone).replace(/\D/g, ''),
+        note: String(input.note ?? '').trim() || null,
+        now
+      })
+    return result.lastInsertRowid
+  })
+
+  return getBookingById(db, run())
 }
 
 // ยืนยัน / ยกเลิกการจอง — สถานะ converted_to_contract ตั้งได้ทางเดียวคือผ่านการแปลงเป็นสัญญา
@@ -189,7 +206,10 @@ export function convertBookingToContract(db, bookingId, contractInput) {
       roomId: booking.roomId,
       rentType: booking.rentType,
       // เงินจองยกมาจากใบจองเสมอ ไม่ให้หน้าจอส่งค่าอื่นมาทับ — ตัวเลขนี้คือเงินที่รับไปแล้วจริง
-      bookingFee: String(booking.bookingFeeCents / 100)
+      bookingFee: String(booking.bookingFeeCents / 100),
+      // เลขที่ใบจองยกมาจากใบเดิม ไม่ออกเลขใหม่ — ผู้เช่าถือใบจองที่มีเลขนี้อยู่ในมือแล้ว
+      // สัญญากับใบจองต้องอ้างเลขเดียวกันถึงจะตามเรื่องย้อนหลังได้
+      bookingReceiptNo: booking.bookingNumber
     })
 
     db.prepare(
@@ -220,6 +240,8 @@ export function toPublicBooking(row) {
   if (!row) return null
   return {
     bookingId: row.booking_id,
+    // ใบจองที่บันทึกไว้ก่อนมี migration 013 จะเป็น null — หน้าจอต้องรับกรณีนี้ได้
+    bookingNumber: row.booking_number,
     roomId: row.room_id,
     rentType: row.rent_type,
     checkInDate: row.check_in_date,

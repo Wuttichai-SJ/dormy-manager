@@ -38,7 +38,8 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
     deposit: '',
     depositPaymentMethod: 'cash',
     bookingFee: booking ? centsToInput(booking.bookingFeeCents) : '',
-    bookingReceiptNo: '',
+    // มาจากใบจองก็เอาเลขของใบนั้นมาแสดง (ฝั่ง main ยกมาให้อยู่แล้ว ตรงนี้แค่ให้เห็นก่อนบันทึก)
+    bookingReceiptNo: booking?.bookingNumber ?? '',
     note: booking?.note ?? '',
     waterMeterStart: '',
     electricMeterStart: ''
@@ -210,7 +211,16 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                   id="bookingReceiptNo"
                   value={form.bookingReceiptNo}
                   onChange={(e) => set('bookingReceiptNo', e.target.value)}
+                  placeholder={booking ? '' : 'ระบบออกเลขให้อัตโนมัติ'}
+                  readOnly={Boolean(booking)}
                 />
+                {/* มาจากใบจองก็ล็อกไว้ ไม่ให้แก้ — ผู้เช่าถือใบที่มีเลขนี้อยู่แล้ว
+                    ส่วนกรณีทำสัญญาตรงยังพิมพ์เองได้ เผื่อหอใช้เล่มใบเสร็จของตัวเอง */}
+                <p className="field-hint">
+                  {booking
+                    ? 'ยกมาจากใบจองของผู้เช่ารายนี้'
+                    : 'เว้นว่างไว้ได้ ระบบจะออกเลขให้เองเมื่อมีการวางเงินจอง'}
+                </p>
               </div>
             </div>
 

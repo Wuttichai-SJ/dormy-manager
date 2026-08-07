@@ -97,7 +97,7 @@ export default function BookingsCard({ room, onConvert }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>วันที่จอง</th>
+              <th>เลขที่ / วันที่จอง</th>
               <th>ลูกค้า</th>
               <th>วันที่เข้าพัก</th>
               <th className="align-right">เงินจอง</th>
@@ -108,7 +108,11 @@ export default function BookingsCard({ room, onConvert }) {
           <tbody>
             {bookings.map((b) => (
               <tr key={b.bookingId}>
-                <td>{b.bookingDate}</td>
+                <td>
+                  {/* ใบที่จองไว้ก่อนระบบจะออกเลขให้ไม่มีเลข — ขึ้นขีดแทน ไม่ใช่ช่องว่างเปล่า */}
+                  <div>{b.bookingNumber ?? '—'}</div>
+                  <div className="muted room-cell-sub">{b.bookingDate}</div>
+                </td>
                 <td>
                   <div>{b.customerName}</div>
                   <div className="muted room-cell-sub">{formatPhone(b.customerPhone)}</div>

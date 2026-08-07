@@ -5,6 +5,8 @@
 // แต่ทั้งสามขั้นเขียนลงฐานข้อมูล "ครั้งเดียว" ตอนจบ ไม่ได้ทยอยบันทึกทีละขั้น
 // เพราะสัญญาที่มีแต่ข้อ 1 โดยไม่มีเลขมิเตอร์เริ่มต้น ออกบิลเดือนแรกไม่ได้เลย
 import { toCents } from '../money.js'
+// invoices.js ไม่ได้นำเข้าอะไรจากไฟล์นี้ ทิศทางจึงไม่เป็นวงกลม
+import { nextDocumentNumber } from './invoices.js'
 
 // SQLite ไม่มี ENUM — เก็บเป็น TEXT แล้วตรวจที่ JS ก่อนเขียนทุกครั้ง
 export const RENT_TYPES = ['monthly', 'daily']
@@ -261,7 +263,21 @@ export function createContract(db, input) {
     )
     .get(room.apartment_id)
 
+  const bookingFeeCents = toCents(input.bookingFee ?? 0, 'เงินจอง')
+
   const run = db.transaction(() => {
+    // เลขที่ใบจอง: ยกมาจากใบจองเดิมถ้ามี (ดู convertBookingToContract) ถ้าไม่มีแต่มีการวาง
+    // เงินจองไว้จริง ให้ระบบออกเลขให้เอง — ผู้เช่าที่เดินเข้ามาวางมัดจำแล้วทำสัญญาเลย
+    // ก็ต้องมีเลขอ้างอิงบนใบเสร็จเหมือนกัน
+    //
+    // ยังพิมพ์ทับเองได้ สำหรับหอที่ใช้เล่มใบเสร็จของตัวเองอยู่แล้ว
+    const givenReceiptNo = String(input.bookingReceiptNo ?? '').trim()
+    const bookingReceiptNo =
+      givenReceiptNo ||
+      (bookingFeeCents > 0
+        ? nextDocumentNumber(db, room.apartment_id, 'booking', input.startDate)
+        : null)
+
     const contractId = db
       .prepare(
         `INSERT INTO contracts (
@@ -284,8 +300,8 @@ export function createContract(db, input) {
         rentAmountCents,
         depositCents: toCents(input.deposit, 'เงินประกัน'),
         depositPaymentMethod: input.depositPaymentMethod,
-        bookingFeeCents: toCents(input.bookingFee ?? 0, 'เงินจอง'),
-        bookingReceiptNo: String(input.bookingReceiptNo ?? '').trim() || null,
+        bookingFeeCents,
+        bookingReceiptNo,
         // ค่าเช่าล่วงหน้าคิดให้เอง ไม่ให้กรอกมือ — คิดมือแล้วผิดคือเก็บเงินผิดตั้งแต่วันแรก
         advanceCents:
           input.rentType === 'monthly'

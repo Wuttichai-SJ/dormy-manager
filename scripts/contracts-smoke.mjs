@@ -29,9 +29,9 @@ const apartment = apartments.insertApartment(db, {
 const apartmentId = apartment.apartmentId
 
 const internet = services.insertService(db, apartmentId, { name: 'ค่าอินเทอร์เน็ต', price: '300' })
-rooms.generateFloorPlan(db, apartmentId, [{ roomCount: 2 }])
+rooms.generateFloorPlan(db, apartmentId, [{ roomCount: 4 }])
 const floor = rooms.listFloors(db, apartmentId)[0]
-const [room1, room2] = floor.rooms
+const [room1, room2, room3, room4] = floor.rooms
 rooms.attachServicesToRooms(db, [room1.roomId], [internet.serviceId])
 
 const somchai = tenants.insertTenant(db, {
@@ -134,6 +134,33 @@ check('เก็บเงินเป็นสตางค์ และคิด
   assert(created.advancePaymentAmountCents === 225806, `ล่วงหน้า ${created.advancePaymentAmountCents}`)
 })
 
+// เลขที่ใบจองออกให้เฉพาะตอนมีเงินจองจริง ไม่ใช่ออกให้ทุกสัญญา
+check('ไม่มีเงินจอง ก็ไม่ต้องมีเลขที่ใบจอง', () => {
+  assert(created.bookingReceiptNo === null, `ได้ ${created.bookingReceiptNo}`)
+})
+
+check('มีเงินจองแต่ไม่ได้กรอกเลขที่ ระบบออกเลขให้เอง', () => {
+  const walkIn = contracts.createContract(db, {
+    ...BASE,
+    roomId: room3.roomId,
+    bookingFee: '1000',
+    tenants: [somchai.tenantId]
+  })
+  const period = BASE.startDate.slice(0, 7).replace('-', '')
+  assert(walkIn.bookingReceiptNo === `B${period}0001`, `ได้ ${walkIn.bookingReceiptNo}`)
+})
+
+check('กรอกเลขที่มาเอง ระบบต้องไม่ทับ (หอที่ใช้เล่มใบเสร็จของตัวเอง)', () => {
+  const own = contracts.createContract(db, {
+    ...BASE,
+    roomId: room4.roomId,
+    bookingFee: '1000',
+    bookingReceiptNo: 'เล่ม 5 เลขที่ 042',
+    tenants: [somying.tenantId]
+  })
+  assert(own.bookingReceiptNo === 'เล่ม 5 เลขที่ 042', `ได้ ${own.bookingReceiptNo}`)
+})
+
 check('ผู้เช่าหลายคนต่อสัญญา คนแรกเป็นผู้เช่าหลัก', () => {
   assert(created.tenants.length === 2, `ได้ ${created.tenants.length} คน`)
   assert(created.primaryTenant.tenantId === somchai.tenantId, 'คนแรกต้องเป็นผู้เช่าหลัก')
@@ -193,7 +220,8 @@ check('ผู้เช่าที่มีสัญญาแล้ว ลบไ
 
 check('จำนวนสัญญาที่ยังใช้งานอยู่ของผู้เช่าถูกนับถูก', () => {
   const t = tenants.getTenantById(db, somying.tenantId)
-  assert(t.activeContracts === 2, `สมหญิงอยู่ 2 สัญญา ได้ ${t.activeContracts}`)
+  // ห้อง 101 (ผู้เช่าร่วม) + 102 + 104 (เทสต์เลขที่ใบจองแบบกรอกเอง)
+  assert(t.activeContracts === 3, `สมหญิงอยู่ 3 สัญญา ได้ ${t.activeContracts}`)
 })
 
 // -----------------------------------------------------

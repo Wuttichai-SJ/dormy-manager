@@ -39,14 +39,15 @@ export const VAT_RATE = 7
 // เลขที่เอกสาร
 // ------------------------------------------------------------------
 // I2025030018 = 'I' + YYYYMM + ลำดับ 4 หลัก (ต้นแบบเดินเลขแบบนี้)
+// ใบเสร็จเป็น 'R' ใบจองเป็น 'B' แต่ละชนิดเดินเลขของตัวเองแยกกัน
 //
 // ต้องเรียกอยู่ในธุรกรรมเดียวกับการสร้างเอกสารเสมอ ไม่งั้นถ้าสร้างเอกสารล้มทีหลัง
 // ตัวนับจะเดินไปแล้วโดยไม่มีเอกสารจริง (เลขหาย — ยอมรับได้) แต่ที่ยอมไม่ได้คือเลขซ้ำ
+const DOC_PREFIXES = { invoice: 'I', receipt: 'R', booking: 'B' }
+
 export function nextDocumentNumber(db, apartmentId, docType, dateIso) {
-  const prefix = docType === 'invoice' ? 'I' : 'R'
-  if (docType !== 'invoice' && docType !== 'receipt') {
-    throw new Error(`ชนิดเอกสารไม่ถูกต้อง: ${docType}`)
-  }
+  const prefix = DOC_PREFIXES[docType]
+  if (!prefix) throw new Error(`ชนิดเอกสารไม่ถูกต้อง: ${docType}`)
 
   const period = String(dateIso).slice(0, 7).replace('-', '') // 'YYYY-MM-DD' -> 'YYYYMM'
   if (!/^\d{6}$/.test(period)) throw new Error('วันที่เอกสารไม่ถูกต้อง')
