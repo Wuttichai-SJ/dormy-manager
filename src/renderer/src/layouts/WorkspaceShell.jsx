@@ -15,15 +15,18 @@ import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 // "ตั้งค่า" กางออกในเมนูข้างเลย ไม่ใช่กดแล้วเข้าไปเจอเมนูซ้อนอีกชั้นในหน้า (ตามต้นแบบ)
 // เหตุผล: หัวข้อตั้งค่ามีสิบกว่าอัน ถ้าซ่อนไว้หลังการกดหนึ่งครั้ง คนจะไม่รู้ว่ามีอะไรบ้าง
 // และการสลับไปมาระหว่างหัวข้อต้องเสียการกดเพิ่มทุกครั้ง
+// **ไม่มีเมนู "สัญญา" กับ "การจอง" โดยตั้งใจ** — ทั้งสองเรื่องอยู่ในหน้ารายละเอียดห้อง
+// เหมือนต้นแบบ (สัญญาผูกกับห้อง ไม่ได้ลอยอยู่เดี่ยวๆ) เคยใส่ไว้แล้วกดเข้าไปเจอหน้าเปล่า
+// ซึ่งทำให้เข้าใจผิดว่ายังทำสัญญาไม่ได้ ทั้งที่ตัวช่วยทำสัญญาเสร็จตั้งแต่ Phase 2 แล้ว
+//
+// เมนูที่ยังไม่มีเนื้อหาจริงต้องบอกให้ชัดว่าจะมีอะไร ไม่ใช่ขึ้นว่า "โครงเปล่า" เฉยๆ
 const NAV = [
-  { key: 'dashboard', label: 'ภาพรวม' },
+  { key: 'dashboard', label: 'ภาพรวม', soon: 'สรุปห้องว่าง รายรับ และยอดค้างชำระของทั้งหอ' },
   { key: 'rooms', label: 'ห้องพัก' },
-  { key: 'contracts', label: 'สัญญา' },
-  { key: 'bookings', label: 'การจอง' },
   { key: 'meters', label: 'จดมิเตอร์' },
   { key: 'invoices', label: 'ใบแจ้งหนี้' },
-  { key: 'payments', label: 'การชำระเงิน' },
-  { key: 'maintenance', label: 'แจ้งซ่อม' }
+  { key: 'payments', label: 'การชำระเงิน', soon: 'รายงานใบเสร็จรับเงินย้อนหลัง' },
+  { key: 'maintenance', label: 'แจ้งซ่อม', soon: 'รับแจ้งซ่อมจากผู้เช่าและบันทึกการเข้าซ่อม' }
 ]
 
 const SETTINGS_ITEMS = SETTINGS_GROUPS.flatMap((g) => g.items)
@@ -148,7 +151,10 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
             />
           ) : (
             <section className="panel">
-              <p className="muted">หน้านี้ยังเป็นโครงเปล่า — เนื้อหาจะถูกเติมตามแผนแต่ละเฟส</p>
+              <div className="empty-state">
+                <p>{NAV.find((n) => n.key === active)?.soon ?? 'ยังไม่ได้สร้างหน้านี้'}</p>
+                <p className="muted">ส่วนนี้ยังไม่ได้สร้าง</p>
+              </div>
             </section>
           )}
         </div>
