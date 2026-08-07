@@ -27,6 +27,15 @@ export function clearSession() {
   session = null
 }
 
+// ผู้ใช้ที่กำลังล็อกอินอยู่ — ใบเสร็จทุกใบต้องรู้ว่าใครเป็นคนรับเงิน
+//
+// อ่านจากเซสชันฝั่ง main เท่านั้น ห้ามให้หน้าจอส่ง userId มาเอง ไม่งั้นใครก็ออกใบเสร็จ
+// ในนามคนอื่นได้จาก DevTools แล้วรายงาน "ผู้รับเงิน" จะเชื่อถือไม่ได้ทั้งระบบ
+export function requireSessionUserId() {
+  if (!session) throw new Error('ยังไม่ได้เข้าสู่ระบบ')
+  return session.userId
+}
+
 function handle(channel, fn) {
   ipcMain.handle(channel, async (_event, payload) => {
     try {
