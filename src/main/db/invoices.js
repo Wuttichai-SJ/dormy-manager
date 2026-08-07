@@ -8,7 +8,7 @@
 //
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
-import { calculateUtilityCharge, toUtilitySides } from './utilityDefaults.js'
+import { calculateUtilityCharge, isSideUnpriced, toUtilitySides } from './utilityDefaults.js'
 
 export const INVOICE_STATUSES = ['unpaid', 'partial_paid', 'paid', 'cancelled']
 
@@ -181,7 +181,10 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
         quantity: units,
         unitPriceCents: config.unitPriceCents,
         totalAmountCents: charge,
-        isTaxable: false
+        isTaxable: false,
+        // ใช้จริงแต่คิดเงินไม่ได้เพราะห้องนี้ไม่เคยถูกตั้งราคา — ต้องเตือนก่อนออกบิล
+        // ไม่ใช่ปล่อยให้บิล 0 บาทหลุดไปถึงมือผู้เช่า
+        unpriced: isSideUnpriced(config) && units > 0
       })
     }
   }
@@ -397,6 +400,8 @@ export function previewMonthlyBilling(db, { apartmentId, meterBatchId, billingMo
       electricUnits: electric ? electric.quantity : 0,
       electricChargeCents: electric ? electric.totalAmountCents : 0,
       totalAmountCents: totals.totalAmountCents,
+      // ห้องที่มีหน่วยใช้จริงแต่คิดเงินไม่ได้ — หน้าจอต้องเตือนก่อนกดออกบิล
+      unpricedSides: items.filter((i) => i.unpriced).map((i) => i.itemType),
       // ห้องที่ออกบิลไปแล้วยังต้องแสดงในตาราง (ต้นแบบขึ้น "สร้างสำเร็จ") แต่กดสร้างซ้ำไม่ได้
       existingInvoiceId: existing ? existing.invoice_id : null,
       existingInvoiceNumber: existing ? existing.invoice_number : null

@@ -3,6 +3,7 @@ import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import {
+  applyDefaultsToRooms,
   getUtilityDefaults,
   saveUtilityDefaults,
   validateUtilityInput
@@ -29,5 +30,12 @@ export function registerUtilityHandlers() {
     const saved = saveUtilityDefaults(getDatabase(), apartmentId, { water, electric })
     logInfo(`บันทึกวิธีคิดค่าน้ำ/ค่าไฟ (apartment_id ${apartmentId})`)
     return saved
+  })
+
+  // ทับราคาของห้องทั้งหมดด้วยราคาปัจจุบันของหอ — ผู้ใช้ต้องกดสั่งเอง
+  handle('utility:applyToRooms', ({ apartmentId }) => {
+    const result = applyDefaultsToRooms(getDatabase(), apartmentId)
+    logInfo(`นำค่าน้ำ/ค่าไฟของหอ ${apartmentId} ไปใช้กับ ${result.updatedRooms} ห้อง`)
+    return result
   })
 }

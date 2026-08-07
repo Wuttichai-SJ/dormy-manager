@@ -256,6 +256,7 @@ function BillingWizard({ apartment, onClose }) {
   }
 
   const pending = preview.filter((row) => !row.existingInvoiceId)
+  const unpriced = preview.filter((row) => row.unpricedSides?.length > 0 && !row.existingInvoiceId)
 
   return (
     <>
@@ -357,6 +358,21 @@ function BillingWizard({ apartment, onClose }) {
                 {busy ? 'กำลังออกบิล...' : `สร้างใบแจ้งหนี้ทุกห้อง (${pending.length})`}
               </button>
             </div>
+
+            {/* ห้องที่ใช้น้ำ/ไฟจริงแต่ไม่มีราคาให้คิด — ถ้าไม่บอกตรงนี้ บิล 0 บาทจะหลุดไปถึง
+                มือผู้เช่าโดยไม่มีใครสังเกต (เกิดกับห้องที่ถูกสร้างก่อนหอจะตั้งราคาค่าน้ำ/ค่าไฟ) */}
+            {unpriced.length > 0 && (
+              <Alert kind="warn">
+                <strong>
+                  ห้อง {unpriced.map((r) => r.roomNumber).join(', ')} ใช้น้ำ/ไฟจริงแต่คิดเงินไม่ได้
+                </strong>
+                <p>
+                  ห้องเหล่านี้ยังไม่มีราคาค่าน้ำ/ค่าไฟของตัวเอง (ถูกสร้างไว้ก่อนตั้งราคา)
+                  ออกบิลตอนนี้จะได้ 0 บาท — ไปที่ ตั้งค่า › ค่าน้ำ-ค่าไฟ แล้วกด
+                  “นำไปใช้กับทุกห้อง” ก่อน แล้วกลับมาออกบิลใหม่
+                </p>
+              </Alert>
+            )}
 
             {preview.length === 0 ? (
               <div className="empty-state">

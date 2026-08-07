@@ -216,6 +216,80 @@ export function saveUtilityDefaults(db, apartmentId, input) {
 }
 
 // -----------------------------------------------------
+// นำค่าของหอไปลงห้องที่สร้างไว้แล้ว
+// -----------------------------------------------------
+// ปกติค่าน้ำ/ค่าไฟถูกคัดลอกลงห้อง "ตอนสร้างห้อง" ครั้งเดียว และการแก้ค่าของหอทีหลัง
+// จงใจไม่ย้อนไปทับ (ห้องที่ตั้งราคาพิเศษไว้จะได้ไม่ถูกล้างโดยไม่มีใครรู้ตัว)
+//
+// แต่กฎนั้นพังในกรณีที่ห้องถูกสร้าง *ก่อน* หอจะมีการตั้งค่าน้ำ/ไฟเลย — ห้องจะได้
+// "เปิดเก็บค่าน้ำ ราคาหน่วยละ 0 บาท" ติดตัวไป แล้วออกบิลมาเป็น 0 อย่างเงียบๆ
+// (เจอจริงกับหอนาโร: สร้างห้อง 30 ก.ค. แต่ยังไม่เคยตั้งค่าน้ำ-ไฟ)
+//
+// จึงต้องมีทางให้เจ้าของหอสั่งเองว่า "เอาราคาปัจจุบันของหอไปลงห้องทั้งหมด"
+// เป็นการกดสั่งชัดๆ ไม่ใช่ทำให้อัตโนมัติ เพราะมันทับราคาพิเศษรายห้องจริงๆ
+export function applyDefaultsToRooms(db, apartmentId) {
+  const defaults = getUtilityDefaults(db, apartmentId)
+  if (!defaults.isConfigured) {
+    throw new Error('หอพักนี้ยังไม่ได้ตั้งค่าการคิดค่าน้ำ-ค่าไฟ กรุณาบันทึกค่าก่อน')
+  }
+
+  const now = new Date().toISOString()
+  const run = db.transaction(() =>
+    db
+      .prepare(
+        `UPDATE room_utility_settings SET
+           is_water_enabled = @waterEnabled,
+           water_billing_type = @waterType,
+           water_unit_price_cents = @waterUnitPrice,
+           water_min_charge_cents = @waterMinCharge,
+           water_flat_rate_cents = @waterFlatRate,
+           show_water_reading_in_invoice = @waterShowReading,
+           is_electric_enabled = @electricEnabled,
+           electric_billing_type = @electricType,
+           electric_unit_price_cents = @electricUnitPrice,
+           electric_min_charge_cents = @electricMinCharge,
+           electric_flat_rate_cents = @electricFlatRate,
+           show_electric_reading_in_invoice = @electricShowReading,
+           updated_at = @now
+         WHERE room_id IN (
+           SELECT r.room_id FROM rooms r
+             JOIN floors f ON f.floor_id = r.floor_id
+            WHERE f.apartment_id = @apartmentId
+         )`
+      )
+      .run({
+        apartmentId,
+        waterEnabled: defaults.water.enabled ? 1 : 0,
+        waterType: defaults.water.billingType,
+        waterUnitPrice: defaults.water.unitPriceCents,
+        waterMinCharge: defaults.water.minChargeCents,
+        waterFlatRate: defaults.water.flatRateCents,
+        waterShowReading: defaults.water.showReadingInInvoice ? 1 : 0,
+        electricEnabled: defaults.electric.enabled ? 1 : 0,
+        electricType: defaults.electric.billingType,
+        electricUnitPrice: defaults.electric.unitPriceCents,
+        electricMinCharge: defaults.electric.minChargeCents,
+        electricFlatRate: defaults.electric.flatRateCents,
+        electricShowReading: defaults.electric.showReadingInInvoice ? 1 : 0,
+        now
+      }).changes
+  )
+
+  return { updatedRooms: run() }
+}
+
+// ห้องที่ "เปิดเก็บเงินไว้แต่ทุกราคาเป็น 0" = ยังไม่เคยถูกตั้งค่าจริง ไม่ใช่ตั้งใจให้ฟรี
+// (ถ้าตั้งใจให้ฟรีจริง ให้ปิดสวิตช์ฝั่งนั้นแทน แล้วบรรทัดจะไม่ขึ้นบนบิลเลย)
+export function isSideUnpriced(side) {
+  return (
+    side.enabled &&
+    side.unitPriceCents === 0 &&
+    side.minChargeCents === 0 &&
+    side.flatRateCents === 0
+  )
+}
+
+// -----------------------------------------------------
 // การคิดเงินจริง — ใช้ได้ทั้งค่าตั้งต้นของหอและค่ารายห้อง เพราะรูปร่างเหมือนกัน
 // -----------------------------------------------------
 // แยกออกมาเป็นฟังก์ชันบริสุทธิ์ตัวเดียวโดยตั้งใจ เพื่อให้ตอนออกบิลจริง (Phase 3)

@@ -5,7 +5,11 @@ import Modal from '../components/Modal.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { centsToInput } from '../format.js'
 import { BILLING_TYPE_LABELS, BILLING_TYPES } from '../constants.js'
-import { getUtilityDefaults, saveUtilityDefaults } from '../services/utilityService.js'
+import {
+  applyUtilityDefaultsToRooms,
+  getUtilityDefaults,
+  saveUtilityDefaults
+} from '../services/utilityService.js'
 
 // ขั้นที่ 2 ของการตั้งค่าหอ — วิธีคิดค่าน้ำและค่าไฟ
 //
@@ -81,6 +85,8 @@ export default function UtilitySettingsPage({ apartment }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(null) // 'water' | 'electric' | null
+  // จำนวนห้องที่เพิ่งถูกทับราคา — null = ยังไม่ได้กดในรอบนี้
+  const [applied, setApplied] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -111,6 +117,16 @@ export default function UtilitySettingsPage({ apartment }) {
     }
     setSides({ water: toFormSide(res.data.water), electric: toFormSide(res.data.electric) })
     return true
+  }
+
+  async function applyToRooms() {
+    setError('')
+    setApplied(null)
+    setBusy(true)
+    const res = await applyUtilityDefaultsToRooms(apartment.apartmentId)
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    setApplied(res.data.updatedRooms)
   }
 
   if (loading) return <p className="muted">กำลังโหลด...</p>
@@ -172,6 +188,28 @@ export default function UtilitySettingsPage({ apartment }) {
         ค่าเหล่านี้เป็นค่าเริ่มต้นของหอพัก ห้องที่สร้างใหม่จะได้ค่านี้ไปใช้
         ส่วนห้องที่มีอยู่แล้วจะไม่ถูกเปลี่ยนตาม — แก้รายห้องได้ที่หน้าห้องพัก
       </p>
+
+      {/* ทางออกสำหรับห้องที่ถูกสร้างก่อนหอจะมีราคา — ห้องพวกนั้นถือ "ราคา 0" ติดตัวอยู่
+          แล้วออกบิลมาเป็น 0 บาทอย่างเงียบๆ ต้องมีวิธีดันราคาลงไปให้ครบทุกห้อง
+          ให้กดสั่งเอง ไม่ทำอัตโนมัติ เพราะมันทับราคาพิเศษที่ตั้งไว้รายห้องด้วย */}
+      <section className="panel utility-apply">
+        <h3 className="panel-title">นำราคานี้ไปใช้กับห้องที่มีอยู่</h3>
+        <p className="field-hint">
+          ห้องเก็บราคาของตัวเองไว้ตั้งแต่ตอนถูกสร้าง การแก้ราคาที่หน้านี้จึงไม่ย้อนไปเปลี่ยนห้องเดิม
+          — ถ้าห้องถูกสร้างไว้ก่อนจะตั้งราคา ห้องจะยังคิดเป็น 0 บาทอยู่ กดปุ่มนี้เพื่อทับราคาของ
+          <strong> ทุกห้อง</strong> ด้วยราคาปัจจุบัน (ราคาพิเศษที่ตั้งไว้รายห้องจะถูกทับไปด้วย)
+        </p>
+
+        {applied !== null && (
+          <Alert kind="success">นำราคาไปใช้กับห้องแล้ว {applied} ห้อง</Alert>
+        )}
+
+        <div className="card-foot">
+          <button type="button" className="btn btn-outline" disabled={busy} onClick={applyToRooms}>
+            นำไปใช้กับทุกห้อง
+          </button>
+        </div>
+      </section>
 
       {editing && (
         <UtilityDialog

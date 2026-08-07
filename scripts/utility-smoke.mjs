@@ -12,6 +12,7 @@ import {
 ensureElectronRuntime(import.meta.url)
 
 const apartments = await import('../src/main/db/apartments.js')
+const rooms = await import('../src/main/db/rooms.js')
 const util = await import('../src/main/db/utilityDefaults.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-utility')
@@ -233,6 +234,84 @@ check('ปิดการคิด = 0 เสมอ', () => {
 check('หน่วยติดลบถูกปฏิเสธ ไม่ใช่คิดเงินคืน', () => {
   // มิเตอร์เดินถอยหลังแปลว่าจดผิดหรือเปลี่ยนมิเตอร์ ต้องให้คนดู ไม่ใช่ออกบิลติดลบ
   throws(() => util.calculateUtilityCharge(actual, -5), 'ติดลบ', 'ควรปฏิเสธหน่วยติดลบ')
+})
+
+// -----------------------------------------------------
+// -----------------------------------------------------
+// ห้องที่ถูกสร้างก่อนหอจะตั้งราคา จะติด "ราคา 0" ไว้แล้วออกบิลเป็น 0 เงียบๆ
+// (เจอจริงกับหอนาโรในฐานข้อมูลของผู้ใช้ 2026-08-07)
+group('นำราคาของหอไปใช้กับห้องที่มีอยู่')
+
+check('ห้องที่สร้างก่อนตั้งราคา ได้ราคา 0 ติดตัวมา', () => {
+  const fresh = apartments.insertApartment(db, {
+    nameTh: 'หอสร้างห้องก่อนตั้งราคา',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0'
+  })
+  rooms.generateFloorPlan(db, fresh.apartmentId, [{ roomCount: 2 }])
+  const room = rooms.listFloors(db, fresh.apartmentId)[0].rooms[0]
+  const settings = db
+    .prepare('SELECT * FROM room_utility_settings WHERE room_id = ?')
+    .get(room.roomId)
+  assert(settings.water_unit_price_cents === 0, `ได้ ${settings.water_unit_price_cents}`)
+  assert(settings.is_water_enabled === 1, 'เปิดเก็บเงินไว้ แต่ราคาเป็น 0 — นี่คือกับดัก')
+
+  // ตั้งราคาทีหลัง แล้วสั่งให้ไปใช้กับห้องที่มีอยู่
+  util.saveUtilityDefaults(db, fresh.apartmentId, {
+    water: { enabled: true, billingType: 'actual', unitPrice: '25' },
+    electric: { enabled: true, billingType: 'actual', unitPrice: '9' }
+  })
+  const result = util.applyDefaultsToRooms(db, fresh.apartmentId)
+  assert(result.updatedRooms === 2, `ทับไป ${result.updatedRooms} ห้อง`)
+
+  const after = db.prepare('SELECT * FROM room_utility_settings WHERE room_id = ?').get(room.roomId)
+  assert(after.water_unit_price_cents === 2500, `ได้ ${after.water_unit_price_cents}`)
+  assert(after.electric_unit_price_cents === 900, `ได้ ${after.electric_unit_price_cents}`)
+})
+
+check('หอที่ยังไม่เคยตั้งราคา สั่งนำไปใช้ไม่ได้ และต้องบอกให้ไปตั้งก่อน', () => {
+  const bare = apartments.insertApartment(db, {
+    nameTh: 'หอยังไม่ตั้งราคา',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0'
+  })
+  throws(
+    () => util.applyDefaultsToRooms(db, bare.apartmentId),
+    'ยังไม่ได้ตั้งค่า',
+    'ต้องบอกให้ไปตั้งราคาก่อน'
+  )
+})
+
+check('เปิดเก็บเงินแต่ทุกราคาเป็น 0 = ยังไม่เคยตั้งราคา ไม่ใช่ตั้งใจให้ฟรี', () => {
+  assert(
+    util.isSideUnpriced({
+      enabled: true,
+      unitPriceCents: 0,
+      minChargeCents: 0,
+      flatRateCents: 0
+    }),
+    'ควรถือว่ายังไม่ได้ตั้งราคา'
+  )
+  assert(
+    !util.isSideUnpriced({
+      enabled: false,
+      unitPriceCents: 0,
+      minChargeCents: 0,
+      flatRateCents: 0
+    }),
+    'ปิดสวิตช์ = ตั้งใจไม่เก็บ ไม่ใช่ลืมตั้งราคา'
+  )
+  assert(
+    !util.isSideUnpriced({
+      enabled: true,
+      unitPriceCents: 0,
+      minChargeCents: 0,
+      flatRateCents: 50000
+    }),
+    'เหมาจ่ายมีราคาแล้ว'
+  )
 })
 
 // -----------------------------------------------------
