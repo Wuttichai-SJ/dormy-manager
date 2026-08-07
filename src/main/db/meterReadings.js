@@ -180,6 +180,9 @@ export function getBatchSheet(db, batchId, side) {
                  JOIN meter_batches pb ON pb.batch_id = pr.meter_batch_id
                 WHERE pr.room_id = r.room_id
                   AND pb.apartment_id = @apartmentId
+                  -- ข้ามรอบที่จดแต่อีกฝั่ง — แถวมีอยู่ก็จริงแต่ฝั่งนี้ยังเป็น NULL
+                  -- ต้องไล่ย้อนไปหารอบที่จดฝั่งนี้ไว้จริง ไม่ใช่หยุดแค่รอบล่าสุด
+                  AND pr.${cols.current} IS NOT NULL
                   AND (pb.reading_date < @readingDate
                        OR (pb.reading_date = @readingDate AND pb.batch_id < @batchId))
                 ORDER BY pb.reading_date DESC, pb.batch_id DESC
@@ -263,19 +266,19 @@ export function saveBatchReadings(db, batchId, side, rows) {
   if (errors.length > 0) throw new Error(errors.join('\n'))
 
   const now = new Date().toISOString()
-  // แถวหนึ่งเก็บทั้งน้ำและไฟ แต่หน้าจอบันทึกทีละฝั่ง จึงต้อง INSERT แถวเปล่าฝั่งตรงข้าม
-  // เป็น 0 ไว้ก่อน (คอลัมน์เป็น NOT NULL) แล้วรอบบันทึกของอีกฝั่งค่อยมาทับเฉพาะคอลัมน์ตัวเอง
-  const other = columnsFor(side === 'water' ? 'electric' : 'water')
+  // แถวหนึ่งเก็บทั้งน้ำและไฟ แต่หน้าจอบันทึกทีละฝั่ง คอลัมน์ของอีกฝั่งจึงถูกปล่อยเป็น NULL
+  //
+  // **ห้ามเขียนเป็น 0** — เคยทำแบบนั้นตอนที่คอลัมน์ยังเป็น NOT NULL แล้วหน้าจอของฝั่งที่สอง
+  // อ่านเลข 0 นั้นว่า "บันทึกไว้แล้ว" จึงไม่ไล่หาเลขครั้งก่อนจากรอบที่แล้วหรือจากสัญญาต่อ
+  // ผู้ใช้เลยต้องพิมพ์เลขครั้งก่อนของฝั่งไฟเองทุกเดือน (ดู migration 014)
   const upsert = db.prepare(
     `INSERT INTO meter_readings (
        meter_batch_id, room_id,
        ${cols.previous}, ${cols.current}, ${cols.units}, ${cols.overCycle},
-       ${other.previous}, ${other.current}, ${other.units},
        created_at
      ) VALUES (
        @batchId, @roomId,
        @previous, @current, @units, @overCycle,
-       0, 0, 0,
        @now
      )
      ON CONFLICT (meter_batch_id, room_id) DO UPDATE SET

@@ -214,6 +214,46 @@ check('ห้องที่มีสัญญาแต่ยังไม่เ�
   )
 })
 
+// บั๊กที่ผู้ใช้เจอจริง 2026-08-07: บันทึกฝั่งน้ำก่อน แล้วฝั่งไฟไม่เติมเลขครั้งก่อนให้
+// เพราะแถวถูกเขียนไว้แล้วโดยฝั่งไฟยังเป็นค่าว่าง — ต้องแยก "ยังไม่จด" ออกจาก "จดได้ 0"
+check('บันทึกฝั่งน้ำแล้ว ฝั่งไฟยังต้องเติมเลขครั้งก่อนให้อยู่', () => {
+  const first = meter.createBatch(db, apartmentId, '2027-01-31')
+  meter.saveBatchReadings(db, first.batchId, 'water', [
+    { roomId: room2.roomId, roomNumber: '102', previousReading: 10, currentReading: 20 }
+  ])
+  meter.saveBatchReadings(db, first.batchId, 'electric', [
+    { roomId: room2.roomId, roomNumber: '102', previousReading: 500, currentReading: 700 }
+  ])
+
+  // รอบถัดไป: ห้องนี้ต้องได้เลขปิดของรอบก่อนทั้งสองฝั่ง
+  const second = meter.createBatch(db, apartmentId, '2027-02-28')
+  meter.saveBatchReadings(db, second.batchId, 'water', [
+    { roomId: room2.roomId, roomNumber: '102', previousReading: 20, currentReading: 25 }
+  ])
+
+  const elec = meter.getBatchSheet(db, second.batchId, 'electric')
+  const r102 = elec.rooms.find((r) => r.roomNumber === '102')
+  assert(
+    r102.previousReading === 700,
+    `ฝั่งไฟได้ ${r102.previousReading} ควรเป็น 700 (เลขปิดของรอบก่อน)`
+  )
+  assert(r102.currentReading === null, 'ฝั่งไฟยังไม่ได้จดในรอบนี้ ต้องเป็นช่องว่าง ไม่ใช่ 0')
+  assert(r102.isSaved === false, 'ฝั่งไฟยังไม่ถือว่าบันทึกแล้ว')
+})
+
+check('รอบที่จดแต่ฝั่งน้ำ ต้องไม่บังเลขไฟของรอบที่เก่ากว่า', () => {
+  // รอบ 2027-03 จดแต่น้ำ — รอบ 2027-04 ฝั่งไฟต้องย้อนไปเอาเลขของ 2027-02 (=700)
+  const marchBatch = meter.createBatch(db, apartmentId, '2027-03-31')
+  meter.saveBatchReadings(db, marchBatch.batchId, 'water', [
+    { roomId: room2.roomId, roomNumber: '102', previousReading: 25, currentReading: 30 }
+  ])
+
+  const aprilBatch = meter.createBatch(db, apartmentId, '2027-04-30')
+  const elec = meter.getBatchSheet(db, aprilBatch.batchId, 'electric')
+  const r102 = elec.rooms.find((r) => r.roomNumber === '102')
+  assert(r102.previousReading === 700, `ได้ ${r102.previousReading} ควรเป็น 700`)
+})
+
 check('เลขที่จดไว้แล้วชนะเลขที่ระบบหาให้ เพราะผู้ใช้แก้ช่องจดครั้งก่อนเองได้', () => {
   const batch4 = meter.createBatch(db, apartmentId, '2026-11-30')
   meter.saveBatchReadings(db, batch4.batchId, 'water', [
