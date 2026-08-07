@@ -444,7 +444,7 @@ export function getInvoiceById(db, invoiceId) {
     .prepare(
       `SELECT i.*, r.room_number, a.apartment_id, a.name_th AS apartment_name,
               a.address_th AS apartment_address, a.phone AS apartment_phone,
-              a.qr_code_image_id
+              a.qr_code_image_id, a.is_vat_enabled
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
@@ -479,6 +479,10 @@ export function getInvoiceById(db, invoiceId) {
     exemptAmountCents: row.exempt_amount_cents,
     taxableAmountCents: row.taxable_amount_cents,
     vatAmountCents: row.vat_amount_cents,
+    // หน้าใบแจ้งหนี้ใช้ธงนี้ตัดสินว่าจะ "แสดงแถว VAT" หรือไม่ ไม่ใช่ดูว่ายอด VAT เป็น 0
+    // เพราะหอที่เปิด VAT ไว้แต่เดือนนี้ไม่มีรายการที่เสียภาษี ก็ได้ 0 เหมือนกัน
+    // แต่ควรยังเห็นแถว VAT 0.00 บนบิล ต่างจากหอที่ไม่ได้จด VAT ซึ่งต้องไม่มีแถวนี้เลย
+    isVatEnabled: row.is_vat_enabled === 1,
     totalAmountCents: row.total_amount_cents,
     paidAmountCents: paidCents,
     outstandingCents: row.total_amount_cents - paidCents,
@@ -576,7 +580,11 @@ export function addInvoiceItem(db, invoiceId, { itemType, description, amount, i
         totalAmountCents,
         // ส่วนลดไม่คิด VAT ต่อ — ไม่งั้นต้องตัดสินว่าลดจากฐานภาษีหรือลดจากยอดรวม
         // ซึ่งต้นแบบก็ไม่ได้แยกไว้
-        isTaxable: itemType !== 'discount' && Boolean(isTaxable)
+        //
+        // และต้องเช็คสวิตช์ VAT ของหอด้วยเสมอ ไม่ใช่เชื่อ isTaxable ที่ส่งมาอย่างเดียว —
+        // หอที่เจ้าของไม่ได้ติ๊ก "เปิดการใช้งาน VAT" ต้องไม่มี VAT โผล่บนบิลจากทางไหนเลย
+        isTaxable:
+          invoice.is_vat_enabled === 1 && itemType !== 'discount' && Boolean(isTaxable)
       }
     ], now)
     recalculateTotals(db, invoiceId, now)
@@ -636,7 +644,15 @@ function recalculateTotals(db, invoiceId, now) {
 
 function requireOpenInvoice(db, invoiceId) {
   const row = db
-    .prepare('SELECT invoice_id, status FROM invoices WHERE invoice_id = ?')
+    .prepare(
+      `SELECT i.invoice_id, i.status, a.is_vat_enabled
+         FROM invoices i
+         JOIN contracts c ON c.contract_id = i.contract_id
+         JOIN rooms r     ON r.room_id = c.room_id
+         JOIN floors f    ON f.floor_id = r.floor_id
+         JOIN apartments a ON a.apartment_id = f.apartment_id
+        WHERE i.invoice_id = ?`
+    )
     .get(invoiceId)
   if (!row) throw new Error('ไม่พบใบแจ้งหนี้')
   if (row.status === 'cancelled') throw new Error('ใบแจ้งหนี้นี้ถูกยกเลิกไปแล้ว แก้ไขไม่ได้')

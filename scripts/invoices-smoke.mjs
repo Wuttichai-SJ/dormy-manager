@@ -478,6 +478,96 @@ check('ยกเลิกแล้วออกบิลเดือนเดิ�
 })
 
 // -----------------------------------------------------
+// เจ้าของหอที่ไม่ได้ติ๊ก "เปิดการใช้งาน VAT" ต้องไม่เจอ VAT บนบิลจากทางไหนเลย
+group('หอที่ปิด VAT')
+
+const plainApartment = apartments.insertApartment(db, {
+  nameTh: 'หอไม่จด VAT',
+  addressTh: 'ที่อยู่',
+  dueDateDay: 5,
+  lateFeePerDay: '0',
+  isVatEnabled: false
+})
+const plainId = plainApartment.apartmentId
+
+utility.saveUtilityDefaults(db, plainId, {
+  water: { enabled: true, billingType: 'actual', unitPrice: '20' },
+  electric: { enabled: true, billingType: 'actual', unitPrice: '7' }
+})
+rooms.generateFloorPlan(db, plainId, [{ roomCount: 1 }])
+const plainRoom = rooms.listFloors(db, plainId)[0].rooms[0]
+rooms.setRoomRates(db, [plainRoom.roomId], { monthlyRent: '4000' })
+
+// ค่าบริการตัวนี้ติดธง "คำนวณ VAT" ไว้ แต่หอไม่ได้เปิด VAT — ธงต้องไม่มีผล
+const plainWifi = services.insertService(db, plainId, {
+  name: 'ค่าอินเทอร์เน็ต',
+  price: '300',
+  isVatEnabled: true
+})
+rooms.attachServicesToRooms(db, [plainRoom.roomId], [plainWifi.serviceId])
+
+const plainTenant = tenants.insertTenant(db, {
+  firstName: 'สมศักดิ์',
+  lastName: 'ทดสอบ',
+  phone: '0861112222'
+})
+const plainContract = contracts.createContract(db, {
+  roomId: plainRoom.roomId,
+  rentType: 'monthly',
+  startDate: '2026-08-01',
+  rentAmount: '4000',
+  deposit: '4000',
+  depositPaymentMethod: 'cash',
+  bookingFee: '0',
+  waterMeterStart: 0,
+  electricMeterStart: 0,
+  tenants: [plainTenant.tenantId]
+})
+const plainBatch = meter.createBatch(db, plainId, '2026-08-31')
+
+const plainInvoice = invoices.createMonthlyInvoice(db, {
+  contractId: plainContract.contractId,
+  billingMonth: '2026-08',
+  meterBatchId: plainBatch.batchId,
+  issueDate: '2026-08-31'
+})
+
+check('ค่าบริการที่ติดธง VAT ไว้ ไม่ถูกคิดภาษีเมื่อหอปิด VAT', () => {
+  assert(plainInvoice.vatAmountCents === 0, `ได้ VAT ${plainInvoice.vatAmountCents}`)
+  assert(plainInvoice.taxableAmountCents === 0, `ได้ฐานภาษี ${plainInvoice.taxableAmountCents}`)
+})
+
+check('ยอดรวมเท่ากับผลบวกของรายการตรงๆ ไม่มีอะไรบวกเพิ่ม', () => {
+  // เช่า 4000 + น้ำ 0 + ไฟ 0 + เน็ต 300 = 4300
+  assert(plainInvoice.totalAmountCents === 430000, `ได้ ${plainInvoice.totalAmountCents}`)
+  assert(plainInvoice.exemptAmountCents === 430000, `ได้ ${plainInvoice.exemptAmountCents}`)
+})
+
+check('ทุกบรรทัดมีอัตราภาษีเป็นศูนย์ หน้าพิมพ์จึงไม่มีอะไรให้แสดง', () => {
+  assert(
+    plainInvoice.items.every((i) => i.vatRate === 0 && i.vatAmountCents === 0),
+    'ต้องไม่มีบรรทัดไหนติดภาษี'
+  )
+})
+
+check('บิลบอกหน้าจอได้ว่าหอนี้ไม่ต้องแสดงแถว VAT', () => {
+  assert(plainInvoice.isVatEnabled === false, 'หอปิด VAT')
+  const vatDorm = invoices.getInvoiceById(db, invoice1.invoiceId)
+  assert(vatDorm.isVatEnabled === true, 'หอที่เปิด VAT ต้องยังแสดงแถว')
+})
+
+check('เพิ่มรายการเองแล้วสั่งให้เสียภาษี ก็ยังต้องไม่มี VAT เมื่อหอปิดไว้', () => {
+  const updated = invoices.addInvoiceItem(db, plainInvoice.invoiceId, {
+    itemType: 'service',
+    description: 'ค่าบริการพิเศษ',
+    amount: '1000',
+    isTaxable: true
+  })
+  assert(updated.vatAmountCents === 0, `ได้ VAT ${updated.vatAmountCents}`)
+  assert(updated.totalAmountCents === 430000 + 100000, `ได้ ${updated.totalAmountCents}`)
+})
+
+// -----------------------------------------------------
 group('รายการบิล')
 
 check('รายการบิลของหอไม่นับใบที่ยกเลิกออกจากยอดค้าง', () => {
