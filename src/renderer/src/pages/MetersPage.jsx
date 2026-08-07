@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import Modal from '../components/Modal.jsx'
@@ -205,6 +205,27 @@ function MeterSheet({ batchId, side, onBack }) {
     setRows((list) => list.map((r) => (r.roomId === roomId ? { ...r, ...patch } : r)))
   }
 
+  // กด Enter แล้วลงไปกรอกห้องถัดไปต่อได้เลย — คนจดมิเตอร์ถือกระดาษเดินไล่ห้องแล้วพิมพ์
+  // ตัวเลขรวดเดียว ถ้าต้องละมือไปคลิกทีละช่องจะช้ากว่าการพิมพ์มาก
+  //
+  // เลื่อนไปเสมอแม้แถวนั้นยังคำนวณไม่ได้ (เลขลดลงโดยไม่ติ๊กเกินรอบ) ไม่งั้นจะกลายเป็น
+  // กักคนไว้ในช่องที่เขาอาจตั้งใจย้อนกลับมาแก้ทีหลัง — เครื่องหมายเตือนในคอลัมน์หน่วย
+  // บอกอยู่แล้วว่าแถวไหนยังไม่เรียบร้อย และฝั่ง main ก็ไม่ยอมให้บันทึกอยู่ดี
+  const inputsRef = useRef(new Map())
+
+  function focusNextRoom(roomId) {
+    const index = rows.findIndex((r) => r.roomId === roomId)
+    const next = rows[index + 1]
+    if (!next) return
+
+    const el = inputsRef.current.get(next.roomId)
+    if (!el) return
+    el.focus()
+    // เลือกข้อความเดิมไว้ให้ด้วย พิมพ์ทับได้เลยโดยไม่ต้องลบก่อน (ห้องที่เคยจดไว้แล้ว
+    // จะมีเลขเก่าค้างอยู่ในช่อง)
+    el.select()
+  }
+
   // บันทึกเฉพาะห้องที่กรอกเลขปัจจุบันมาจริงๆ — ห้องที่เว้นว่างแปลว่ายังไม่ได้ไปจด
   // ไม่ใช่จดได้ 0 การส่ง 0 ไปให้ทุกห้องจะทำให้บิลของห้องที่ยังไม่ได้จดออกมาเป็น 0 หน่วย
   // ทั้งที่ความจริงคือยังไม่มีข้อมูล
@@ -245,7 +266,8 @@ function MeterSheet({ batchId, side, onBack }) {
         </strong>
         <p>
           ช่อง “จดครั้งก่อน” ระบบเติมให้จากรอบก่อนหน้า (หรือเลขมิเตอร์วันเข้าพักในสัญญา)
-          แก้ไขได้ · ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก
+          แก้ไขได้ · ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก ·{' '}
+          <strong>กด Enter เพื่อลงไปกรอกห้องถัดไป</strong>
         </p>
       </div>
 
@@ -298,6 +320,15 @@ function MeterSheet({ batchId, side, onBack }) {
                           value={row.currentInput}
                           onChange={(e) => setRow(row.roomId, { currentInput: e.target.value })}
                           aria-label={`เลขมิเตอร์ปัจจุบัน ห้อง ${row.roomNumber}`}
+                          ref={(el) => {
+                            if (el) inputsRef.current.set(row.roomId, el)
+                            else inputsRef.current.delete(row.roomId)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Enter') return
+                            e.preventDefault()
+                            focusNextRoom(row.roomId)
+                          }}
                         />
                         {/* มิเตอร์วิ่งจนสุดหน้าปัดแล้วหมุนกลับไป 0 ทำให้เลขปัจจุบันน้อยกว่า
                             ครั้งก่อนทั้งที่ใช้ไปจริง — ติ๊กช่องนี้เพื่อบอกระบบว่าไม่ได้กรอกผิด */}
