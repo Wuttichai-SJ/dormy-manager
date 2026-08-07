@@ -58,3 +58,35 @@ export const ROOM_STATUS_LABELS = {
   occupied: 'ไม่ว่าง',
   maintenance: 'ปิดปรับปรุง'
 }
+
+// ต้องตรงกับ METER_SIDES / METER_SIDE_LABELS ใน src/main/db/meterReadings.js
+// หน้าจอกรอกเลขมิเตอร์ทีละฝั่งตามต้นแบบ จึงต้องมีชื่อกับไอคอนของแต่ละฝั่งไว้ทำปุ่ม
+export const METER_SIDES = [
+  { key: 'water', label: 'ค่าน้ำ', icon: 'water' },
+  { key: 'electric', label: 'ค่าไฟ', icon: 'electric' }
+]
+
+// เงาของ calculateUnitsUsed ใน src/main/db/meterReadings.js — **ต้องแก้ทั้งสองที่พร้อมกัน**
+//
+// ทำไมต้องมีสำเนา: ตัวเลขหน่วยต้องขยับทันทีที่พิมพ์ ยิง IPC ทุกตัวอักษรไม่ไหว
+// ที่นี่ใช้ "แสดงผลระหว่างพิมพ์" อย่างเดียว ค่าที่เข้าฐานข้อมูลคำนวณใหม่ฝั่ง main เสมอ
+// จึงไม่มีทางที่เลขบนจอจะกลายเป็นเลขที่ถูกบันทึกโดยไม่ผ่านการตรวจ
+//
+// คืน null เมื่อคำนวณไม่ได้ (เลขลดลงโดยไม่ได้ติ๊กเกินรอบ) เพื่อให้หน้าจอขึ้นเครื่องหมาย
+// เตือนแทนตัวเลข — ฝั่ง main จะโยน error ข้อความเดียวกันนี้ตอนกดบันทึก
+export function previewUnitsUsed(previous, current, isOverCycle) {
+  const prev = Number(previous)
+  const curr = Number(current)
+  if (!Number.isFinite(prev) || !Number.isFinite(curr) || prev < 0 || curr < 0) return null
+  if (String(current).trim() === '') return null
+
+  if (curr >= prev) return round2(curr - prev)
+  if (!isOverCycle) return null
+
+  const rollover = 10 ** String(Math.floor(prev)).length
+  return round2(rollover - prev + curr)
+}
+
+function round2(n) {
+  return Math.round(n * 100) / 100
+}

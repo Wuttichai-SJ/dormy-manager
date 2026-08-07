@@ -3063,3 +3063,100 @@ body {
   word-break: break-all;
   user-select: all;
 }
+
+/* -----------------------------------------------------
+   จดมิเตอร์
+   ----------------------------------------------------- */
+/* ทางกลับจากหน้าย่อยที่ไม่ได้อยู่ในเมนูข้าง (ตารางกรอกเลขมิเตอร์)
+   วางไว้เหนือแถบหัวข้อ เพื่อให้เห็นก่อนเนื้อหาว่าตอนนี้อยู่ลึกเข้ามาหนึ่งชั้น */
+.page-back {
+  margin-bottom: 16px;
+}
+
+.meter-batch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* หนึ่งใบจด = หนึ่งแถว: วันที่อยู่ซ้าย ปุ่มเข้าไปกรอกอยู่ขวา (ตามต้นแบบ) */
+.meter-batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.meter-batch-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.meter-batch-info .muted {
+  font-size: 13px;
+}
+
+.meter-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ปุ่มน้ำ/ไฟใช้สีเดียวกับไอคอนของแต่ละฝั่ง เพื่อให้กวาดตาแล้วรู้ทันทีว่ากำลังจะเข้าฝั่งไหน */
+.meter-side-water .icon {
+  color: #2f7fbf;
+}
+
+.meter-side-electric .icon {
+  color: #c37800;
+}
+
+/* ช่องกรอกในตารางแคบกว่าช่องในฟอร์ม และชิดขวาให้หลักตรงกันทั้งคอลัมน์
+   เลขมิเตอร์อ่านเทียบกันเป็นแนวตั้ง ถ้าชิดซ้ายจะเทียบหลักไม่ได้ */
+.meter-input {
+  width: 110px;
+  text-align: right;
+}
+
+/* ช่องติ๊ก "เกินรอบมิเตอร์" อยู่ใต้ช่องเลขปัจจุบันของแถวนั้น ไม่ใช่คอลัมน์แยก
+   เพราะมันขยายความช่องนั้นช่องเดียว และคอลัมน์แยกจะกินความกว้างทั้งตารางไปเปล่าๆ */
+.meter-overcycle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.meter-overcycle input {
+  width: auto;
+  margin: 0;
+}
+
+.meter-units {
+  font-size: 15px;
+  color: var(--accent);
+}
+
+/* เลขปัจจุบันน้อยกว่าครั้งก่อนโดยยังไม่ติ๊กเกินรอบ — ขึ้นเครื่องหมายเตือนแทนตัวเลข
+   เพราะยังไม่รู้ว่าผู้ใช้พิมพ์ผิดหรือมิเตอร์หมุนครบรอบ ให้เขาตัดสินใจเอง */
+.meter-units-bad .icon {
+  color: var(--danger);
+}
+
+/* แถบท้ายการ์ดของตารางนี้มีข้อความบอกความคืบหน้าอยู่ซ้ายด้วย ไม่ใช่มีแต่ปุ่ม */
+.meter-table + .card-foot {
+  align-items: center;
+  justify-content: space-between;
+}
