@@ -7,7 +7,17 @@ import Icon from '../Icon.jsx'
 // ต้นแบบใช้หน้าต่างซ้อนกับงานที่ "สั่งทีเดียวหลายห้อง" (ระบุค่าห้อง / ระบุค่าบริการ /
 // ระบุการคิดค่าน้ำ-ค่าไฟ) เพราะฟอร์มพวกนี้ต้องรู้ก่อนว่าเลือกห้องไว้กี่ห้อง ถ้าวางไว้
 // ในหน้าตลอดเวลาจะกินที่และชวนกรอกทั้งที่ยังไม่ได้เลือกอะไร
-export default function Modal({ title, icon, onClose, onSubmit, submitLabel = 'บันทึก', busy, children }) {
+// wide = หน้าต่างกว้างเกือบเต็มจอ สำหรับเนื้อหาที่ต้องการพื้นที่จริงๆ (ตัวอย่างก่อนพิมพ์)
+export default function Modal({
+  title,
+  icon,
+  onClose,
+  onSubmit,
+  submitLabel = 'บันทึก',
+  busy,
+  wide,
+  children
+}) {
   // Esc ปิดได้ — ปุ่มกากบาทกับปุ่ม "ปิด" ทำงานเดียวกัน
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -19,7 +29,7 @@ export default function Modal({ title, icon, onClose, onSubmit, submitLabel = '�
     // คลิกพื้นหลังมืดเพื่อปิด แต่คลิกในกล่องต้องไม่ทะลุไปโดน (stopPropagation)
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
-        className="modal"
+        className={'modal' + (wide ? ' modal-wide' : '')}
         role="dialog"
         aria-modal="true"
         aria-label={title}

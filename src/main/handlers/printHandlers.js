@@ -73,6 +73,18 @@ export function registerPrintHandlers() {
     }))
   })
 
+  // ตัวอย่างก่อนพิมพ์ — เรนเดอร์เอกสารเป็น PDF แล้วส่งกลับไปให้หน้าจอแสดงในตัวอ่าน PDF
+  // ของ Chromium (ตรงกับที่ต้นแบบทำ: กดพิมพ์แล้วเห็นหน้ากระดาษจริงก่อน)
+  //
+  // สำคัญ: ตัวอย่างนี้มาจาก printToPDF ตัวเดียวกับที่ปุ่ม "บันทึก PDF" ใช้ และตัวเดียวกับ
+  // ที่ print() จะเรนเดอร์ ผู้ใช้จึงเห็นสิ่งที่จะออกจากเครื่องพิมพ์จริงๆ ไม่ใช่ของที่คล้ายกัน
+  //
+  // ส่งเป็น base64 เพราะ Buffer ข้ามสะพาน IPC แล้วกลายเป็น object ที่หน้าจอเอาไปใช้ต่อยาก
+  handle('print:preview', async (_payload, event) => {
+    const pdf = await windowOf(event).webContents.printToPDF(PAGE)
+    return { base64: pdf.toString('base64') }
+  })
+
   // ส่งเข้าเครื่องพิมพ์ที่ผู้ใช้เลือกจากกล่องของเรา จึงพิมพ์เงียบได้ (ไม่เปิดกล่องซ้อนอีกชั้น)
   handle('print:document', async ({ deviceName, copies }, event) => {
     const win = windowOf(event)

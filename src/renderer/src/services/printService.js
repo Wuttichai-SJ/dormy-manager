@@ -5,6 +5,11 @@
 // อะไรลงกระดาษบ้าง — ไม่ต้องส่งข้อมูลเอกสารข้ามไป
 import { invoke } from './ipc.js'
 
+// เรนเดอร์เอกสารเป็น PDF เพื่อเอาไปแสดงเป็นตัวอย่างก่อนพิมพ์ · คืน { base64 }
+export function previewDocument() {
+  return invoke('print:preview')
+}
+
 // รายชื่อเครื่องพิมพ์ที่ Windows รู้จัก พร้อมธงว่าตัวไหนเป็นเครื่องพิมพ์เสมือน
 export function listPrinters() {
   return invoke('print:listPrinters')

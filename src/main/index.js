@@ -38,7 +38,11 @@ function createWindow() {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // เปิดตัวอ่าน PDF ในตัวของ Chromium — ใช้แสดงตัวอย่างใบแจ้งหนี้ก่อนพิมพ์
+      // (Electron ปิดไว้เป็นค่าเริ่มต้น ถ้าไม่เปิด <iframe> ที่ชี้ไปไฟล์ PDF จะกลายเป็น
+      // การดาวน์โหลดแทนการแสดงผล) ไม่ได้เปิดปลั๊กอินจากภายนอก ตัวอ่านนี้มากับ Chromium เอง
+      plugins: true
     }
   })
 

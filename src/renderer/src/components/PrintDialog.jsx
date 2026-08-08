@@ -1,22 +1,42 @@
 import React, { useEffect, useState } from 'react'
 import Alert from './Alert.jsx'
 import Modal from './Modal.jsx'
-import { listPrinters, printDocument } from '../services/printService.js'
+import { listPrinters, previewDocument, printDocument } from '../services/printService.js'
 
-// กล่องเลือกเครื่องพิมพ์ของเราเอง แทนกล่องของ Windows
+// กล่องพิมพ์เอกสาร — ตัวอย่างหน้ากระดาษจริงอยู่ตรงกลาง เลือกเครื่องพิมพ์อยู่ข้างล่าง
 //
-// Electron เปิดกล่องระบบได้ก็จริง แต่มันเป็นภาษาอังกฤษล้วนในแอปที่เป็นไทยทั้งตัว
-// และขึ้นข้อความ "This app doesn't support print preview" ซึ่งอ่านแล้วเหมือนแอปพัง
-// ทั้งที่ตัวอย่างเอกสารคือหน้าที่ผู้ใช้มองอยู่ตรงหน้าอยู่แล้ว
+// ต้นแบบทำแบบนี้: กด "พิมพ์" แล้วเห็นเอกสารเป็นหน้ากระดาษก่อน ต่อให้ยังไม่ได้ต่อเครื่องพิมพ์
+// ก็ยังตรวจได้ว่าหน้าตาถูกไหม ตกขอบไหม กี่หน้า
 //
-// ได้เพิ่มมาอีกอย่าง: บอกได้ว่า "ยังไม่ได้ต่อเครื่องพิมพ์จริง" ซึ่งกล่องของ Windows
-// ไม่มีทางบอก — มันขึ้นเครื่องพิมพ์เสมือนปนมาโดยไม่แยกให้
+// ตัวอย่างที่เห็นมาจาก printToPDF ตัวเดียวกับที่ปุ่ม "บันทึก PDF" ใช้ และเป็นตัวเดียวกับ
+// ที่เครื่องพิมพ์จะได้ จึงไม่ใช่ "ของที่คล้ายกัน" แต่เป็นของชิ้นเดียวกัน
 export default function PrintDialog({ onClose, onPrinted }) {
+  const [pdfUrl, setPdfUrl] = useState('')
   const [printers, setPrinters] = useState(null)
   const [deviceName, setDeviceName] = useState('')
   const [copies, setCopies] = useState('1')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // สร้างตัวอย่างเป็น blob แล้วให้ <iframe> ชี้มาที่ blob นั้น
+  // ใช้ blob ไม่ใช่ data: URL เพราะไฟล์ PDF ยาวเป็นแสนตัวอักษรเมื่อเข้ารหัส base64
+  // ยัดลง URL ตรงๆ แล้วช้าและติดเพดานความยาวของ URL
+  useEffect(() => {
+    let url = ''
+    ;(async () => {
+      const res = await previewDocument()
+      if (!res.success) return setError(res.error)
+
+      const bytes = Uint8Array.from(atob(res.data.base64), (c) => c.charCodeAt(0))
+      url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+      setPdfUrl(url)
+    })()
+
+    // คืนหน่วยความจำของ blob เมื่อปิดกล่อง ไม่งั้นไฟล์ค้างอยู่จนกว่าจะปิดแอป
+    return () => {
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [])
 
   useEffect(() => {
     ;(async () => {
@@ -26,7 +46,6 @@ export default function PrintDialog({ onClose, onPrinted }) {
         return setError(res.error)
       }
       setPrinters(res.data)
-      // เลือกเครื่องที่ Windows ตั้งเป็นค่าเริ่มต้นให้ ถ้าไม่มีก็เอาตัวแรก
       const preferred = res.data.find((p) => p.isDefault) ?? res.data[0]
       if (preferred) setDeviceName(preferred.name)
     })()
@@ -42,66 +61,76 @@ export default function PrintDialog({ onClose, onPrinted }) {
   }
 
   const hasRealPrinter = (printers ?? []).some((p) => !p.isVirtual)
+  const noPrinter = printers !== null && printers.length === 0
 
   return (
     <Modal
-      title="พิมพ์เอกสาร"
+      title="พิมพ์ใบแจ้งหนี้"
       icon="printer"
       submitLabel="พิมพ์"
+      wide
       busy={busy || !deviceName}
       onClose={onClose}
       onSubmit={submit}
     >
       <Alert>{error}</Alert>
 
-      {printers === null ? (
-        <p className="muted">กำลังค้นหาเครื่องพิมพ์...</p>
-      ) : printers.length === 0 ? (
-        <div className="empty-state">
-          <p>ไม่พบเครื่องพิมพ์ในเครื่องนี้</p>
-          <p className="muted">ต่อเครื่องพิมพ์แล้วติดตั้งไดรเวอร์ก่อน แล้วลองใหม่อีกครั้ง</p>
-        </div>
+      <div className="print-preview">
+        {pdfUrl ? (
+          // ตัวอ่าน PDF ของ Chromium มาพร้อมแถบเครื่องมือของมันเอง (ย่อ/ขยาย เลื่อนหน้า
+          // ดาวน์โหลด) จึงไม่ต้องทำปุ่มพวกนั้นเองซ้ำ
+          <iframe src={pdfUrl} title="ตัวอย่างใบแจ้งหนี้" />
+        ) : (
+          <p className="muted">กำลังเตรียมตัวอย่างเอกสาร...</p>
+        )}
+      </div>
+
+      {noPrinter ? (
+        <Alert kind="warn">
+          ไม่พบเครื่องพิมพ์ในเครื่องนี้ — ต่อเครื่องพิมพ์แล้วติดตั้งไดรเวอร์ก่อน
+          หรือใช้ปุ่ม “บันทึก PDF” เพื่อเก็บไฟล์ไว้ส่งต่อ
+        </Alert>
       ) : (
         <>
-          {/* เครื่องพิมพ์เสมือนที่ Windows แถมมาจะออกมาเป็นไฟล์ ไม่ใช่กระดาษ —
-              ถ้าไม่มีตัวจริงเลย ต้องบอกตรงๆ ไม่งั้นผู้ใช้กดพิมพ์แล้วงงว่ากระดาษไม่ออก */}
-          {!hasRealPrinter && (
+          {/* เครื่องพิมพ์เสมือนที่ Windows แถมมาจะออกมาเป็นไฟล์ ไม่ใช่กระดาษ
+              ถ้าไม่มีตัวจริงเลย ต้องบอกตรงๆ ไม่งั้นกดพิมพ์แล้วงงว่ากระดาษไม่ออก */}
+          {printers !== null && !hasRealPrinter && (
             <Alert kind="warn">
               เครื่องนี้ยังไม่ได้ต่อเครื่องพิมพ์จริง — รายการข้างล่างเป็นเครื่องพิมพ์เสมือนของ Windows
-              ที่ผลลัพธ์ออกมาเป็นไฟล์ ไม่ใช่กระดาษ ถ้าต้องการไฟล์ ใช้ปุ่ม “บันทึก PDF” จะตรงกว่า
+              ที่ผลลัพธ์ออกมาเป็นไฟล์ ไม่ใช่กระดาษ
             </Alert>
           )}
 
-          <div className="field field-required">
-            <label htmlFor="printerName">
-              เครื่องพิมพ์ <span className="required">* จำเป็น</span>
-            </label>
-            <select
-              id="printerName"
-              value={deviceName}
-              onChange={(e) => setDeviceName(e.target.value)}
-            >
-              {printers.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.displayName}
-                  {p.isVirtual ? ' (เครื่องพิมพ์เสมือน)' : ''}
-                  {p.isDefault ? ' — ค่าเริ่มต้น' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div className="print-options">
+            <div className="field field-required">
+              <label htmlFor="printerName">
+                เครื่องพิมพ์ <span className="required">* จำเป็น</span>
+              </label>
+              <select
+                id="printerName"
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                disabled={printers === null}
+              >
+                {(printers ?? []).map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.displayName}
+                    {p.isVirtual ? ' (เครื่องพิมพ์เสมือน)' : ''}
+                    {p.isDefault ? ' — ค่าเริ่มต้น' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div className="field">
-            <label htmlFor="printCopies">จำนวนชุด</label>
-            <input
-              id="printCopies"
-              inputMode="numeric"
-              value={copies}
-              onChange={(e) => setCopies(e.target.value.replace(/\D/g, '').slice(0, 2))}
-            />
-            <p className="field-hint">
-              กระดาษ A4 แนวตั้ง · เอกสารที่จะพิมพ์คือใบที่แสดงอยู่บนหน้าจอนี้
-            </p>
+            <div className="field print-copies">
+              <label htmlFor="printCopies">จำนวนชุด</label>
+              <input
+                id="printCopies"
+                inputMode="numeric"
+                value={copies}
+                onChange={(e) => setCopies(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              />
+            </div>
           </div>
         </>
       )}
