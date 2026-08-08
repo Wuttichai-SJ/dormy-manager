@@ -252,24 +252,36 @@ export function listPaymentsForInvoice(db, invoiceId) {
 }
 
 // รายงานใบเสร็จรับเงิน — กรองตามเดือนได้ พร้อมยอดสรุปสองการ์ดด้านบนตามต้นแบบ
-export function listReceipts(db, apartmentId, { month } = {}) {
+// กรองด้วย "ช่วงวันที่รับเงิน" ตามต้นแบบ — ใส่ข้างเดียวก็ได้
+// เทียบเป็นข้อความตรงๆ เพราะเก็บเป็น 'YYYY-MM-DD' ซึ่งเรียงตามเวลาอยู่แล้ว
+export function listReceipts(db, apartmentId, { dateFrom, dateTo } = {}) {
   const where = ['f.apartment_id = @apartmentId']
-  // month = 'YYYY-MM' เทียบกับ payment_date ที่เป็น 'YYYY-MM-DD' ตัดเอา 7 ตัวแรก
-  if (month) where.push("substr(p.payment_date, 1, 7) = @month")
+  if (dateFrom) where.push('p.payment_date >= @dateFrom')
+  if (dateTo) where.push('p.payment_date <= @dateTo')
 
   const rows = db
     .prepare(
-      `SELECT p.*, i.invoice_number, r.room_number, u.full_name AS created_by_name
+      `SELECT p.*, i.invoice_number, r.room_number, u.full_name AS created_by_name,
+              a.name_th AS apartment_name, a.address_th AS apartment_address,
+              a.phone AS apartment_phone,
+              -- ชื่อผู้เช่าหลักของสัญญา — ใบเสร็จที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น
+              (SELECT t.first_name || ' ' || t.last_name
+                 FROM contract_tenants ct
+                 JOIN tenants t ON t.tenant_id = ct.tenant_id
+                WHERE ct.contract_id = c.contract_id
+                ORDER BY ct.is_primary DESC, t.tenant_id
+                LIMIT 1) AS tenant_name
          FROM payments p
          LEFT JOIN invoices i  ON i.invoice_id = p.invoice_id
          JOIN contracts c ON c.contract_id = COALESCE(p.contract_id, i.contract_id)
          JOIN rooms r     ON r.room_id = c.room_id
          JOIN floors f    ON f.floor_id = r.floor_id
+         JOIN apartments a ON a.apartment_id = f.apartment_id
          LEFT JOIN users u ON u.user_id = p.created_by
         WHERE ${where.join(' AND ')}
         ORDER BY p.payment_date DESC, p.payment_id DESC`
     )
-    .all({ apartmentId, month })
+    .all({ apartmentId, dateFrom: dateFrom || null, dateTo: dateTo || null })
     .map(toPublicPayment)
 
   return {
@@ -298,7 +310,16 @@ function toPublicPayment(row) {
     isRefund: row.amount_cents < 0,
     createdBy: row.created_by,
     createdByName: row.created_by_name,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    // ใช้ตอนพิมพ์ใบเสร็จ — มีเฉพาะตอนดึงผ่าน listReceipts ที่ join หอกับผู้เช่ามาด้วย
+    tenantName: row.tenant_name ?? null,
+    apartment: row.apartment_name
+      ? {
+          name: row.apartment_name,
+          address: row.apartment_address,
+          phone: row.apartment_phone
+        }
+      : null
   }
 }
 

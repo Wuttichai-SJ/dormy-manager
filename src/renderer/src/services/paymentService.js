@@ -51,7 +51,8 @@ export function listPaymentsForInvoice(invoiceId) {
   return invoke('payment:listForInvoice', { invoiceId })
 }
 
-// month = 'YYYY-MM' หรือไม่ส่งเพื่อเอาทุกใบ — คืน { receipts, receiptCount, totalAmountCents }
-export function listReceipts(apartmentId, month) {
-  return invoke('payment:listReceipts', { apartmentId, month })
+// กรองด้วยช่วงวันที่รับเงิน (ใส่ข้างเดียวหรือไม่ใส่เลยก็ได้)
+// คืน { receipts, receiptCount, totalAmountCents }
+export function listReceipts(apartmentId, { dateFrom, dateTo } = {}) {
+  return invoke('payment:listReceipts', { apartmentId, dateFrom, dateTo })
 }

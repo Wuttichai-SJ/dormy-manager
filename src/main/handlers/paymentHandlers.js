@@ -69,7 +69,7 @@ export function registerPaymentHandlers() {
     listPaymentsForInvoice(getDatabase(), invoiceId)
   )
 
-  handle('payment:listReceipts', ({ apartmentId, month }) =>
-    listReceipts(getDatabase(), apartmentId, { month })
+  handle('payment:listReceipts', ({ apartmentId, dateFrom, dateTo }) =>
+    listReceipts(getDatabase(), apartmentId, { dateFrom, dateTo })
   )
 }

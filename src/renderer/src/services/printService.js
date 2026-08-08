@@ -5,9 +5,12 @@
 // อะไรลงกระดาษบ้าง — ไม่ต้องส่งข้อมูลเอกสารข้ามไป
 import { invoke } from './ipc.js'
 
-// เรนเดอร์เอกสารเป็น PDF เพื่อเอาไปแสดงเป็นตัวอย่างก่อนพิมพ์ · คืน { base64 }
-export function previewDocument() {
-  return invoke('print:preview')
+// maxPages = จำนวนหน้าที่เอกสารนี้ควรมี (ใบแจ้งหนี้ = 1 · ใบเสร็จหลายใบ = จำนวนใบ)
+// ฝั่ง main ย่อเอกสารจนไม่เกินจำนวนนี้
+
+// เรนเดอร์เอกสารเป็น PDF เพื่อเอาไปแสดงเป็นตัวอย่างก่อนพิมพ์ · คืน { base64, scale }
+export function previewDocument(maxPages = 1) {
+  return invoke('print:preview', { maxPages })
 }
 
 // รายชื่อเครื่องพิมพ์ที่ Windows รู้จัก พร้อมธงว่าตัวไหนเป็นเครื่องพิมพ์เสมือน
@@ -16,13 +19,13 @@ export function listPrinters() {
 }
 
 // ส่งเข้าเครื่องพิมพ์ที่เลือก — เลือกจากกล่องของเราเอง ฝั่ง main จึงพิมพ์ได้เลยไม่เปิดกล่องซ้อน
-export function printDocument({ deviceName, copies }) {
-  return invoke('print:document', { deviceName, copies })
+export function printDocument({ deviceName, copies, maxPages = 1 }) {
+  return invoke('print:document', { deviceName, copies, maxPages })
 }
 
 // เปิดกล่องบันทึกไฟล์ · คืน { cancelled, filePath }
-export function savePdf(fileName) {
-  return invoke('print:savePdf', { fileName })
+export function savePdf(fileName, maxPages = 1) {
+  return invoke('print:savePdf', { fileName, maxPages })
 }
 
 // เปิดโฟลเดอร์แล้วเลือกไฟล์ไว้ให้ พร้อมลากไปแนบส่งต่อ

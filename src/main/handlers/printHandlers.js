@@ -47,12 +47,15 @@ function countPdfPages(buffer) {
 //
 // ใช้ตัวเดียวกันทั้งพรีวิว บันทึก PDF และส่งเข้าเครื่องพิมพ์ ทั้งสามทางจึงได้หน้าตาเดียวกัน
 // และ "หน้าเดียว" ที่ได้คือหน้าเดียวจริงๆ เพราะวัดจากไฟล์ที่เรนเดอร์ออกมา ไม่ใช่คำนวณคาดคะเน
-async function renderFittedPdf(win) {
+// maxPages = จำนวนหน้าที่เอกสารนี้ "ควรมี" — ใบแจ้งหนี้คือ 1
+// ส่วนการพิมพ์ใบเสร็จหลายใบคือจำนวนใบที่เลือก (ใบละหน้า) ไม่งั้นจะถูกย่อจนยัดรวมหน้าเดียว
+async function renderFittedPdf(win, maxPages = 1) {
+  const budget = Math.max(1, Number(maxPages) || 1)
   let last = null
   for (const scale of FIT_SCALES) {
     const pdf = await win.webContents.printToPDF({ ...PAGE, scale })
     last = { pdf, scale }
-    if (countPdfPages(pdf) <= 1) return last
+    if (countPdfPages(pdf) <= budget) return last
   }
   // ย่อจนสุดแล้วยังไม่พอ — ส่งขนาดเล็กสุดไป ดีกว่าคืนขนาดเต็มที่ล้นหลายหน้า
   return last
@@ -119,13 +122,13 @@ export function registerPrintHandlers() {
   // ที่ print() จะเรนเดอร์ ผู้ใช้จึงเห็นสิ่งที่จะออกจากเครื่องพิมพ์จริงๆ ไม่ใช่ของที่คล้ายกัน
   //
   // ส่งเป็น base64 เพราะ Buffer ข้ามสะพาน IPC แล้วกลายเป็น object ที่หน้าจอเอาไปใช้ต่อยาก
-  handle('print:preview', async (_payload, event) => {
-    const { pdf, scale } = await renderFittedPdf(windowOf(event))
+  handle('print:preview', async ({ maxPages }, event) => {
+    const { pdf, scale } = await renderFittedPdf(windowOf(event), maxPages)
     return { base64: pdf.toString('base64'), scale }
   })
 
   // ส่งเข้าเครื่องพิมพ์ที่ผู้ใช้เลือกจากกล่องของเรา จึงพิมพ์เงียบได้ (ไม่เปิดกล่องซ้อนอีกชั้น)
-  handle('print:document', async ({ deviceName, copies }, event) => {
+  handle('print:document', async ({ deviceName, copies, maxPages }, event) => {
     const win = windowOf(event)
     if (!deviceName) throw new Error('กรุณาเลือกเครื่องพิมพ์')
 
@@ -136,7 +139,7 @@ export function registerPrintHandlers() {
 
     // หาสัดส่วนที่ทำให้ลงหน้าเดียวก่อน แล้วค่อยส่งเข้าเครื่องพิมพ์ด้วยสัดส่วนเดียวกัน
     // กระดาษที่ออกจากเครื่องจึงเหมือนกับที่เห็นในตัวอย่างเป๊ะ
-    const { scale } = await renderFittedPdf(win)
+    const { scale } = await renderFittedPdf(win, maxPages)
 
     const done = await new Promise((resolve) => {
       win.webContents.print(
@@ -155,7 +158,7 @@ export function registerPrintHandlers() {
 
   // บันทึกเป็น PDF — ให้ผู้ใช้เลือกที่เก็บเอง ตั้งชื่อไฟล์ให้ล่วงหน้าเป็นเลขที่เอกสาร
   // เพื่อให้ส่งต่อทางไลน์/แชตแล้วผู้เช่ารู้ทันทีว่าเป็นบิลใบไหน
-  handle('print:savePdf', async ({ fileName }, event) => {
+  handle('print:savePdf', async ({ fileName, maxPages }, event) => {
     const win = windowOf(event)
     const suggested = `${safeFileName(fileName)}.pdf`
 
@@ -166,7 +169,7 @@ export function registerPrintHandlers() {
     })
     if (canceled || !filePath) return { cancelled: true }
 
-    const { pdf, scale } = await renderFittedPdf(win)
+    const { pdf, scale } = await renderFittedPdf(win, maxPages)
     fs.writeFileSync(filePath, pdf)
     logInfo(`บันทึก PDF: ${filePath} (ย่อ ${Math.round(scale * 100)}%)`)
 

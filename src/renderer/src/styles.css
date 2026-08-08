@@ -3798,6 +3798,52 @@ body {
   background: var(--err-weak);
 }
 
+.receipt-check {
+  width: 34px;
+}
+
+.receipt-check input {
+  width: auto;
+  margin: 0;
+}
+
+.receipt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ตัวเลือกด่วนวางเป็นลิงก์เรียงกัน ไม่ใช่ปุ่ม — เป็นทางลัดไปตั้งค่าช่องวันที่ข้างๆ
+   ไม่ใช่คำสั่งที่ทำอะไรด้วยตัวเอง */
+.quick-ranges {
+  width: auto !important;
+}
+
+.quick-range-buttons {
+  display: flex;
+  gap: 14px;
+  padding-bottom: 9px;
+}
+
+/* ใบเสร็จที่กำลังจะพิมพ์ — ใบละหนึ่งหน้ากระดาษ */
+.receipt-doc + .receipt-doc {
+  margin-top: 32px;
+}
+
+@media print {
+  /* ขึ้นหน้าใหม่ทุกใบ ยกเว้นใบสุดท้าย ไม่งั้นจะได้กระดาษเปล่าท้ายชุด */
+  .receipt-doc {
+    break-after: page;
+  }
+
+  .receipt-doc:last-child {
+    break-after: auto;
+  }
+
+  .receipt-doc + .receipt-doc {
+    margin-top: 0;
+  }
+}
+
 /* -----------------------------------------------------
    ตัวช่วยออกบิล
    ----------------------------------------------------- */

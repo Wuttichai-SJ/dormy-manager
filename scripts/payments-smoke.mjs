@@ -478,11 +478,40 @@ check('บิลที่ยกเลิกแล้วรับชำระไ�
 // -----------------------------------------------------
 group('รายงานใบเสร็จรับเงิน')
 
-check('กรองตามเดือนได้ และนับจำนวนใบถูกต้อง', () => {
-  const report = payments.listReceipts(db, apartmentId, { month: '2026-09' })
+check('กรองตามช่วงวันที่ได้ และนับจำนวนใบถูกต้อง', () => {
+  const report = payments.listReceipts(db, apartmentId, {
+    dateFrom: '2026-09-01',
+    dateTo: '2026-09-30'
+  })
   // ก.ย.: รับ 2,000 + รับ 3,000 = 2 ใบ
   assert(report.receiptCount === 2, `ได้ ${report.receiptCount} ใบ`)
   assert(report.totalAmountCents === 500000, `ได้ ${report.totalAmountCents}`)
+})
+
+check('ใส่แต่วันเริ่ม = ตั้งแต่วันนั้นเป็นต้นไป', () => {
+  const report = payments.listReceipts(db, apartmentId, { dateFrom: '2026-09-03' })
+  assert(
+    report.receipts.every((r) => r.paymentDate >= '2026-09-03'),
+    'มีใบที่รับก่อนวันเริ่มหลุดมา'
+  )
+  assert(report.receipts.length > 0, 'ควรเจอใบเสร็จหลังวันที่ 3 ก.ย.')
+})
+
+check('วันขอบทั้งสองข้างนับรวมด้วย', () => {
+  const oneDay = payments.listReceipts(db, apartmentId, {
+    dateFrom: '2026-09-01',
+    dateTo: '2026-09-01'
+  })
+  assert(oneDay.receiptCount === 1, `ได้ ${oneDay.receiptCount} ใบ`)
+  assert(oneDay.receipts[0].paymentDate === '2026-09-01', oneDay.receipts[0].paymentDate)
+})
+
+// ใบเสร็จที่จะเอาไปพิมพ์ต้องมีชื่อหอกับชื่อผู้เช่าติดมาด้วย ไม่งั้นเอกสารไม่มีหัวและไม่รู้ว่าของใคร
+check('ใบเสร็จแนบข้อมูลหอและชื่อผู้เช่ามาให้หน้าพิมพ์', () => {
+  const report = payments.listReceipts(db, apartmentId)
+  const withInvoice = report.receipts.find((r) => r.sourceType === 'invoice')
+  assert(withInvoice.apartment?.name === 'หอทดสอบรับเงิน', `ได้ ${withInvoice.apartment?.name}`)
+  assert(Boolean(withInvoice.tenantName), 'ต้องมีชื่อผู้เช่า')
 })
 
 // ใบเสร็จยอดติดลบยังมีได้จากการคืนเงินประกันตอนย้ายออก (ผูกกับสัญญา ไม่ใช่กับบิล)

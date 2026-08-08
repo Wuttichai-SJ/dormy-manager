@@ -10,7 +10,7 @@ import { listPrinters, previewDocument, printDocument } from '../services/printS
 //
 // ตัวอย่างที่เห็นมาจาก printToPDF ตัวเดียวกับที่ปุ่ม "บันทึก PDF" ใช้ และเป็นตัวเดียวกับ
 // ที่เครื่องพิมพ์จะได้ จึงไม่ใช่ "ของที่คล้ายกัน" แต่เป็นของชิ้นเดียวกัน
-export default function PrintDialog({ onClose, onPrinted }) {
+export default function PrintDialog({ onClose, onPrinted, title = 'พิมพ์ใบแจ้งหนี้', maxPages = 1 }) {
   const [pdfUrl, setPdfUrl] = useState('')
   // สัดส่วนที่ฝั่ง main ใช้ย่อเอกสารให้ลงหน้าเดียว — 1 = ไม่ได้ย่อ
   const [scale, setScale] = useState(1)
@@ -26,7 +26,7 @@ export default function PrintDialog({ onClose, onPrinted }) {
   useEffect(() => {
     let url = ''
     ;(async () => {
-      const res = await previewDocument()
+      const res = await previewDocument(maxPages)
       if (!res.success) return setError(res.error)
 
       const bytes = Uint8Array.from(atob(res.data.base64), (c) => c.charCodeAt(0))
@@ -57,7 +57,7 @@ export default function PrintDialog({ onClose, onPrinted }) {
   async function submit() {
     setError('')
     setBusy(true)
-    const res = await printDocument({ deviceName, copies: Number(copies) })
+    const res = await printDocument({ deviceName, copies: Number(copies), maxPages })
     setBusy(false)
     if (!res.success) return setError(res.error)
     onPrinted()
@@ -68,7 +68,7 @@ export default function PrintDialog({ onClose, onPrinted }) {
 
   return (
     <Modal
-      title="พิมพ์ใบแจ้งหนี้"
+      title={title}
       icon="printer"
       submitLabel="พิมพ์"
       wide
@@ -88,15 +88,15 @@ export default function PrintDialog({ onClose, onPrinted }) {
         {pdfUrl && (
           // ตัวอ่าน PDF ของ Chromium มาพร้อมแถบเครื่องมือของมันเอง (ย่อ/ขยาย เลื่อนหน้า
           // ดาวน์โหลด) จึงไม่ต้องทำปุ่มพวกนั้นเองซ้ำ
-          <iframe src={pdfUrl} title="ตัวอย่างใบแจ้งหนี้" />
+          <iframe src={pdfUrl} title="ตัวอย่างเอกสารก่อนพิมพ์" />
         )}
       </div>
 
       {/* บอกตรงๆ ว่าเอกสารถูกย่อ ไม่ให้ผู้ใช้เจอกระดาษที่ตัวอักษรเล็กกว่าที่คาดโดยไม่รู้สาเหตุ */}
       {scale < 1 && (
         <p className="field-hint print-scale-note">
-          รายการในบิลมีจำนวนมาก ระบบย่อเอกสารเหลือ {Math.round(scale * 100)}%
-          เพื่อให้อยู่ในกระดาษแผ่นเดียว
+          เนื้อหายาวเกินหน้ากระดาษ ระบบย่อเอกสารเหลือ {Math.round(scale * 100)}%
+          เพื่อให้อยู่ครบใน {maxPages === 1 ? 'แผ่นเดียว' : `${maxPages} แผ่น`}
         </p>
       )}
 
