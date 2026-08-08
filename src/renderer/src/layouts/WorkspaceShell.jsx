@@ -4,6 +4,7 @@ import RoomsPage from '../pages/RoomsPage.jsx'
 import RoomDetailPage from '../pages/RoomDetailPage.jsx'
 import MetersPage from '../pages/MetersPage.jsx'
 import InvoicesPage from '../pages/InvoicesPage.jsx'
+import ReceiptsPage from '../pages/ReceiptsPage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
@@ -25,7 +26,7 @@ const NAV = [
   { key: 'rooms', label: 'ห้องพัก' },
   { key: 'meters', label: 'จดมิเตอร์' },
   { key: 'invoices', label: 'ใบแจ้งหนี้' },
-  { key: 'payments', label: 'การชำระเงิน', soon: 'รายงานใบเสร็จรับเงินย้อนหลัง' },
+  { key: 'payments', label: 'การชำระเงิน' },
   { key: 'maintenance', label: 'แจ้งซ่อม', soon: 'รับแจ้งซ่อมจากผู้เช่าและบันทึกการเข้าซ่อม' }
 ]
 
@@ -142,6 +143,8 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
             <MetersPage apartment={apartment} />
           ) : active === 'invoices' ? (
             <InvoicesPage apartment={apartment} user={user} />
+          ) : active === 'payments' ? (
+            <ReceiptsPage apartment={apartment} />
           ) : settingsItem ? (
             <SettingsSection
               section={active}
