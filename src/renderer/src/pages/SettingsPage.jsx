@@ -3,6 +3,7 @@ import ApartmentInfoPage from './ApartmentInfoPage.jsx'
 import ApartmentServicesPage from './ApartmentServicesPage.jsx'
 import UtilitySettingsPage from './UtilitySettingsPage.jsx'
 import BankAccountsPage from './BankAccountsPage.jsx'
+import QrCodePage from './QrCodePage.jsx'
 import FloorPlanPage from './FloorPlanPage.jsx'
 import RoomRatesPage from './RoomRatesPage.jsx'
 import SecuritySettingsPage from './SecuritySettingsPage.jsx'
@@ -26,6 +27,7 @@ export const SETTINGS_GROUPS = [
       { key: 'info', label: 'ข้อมูลหอพัก', ready: true },
       { key: 'services', label: 'บริการ', ready: true },
       { key: 'banks', label: 'บัญชีธนาคาร', ready: true },
+      { key: 'qrCode', label: 'QR Code รับเงิน', ready: true },
       { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true },
       { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false },
       { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true },
@@ -54,6 +56,8 @@ export function SettingsSection({ section, apartment, user, onApartmentDeleted }
       return <ApartmentServicesPage apartment={apartment} />
     case 'banks':
       return <BankAccountsPage apartment={apartment} />
+    case 'qrCode':
+      return <QrCodePage apartment={apartment} />
     case 'meterRules':
       return <UtilitySettingsPage apartment={apartment} />
     case 'security':

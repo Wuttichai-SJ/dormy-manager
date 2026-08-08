@@ -3,6 +3,7 @@
 // รับ `db` เป็นพารามิเตอร์ตัวแรกเสมอเหมือน db/users.js เพื่อให้ชุดทดสอบเปิดฐานข้อมูล
 // ชั่วคราวของตัวเองได้
 import { toCents } from '../money.js'
+import { deleteOrphanImages } from './images.js'
 
 // วันครบกำหนดชำระเลือกได้ถึงวันที่ 28 เท่านั้น (ต้นแบบก็ทำแบบนี้) — ไม่ใช่ 31
 // เพราะถ้าเจ้าของตั้งวันที่ 31 ไว้ เดือนกุมภาพันธ์กับเดือนที่มี 30 วันจะไม่มีวันนั้นอยู่จริง
@@ -232,6 +233,9 @@ export function deleteApartment(db, apartmentId) {
     ).run(apartmentId)
     db.prepare('DELETE FROM meter_batches WHERE apartment_id = ?').run(apartmentId)
     const result = db.prepare('DELETE FROM apartments WHERE apartment_id = ?').run(apartmentId)
+    // รูป QR ของหอที่เพิ่งถูกลบกลายเป็นรูปกำพร้า เก็บกวาดในธุรกรรมเดียวกัน
+    // ไม่งั้นไฟล์ฐานข้อมูลจะพกรูปที่ไม่มีใครใช้ติดไปกับไฟล์สำรองทุกครั้ง
+    deleteOrphanImages(db)
     if (result.changes === 0) throw new Error('ไม่พบหอพักที่ต้องการลบ')
   })
   run()

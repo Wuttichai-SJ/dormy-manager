@@ -15,6 +15,7 @@ import {
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
 import PrintDialog from '../components/PrintDialog.jsx'
 import { revealPdf, savePdf } from '../services/printService.js'
+import { getImageDataUrl } from '../services/imageService.js'
 
 // หน้าใบแจ้งหนี้ — โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "บิลค้างชำระ"): สองคอลัมน์
 // ซ้ายเป็นตัวเอกสาร ขวาเป็นยอดค้างกับการ์ดรับเงิน แล้วมี "เพิ่มรายการ" อยู่ใต้เอกสาร
@@ -414,7 +415,23 @@ function InvoicePaymentInfo({ invoice, signedBy }) {
   const banks = invoice.bankAccounts ?? []
   const instructions = invoice.apartment.paymentInstructions
   const note = invoice.apartment.invoiceNote
-  if (banks.length === 0 && !instructions && !note) return null
+  const qrImageId = invoice.apartment.qrCodeImageId
+
+  // QR ดึงแยกจากตัวบิล เพราะเป็นรูปที่ใหญ่กว่าข้อมูลบิลทั้งใบรวมกัน — ไม่ควรติดมากับ
+  // ทุกครั้งที่โหลดบิล และรายการบิลก็ไม่ได้ใช้
+  const [qrDataUrl, setQrDataUrl] = useState(null)
+  useEffect(() => {
+    if (!qrImageId) return setQrDataUrl(null)
+    let cancelled = false
+    getImageDataUrl(qrImageId).then((res) => {
+      if (!cancelled && res.success) setQrDataUrl(res.data.dataUrl)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [qrImageId])
+
+  if (banks.length === 0 && !instructions && !note && !qrDataUrl) return null
 
   return (
     <section className="invoice-payment-info">
@@ -427,7 +444,10 @@ function InvoicePaymentInfo({ invoice, signedBy }) {
         </div>
       )}
 
-      <div className="invoice-footer-box">
+      {/* QR อยู่ข้างกล่องบัญชี — ผู้เช่าสแกนได้ทันทีจากไฟล์ที่ได้รับทางแชต
+          โดยไม่ต้องพิมพ์เลขบัญชีทีละหลัก */}
+      <div className={'invoice-footer-layout' + (qrDataUrl ? ' has-qr' : '')}>
+        <div className="invoice-footer-box">
         {banks.length > 0 && (
           <table className="invoice-banks">
             <thead>
@@ -464,6 +484,14 @@ function InvoicePaymentInfo({ invoice, signedBy }) {
             <strong>Note:</strong>
             <p>{note}</p>
           </div>
+        )}
+        </div>
+
+        {qrDataUrl && (
+          <figure className="invoice-qr">
+            <img src={qrDataUrl} alt="QR Code สำหรับชำระเงิน" />
+            <figcaption>สแกนเพื่อชำระเงิน</figcaption>
+          </figure>
         )}
       </div>
     </section>

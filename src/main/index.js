@@ -16,6 +16,7 @@ import { registerMeterHandlers } from './handlers/meterHandlers.js'
 import { registerInvoiceHandlers } from './handlers/invoiceHandlers.js'
 import { registerPaymentHandlers } from './handlers/paymentHandlers.js'
 import { registerPrintHandlers } from './handlers/printHandlers.js'
+import { registerImageHandlers } from './handlers/imageHandlers.js'
 
 // ตาข่ายชั้นสุดท้าย: อะไรที่หลุดจาก try/catch ทั้งหมดต้องถูกบันทึกไว้ ไม่ใช่หายเงียบ
 process.on('uncaughtException', (err) => logError('uncaughtException', err))
@@ -125,6 +126,7 @@ app.whenReady().then(() => {
   registerInvoiceHandlers()
   registerPaymentHandlers()
   registerPrintHandlers()
+  registerImageHandlers()
   logInfo('ลงทะเบียน IPC ของระบบเข้าสู่ระบบและโมดูลหอพักแล้ว')
 
   createWindow()

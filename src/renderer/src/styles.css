@@ -3506,6 +3506,72 @@ body {
   font-weight: 600;
 }
 
+/* หน้าตั้งค่า QR — รูปตัวอย่างกับปุ่มจัดกลางในกรอบเดียว */
+.qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.qr-preview {
+  width: 220px;
+  height: auto;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* กรอบเส้นประตอนยังไม่มีรูป — บอกว่าตรงนี้ควรมีอะไรอยู่ ไม่ใช่พื้นที่ว่างเปล่า */
+.qr-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 220px;
+  height: 220px;
+  background: var(--bg);
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+}
+
+.qr-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* กล่องบัญชีกับ QR วางเคียงกัน — QR กว้างคงที่ กล่องบัญชีกินที่ที่เหลือ
+   ถ้าไม่มี QR กล่องบัญชีกินเต็มความกว้างเหมือนเดิม */
+.invoice-footer-layout.has-qr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* QR ต้องคมพอให้สแกนจากหน้าจอมือถือได้ พื้นขาวรอบรูปช่วยให้กล้องจับขอบ QR เจอ */
+.invoice-qr {
+  margin: 0;
+  padding: 8px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+.invoice-qr img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.invoice-qr figcaption {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* กล่องเดียวครอบตารางบัญชีกับข้อความท้ายบิล เส้นบางๆ แบ่งเป็นแถวเหมือนต้นแบบ */
 .invoice-footer-box {
   border: 1px solid var(--border);

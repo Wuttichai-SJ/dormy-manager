@@ -139,5 +139,29 @@ check('รูปที่ไม่มีเจ้าของแล้ว ถู
 })
 
 // -----------------------------------------------------
+// QR ของหอผูกกับ apartments.qr_code_image_id — ลบหอแล้วรูปต้องไม่ค้างอยู่ในไฟล์ฐานข้อมูล
+// (ไฟล์ฐานข้อมูลถูกคัดลอกทั้งไฟล์ตอนสำรอง รูปที่ไม่มีใครใช้จึงติดไปด้วยทุกครั้ง)
+group('รูป QR กับวงจรชีวิตของหอ')
+
+check('ลบหอแล้วรูป QR ของหอนั้นถูกเก็บกวาดไปด้วย', () => {
+  const doomed = apartments.insertApartment(db, {
+    nameTh: 'หอที่จะถูกลบ',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0'
+  })
+
+  const image = images.insertImage(db, { mimeType: 'image/png', bytes: PNG_1X1 })
+  db.prepare('UPDATE apartments SET qr_code_image_id = ? WHERE apartment_id = ?').run(
+    image.imageId,
+    doomed.apartmentId
+  )
+  assert(images.getImageDataUrl(db, image.imageId) !== null, 'รูปควรอยู่ก่อนลบหอ')
+
+  apartments.deleteApartment(db, doomed.apartmentId)
+  assert(images.getImageDataUrl(db, image.imageId) === null, 'รูปควรถูกเก็บกวาดไปพร้อมหอ')
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('การเก็บรูปภาพเป็น BLOB ทำงานครบทุกเส้นทาง')
