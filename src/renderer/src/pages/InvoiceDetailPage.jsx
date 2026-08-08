@@ -135,6 +135,9 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [busy, setBusy] = useState(false)
   const closed = invoice.status === 'cancelled'
+  // หอที่ไม่ได้จดทะเบียน VAT ไม่ต้องเห็นคำว่า vat ที่ไหนเลยบนบิล — ทุกบรรทัดจะขึ้นว่า
+  // "ไม่มี" เหมือนกันหมด ซึ่งเป็นข้อมูลที่ไม่ได้บอกอะไรและกินที่บนกระดาษเปล่าๆ
+  const showVat = invoice.isVatEnabled
 
   // กล่องเลือกเครื่องพิมพ์ต้องเปิด "นอก" ตัวเอกสาร ไม่งั้นมันจะถูกซ่อนไปพร้อมกันตอนพิมพ์
   // (แต่ Modal เรนเดอร์ทับทั้งหน้าอยู่แล้ว จึงไม่มีปัญหา)
@@ -258,8 +261,16 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
           <tr>
             <th className="invoice-col-no">#</th>
             <th>รายการ</th>
-            <th className="align-right">ราคาต่อหน่วย</th>
-            <th className="align-right">ยอดเงิน</th>
+            {/* หัวคอลัมน์บอกให้ชัดว่าราคาต่อหน่วยยังไม่รวมภาษี แต่ยอดเงินรวมแล้ว
+                ไม่งั้นผู้เช่าเอาราคาต่อหน่วยคูณจำนวนแล้วไม่ตรงกับยอดเงิน จะคิดว่าคิดเงินผิด */}
+            <th className="align-right">
+              ราคาต่อหน่วย
+              {showVat && <span className="invoice-col-sub">(ก่อน VAT)</span>}
+            </th>
+            <th className="align-right">
+              ยอดเงิน
+              {showVat && <span className="invoice-col-sub">(รวม VAT)</span>}
+            </th>
             {!closed && <th className="align-right" />}
           </tr>
         </thead>
@@ -268,11 +279,25 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
             <tr key={item.invoiceItemId}>
               <td className="invoice-col-no">{index + 1}</td>
               <td>{item.description}</td>
-              <td className="align-right">{formatBaht(item.unitPriceCents)}</td>
+              <td className="align-right">
+                {formatBaht(item.unitPriceCents)}
+                {showVat && (
+                  <span className="invoice-line-vat">
+                    vat: {item.vatRate > 0 ? `${item.vatRate}%` : 'ไม่มี'}
+                  </span>
+                )}
+              </td>
+              {/* ยอดเงินรวม VAT ของบรรทัดนั้นแล้ว (ฐาน + ภาษี) ตามที่หัวคอลัมน์บอกไว้
+                  ฐานกับภาษีเก็บแยกกันในฐานข้อมูล บวกตอนแสดงผลเท่านั้น */}
               <td className="align-right">
                 <span className={item.totalAmountCents < 0 ? 'negative' : undefined}>
-                  {formatBaht(item.totalAmountCents)}
+                  {formatBaht(item.totalAmountCents + item.vatAmountCents)}
                 </span>
+                {showVat && (
+                  <span className="invoice-line-vat">
+                    ยอด VAT: {item.vatAmountCents > 0 ? formatBaht(item.vatAmountCents) : '-'}
+                  </span>
+                )}
               </td>
               {!closed && (
                 <td className="align-right">
