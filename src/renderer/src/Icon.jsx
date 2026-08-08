@@ -50,6 +50,9 @@ import account from './assets/icons/heroicons/24/outline/user-circle.svg?raw'
 import electric from './assets/icons/heroicons/24/solid/bolt.svg?raw'
 // heroicons ไม่มีหยดน้ำ — วาดเองแล้วเก็บเป็นไฟล์ในเครื่องเหมือนไอคอนอื่น ไม่ดึงจากเน็ต
 import water from './assets/icons/custom/water-drop.svg?raw'
+// พิมพ์เอกสาร / บันทึกไฟล์ลงเครื่อง
+import printer from './assets/icons/heroicons/24/outline/printer.svg?raw'
+import download from './assets/icons/heroicons/24/outline/arrow-down-tray.svg?raw'
 
 const ICONS = {
   dashboard,
@@ -84,7 +87,9 @@ const ICONS = {
   account,
   water,
   electric,
-  calendar
+  calendar,
+  printer,
+  download
 }
 
 export default function Icon({ name, className = '' }) {

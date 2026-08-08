@@ -3065,6 +3065,84 @@ body {
 }
 
 /* -----------------------------------------------------
+   พิมพ์ลงกระดาษ / บันทึกเป็น PDF
+   -----------------------------------------------------
+   หน้าที่พิมพ์คือหน้าเดียวกับที่เห็นบนจอ ไม่ได้วาดเอกสารขึ้นมาใหม่ต่างหาก
+   กฎที่นี่จึงมีหน้าที่เดียว: เก็บทุกอย่างที่ไม่ใช่ "ตัวเอกสาร" ออกไป
+   ทั้ง webContents.print() และ printToPDF() ใช้ชุดนี้เหมือนกัน ผลจึงตรงกันเสมอ
+
+   ขนาดกระดาษกับขอบต้องตรงกับ PAGE ใน src/main/handlers/printHandlers.js */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  /* พื้นหลังอุ่นของแอปกินหมึกเปล่าๆ และทำให้ตัวอักษรอ่านยากบนกระดาษ */
+  body,
+  .app,
+  .content,
+  .page {
+    background: #fff;
+  }
+
+  /* เมนูข้าง แถบบน ทางกลับ และแถบเตือน ไม่ใช่ส่วนหนึ่งของเอกสาร */
+  .sidebar,
+  .topbar,
+  .page-back,
+  .info-banner,
+  .alert {
+    display: none !important;
+  }
+
+  /* คอลัมน์ขวา (ยอดค้าง/รับเงิน/ประวัติ) กับการ์ดเพิ่มรายการ เป็นเครื่องมือทำงาน
+     ไม่ใช่สิ่งที่ผู้เช่าต้องเห็นบนใบแจ้งหนี้ */
+  .invoice-side,
+  .invoice-main > .panel:not(.invoice-doc) {
+    display: none !important;
+  }
+
+  /* ปุ่มทุกปุ่มบนตัวเอกสาร: พิมพ์ / บันทึก PDF / ยกเลิกบิล / ถังขยะรายบรรทัด */
+  .invoice-doc-tools,
+  .invoice-items th:last-child,
+  .invoice-items td:last-child {
+    display: none !important;
+  }
+
+  /* เอกสารต้องเต็มหน้ากระดาษ ไม่ใช่การ์ดลอยที่มีเงาและมุมโค้ง */
+  .app,
+  .content,
+  .page {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  .invoice-layout {
+    display: block;
+  }
+
+  .invoice-doc {
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* ห้ามให้ตารางรายการถูกตัดกลางแถวเมื่อขึ้นหน้าใหม่ — ยอดเงินจะไปคนละหน้ากับชื่อรายการ */
+  .invoice-items tr,
+  .invoice-totals {
+    break-inside: avoid;
+  }
+
+  /* หัวตารางซ้ำทุกหน้าเมื่อบิลยาวเกินหนึ่งหน้า */
+  .invoice-items thead {
+    display: table-header-group;
+  }
+}
+
+/* -----------------------------------------------------
    ช่องกรอกวันที่ (วว/ดด/ปปปป)
    ----------------------------------------------------- */
 .date-field {
@@ -3120,6 +3198,15 @@ body {
 }
 
 /* -----------------------------------------------------
+   ปุ่มพิมพ์ / บันทึก PDF บนหัวเอกสาร
+   ----------------------------------------------------- */
+.invoice-doc-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* -----------------------------------------------------
    หน้าใบแจ้งหนี้
    ----------------------------------------------------- */
 /* สองคอลัมน์ตามต้นแบบ: เอกสารซ้าย ยอดค้าง+รับเงินขวา
@@ -3147,6 +3234,7 @@ body {
 
 .invoice-doc-tools {
   display: flex;
+  align-items: center;
   justify-content: flex-start;
   min-height: 20px;
 }

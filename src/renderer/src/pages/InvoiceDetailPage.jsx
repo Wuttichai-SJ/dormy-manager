@@ -12,6 +12,7 @@ import {
   removeInvoiceItem
 } from '../services/invoiceService.js'
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
+import { printDocument, revealPdf, savePdf } from '../services/printService.js'
 
 // หน้าใบแจ้งหนี้ — โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "บิลค้างชำระ"): สองคอลัมน์
 // ซ้ายเป็นตัวเอกสาร ขวาเป็นยอดค้างกับการ์ดรับเงิน แล้วมี "เพิ่มรายการ" อยู่ใต้เอกสาร
@@ -63,6 +64,7 @@ export default function InvoiceDetailPage({ invoiceId, onBack }) {
         <div className="invoice-main">
           <InvoiceDocument
             invoice={invoice}
+            onError={setError}
             onRemoveItem={async (itemId) => {
               setError('')
               const res = await removeInvoiceItem(invoice.invoiceId, itemId)
@@ -126,9 +128,31 @@ function BackLink({ onBack }) {
 // ------------------------------------------------------------------
 // ตัวเอกสาร
 // ------------------------------------------------------------------
-function InvoiceDocument({ invoice, onRemoveItem, onCancel }) {
+function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const [busy, setBusy] = useState(false)
   const closed = invoice.status === 'cancelled'
+
+  async function onPrint() {
+    onError('')
+    const res = await printDocument()
+    if (!res.success) onError(res.error)
+  }
+
+  // ตั้งชื่อไฟล์เป็น "เลขที่บิล-ห้อง" เพื่อให้ผู้เช่าที่ได้รับทางแชตรู้ทันทีว่าเป็นบิลใบไหน
+  // ห้องไหน โดยไม่ต้องเปิดไฟล์ก่อน
+  async function onSavePdf() {
+    onError('')
+    setBusy(true)
+    const res = await savePdf(`${invoice.invoiceNumber}-ห้อง${invoice.roomNumber}`)
+    setBusy(false)
+    if (!res.success) return onError(res.error)
+    if (res.data.cancelled) return
+
+    showToast('บันทึกไฟล์ PDF แล้ว')
+    // เปิดโฟลเดอร์ค้างไว้ให้ลากไฟล์ไปแนบส่งต่อได้เลย ไม่ต้องไปหาเอง
+    revealPdf(res.data.filePath)
+  }
 
   return (
     <section className="panel invoice-doc">
@@ -143,6 +167,19 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel }) {
             <span>ยกเลิกบิล</span>
           </button>
         )}
+
+        {/* ปุ่มพิมพ์/บันทึก PDF อยู่ขวาตามต้นแบบ — และถูกซ่อนตอนพิมพ์ด้วย @media print
+            ไม่งั้นตัวปุ่มจะติดไปบนกระดาษด้วย */}
+        <div className="invoice-doc-actions">
+          <button type="button" className="btn btn-outline btn-sm" onClick={onPrint} disabled={busy}>
+            <Icon name="printer" />
+            <span>พิมพ์</span>
+          </button>
+          <button type="button" className="btn btn-sm" onClick={onSavePdf} disabled={busy}>
+            <Icon name="download" />
+            <span>{busy ? 'กำลังบันทึก...' : 'บันทึก PDF'}</span>
+          </button>
+        </div>
       </div>
 
       <h2 className="invoice-doc-title">ใบแจ้งหนี้ / Invoice</h2>
