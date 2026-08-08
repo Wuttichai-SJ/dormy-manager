@@ -223,10 +223,17 @@ check('ค่าบริการที่ติดธง VAT เท่าน�
   assert(trashItem.isTaxable === false, 'ค่าขยะไม่ได้ติดธง')
 })
 
-check('ค่าเช่าและค่าน้ำ/ค่าไฟได้รับยกเว้นเสมอ', () => {
-  for (const type of ['rent', 'water', 'electricity']) {
+// ยืนยันกับบิลจริงของต้นแบบแล้ว: ค่าเช่ายกเว้น แต่ค่าน้ำ/ค่าไฟเสียภาษี
+// (การให้เช่าอสังหาฯ ได้รับยกเว้น VAT ส่วนการขายน้ำ/ไฟเป็นการขายสินค้า)
+check('ค่าเช่าได้รับยกเว้นเสมอ แม้หอจะเปิด VAT', () => {
+  const rent = built.items.find((i) => i.itemType === 'rent')
+  assert(rent.isTaxable === false, 'ค่าเช่าต้องไม่เสียภาษี')
+})
+
+check('ค่าน้ำและค่าไฟเสียภาษีเมื่อหอเปิด VAT', () => {
+  for (const type of ['water', 'electricity']) {
     const item = built.items.find((i) => i.itemType === type)
-    assert(item.isTaxable === false, `${type} ไม่ควรเสียภาษี`)
+    assert(item.isTaxable === true, `${type} ต้องเสียภาษี`)
   }
 })
 
@@ -235,11 +242,13 @@ group('รวมยอด')
 
 check('VAT บวกเพิ่มจากฐานภาษี ไม่ใช่รวมอยู่ในราคาแล้ว', () => {
   const totals = invoices.calculateInvoiceTotals(built.items)
-  // ยกเว้น: เช่า 5000 + น้ำ 1960 + ไฟ 2100 + ขยะ 50 = 9110
-  assert(totals.exemptAmountCents === 911000, `exempt ได้ ${totals.exemptAmountCents}`)
-  assert(totals.taxableAmountCents === 30000, `taxable ได้ ${totals.taxableAmountCents}`)
-  assert(totals.vatAmountCents === 2100, `vat ได้ ${totals.vatAmountCents}`)
-  assert(totals.totalAmountCents === 943100, `total ได้ ${totals.totalAmountCents}`)
+  // ยกเว้น: ค่าเช่า 5,000 + ค่าขยะ 50 (ไม่ได้ติดธง VAT) = 5,050
+  assert(totals.exemptAmountCents === 505000, `exempt ได้ ${totals.exemptAmountCents}`)
+  // ฐานภาษี: น้ำ 1,960 + ไฟ 2,100 + เน็ต 300 = 4,360
+  assert(totals.taxableAmountCents === 436000, `taxable ได้ ${totals.taxableAmountCents}`)
+  // VAT 7%: 137.20 + 147.00 + 21.00 = 305.20
+  assert(totals.vatAmountCents === 30520, `vat ได้ ${totals.vatAmountCents}`)
+  assert(totals.totalAmountCents === 971520, `total ได้ ${totals.totalAmountCents}`)
 })
 
 check('ส่วนลดที่เป็นยอดติดลบลดยอดรวมได้เอง', () => {
@@ -268,8 +277,8 @@ check('ได้เลขที่ วันครบกำหนด และ�
 })
 
 check('ยอดบนหัวบิลตรงกับผลรวมของรายการ', () => {
-  assert(invoice1.totalAmountCents === 943100, `ได้ ${invoice1.totalAmountCents}`)
-  assert(invoice1.outstandingCents === 943100, 'ยังไม่จ่ายเลย ต้องค้างเต็มจำนวน')
+  assert(invoice1.totalAmountCents === 971520, `ได้ ${invoice1.totalAmountCents}`)
+  assert(invoice1.outstandingCents === 971520, 'ยังไม่จ่ายเลย ต้องค้างเต็มจำนวน')
   assert(invoice1.paidAmountCents === 0, `ได้ ${invoice1.paidAmountCents}`)
 })
 
@@ -434,7 +443,7 @@ check('เพิ่มค่าบริการเข้าบิลแล้�
     description: 'ค่าซ่อมประตู',
     amount: '500'
   })
-  assert(updated.totalAmountCents === 943100 + 50000, `ได้ ${updated.totalAmountCents}`)
+  assert(updated.totalAmountCents === 971520 + 50000, `ได้ ${updated.totalAmountCents}`)
   assert(updated.items.length === 6, `ได้ ${updated.items.length} รายการ`)
 })
 
@@ -446,7 +455,7 @@ check('ส่วนลดเก็บเป็นยอดติดลบ แม
   })
   const discount = updated.items.find((i) => i.itemType === 'discount')
   assert(discount.totalAmountCents === -10000, `ได้ ${discount.totalAmountCents}`)
-  assert(updated.totalAmountCents === 943100 + 50000 - 10000, `ได้ ${updated.totalAmountCents}`)
+  assert(updated.totalAmountCents === 971520 + 50000 - 10000, `ได้ ${updated.totalAmountCents}`)
 })
 
 check('เพิ่มรายการที่เสียภาษีแล้ว VAT ถูกคิดเพิ่มด้วย', () => {
@@ -468,7 +477,7 @@ check('ลบรายการแล้วยอดรวมกลับมา�
   const before = invoices.getInvoiceById(db, invoice1.invoiceId)
   const special = before.items.find((i) => i.description === 'ค่าบริการพิเศษ')
   const after = invoices.removeInvoiceItem(db, invoice1.invoiceId, special.invoiceItemId)
-  assert(after.totalAmountCents === 943100 + 50000 - 10000, `ได้ ${after.totalAmountCents}`)
+  assert(after.totalAmountCents === 971520 + 50000 - 10000, `ได้ ${after.totalAmountCents}`)
 })
 
 check('ลบรายการที่ไม่ได้อยู่ในบิลใบนั้นต้องเตือน', () => {

@@ -28,12 +28,16 @@ export const ITEM_TYPES = ['rent', 'water', 'electricity', 'service', 'discount'
 export const VAT_RATE = 7
 
 // **VAT คิดแบบ "บวกเพิ่มจากราคา" ไม่ใช่ "รวมอยู่ในราคาแล้ว"**
-// ตาราง apartments มีแค่สวิตช์ is_vat_enabled ไม่มีช่องบอกว่ารวมหรือไม่รวม จึงต้องเลือก
-// ทางใดทางหนึ่ง — เลือกบวกเพิ่มเพราะเป็นแบบที่ใบกำกับภาษีไทยใช้กันทั่วไป
+// ยืนยันกับบิลจริงของต้นแบบแล้ว (หัวคอลัมน์เขียน "ราคาต่อหน่วย (ก่อน VAT)" / "ยอดเงิน (รวม VAT)")
 //
-// และคิดเฉพาะ "ค่าบริการที่ติดธงเสียภาษี" (apartment_services.is_vat_enabled) เท่านั้น
-// ค่าเช่าห้องพักอาศัยกับค่าน้ำ/ค่าไฟที่เก็บตามจริงได้รับยกเว้น จึงลงช่อง exempt เสมอ
-// (ตรงกับที่สคีมาแยก exempt_amount_cents ออกจาก taxable_amount_cents ไว้ตั้งแต่ต้น)
+// **อะไรเสียภาษีบ้าง** (แก้ 2026-08-08 หลังเทียบกับบิลจริง — ของเดิมผิด):
+//   ค่าเช่าห้อง       ยกเว้นเสมอ — การให้เช่าอสังหาริมทรัพย์ได้รับยกเว้น VAT ตามกฎหมายไทย
+//   ค่าน้ำ / ค่าไฟ    เสียภาษี ถ้าหอเปิด VAT — เป็นการขายสินค้า/บริการ ไม่ใช่ค่าเช่า
+//   ค่าบริการ         เสียภาษี ถ้าหอเปิด VAT *และ* ค่าบริการตัวนั้นติดธงไว้
+//   ส่วนลด / อื่นๆ     ไม่คิดต่อ (ดู addInvoiceItem)
+//
+// เดิมเขียนไว้ว่าค่าน้ำ/ค่าไฟยกเว้นด้วย ซึ่งเป็นการเดาที่ผิด — ผลคือหอที่เปิด VAT แล้วมีแต่
+// ค่าเช่ากับค่าน้ำค่าไฟบนบิล จะได้ฐานภาษี 0 และ VAT 0 ทั้งที่ควรเก็บ
 
 // ------------------------------------------------------------------
 // เลขที่เอกสาร
@@ -135,6 +139,7 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
     quantity: 1,
     unitPriceCents: contract.rent_amount_cents,
     totalAmountCents: contract.rent_amount_cents,
+    // ค่าเช่าอสังหาริมทรัพย์ได้รับยกเว้น VAT เสมอ ต่อให้หอจดทะเบียน VAT ไว้
     isTaxable: false
   })
 
@@ -183,7 +188,8 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
         quantity: units,
         unitPriceCents: config.unitPriceCents,
         totalAmountCents: charge,
-        isTaxable: false,
+        // ค่าน้ำ/ค่าไฟเป็นการขายสินค้า ไม่ใช่ค่าเช่า จึงเสียภาษีเมื่อหอจดทะเบียน VAT
+        isTaxable: contract.is_vat_enabled === 1,
         // ใช้จริงแต่คิดเงินไม่ได้เพราะห้องนี้ไม่เคยถูกตั้งราคา — ต้องเตือนก่อนออกบิล
         // ไม่ใช่ปล่อยให้บิล 0 บาทหลุดไปถึงมือผู้เช่า
         unpriced: isSideUnpriced(config) && units > 0
