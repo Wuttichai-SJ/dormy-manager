@@ -12,7 +12,8 @@ import {
   removeInvoiceItem
 } from '../services/invoiceService.js'
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
-import { printDocument, revealPdf, savePdf } from '../services/printService.js'
+import PrintDialog from '../components/PrintDialog.jsx'
+import { revealPdf, savePdf } from '../services/printService.js'
 
 // หน้าใบแจ้งหนี้ — โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "บิลค้างชำระ"): สองคอลัมน์
 // ซ้ายเป็นตัวเอกสาร ขวาเป็นยอดค้างกับการ์ดรับเงิน แล้วมี "เพิ่มรายการ" อยู่ใต้เอกสาร
@@ -135,11 +136,9 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
   const [busy, setBusy] = useState(false)
   const closed = invoice.status === 'cancelled'
 
-  async function onPrint() {
-    onError('')
-    const res = await printDocument()
-    if (!res.success) onError(res.error)
-  }
+  // กล่องเลือกเครื่องพิมพ์ต้องเปิด "นอก" ตัวเอกสาร ไม่งั้นมันจะถูกซ่อนไปพร้อมกันตอนพิมพ์
+  // (แต่ Modal เรนเดอร์ทับทั้งหน้าอยู่แล้ว จึงไม่มีปัญหา)
+  const [printing, setPrinting] = useState(false)
 
   // ตั้งชื่อไฟล์เป็น "เลขที่บิล-ห้อง" เพื่อให้ผู้เช่าที่ได้รับทางแชตรู้ทันทีว่าเป็นบิลใบไหน
   // ห้องไหน โดยไม่ต้องเปิดไฟล์ก่อน
@@ -173,7 +172,12 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         {/* ปุ่มพิมพ์/บันทึก PDF อยู่ขวาตามต้นแบบ — และถูกซ่อนตอนพิมพ์ด้วย @media print
             ไม่งั้นตัวปุ่มจะติดไปบนกระดาษด้วย */}
         <div className="invoice-doc-actions">
-          <button type="button" className="btn btn-outline btn-sm" onClick={onPrint} disabled={busy}>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setPrinting(true)}
+            disabled={busy}
+          >
             <Icon name="printer" />
             <span>พิมพ์</span>
           </button>
@@ -311,6 +315,16 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
       </dl>
 
       <InvoicePaymentInfo invoice={invoice} signedBy={signedBy} />
+
+      {printing && (
+        <PrintDialog
+          onClose={() => setPrinting(false)}
+          onPrinted={() => {
+            setPrinting(false)
+            showToast('ส่งเอกสารเข้าเครื่องพิมพ์แล้ว')
+          }}
+        />
+      )}
     </section>
   )
 }

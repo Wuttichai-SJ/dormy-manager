@@ -43,26 +43,58 @@ function safeFileName(name) {
   return String(name ?? 'document').replace(/[\\/:*?"<>|]/g, '').trim() || 'document'
 }
 
+// เครื่องพิมพ์เสมือนที่ Windows แถมมา — ไม่ได้ทำให้เกิดกระดาษ
+// ใช้เตือนผู้ใช้ว่ายังไม่ได้ต่อเครื่องพิมพ์จริง ไม่ได้ซ่อนออกจากรายการ
+// (บางคนตั้งใจใช้ "Microsoft Print to PDF" จริงๆ)
+const VIRTUAL_PRINTERS = [
+  'Microsoft Print to PDF',
+  'Microsoft XPS Document Writer',
+  'OneNote',
+  'Fax'
+]
+
+function isVirtualPrinter(name) {
+  return VIRTUAL_PRINTERS.some((v) => String(name).includes(v))
+}
+
 export function registerPrintHandlers() {
-  // ส่งเข้าเครื่องพิมพ์ — เปิดกล่องเลือกเครื่องพิมพ์ของ Windows ให้ผู้ใช้เลือกเอง
-  // ไม่พิมพ์เงียบ เพราะหอพักอาจมีหลายเครื่องพิมพ์ และผู้ใช้ต้องเลือกจำนวนชุดได้
-  handle('print:document', async (_payload, event) => {
+  // รายชื่อเครื่องพิมพ์ที่ Windows รู้จัก — หน้าจอเอาไปทำกล่องเลือกของเราเอง
+  //
+  // ทำไมไม่ใช้กล่องของ Windows: Electron บน Windows เปิดกล่องระบบได้ก็จริง แต่มันเป็น
+  // ภาษาอังกฤษล้วนในแอปที่เป็นไทยทั้งตัว และขึ้นว่า "This app doesn't support print preview"
+  // ซึ่งอ่านแล้วเหมือนแอปพัง ทั้งที่ตัวเอกสารที่จะพิมพ์คือหน้าที่ผู้ใช้มองอยู่ตรงหน้าแล้ว
+  handle('print:listPrinters', async (_payload, event) => {
+    const printers = await windowOf(event).webContents.getPrintersAsync()
+    return printers.map((p) => ({
+      name: p.name,
+      displayName: p.displayName || p.name,
+      isDefault: Boolean(p.isDefault),
+      isVirtual: isVirtualPrinter(p.name)
+    }))
+  })
+
+  // ส่งเข้าเครื่องพิมพ์ที่ผู้ใช้เลือกจากกล่องของเรา จึงพิมพ์เงียบได้ (ไม่เปิดกล่องซ้อนอีกชั้น)
+  handle('print:document', async ({ deviceName, copies }, event) => {
     const win = windowOf(event)
+    if (!deviceName) throw new Error('กรุณาเลือกเครื่องพิมพ์')
+
+    const count = Number(copies ?? 1)
+    if (!Number.isInteger(count) || count < 1 || count > 20) {
+      throw new Error('จำนวนชุดต้องเป็นตัวเลข 1-20')
+    }
+
     const done = await new Promise((resolve) => {
-      win.webContents.print({ ...PAGE, silent: false }, (success, reason) => {
-        // reason = 'cancelled' เมื่อผู้ใช้กดยกเลิกในกล่องเลือกเครื่องพิมพ์ ไม่ใช่ความผิดพลาด
-        if (!success && reason && reason !== 'cancelled') {
-          resolve({ ok: false, reason })
-          return
-        }
-        resolve({ ok: success, cancelled: !success })
-      })
+      win.webContents.print(
+        { ...PAGE, silent: true, deviceName, copies: count },
+        (success, reason) => resolve({ success, reason })
+      )
     })
 
-    if (done.ok === false && done.reason) throw new Error(`พิมพ์ไม่สำเร็จ: ${done.reason}`)
-    if (done.cancelled) return { cancelled: true }
+    if (!done.success) {
+      throw new Error(`พิมพ์ไม่สำเร็จ: ${done.reason || 'เครื่องพิมพ์ไม่ตอบสนอง'}`)
+    }
 
-    logInfo('ส่งเอกสารเข้าเครื่องพิมพ์แล้ว')
+    logInfo(`ส่งเอกสารเข้าเครื่องพิมพ์ ${deviceName} จำนวน ${count} ชุด`)
     return { cancelled: false }
   })
 

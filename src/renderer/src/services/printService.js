@@ -5,9 +5,14 @@
 // อะไรลงกระดาษบ้าง — ไม่ต้องส่งข้อมูลเอกสารข้ามไป
 import { invoke } from './ipc.js'
 
-// เปิดกล่องเลือกเครื่องพิมพ์ของ Windows · คืน { cancelled } ถ้าผู้ใช้กดยกเลิก
-export function printDocument() {
-  return invoke('print:document')
+// รายชื่อเครื่องพิมพ์ที่ Windows รู้จัก พร้อมธงว่าตัวไหนเป็นเครื่องพิมพ์เสมือน
+export function listPrinters() {
+  return invoke('print:listPrinters')
+}
+
+// ส่งเข้าเครื่องพิมพ์ที่เลือก — เลือกจากกล่องของเราเอง ฝั่ง main จึงพิมพ์ได้เลยไม่เปิดกล่องซ้อน
+export function printDocument({ deviceName, copies }) {
+  return invoke('print:document', { deviceName, copies })
 }
 
 // เปิดกล่องบันทึกไฟล์ · คืน { cancelled, filePath }
