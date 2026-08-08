@@ -12,8 +12,7 @@ import {
   listPaymentsForInvoice,
   listReceipts,
   recordContractPayment,
-  recordInvoicePayment,
-  refundInvoicePayment
+  recordInvoicePayment
 } from '../db/payments.js'
 
 function handle(channel, fn) {
@@ -41,18 +40,8 @@ export function registerPaymentHandlers() {
     return payment
   })
 
-  handle('payment:refund', ({ invoiceId, amount, paymentMethod, paymentDate, remark }) => {
-    const payment = refundInvoicePayment(getDatabase(), {
-      invoiceId,
-      amount,
-      paymentMethod,
-      paymentDate,
-      remark,
-      createdBy: requireSessionUserId()
-    })
-    logInfo(`คืนเงิน ${payment.receiptNumber} ห้อง ${payment.roomNumber} ${amount} บาท`)
-    return payment
-  })
+  // ไม่มีช่องคืนเงินค่าบิล — ดู db/payments.js ว่าทำไม
+  // การคืนเงินประกันตอนย้ายออกใช้ payment:receiveForContract พร้อม isRefund
 
   // ใบเสร็จเงินประกัน/เงินล่วงหน้าของสัญญา — ไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
   handle(

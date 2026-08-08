@@ -241,47 +241,14 @@ check('รายการรับเงินใต้บิลเรียง�
 })
 
 // -----------------------------------------------------
-group('คืนเงิน')
+// ไม่มีการคืนเงินค่าบิลแล้ว (ผู้ใช้ตัดสินใจ 2026-08-08) — เหลือแต่ทางรับเงินเข้าอย่างเดียว
+group('ไม่มีการคืนเงินค่าบิล')
 
-check('คืนเงินเกินที่รับมาไม่ได้', () => {
-  throws(
-    () =>
-      payments.refundInvoicePayment(db, {
-        ...BASE,
-        invoiceId: invoice.invoiceId,
-        amount: '6000'
-      }),
-    'ไม่เกินยอดที่รับมาแล้ว 5,000.00',
-    'ต้องกันการคืนเกิน'
+check('โมดูลไม่เปิดทางคืนเงินค่าบิลไว้เลย', () => {
+  assert(
+    payments.refundInvoicePayment === undefined,
+    'ยังมี refundInvoicePayment หลงเหลืออยู่ — ถ้าจะเอากลับมา ให้ทำเป็น "ยกเลิกใบเสร็จ" แทน'
   )
-})
-
-check('คืนเงินบางส่วนเขียนเป็นใบเสร็จยอดติดลบ และบิลกลับเป็นชำระบางส่วน', () => {
-  const refund = payments.refundInvoicePayment(db, {
-    ...BASE,
-    invoiceId: invoice.invoiceId,
-    amount: '1000',
-    paymentDate: '2026-09-10',
-    remark: 'คิดค่าน้ำผิด'
-  })
-  assert(refund.amountCents === -100000, `ได้ ${refund.amountCents}`)
-  assert(refund.isRefund === true, 'ต้องรู้ว่าเป็นใบคืนเงิน')
-
-  const after = invoices.getInvoiceById(db, invoice.invoiceId)
-  assert(after.status === 'partial_paid', `ได้ ${after.status}`)
-  assert(after.paidAmountCents === 400000, `ได้ ${after.paidAmountCents}`)
-})
-
-check('คืนจนหมดแล้วบิลกลับไปเป็นค้างชำระเอง', () => {
-  payments.refundInvoicePayment(db, {
-    ...BASE,
-    invoiceId: invoice.invoiceId,
-    amount: '4000',
-    paymentDate: '2026-09-11'
-  })
-  const after = invoices.getInvoiceById(db, invoice.invoiceId)
-  assert(after.status === 'unpaid', `ได้ ${after.status}`)
-  assert(after.paidAmountCents === 0, `ได้ ${after.paidAmountCents}`)
 })
 
 // -----------------------------------------------------
@@ -392,19 +359,27 @@ group('รายงานใบเสร็จรับเงิน')
 
 check('กรองตามเดือนได้ และนับจำนวนใบถูกต้อง', () => {
   const report = payments.listReceipts(db, apartmentId, { month: '2026-09' })
-  // ก.ย.: รับ 2,000 + รับ 3,000 + คืน 1,000 + คืน 4,000 = 4 ใบ
-  assert(report.receiptCount === 4, `ได้ ${report.receiptCount} ใบ`)
+  // ก.ย.: รับ 2,000 + รับ 3,000 = 2 ใบ
+  assert(report.receiptCount === 2, `ได้ ${report.receiptCount} ใบ`)
+  assert(report.totalAmountCents === 500000, `ได้ ${report.totalAmountCents}`)
 })
 
-check('ยอดรวมหักใบคืนเงินออก จึงเป็นเงินที่เข้าหอจริง', () => {
-  const report = payments.listReceipts(db, apartmentId, { month: '2026-09' })
-  assert(report.totalAmountCents === 0, `ได้ ${report.totalAmountCents} ควรเป็น 0`)
+// ใบเสร็จยอดติดลบยังมีได้จากการคืนเงินประกันตอนย้ายออก (ผูกกับสัญญา ไม่ใช่กับบิล)
+// ยอดรวมจึงต้องหักใบพวกนั้นออก เพื่อให้เป็น "เงินที่เข้าหอจริง" ไม่ใช่ผลบวกของใบที่ออก
+check('ยอดรวมหักใบคืนเงินประกันออก จึงเป็นเงินที่เข้าหอจริง', () => {
+  const report = payments.listReceipts(db, apartmentId)
+  // ก.ย. 2,000 + 3,000 · สัญญา ส.ค. +5,000 · สัญญา ก.พ. -5,000 · ต.ค. 5,000 = 10,000
+  assert(report.totalAmountCents === 1000000, `ได้ ${report.totalAmountCents}`)
+  assert(
+    report.receipts.some((r) => r.isRefund),
+    'ต้องมีใบคืนเงินประกันปนอยู่ ไม่งั้นข้อนี้ไม่ได้ทดสอบอะไร'
+  )
 })
 
 check('ไม่กรองเดือนได้ใบเสร็จทุกใบของหอ รวมใบของสัญญาด้วย', () => {
   const report = payments.listReceipts(db, apartmentId)
-  // ก.ย. 4 ใบ (รับ 2 คืน 2) + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน) + ต.ค. 1 ใบ (บิลรอบ 09)
-  assert(report.receiptCount === 7, `ได้ ${report.receiptCount} ใบ`)
+  // ก.ย. 2 ใบ + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน) + ต.ค. 1 ใบ (บิลรอบ 09)
+  assert(report.receiptCount === 5, `ได้ ${report.receiptCount} ใบ`)
   assert(
     report.receipts.some((r) => r.sourceType === 'contract'),
     'ต้องมีใบเสร็จของสัญญาปนอยู่ด้วย'

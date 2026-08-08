@@ -74,37 +74,15 @@ export function recordInvoicePayment(
   })
 }
 
-// คืนเงินที่รับไปแล้วบางส่วนหรือทั้งหมด — เขียนเป็นใบเสร็จยอดติดลบ ไม่ใช่ลบใบเดิม
-export function refundInvoicePayment(
-  db,
-  { invoiceId, amount, paymentMethod, paymentDate, remark, createdBy }
-) {
-  const errors = validateCommon({ paymentMethod, paymentDate })
-  if (errors.length > 0) throw new Error(errors.join('\n'))
-
-  const invoice = loadInvoiceForPayment(db, invoiceId)
-  const amountCents = toCents(amount, 'จำนวนเงินที่คืน')
-  if (amountCents === 0) throw new Error('จำนวนเงินที่คืนต้องมากกว่า 0')
-
-  // คืนได้ไม่เกินที่รับมาจริง ไม่งั้นยอดที่ชำระแล้วจะติดลบ
-  if (amountCents > invoice.paidCents) {
-    throw new Error(
-      `คืนเงินได้ไม่เกินยอดที่รับมาแล้ว ${formatBaht(invoice.paidCents)} บาท ` +
-        `(กรอกมา ${formatBaht(amountCents)} บาท)`
-    )
-  }
-
-  return writePayment(db, {
-    invoiceId,
-    contractId: null,
-    apartmentId: invoice.apartmentId,
-    amountCents: -amountCents,
-    paymentMethod,
-    paymentDate,
-    remark,
-    createdBy
-  })
-}
+// **ไม่มีการคืนเงินค่าบิล โดยตั้งใจ** (ผู้ใช้ตัดสินใจ 2026-08-08)
+// หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลที่รับมาแล้วให้ผู้เช่า
+//
+// ผลที่ตามมาที่ต้องรู้: ใบเสร็จลบไม่ได้ และตอนนี้ก็คืนไม่ได้ด้วย ถ้าพนักงานคีย์ยอดผิด
+// จึงยังไม่มีทางแก้ในระบบ — ถ้าวันหนึ่งต้องมี ให้ทำเป็น "ยกเลิกใบเสร็จ" ที่อ้างใบเดิม
+// ไม่ใช่คืนเงินยอดอิสระ เพราะสองอย่างนี้คนละความหมายกันในบัญชี
+//
+// การคืนเงินประกันตอนย้ายออกไม่เกี่ยวกับตรงนี้ — ใช้ recordContractPayment(isRefund)
+// ซึ่งผูกกับสัญญา ไม่ใช่กับบิล
 
 // ------------------------------------------------------------------
 // ใบเสร็จของสัญญา (เงินประกัน / เงินล่วงหน้า / เงินจอง)

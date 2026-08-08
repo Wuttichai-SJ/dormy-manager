@@ -8,10 +8,9 @@ export function receivePayment({ invoiceId, amount, paymentMethod, paymentDate, 
   return invoke('payment:receive', { invoiceId, amount, paymentMethod, paymentDate, remark })
 }
 
-// คืนเงินเขียนเป็นใบเสร็จยอดติดลบอีกใบ ไม่ได้ลบใบเดิม — amount กรอกเป็นจำนวนบวก
-export function refundPayment({ invoiceId, amount, paymentMethod, paymentDate, remark }) {
-  return invoke('payment:refund', { invoiceId, amount, paymentMethod, paymentDate, remark })
-}
+// **ไม่มีการคืนเงินค่าบิล** — หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลให้ผู้เช่า
+// (ผู้ใช้ตัดสินใจ 2026-08-08) ส่วนการคืนเงินประกันตอนย้ายออกใช้ receiveContractPayment
+// พร้อม isRefund ซึ่งผูกกับสัญญา ไม่ใช่กับบิล
 
 // ใบเสร็จเงินประกัน/เงินล่วงหน้าของสัญญา — ไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
 export function receiveContractPayment({

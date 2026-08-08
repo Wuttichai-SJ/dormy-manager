@@ -11,7 +11,7 @@ import {
   getInvoice,
   removeInvoiceItem
 } from '../services/invoiceService.js'
-import { listPaymentsForInvoice, receivePayment, refundPayment } from '../services/paymentService.js'
+import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
 
 // หน้าใบแจ้งหนี้ — โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "บิลค้างชำระ"): สองคอลัมน์
 // ซ้ายเป็นตัวเอกสาร ขวาเป็นยอดค้างกับการ์ดรับเงิน แล้วมี "เพิ่มรายการ" อยู่ใต้เอกสาร
@@ -400,66 +400,48 @@ function OutstandingBox({ invoice }) {
   )
 }
 
+// การ์ดนี้รับเงินอย่างเดียว — **ไม่มีปุ่มคืนเงิน** (ผู้ใช้สั่งเอาออก 2026-08-08)
+// เหตุผล: หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลให้ผู้เช่า
+//
+// การคืนเงินประกันตอนย้ายออกเป็นคนละเรื่อง — ผูกกับสัญญาไม่ใช่กับบิล และยังอยู่ที่
+// recordContractPayment(isRefund) รอ Phase 4 ใช้
 function PaymentCard({ invoice, onDone, onError }) {
-  const [mode, setMode] = useState('receive')
   const [amount, setAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentDate, setPaymentDate] = useState(today())
   const [remark, setRemark] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const receiving = mode === 'receive'
-
   // เติมยอดที่ค้างอยู่ให้เป็นค่าตั้งต้น — คนส่วนใหญ่จ่ายเต็มจำนวน จะได้กดบันทึกได้เลย
   // แต่ยังแก้เป็นยอดบางส่วนได้ (ต้นแบบก็เติมมาให้เหมือนกัน)
   useEffect(() => {
-    if (receiving) setAmount(centsToInput(Math.max(invoice.outstandingCents, 0)))
-    else setAmount('')
-  }, [receiving, invoice.outstandingCents])
+    setAmount(centsToInput(Math.max(invoice.outstandingCents, 0)))
+  }, [invoice.outstandingCents])
 
   async function submit(e) {
     e.preventDefault()
     onError('')
     setBusy(true)
-    const payload = { invoiceId: invoice.invoiceId, amount, paymentMethod, paymentDate, remark }
-    const res = receiving ? await receivePayment(payload) : await refundPayment(payload)
+    const res = await receivePayment({
+      invoiceId: invoice.invoiceId,
+      amount,
+      paymentMethod,
+      paymentDate,
+      remark
+    })
     setBusy(false)
     if (!res.success) return onError(res.error)
     setRemark('')
-    onDone(
-      receiving
-        ? `รับชำระแล้ว ใบเสร็จ ${res.data.receiptNumber}`
-        : `คืนเงินแล้ว ใบเสร็จ ${res.data.receiptNumber}`
-    )
+    onDone(`รับชำระแล้ว ใบเสร็จ ${res.data.receiptNumber}`)
   }
 
   const settled = invoice.outstandingCents <= 0
-  const nothingPaid = invoice.paidAmountCents <= 0
 
   return (
     <section className="panel payment-card">
-      <div className="mode-tabs">
-        <button
-          type="button"
-          className={'mode-tab' + (receiving ? ' active' : '')}
-          onClick={() => setMode('receive')}
-          disabled={settled}
-        >
-          รับเงิน
-        </button>
-        {/* คืนเงินซ่อนไม่ได้ แต่กดไม่ได้ถ้ายังไม่เคยรับเงินเข้ามาเลย —
-            ไม่งั้นผู้ใช้จะกดแล้วเจอ error ที่ป้องกันได้ตั้งแต่หน้าจอ */}
-        <button
-          type="button"
-          className={'mode-tab' + (!receiving ? ' active' : '')}
-          onClick={() => setMode('refund')}
-          disabled={nothingPaid}
-        >
-          คืนเงิน
-        </button>
-      </div>
+      <h2 className="panel-title">รับเงิน</h2>
 
-      {settled && receiving ? (
+      {settled ? (
         <p className="muted">บิลนี้ชำระครบแล้ว</p>
       ) : (
         <form onSubmit={submit}>
@@ -474,9 +456,7 @@ function PaymentCard({ invoice, onDone, onError }) {
               onChange={(e) => setAmount(e.target.value)}
             />
             <p className="field-hint">
-              {receiving
-                ? `รับได้ไม่เกิน ${formatBaht(invoice.outstandingCents)} บาท`
-                : `คืนได้ไม่เกิน ${formatBaht(invoice.paidAmountCents)} บาท`}
+              รับได้ไม่เกิน {formatBaht(invoice.outstandingCents)} บาท
             </p>
           </div>
 
@@ -499,7 +479,7 @@ function PaymentCard({ invoice, onDone, onError }) {
 
           <div className="field field-required">
             <label htmlFor="paymentDate">
-              วันที่{receiving ? 'รับเงิน' : 'คืนเงิน'} <span className="required">* จำเป็น</span>
+              วันที่รับเงิน <span className="required">* จำเป็น</span>
             </label>
             <DateField id="paymentDate" value={paymentDate} onChange={setPaymentDate} />
           </div>
