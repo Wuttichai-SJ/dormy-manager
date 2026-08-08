@@ -31,6 +31,12 @@ export function getInvoice(invoiceId) {
   return invoke('invoice:get', { invoiceId })
 }
 
+// ค่าปรับชำระล่าช้า ณ วันที่รับเงินที่เลือก — ถามใหม่ทุกครั้งที่เปลี่ยนวันที่
+// สูตรอยู่ฝั่ง main ที่เดียว หน้าจอไม่มีสำเนา
+export function getLateFee(invoiceId, paymentDate) {
+  return invoke('invoice:lateFee', { invoiceId, paymentDate })
+}
+
 export function listInvoices(apartmentId, filters = {}) {
   return invoke('invoice:list', { apartmentId, ...filters })
 }

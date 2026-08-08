@@ -3775,6 +3775,45 @@ body {
   background: #eceaea;
 }
 
+/* "เกิน N วัน" ต่อท้ายป้ายสถานะ — บอกความหนักของการค้าง ไม่ใช่แค่ว่าค้างหรือไม่ */
+.invoice-overdue {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--err);
+}
+
+/* กล่องค่าปรับในการ์ดรับเงิน — ขอบแดงอ่อนให้ต่างจากช่องกรอกปกติ เพราะเป็นเงินที่
+   ระบบเสนอให้เก็บเพิ่ม ผู้ใช้ต้องเห็นชัดก่อนกดบันทึก ไม่ใช่ผ่านตาไป */
+.late-fee-box {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--err-weak);
+  border: 1px solid #e8c9c5;
+  border-radius: 8px;
+}
+
+.late-fee-head {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--err);
+}
+
+.late-fee-box .checkbox-row {
+  font-size: 13px;
+}
+
+.late-fee-amount {
+  width: 100%;
+  margin-top: 8px;
+  text-align: right;
+}
+
+.late-fee-box .field-hint {
+  margin-top: 8px;
+}
+
 /* -----------------------------------------------------
    จดมิเตอร์
    ----------------------------------------------------- */

@@ -120,6 +120,10 @@ CREATE TABLE IF NOT EXISTS `mydb`.`apartments` (
   `phone` VARCHAR(50) NULL,
   `late_fee_per_day_cents` INTEGER NOT NULL,
   `is_auto_late_fee_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+  -- เพิ่มใน 018: เกินกำหนดกี่วันจึงเริ่มคิดค่าปรับ (0 = ปรับตั้งแต่วันถัดจากวันครบกำหนด)
+  -- ค่าปรับคิดตอน "รับเงิน" ไม่ใช่ตอนออกบิล เพราะตอนออกบิลยังไม่รู้ว่าผู้เช่าจะจ่ายวันไหน
+  -- และลงบิลเป็น invoice_items.item_type = 'late_fee' ซึ่งไม่คิด VAT
+  `late_fee_grace_days` INTEGER NOT NULL DEFAULT 0,
   `due_date_day` INT NOT NULL,
   `is_vat_enabled` TINYINT NULL,
   -- เลิกใช้ตั้งแต่ migration 011 — รูปย้ายไปเก็บเป็น BLOB ในตาราง images แล้ว
@@ -647,7 +651,9 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `mydb`.`invoice_items` (
   `invoice_item_id` INT NOT NULL AUTO_INCREMENT,
   `invoice_id` INT NOT NULL,
-  `item_type` ENUM('rent', 'water', 'electricity', 'service', 'discount', 'other') NOT NULL,
+  -- 'late_fee' เพิ่มตอนทำค่าปรับชำระล่าช้า (2026-08-08) — คอลัมน์เป็น TEXT ใน SQLite
+  -- ตรวจค่าที่ ITEM_TYPES ใน db/invoices.js จึงไม่ต้องมี migration สำหรับตัวนี้
+  `item_type` ENUM('rent', 'water', 'electricity', 'service', 'discount', 'late_fee', 'other') NOT NULL,
   `description` VARCHAR(255) NOT NULL,
   `quantity` DECIMAL(10,2) NOT NULL,
   `unit_price_cents` INTEGER NOT NULL,

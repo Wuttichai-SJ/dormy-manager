@@ -11,6 +11,7 @@ import {
   createMonthlyInvoicesForApartment,
   deleteInvoice,
   getInvoiceById,
+  getLateFeeForInvoice,
   listInvoiceDeletions,
   listInvoices,
   previewMonthlyBilling,
@@ -63,6 +64,12 @@ export function registerInvoiceHandlers() {
   })
 
   handle('invoice:get', ({ invoiceId }) => getInvoiceById(getDatabase(), invoiceId))
+
+  // ค่าปรับ ณ วันที่รับเงินที่ผู้ใช้เลือก — ถามใหม่ทุกครั้งที่เปลี่ยนวันที่
+  // คำนวณฝั่ง main ที่เดียว ไม่ทำสำเนาสูตรไว้ที่หน้าจอ
+  handle('invoice:lateFee', ({ invoiceId, paymentDate }) =>
+    getLateFeeForInvoice(getDatabase(), invoiceId, paymentDate)
+  )
 
   handle('invoice:list', ({ apartmentId, ...filters }) =>
     listInvoices(getDatabase(), apartmentId, filters)

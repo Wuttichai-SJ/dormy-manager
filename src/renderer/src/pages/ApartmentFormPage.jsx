@@ -21,6 +21,7 @@ const EMPTY = {
   phone: '',
   dueDateDay: '5',
   lateFeePerDay: '0.00',
+  lateFeeGraceDays: '0',
   isAutoLateFeeEnabled: false,
   isVatEnabled: false
 }
@@ -52,6 +53,7 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
         phone: a.phone ?? '',
         dueDateDay: String(a.dueDateDay),
         lateFeePerDay: centsToInput(a.lateFeePerDayCents),
+        lateFeeGraceDays: String(a.lateFeeGraceDays ?? 0),
         isAutoLateFeeEnabled: a.isAutoLateFeeEnabled,
         isVatEnabled: a.isVatEnabled
       })
@@ -199,6 +201,22 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             </div>
           </div>
 
+          <div className="field">
+            <label htmlFor="lateFeeGraceDays">ผ่อนผันก่อนเริ่มปรับ</label>
+            <div className="input-with-suffix">
+              <input
+                id="lateFeeGraceDays"
+                value={form.lateFeeGraceDays}
+                onChange={(e) => set('lateFeeGraceDays', e.target.value.replace(/\D/g, ''))}
+                inputMode="numeric"
+              />
+              <span className="input-suffix">วัน</span>
+            </div>
+            <p className="field-hint">
+              เกินกำหนดกี่วันจึงเริ่มคิดค่าปรับ · 0 = ปรับตั้งแต่วันถัดจากวันครบกำหนดเลย
+            </p>
+          </div>
+
           <div className="field checkbox-field">
             <span>กรณีมีการชำระล่าช้ากว่าวันที่ระบุ ต้องการให้ระบบเพิ่มค่าปรับให้อัตโนมัติหรือไม่</span>
             <label className="checkbox-row">
@@ -209,6 +227,13 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
               />
               <span>ต้องการ</span>
             </label>
+            {/* บอกให้ชัดว่าปิดอยู่แล้วช่องข้างบนไม่มีผล ไม่งั้นเจ้าของหอกรอกค่าปรับไว้
+                แล้วสงสัยว่าทำไมไม่เคยถูกเก็บ */}
+            <p className="field-hint">
+              {form.isAutoLateFeeEnabled
+                ? 'เมื่อรับเงินบิลที่เกินกำหนด ระบบจะคำนวณค่าปรับให้และติ๊กไว้ให้ — ยกเลิกหรือลดยอดได้ทุกครั้ง'
+                : 'ปิดอยู่ — ค่าปรับต่อวันและวันผ่อนผันที่กรอกไว้จะยังไม่ถูกนำมาใช้'}
+            </p>
           </div>
         </div>
       </section>

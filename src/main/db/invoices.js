@@ -21,7 +21,15 @@ export const INVOICE_STATUS_LABELS = {
 
 export const INVOICE_TYPES = ['monthly', 'general']
 
-export const ITEM_TYPES = ['rent', 'water', 'electricity', 'service', 'discount', 'other']
+export const ITEM_TYPES = [
+  'rent',
+  'water',
+  'electricity',
+  'service',
+  'discount',
+  'late_fee',
+  'other'
+]
 
 // ภาษีมูลค่าเพิ่มของไทย เก็บเป็นค่าคงที่ ไม่ใช่ช่องให้กรอก — ถ้าวันหนึ่งอัตราเปลี่ยน
 // ต้องเปลี่ยนที่นี่ที่เดียว และบิลเก่าจะไม่ถูกคิดใหม่เพราะอัตราถูกสำเนาลงทุกบรรทัดแล้ว
@@ -594,8 +602,8 @@ export function listInvoices(
 
   return db
     .prepare(
-      `SELECT i.invoice_id, i.invoice_number, i.issue_date, i.status, i.total_amount_cents,
-              i.billing_month, r.room_number,
+      `SELECT i.invoice_id, i.invoice_number, i.issue_date, i.due_date, i.status,
+              i.total_amount_cents, i.billing_month, r.room_number,
               COALESCE((SELECT SUM(p.amount_cents) FROM payments p
                          WHERE p.invoice_id = i.invoice_id), 0) AS paid
          FROM invoices i
@@ -618,13 +626,20 @@ export function listInvoices(
       invoiceId: row.invoice_id,
       invoiceNumber: row.invoice_number,
       issueDate: row.issue_date,
+      dueDate: row.due_date,
       billingMonth: row.billing_month,
       roomNumber: row.room_number,
       status: row.status,
       statusLabel: INVOICE_STATUS_LABELS[row.status],
       totalAmountCents: row.total_amount_cents,
       paidAmountCents: row.paid,
-      outstandingCents: row.total_amount_cents - row.paid
+      outstandingCents: row.total_amount_cents - row.paid,
+      // เกินกำหนดกี่วันแล้ว — มีประโยชน์แม้หอจะปิดค่าปรับ เพราะหอต้องรู้อยู่ดีว่าใครค้าง
+      // นับถึงวันนี้ ไม่ใช่ถึงวันที่จ่าย เพราะบิลใบนี้ยังไม่ได้จ่าย
+      overdueDays:
+        row.status === 'unpaid' || row.status === 'partial_paid'
+          ? Math.max(0, daysBetween(row.due_date, todayIso()))
+          : 0
     }))
 }
 
@@ -797,6 +812,114 @@ export function cancelInvoice(db, invoiceId) {
 }
 
 // ------------------------------------------------------------------
+// ค่าปรับชำระล่าช้า
+// ------------------------------------------------------------------
+// คิด "ตอนรับเงิน" ไม่ใช่ตอนออกบิล (ผู้ใช้ตัดสินใจ 2026-08-08 ตามที่ต้นแบบทำ)
+//
+// เหตุผล: ตอนออกบิลยังไม่รู้ว่าผู้เช่าจะจ่ายวันไหน ค่าปรับจึงเป็นตัวเลขที่ยังเดินอยู่ทุกวัน
+// ตรึงเป็นตัวเลขจริงได้ก็ต่อเมื่อเงินเข้าแล้ว — ถ้าใส่ลงบิลตั้งแต่ออก จะได้ค่าปรับที่เดาไว้
+// ล่วงหน้าซึ่งไม่มีทางตรง
+//
+// นับวันจาก "วันครบกำหนด" ถึง "วันที่รับเงิน" แล้วหักวันผ่อนผันออก (ดู migration 018)
+export function calculateLateFee({ dueDate, paymentDate, ratePerDayCents, graceDays }) {
+  const empty = { overdueDays: 0, chargeableDays: 0, amountCents: 0 }
+  if (!isDate(dueDate) || !isDate(paymentDate)) return empty
+
+  const overdueDays = daysBetween(dueDate, paymentDate)
+  if (overdueDays <= 0) return empty
+
+  // ผ่อนผัน 3 วัน แปลว่าเกิน 3 วันแรกไม่ปรับ วันที่ 4 เป็นต้นไปจึงเริ่มนับ
+  const chargeableDays = Math.max(0, overdueDays - Math.max(0, graceDays ?? 0))
+  return {
+    overdueDays,
+    chargeableDays,
+    amountCents: chargeableDays * Math.max(0, ratePerDayCents ?? 0)
+  }
+}
+
+// เทียบวันแบบ UTC เพื่อไม่ให้เวลาออมแสง/เขตเวลาทำให้ผลต่างเพี้ยนไปหนึ่งวัน
+// (วันที่เก็บเป็น 'YYYY-MM-DD' ไม่มีเวลาอยู่แล้ว จึงไม่ควรมีเรื่องเขตเวลามาเกี่ยว)
+function daysBetween(fromDate, toDate) {
+  const [fy, fm, fd] = fromDate.split('-').map(Number)
+  const [ty, tm, td] = toDate.split('-').map(Number)
+  const from = Date.UTC(fy, fm - 1, fd)
+  const to = Date.UTC(ty, tm - 1, td)
+  return Math.round((to - from) / 86400000)
+}
+
+// ค่าปรับที่ "เรียกเก็บได้สูงสุด" ของบิลใบหนึ่ง ณ วันที่รับเงินหนึ่ง
+// ฝั่งรับเงินใช้ตัวนี้เป็นเพดาน — เจ้าของหอลดหย่อนได้ แต่เก็บเกินกฎที่ตัวเองตั้งไว้ไม่ได้
+export function getLateFeeForInvoice(db, invoiceId, paymentDate) {
+  const row = db
+    .prepare(
+      `SELECT i.due_date, i.status,
+              a.is_auto_late_fee_enabled, a.late_fee_per_day_cents, a.late_fee_grace_days
+         FROM invoices i
+         JOIN contracts c ON c.contract_id = i.contract_id
+         JOIN rooms r     ON r.room_id = c.room_id
+         JOIN floors f    ON f.floor_id = r.floor_id
+         JOIN apartments a ON a.apartment_id = f.apartment_id
+        WHERE i.invoice_id = ?`
+    )
+    .get(invoiceId)
+  if (!row) throw new Error('ไม่พบใบแจ้งหนี้')
+
+  const enabled = row.is_auto_late_fee_enabled === 1 && row.late_fee_per_day_cents > 0
+  const graceDays = row.late_fee_grace_days ?? 0
+
+  // บิลที่มีค่าปรับอยู่แล้วไม่คิดซ้ำ — รับเงินสองงวดในบิลเดียวกันต้องไม่โดนปรับสองรอบ
+  const already = db
+    .prepare(
+      `SELECT COALESCE(SUM(total_amount_cents), 0) AS charged
+         FROM invoice_items WHERE invoice_id = ? AND item_type = 'late_fee'`
+    )
+    .get(invoiceId).charged
+
+  const fee = calculateLateFee({
+    dueDate: row.due_date,
+    paymentDate,
+    ratePerDayCents: row.late_fee_per_day_cents,
+    graceDays
+  })
+
+  return {
+    enabled,
+    dueDate: row.due_date,
+    ratePerDayCents: row.late_fee_per_day_cents,
+    graceDays,
+    overdueDays: fee.overdueDays,
+    chargeableDays: fee.chargeableDays,
+    alreadyChargedCents: already,
+    // เก็บได้อีกเท่าไหร่ — หักส่วนที่เคยเก็บไปแล้วออก
+    suggestedCents: enabled ? Math.max(0, fee.amountCents - already) : 0
+  }
+}
+
+// เพิ่มบรรทัด "ค่าปรับ" เข้าบิล — ไม่คิด VAT (ตรงกับต้นแบบ: เป็นค่าเสียหาย ไม่ใช่ค่าสินค้า)
+export function addLateFeeItem(db, invoiceId, { amountCents, overdueDays }) {
+  const now = new Date().toISOString()
+  const run = db.transaction(() => {
+    insertItems(
+      db,
+      invoiceId,
+      [
+        {
+          itemType: 'late_fee',
+          description: `ค่าปรับชำระล่าช้า (${overdueDays} วัน)`,
+          quantity: 1,
+          unitPriceCents: amountCents,
+          totalAmountCents: amountCents,
+          isTaxable: false
+        }
+      ],
+      now
+    )
+    recalculateTotals(db, invoiceId, now)
+  })
+  run()
+}
+
+// ------------------------------------------------------------------
 // ลบบิลที่ยกเลิกแล้วออกจากระบบ
 // ------------------------------------------------------------------
 // ลบได้เฉพาะใบที่ "ยกเลิกแล้ว" เท่านั้น — การยกเลิกเป็นด่านที่บังคับให้ตัดสินใจสองครั้ง
@@ -882,4 +1005,9 @@ export function listInvoiceDeletions(db, apartmentId) {
 // ------------------------------------------------------------------
 function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function todayIso() {
+  const now = new Date()
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
 }

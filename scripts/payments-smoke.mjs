@@ -336,6 +336,127 @@ check('ลบรายการนั้นออก ยอดกลับมา
 })
 
 // -----------------------------------------------------
+// ค่าปรับชำระล่าช้า — คิดตอนรับเงิน ไม่ใช่ตอนออกบิล (ผู้ใช้ตัดสินใจ 2026-08-08)
+group('ค่าปรับชำระล่าช้า')
+
+check('หอที่ปิดค่าปรับไว้ ไม่เสนอค่าปรับเลยแม้เกินกำหนด', () => {
+  const rule = invoices.getLateFeeForInvoice(db, editable.invoiceId, '2027-01-01')
+  assert(rule.enabled === false, 'หอนี้ยังไม่ได้เปิดค่าปรับ')
+  assert(rule.suggestedCents === 0, `ได้ ${rule.suggestedCents}`)
+})
+
+check('สูตร: นับจากวันครบกำหนดถึงวันรับเงิน แล้วหักวันผ่อนผัน', () => {
+  const noGrace = invoices.calculateLateFee({
+    dueDate: '2026-09-05',
+    paymentDate: '2026-09-19',
+    ratePerDayCents: 1000,
+    graceDays: 0
+  })
+  assert(noGrace.overdueDays === 14, `ได้ ${noGrace.overdueDays}`)
+  assert(noGrace.amountCents === 14000, `ได้ ${noGrace.amountCents}`)
+
+  const withGrace = invoices.calculateLateFee({
+    dueDate: '2026-09-05',
+    paymentDate: '2026-09-19',
+    ratePerDayCents: 1000,
+    graceDays: 3
+  })
+  assert(withGrace.overdueDays === 14, 'จำนวนวันที่เกินยังเท่าเดิม')
+  assert(withGrace.chargeableDays === 11, `ได้ ${withGrace.chargeableDays}`)
+  assert(withGrace.amountCents === 11000, `ได้ ${withGrace.amountCents}`)
+})
+
+check('จ่ายก่อนหรือตรงวันครบกำหนด ไม่มีค่าปรับ', () => {
+  for (const paymentDate of ['2026-09-01', '2026-09-05']) {
+    const fee = invoices.calculateLateFee({
+      dueDate: '2026-09-05',
+      paymentDate,
+      ratePerDayCents: 1000,
+      graceDays: 0
+    })
+    assert(fee.amountCents === 0, `${paymentDate} ได้ ${fee.amountCents}`)
+  }
+})
+
+check('ผ่อนผันยาวกว่าที่เกินมา ก็ยังไม่ปรับ', () => {
+  const fee = invoices.calculateLateFee({
+    dueDate: '2026-09-05',
+    paymentDate: '2026-09-07',
+    ratePerDayCents: 1000,
+    graceDays: 5
+  })
+  assert(fee.chargeableDays === 0, `ได้ ${fee.chargeableDays}`)
+  assert(fee.amountCents === 0, `ได้ ${fee.amountCents}`)
+})
+
+// เปิดค่าปรับให้หอทดสอบ แล้วเดินเส้นทางจริง
+db.prepare(
+  `UPDATE apartments SET is_auto_late_fee_enabled = 1, late_fee_per_day_cents = 1000,
+     late_fee_grace_days = 0 WHERE apartment_id = ?`
+).run(apartmentId)
+
+const lateInvoice = invoices.createMonthlyInvoice(db, {
+  contractId: contract1.contractId,
+  billingMonth: '2026-10',
+  meterBatchId: batch.batchId,
+  issueDate: '2026-10-31'
+})
+
+check('บิลที่เกินกำหนดเสนอค่าปรับตามจำนวนวันที่เกิน', () => {
+  // ครบกำหนด 05/11/2026 · จ่าย 15/11/2026 = เกิน 10 วัน × 10 บาท
+  const rule = invoices.getLateFeeForInvoice(db, lateInvoice.invoiceId, '2026-11-15')
+  assert(rule.enabled === true, 'หอเปิดค่าปรับแล้ว')
+  assert(rule.overdueDays === 10, `ได้ ${rule.overdueDays}`)
+  assert(rule.suggestedCents === 10000, `ได้ ${rule.suggestedCents}`)
+})
+
+check('เก็บค่าปรับพร้อมรับเงิน แล้วค่าปรับกลายเป็นรายการบนบิล', () => {
+  const before = invoices.getInvoiceById(db, lateInvoice.invoiceId)
+  payments.recordInvoicePayment(db, {
+    ...BASE,
+    invoiceId: lateInvoice.invoiceId,
+    paymentDate: '2026-11-15',
+    lateFee: '100',
+    amount: String((before.totalAmountCents + 10000) / 100)
+  })
+
+  const after = invoices.getInvoiceById(db, lateInvoice.invoiceId)
+  const fee = after.items.find((i) => i.itemType === 'late_fee')
+  assert(fee !== undefined, 'ต้องมีรายการค่าปรับบนบิล')
+  assert(fee.totalAmountCents === 10000, `ได้ ${fee.totalAmountCents}`)
+  assert(fee.description.includes('10 วัน'), `ได้ "${fee.description}"`)
+  assert(fee.vatRate === 0, 'ค่าปรับไม่คิด VAT')
+  assert(after.status === 'paid', `ได้ ${after.status}`)
+})
+
+check('รับเงินงวดถัดไปไม่โดนปรับซ้ำในส่วนที่เคยเก็บไปแล้ว', () => {
+  const rule = invoices.getLateFeeForInvoice(db, lateInvoice.invoiceId, '2026-11-15')
+  assert(rule.alreadyChargedCents === 10000, `ได้ ${rule.alreadyChargedCents}`)
+  assert(rule.suggestedCents === 0, `ยังเสนอเก็บอีก ${rule.suggestedCents}`)
+})
+
+check('เก็บค่าปรับเกินกว่ากฎของหอไม่ได้ ต่อให้หน้าจอส่งมา', () => {
+  const another = invoices.createMonthlyInvoice(db, {
+    contractId: contract2.contractId,
+    billingMonth: '2026-10',
+    meterBatchId: batch.batchId,
+    issueDate: '2026-10-31'
+  })
+  throws(
+    () =>
+      payments.recordInvoicePayment(db, {
+        ...BASE,
+        invoiceId: another.invoiceId,
+        paymentDate: '2026-11-15',
+        lateFee: '9999',
+        amount: '100'
+      }),
+    'เกินกว่าที่กฎของหอกำหนด',
+    'ต้องบังคับเพดานที่ฝั่ง main ไม่เชื่อหน้าจอ'
+  )
+})
+
+// -----------------------------------------------------
 group('บิลที่ถูกยกเลิก')
 
 check('บิลที่ยกเลิกแล้วรับชำระไม่ได้', () => {
@@ -368,8 +489,9 @@ check('กรองตามเดือนได้ และนับจำน
 // ยอดรวมจึงต้องหักใบพวกนั้นออก เพื่อให้เป็น "เงินที่เข้าหอจริง" ไม่ใช่ผลบวกของใบที่ออก
 check('ยอดรวมหักใบคืนเงินประกันออก จึงเป็นเงินที่เข้าหอจริง', () => {
   const report = payments.listReceipts(db, apartmentId)
-  // ก.ย. 2,000 + 3,000 · สัญญา ส.ค. +5,000 · สัญญา ก.พ. -5,000 · ต.ค. 5,000 = 10,000
-  assert(report.totalAmountCents === 1000000, `ได้ ${report.totalAmountCents}`)
+  // ก.ย. 2,000 + 3,000 · สัญญา ส.ค. +5,000 · สัญญา ก.พ. -5,000 · ต.ค. 5,000
+  // · พ.ย. 5,100 (ค่าเช่า 5,000 + ค่าปรับ 100) = 15,100
+  assert(report.totalAmountCents === 1510000, `ได้ ${report.totalAmountCents}`)
   assert(
     report.receipts.some((r) => r.isRefund),
     'ต้องมีใบคืนเงินประกันปนอยู่ ไม่งั้นข้อนี้ไม่ได้ทดสอบอะไร'
@@ -378,8 +500,8 @@ check('ยอดรวมหักใบคืนเงินประกัน�
 
 check('ไม่กรองเดือนได้ใบเสร็จทุกใบของหอ รวมใบของสัญญาด้วย', () => {
   const report = payments.listReceipts(db, apartmentId)
-  // ก.ย. 2 ใบ + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน) + ต.ค. 1 ใบ (บิลรอบ 09)
-  assert(report.receiptCount === 5, `ได้ ${report.receiptCount} ใบ`)
+  // ก.ย. 2 ใบ + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน) + ต.ค. 1 ใบ + พ.ย. 1 ใบ (บิลที่มีค่าปรับ)
+  assert(report.receiptCount === 6, `ได้ ${report.receiptCount} ใบ`)
   assert(
     report.receipts.some((r) => r.sourceType === 'contract'),
     'ต้องมีใบเสร็จของสัญญาปนอยู่ด้วย'

@@ -27,13 +27,14 @@ function handle(channel, fn) {
 }
 
 export function registerPaymentHandlers() {
-  handle('payment:receive', ({ invoiceId, amount, paymentMethod, paymentDate, remark }) => {
+  handle('payment:receive', ({ invoiceId, amount, paymentMethod, paymentDate, remark, lateFee }) => {
     const payment = recordInvoicePayment(getDatabase(), {
       invoiceId,
       amount,
       paymentMethod,
       paymentDate,
       remark,
+      lateFee,
       createdBy: requireSessionUserId()
     })
     logInfo(`รับชำระ ${payment.receiptNumber} ห้อง ${payment.roomNumber} ${amount} บาท`)

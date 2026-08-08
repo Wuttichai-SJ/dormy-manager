@@ -4,8 +4,24 @@
 // ไม่ต้องส่ง "ผู้รับเงิน" ไปเอง — ฝั่ง main อ่านจากเซสชันที่ล็อกอินอยู่เสมอ
 import { invoke } from './ipc.js'
 
-export function receivePayment({ invoiceId, amount, paymentMethod, paymentDate, remark }) {
-  return invoke('payment:receive', { invoiceId, amount, paymentMethod, paymentDate, remark })
+// lateFee = ยอดค่าปรับที่จะเรียกเก็บพร้อมกัน (ไม่ส่ง = ไม่เก็บ)
+// ฝั่ง main คิดเพดานเองและปฏิเสธถ้าเกินกฎของหอ
+export function receivePayment({
+  invoiceId,
+  amount,
+  paymentMethod,
+  paymentDate,
+  remark,
+  lateFee
+}) {
+  return invoke('payment:receive', {
+    invoiceId,
+    amount,
+    paymentMethod,
+    paymentDate,
+    remark,
+    lateFee
+  })
 }
 
 // **ไม่มีการคืนเงินค่าบิล** — หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลให้ผู้เช่า

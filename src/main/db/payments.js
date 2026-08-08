@@ -12,7 +12,12 @@
 //
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
-import { nextDocumentNumber, refreshInvoiceStatus } from './invoices.js'
+import {
+  addLateFeeItem,
+  getLateFeeForInvoice,
+  nextDocumentNumber,
+  refreshInvoiceStatus
+} from './invoices.js'
 
 export const PAYMENT_METHODS = ['cash', 'transfer', 'other']
 
@@ -40,12 +45,32 @@ function validateCommon({ paymentMethod, paymentDate }) {
 // ------------------------------------------------------------------
 // รับชำระค่าใบแจ้งหนี้
 // ------------------------------------------------------------------
+// lateFee = ยอดค่าปรับที่จะเรียกเก็บพร้อมกับการรับเงินครั้งนี้ (ไม่ส่งมา = ไม่เก็บ)
+//
+// เจ้าของหอ "ลดหย่อนได้ แต่เก็บเกินกฎที่ตัวเองตั้งไว้ไม่ได้" — หน้าจอแก้ยอดลงได้
+// ส่วนเพดานบังคับที่นี่ ไม่ใช่เชื่อตัวเลขที่หน้าจอส่งมา
 export function recordInvoicePayment(
   db,
-  { invoiceId, amount, paymentMethod, paymentDate, remark, createdBy }
+  { invoiceId, amount, paymentMethod, paymentDate, remark, createdBy, lateFee }
 ) {
   const errors = validateCommon({ paymentMethod, paymentDate })
   if (errors.length > 0) throw new Error(errors.join('\n'))
+
+  // ค่าปรับต้องเข้าบิล "ก่อน" คิดยอดค้าง ไม่งั้นเงินที่รับมาคลุมค่าปรับไม่ได้
+  const lateFeeCents = lateFee ? toCents(lateFee, 'ค่าปรับชำระล่าช้า') : 0
+  if (lateFeeCents > 0) {
+    const rule = getLateFeeForInvoice(db, invoiceId, paymentDate)
+    if (!rule.enabled) throw new Error('หอพักนี้ไม่ได้เปิดการเก็บค่าปรับชำระล่าช้า')
+    if (lateFeeCents > rule.suggestedCents) {
+      throw new Error(
+        `ค่าปรับเกินกว่าที่กฎของหอกำหนด — เก็บได้ไม่เกิน ${formatBaht(rule.suggestedCents)} บาท`
+      )
+    }
+    addLateFeeItem(db, invoiceId, {
+      amountCents: lateFeeCents,
+      overdueDays: rule.overdueDays
+    })
+  }
 
   const invoice = loadInvoiceForPayment(db, invoiceId)
   const amountCents = toCents(amount, 'จำนวนเงิน')

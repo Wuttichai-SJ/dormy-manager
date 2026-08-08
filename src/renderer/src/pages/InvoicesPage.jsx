@@ -187,6 +187,10 @@ export default function InvoicesPage({ apartment, user }) {
                     <span className={`invoice-status invoice-${inv.status}`}>
                       {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
                     </span>
+                    {/* เกินกำหนดกี่วัน — หอต้องรู้ว่าใครค้างนานแค่ไหน ไม่ว่าจะเก็บค่าปรับหรือไม่ */}
+                    {inv.overdueDays > 0 && (
+                      <span className="invoice-overdue">เกิน {inv.overdueDays} วัน</span>
+                    )}
                   </td>
                   <td className="align-right">{formatBaht(inv.totalAmountCents)}</td>
                   <td className="align-right">

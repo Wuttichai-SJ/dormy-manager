@@ -9,6 +9,7 @@ import {
   addInvoiceItem,
   cancelInvoice,
   getInvoice,
+  getLateFee,
   removeInvoiceItem
 } from '../services/invoiceService.js'
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
@@ -606,12 +607,36 @@ function PaymentCard({ invoice, onDone, onError }) {
   const [paymentDate, setPaymentDate] = useState(today())
   const [remark, setRemark] = useState('')
   const [busy, setBusy] = useState(false)
+  // ค่าปรับ ณ วันที่รับเงินที่เลือกอยู่ — ถามฝั่ง main ใหม่ทุกครั้งที่เปลี่ยนวันที่
+  const [lateFee, setLateFee] = useState(null)
+  const [chargeLateFee, setChargeLateFee] = useState(true)
+  const [lateFeeAmount, setLateFeeAmount] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const res = await getLateFee(invoice.invoiceId, paymentDate)
+      if (cancelled) return
+      const data = res.success ? res.data : null
+      setLateFee(data)
+      setLateFeeAmount(centsToInput(data?.suggestedCents ?? 0))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [invoice.invoiceId, paymentDate])
+
+  const feeDue = Boolean(lateFee?.enabled) && lateFee.suggestedCents > 0
+  const feeCents = feeDue && chargeLateFee ? Math.round(Number(lateFeeAmount || 0) * 100) : 0
 
   // เติมยอดที่ค้างอยู่ให้เป็นค่าตั้งต้น — คนส่วนใหญ่จ่ายเต็มจำนวน จะได้กดบันทึกได้เลย
   // แต่ยังแก้เป็นยอดบางส่วนได้ (ต้นแบบก็เติมมาให้เหมือนกัน)
+  //
+  // ค่าปรับที่จะเก็บต้องบวกเข้าไปด้วย เพราะมันจะกลายเป็นรายการบนบิลตอนกดบันทึก
+  // ถ้าไม่บวก ผู้ใช้จะกดบันทึกแล้วเหลือยอดค้างเท่าค่าปรับพอดีโดยไม่ได้ตั้งใจ
   useEffect(() => {
-    setAmount(centsToInput(Math.max(invoice.outstandingCents, 0)))
-  }, [invoice.outstandingCents])
+    setAmount(centsToInput(Math.max(invoice.outstandingCents, 0) + feeCents))
+  }, [invoice.outstandingCents, feeCents])
 
   async function submit(e) {
     e.preventDefault()
@@ -622,7 +647,8 @@ function PaymentCard({ invoice, onDone, onError }) {
       amount,
       paymentMethod,
       paymentDate,
-      remark
+      remark,
+      lateFee: feeCents > 0 ? lateFeeAmount : undefined
     })
     setBusy(false)
     if (!res.success) return onError(res.error)
@@ -678,6 +704,44 @@ function PaymentCard({ invoice, onDone, onError }) {
             </label>
             <DateField id="paymentDate" value={paymentDate} onChange={setPaymentDate} />
           </div>
+
+          {/* ค่าปรับชำระล่าช้า — ระบบคำนวณให้และติ๊กไว้ให้ แต่ติ๊กออกได้และลดยอดได้
+              เจ้าของหอลดหย่อนให้ผู้เช่าที่ดีได้ ส่วนเพดานบังคับที่ฝั่ง main */}
+          {feeDue && (
+            <div className="late-fee-box">
+              <p className="late-fee-head">
+                เกินกำหนดชำระ {lateFee.overdueDays} วัน · ค่าปรับวันละ{' '}
+                {formatBaht(lateFee.ratePerDayCents)} บาท
+                {lateFee.graceDays > 0 && ` (ผ่อนผัน ${lateFee.graceDays} วัน)`}
+              </p>
+
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={chargeLateFee}
+                  onChange={(e) => setChargeLateFee(e.target.checked)}
+                />
+                <span>เรียกเก็บค่าปรับ</span>
+              </label>
+
+              {chargeLateFee && (
+                <input
+                  className="late-fee-amount"
+                  inputMode="decimal"
+                  value={lateFeeAmount}
+                  onChange={(e) => setLateFeeAmount(e.target.value)}
+                  aria-label="ยอดค่าปรับที่เรียกเก็บ"
+                />
+              )}
+
+              {lateFee.alreadyChargedCents > 0 && (
+                <p className="field-hint">
+                  บิลนี้เคยเก็บค่าปรับไปแล้ว {formatBaht(lateFee.alreadyChargedCents)} บาท
+                  ยอดข้างบนหักส่วนนั้นออกให้แล้ว
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="field">
             <label htmlFor="paymentRemark">หมายเหตุ</label>

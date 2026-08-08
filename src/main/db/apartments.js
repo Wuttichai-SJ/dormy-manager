@@ -59,6 +59,8 @@ function toRow(input) {
     dueDateDay: Number(input.dueDateDay),
     lateFeePerDayCents: toCents(input.lateFeePerDay, 'ค่าปรับชำระล่าช้าต่อวัน'),
     isAutoLateFeeEnabled: input.isAutoLateFeeEnabled ? 1 : 0,
+    // ผ่อนผันกี่วันหลังวันครบกำหนดจึงเริ่มปรับ (0 = ปรับตั้งแต่วันถัดไปเลย)
+    lateFeeGraceDays: Math.max(0, Math.floor(Number(input.lateFeeGraceDays) || 0)),
     isVatEnabled: input.isVatEnabled ? 1 : 0
   }
 }
@@ -127,11 +129,13 @@ export function insertApartment(db, input) {
     .prepare(
       `INSERT INTO apartments (
          logo_url, name_th, name_en, address_th, address_en, phone,
-         late_fee_per_day_cents, is_auto_late_fee_enabled, due_date_day, is_vat_enabled,
+         late_fee_per_day_cents, is_auto_late_fee_enabled, late_fee_grace_days,
+         due_date_day, is_vat_enabled,
          default_rent_item_text, display_order, created_at
        ) VALUES (
          @logoUrl, @nameTh, @nameEn, @addressTh, @addressEn, @phone,
-         @lateFeePerDayCents, @isAutoLateFeeEnabled, @dueDateDay, @isVatEnabled,
+         @lateFeePerDayCents, @isAutoLateFeeEnabled, @lateFeeGraceDays,
+         @dueDateDay, @isVatEnabled,
          @rentItemText, @displayOrder, @now
        )`
     )
@@ -159,6 +163,7 @@ export function updateApartment(db, apartmentId, input) {
          phone = @phone,
          late_fee_per_day_cents = @lateFeePerDayCents,
          is_auto_late_fee_enabled = @isAutoLateFeeEnabled,
+         late_fee_grace_days = @lateFeeGraceDays,
          due_date_day = @dueDateDay,
          is_vat_enabled = @isVatEnabled,
          updated_at = @now
@@ -234,6 +239,7 @@ export function toPublicApartment(row) {
     phone: row.phone,
     lateFeePerDayCents: row.late_fee_per_day_cents,
     isAutoLateFeeEnabled: row.is_auto_late_fee_enabled === 1,
+    lateFeeGraceDays: row.late_fee_grace_days ?? 0,
     dueDateDay: row.due_date_day,
     isVatEnabled: row.is_vat_enabled === 1,
     displayOrder: row.display_order,
