@@ -9,6 +9,10 @@ import { toCents } from '../money.js'
 // แล้วระบบต้องมาเดาว่าจะเลื่อนไปวันไหน ซึ่งเดาผิดทีเดียวคือคิดค่าปรับผิดทั้งหอ
 export const MAX_DUE_DATE_DAY = 28
 
+// ข้อความบรรทัดค่าเช่าบนใบแจ้งหนี้ของหอที่เพิ่งสร้าง — ไทยล้วน ไม่มีอังกฤษพ่วง
+// เจ้าของหอแก้เป็นข้อความของตัวเองได้ที่หน้าตั้งค่าหอ
+export const DEFAULT_RENT_ITEM_TEXT = 'ค่าเช่าห้อง'
+
 // -----------------------------------------------------
 // ตรวจข้อมูลก่อนเขียน
 // -----------------------------------------------------
@@ -124,14 +128,19 @@ export function insertApartment(db, input) {
       `INSERT INTO apartments (
          logo_url, name_th, name_en, address_th, address_en, phone,
          late_fee_per_day_cents, is_auto_late_fee_enabled, due_date_day, is_vat_enabled,
-         display_order, created_at
+         default_rent_item_text, display_order, created_at
        ) VALUES (
          @logoUrl, @nameTh, @nameEn, @addressTh, @addressEn, @phone,
          @lateFeePerDayCents, @isAutoLateFeeEnabled, @dueDateDay, @isVatEnabled,
-         @displayOrder, @now
+         @rentItemText, @displayOrder, @now
        )`
     )
-    .run({ ...row, displayOrder: nextOrder, now })
+    // เขียนค่านี้เอง ไม่พึ่ง DEFAULT ของคอลัมน์ — DEFAULT ใน 001_init.sql ยังเป็น
+    // 'ค่าเช่าห้อง/Rent' และ SQLite แก้ DEFAULT ของคอลัมน์ทีหลังไม่ได้ (ต้องสร้างตารางใหม่
+    // ทั้งใบ ซึ่งไม่คุ้มเสี่ยงกับตารางที่มีข้อมูลจริง — ดู migration 016)
+    //
+    // ข้อความที่ผู้ใช้ตั้งเองจะถูกแก้ผ่าน updateApartment ตามปกติ
+    .run({ ...row, rentItemText: DEFAULT_RENT_ITEM_TEXT, displayOrder: nextOrder, now })
 
   return getApartmentById(db, result.lastInsertRowid)
 }

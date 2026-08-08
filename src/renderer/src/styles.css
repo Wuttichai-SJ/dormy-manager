@@ -3130,9 +3130,11 @@ body {
     border-radius: 0;
   }
 
-  /* ห้ามให้ตารางรายการถูกตัดกลางแถวเมื่อขึ้นหน้าใหม่ — ยอดเงินจะไปคนละหน้ากับชื่อรายการ */
+  /* ห้ามให้ตารางรายการถูกตัดกลางแถวเมื่อขึ้นหน้าใหม่ — ยอดเงินจะไปคนละหน้ากับชื่อรายการ
+     และช่องทางชำระเงินต้องอยู่ครบบล็อกเดียว ไม่ใช่เลขบัญชีไปโผล่หน้าถัดไปคนละที่กับชื่อธนาคาร */
   .invoice-items tr,
-  .invoice-totals {
+  .invoice-totals,
+  .invoice-payment-info {
     break-inside: avoid;
   }
 
@@ -3334,6 +3336,37 @@ body {
 .delete-summary {
   width: 100%;
   margin: 16px 0;
+}
+
+/* ช่องทางชำระเงินท้ายบิล — คั่นจากยอดรวมด้วยเส้น ไม่ใช่ลอยติดกันจนดูเป็นส่วนเดียวกัน */
+.invoice-payment-info {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.invoice-payment-info h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.invoice-banks {
+  font-size: 13px;
+}
+
+.invoice-account-number {
+  font-family: 'Consolas', 'Courier New', monospace;
+  letter-spacing: 0.4px;
+}
+
+.invoice-payment-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-soft);
+  white-space: pre-line;
 }
 
 .invoice-confirm-actions {

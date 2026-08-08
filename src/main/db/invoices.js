@@ -127,11 +127,11 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
 
   const items = []
 
-  // 1) ค่าเช่าห้อง — ข้อความตั้งต้นตั้งได้ที่หน้าหอ ต้นแบบขึ้นเป็น "ค่าเช่าห้อง/Rent (เดือน/Month 03-2025)"
-  const rentLabel = contract.default_rent_item_text || 'ค่าเช่าห้อง/Rent'
+  // 1) ค่าเช่าห้อง — ข้อความตั้งต้นตั้งได้ที่หน้าหอ (ดู migration 016 เรื่องค่าเดิมที่มีอังกฤษพ่วง)
+  const rentLabel = contract.default_rent_item_text || 'ค่าเช่าห้อง'
   items.push({
     itemType: 'rent',
-    description: `${rentLabel} (เดือน/Month ${formatBillingMonth(billingMonth)})`,
+    description: `${rentLabel} (เดือน ${formatBillingMonth(billingMonth)})`,
     quantity: 1,
     unitPriceCents: contract.rent_amount_cents,
     totalAmountCents: contract.rent_amount_cents,
@@ -154,9 +154,11 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
           .get(meterBatchId, contract.room_id)
       : null
 
+    // ชื่อรายการเป็นภาษาไทยล้วน — เคยเขียนคู่กับอังกฤษ ('ค่าน้ำ/water') ตามต้นแบบ
+    // แต่ผู้เช่าอ่านไทยกันหมด และคอลัมน์รายการบนบิลแคบ คำอังกฤษเบียดจนอ่านยาก
     for (const [side, itemType, label] of [
-      ['water', 'water', 'ค่าน้ำ/water'],
-      ['electric', 'electricity', 'ค่าไฟ/electricity']
+      ['water', 'water', 'ค่าน้ำ'],
+      ['electric', 'electricity', 'ค่าไฟ']
     ]) {
       const config = sides[side]
       if (!config.enabled) continue
@@ -450,7 +452,7 @@ export function getInvoiceById(db, invoiceId) {
     .prepare(
       `SELECT i.*, r.room_number, a.apartment_id, a.name_th AS apartment_name,
               a.address_th AS apartment_address, a.phone AS apartment_phone,
-              a.qr_code_image_id, a.is_vat_enabled
+              a.qr_code_image_id, a.is_vat_enabled, a.payment_instructions
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
@@ -464,6 +466,23 @@ export function getInvoiceById(db, invoiceId) {
   const items = db
     .prepare('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY invoice_item_id')
     .all(invoiceId)
+
+  // บัญชีธนาคารกับข้อความแจ้งชำระต้องไปอยู่บนใบแจ้งหนี้ ไม่ใช่แค่ในหน้าตั้งค่า —
+  // ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนเข้าบัญชีไหน (ต้นแบบก็มี)
+  const bankAccounts = db
+    .prepare(
+      `SELECT bank_name, account_name, account_number, is_default
+         FROM apartment_bank_accounts
+        WHERE apartment_id = ?
+        ORDER BY is_default DESC, bank_account_id`
+    )
+    .all(row.apartment_id)
+    .map((bank) => ({
+      bankName: bank.bank_name,
+      accountName: bank.account_name,
+      accountNumber: bank.account_number,
+      isDefault: bank.is_default === 1
+    }))
 
   // ยอดที่ชำระมาแล้วคำนวณสดจากใบเสร็จเสมอ ไม่เก็บเป็นคอลัมน์
   // ความจริงเดียวกันสองที่จะไม่ตรงกันวันใดวันหนึ่ง และตัวที่ถูกคือผลรวมของใบเสร็จ
@@ -500,8 +519,10 @@ export function getInvoiceById(db, invoiceId) {
       name: row.apartment_name,
       address: row.apartment_address,
       phone: row.apartment_phone,
-      qrCodeImageId: row.qr_code_image_id
+      qrCodeImageId: row.qr_code_image_id,
+      paymentInstructions: row.payment_instructions
     },
+    bankAccounts,
     items: items.map(toPublicItem)
   }
 }

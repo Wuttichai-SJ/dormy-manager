@@ -307,6 +307,47 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError }) {
           <dd>{formatBaht(invoice.totalAmountCents)}</dd>
         </div>
       </dl>
+
+      <InvoicePaymentInfo invoice={invoice} />
+    </section>
+  )
+}
+
+// ช่องทางชำระเงินท้ายบิล — ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนที่ไหน
+// ทั้งบล็อกหายไปถ้าหอยังไม่ได้ตั้งบัญชีและไม่มีข้อความแจ้งชำระ ไม่ทิ้งหัวข้อว่างไว้บนกระดาษ
+function InvoicePaymentInfo({ invoice }) {
+  const banks = invoice.bankAccounts ?? []
+  const note = invoice.apartment.paymentInstructions
+  if (banks.length === 0 && !note) return null
+
+  return (
+    <section className="invoice-payment-info">
+      <h3>ช่องทางการชำระเงิน</h3>
+
+      {banks.length > 0 && (
+        <table className="data-table invoice-banks">
+          <thead>
+            <tr>
+              <th>ธนาคาร</th>
+              <th>ชื่อบัญชี</th>
+              <th>เลขที่บัญชี</th>
+            </tr>
+          </thead>
+          <tbody>
+            {banks.map((bank) => (
+              <tr key={`${bank.bankName}-${bank.accountNumber}`}>
+                <td>{bank.bankName}</td>
+                <td>{bank.accountName}</td>
+                {/* เลขบัญชีเป็นตัวเลขที่คนต้องคัดลอกทีละหลัก จึงใช้ฟอนต์ความกว้างเท่ากัน
+                    เพื่อให้ตาไล่ตัวเลขได้ไม่หลง */}
+                <td className="invoice-account-number">{bank.accountNumber}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {note && <p className="invoice-payment-note">{note}</p>}
     </section>
   )
 }

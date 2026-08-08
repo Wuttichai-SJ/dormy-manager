@@ -54,6 +54,21 @@ const trash = services.insertService(db, apartmentId, {
 })
 rooms.attachServicesToRooms(db, [room1.roomId], [wifi.serviceId, trash.serviceId])
 
+// บัญชีรับเงิน + ข้อความแจ้งชำระ — ต้องไปโผล่บนใบแจ้งหนี้ ไม่ใช่อยู่แต่ในหน้าตั้งค่า
+const banks = await import('../src/main/db/bankAccounts.js')
+const mainAccount = banks.insertBankAccount(db, apartmentId, {
+  bankName: 'กสิกรไทย',
+  accountName: 'หอทดสอบออกบิล',
+  accountNumber: '123-4-56789-0'
+})
+banks.insertBankAccount(db, apartmentId, {
+  bankName: 'ไทยพาณิชย์',
+  accountName: 'หอทดสอบออกบิล',
+  accountNumber: '987-6-54321-0'
+})
+banks.setDefaultBankAccount(db, mainAccount.bankAccountId)
+banks.savePaymentInstructions(db, apartmentId, 'โอนแล้วส่งสลิปมาที่ไลน์ @dormy')
+
 const somchai = tenants.insertTenant(db, {
   firstName: 'สมชาย',
   lastName: 'ทดสอบ',
@@ -166,18 +181,22 @@ check('มีค่าเช่า ค่าน้ำ ค่าไฟ และ�
   assert(types.filter((t) => t === 'service').length === 2, `ค่าบริการได้ ${types}`)
 })
 
-check('ค่าเช่าขึ้นข้อความตามต้นแบบ พร้อมเดือนแบบ MM-YYYY', () => {
+// ชื่อรายการเป็นไทยล้วน ไม่มีอังกฤษพ่วง (ผู้ใช้สั่ง 2026-08-08 — คอลัมน์แคบ อ่านยาก)
+check('ค่าเช่าขึ้นเป็นไทยล้วน พร้อมเดือนแบบ MM-YYYY', () => {
   const rent = built.items.find((i) => i.itemType === 'rent')
-  assert(
-    rent.description === 'ค่าเช่าห้อง/Rent (เดือน/Month 08-2026)',
-    `ได้ "${rent.description}"`
-  )
+  assert(rent.description === 'ค่าเช่าห้อง (เดือน 08-2026)', `ได้ "${rent.description}"`)
   assert(rent.totalAmountCents === 500000, `ได้ ${rent.totalAmountCents}`)
+})
+
+check('ไม่มีคำอังกฤษหลงเหลือในชื่อรายการใดเลย', () => {
+  for (const item of built.items) {
+    assert(!/[A-Za-z]/.test(item.description), `ยังมีอังกฤษอยู่: "${item.description}"`)
+  }
 })
 
 check('ค่าน้ำคิดจากหน่วยที่จด และเขียนเลขมิเตอร์ก่อน/หลังลงบรรทัด', () => {
   const water = built.items.find((i) => i.itemType === 'water')
-  assert(water.description === 'ค่าน้ำ/water : 98 หน่วย (2 - 100)', `ได้ "${water.description}"`)
+  assert(water.description === 'ค่าน้ำ : 98 หน่วย (2 - 100)', `ได้ "${water.description}"`)
   assert(water.totalAmountCents === 98 * 2000, `ได้ ${water.totalAmountCents}`)
 })
 
@@ -258,6 +277,17 @@ check('บิลจำวันที่จดมิเตอร์ที่ใ�
   assert(invoice1.meterBatchId === batch.batchId, 'ต้องผูกกับใบจดมิเตอร์')
   assert(invoice1.apartment.name === 'หอทดสอบออกบิล', `ได้ ${invoice1.apartment.name}`)
   assert(invoice1.roomNumber === '101', `ได้ ${invoice1.roomNumber}`)
+})
+
+// ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนเข้าบัญชีไหน
+check('บิลแนบบัญชีธนาคารและข้อความแจ้งชำระไปด้วย บัญชีหลักมาก่อน', () => {
+  assert(invoice1.bankAccounts.length === 2, `ได้ ${invoice1.bankAccounts.length} บัญชี`)
+  assert(invoice1.bankAccounts[0].isDefault === true, 'บัญชีหลักต้องอยู่บนสุด')
+  assert(invoice1.bankAccounts[0].accountNumber === '1234567890', `ได้ ${invoice1.bankAccounts[0].accountNumber}`)
+  assert(
+    invoice1.apartment.paymentInstructions === 'โอนแล้วส่งสลิปมาที่ไลน์ @dormy',
+    `ได้ ${invoice1.apartment.paymentInstructions}`
+  )
 })
 
 check('ออกบิลเดือนเดิมซ้ำไม่ได้ และต้องบอกเลขใบเดิม', () => {
