@@ -76,12 +76,16 @@ export default function PrintDialog({ onClose, onPrinted }) {
       <Alert>{error}</Alert>
 
       <div className="print-preview">
-        {pdfUrl ? (
+        {/* ข้อความอยู่ "ใต้" iframe เสมอ ไม่ได้สลับกัน — ถ้าตัวอ่าน PDF แสดงผลไม่ได้
+            (เช่นถูก CSP บล็อก หรือ plugins ปิดอยู่) ผู้ใช้จะยังเห็นข้อความค้างแทนกล่องเทา
+            เปล่าๆ ที่ไม่บอกอะไรเลย — เคยเจอมาแล้วตอน frame-src ยังไม่อนุญาต blob: */}
+        <p className="muted print-preview-status">
+          {pdfUrl ? 'ไม่สามารถแสดงตัวอย่างได้ — ใช้ปุ่ม “บันทึก PDF” เพื่อดูไฟล์แทน' : 'กำลังเตรียมตัวอย่างเอกสาร...'}
+        </p>
+        {pdfUrl && (
           // ตัวอ่าน PDF ของ Chromium มาพร้อมแถบเครื่องมือของมันเอง (ย่อ/ขยาย เลื่อนหน้า
           // ดาวน์โหลด) จึงไม่ต้องทำปุ่มพวกนั้นเองซ้ำ
           <iframe src={pdfUrl} title="ตัวอย่างใบแจ้งหนี้" />
-        ) : (
-          <p className="muted">กำลังเตรียมตัวอย่างเอกสาร...</p>
         )}
       </div>
 

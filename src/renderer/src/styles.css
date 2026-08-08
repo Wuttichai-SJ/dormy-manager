@@ -1636,8 +1636,10 @@ body {
   overflow: auto;
 }
 
-/* กรอบตัวอย่าง — พื้นเทาเข้มแบบโปรแกรมอ่าน PDF เพื่อให้ขอบกระดาษขาวเห็นชัด */
+/* กรอบตัวอย่าง — พื้นเทาเข้มแบบโปรแกรมอ่าน PDF เพื่อให้ขอบกระดาษขาวเห็นชัด
+   iframe วางทับข้อความสถานะ ข้อความจึงโผล่ก็ต่อเมื่อตัวอ่าน PDF แสดงผลไม่ได้ */
 .print-preview {
+  position: relative;
   flex: 1;
   min-height: 320px;
   margin-bottom: 16px;
@@ -1647,14 +1649,21 @@ body {
 }
 
 .print-preview iframe {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
   border: 0;
 }
 
-.print-preview .muted {
+.print-preview-status {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  margin: 0;
   padding: 24px;
+  text-align: center;
   color: #e6e0d9;
 }
 

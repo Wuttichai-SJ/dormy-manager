@@ -3,9 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      สคริปต์ยังล็อกไว้ที่ 'self' เหมือนเดิม ที่เปิดเพิ่มคือช่องทางแสดงผลของไฟล์ที่แอป
+      สร้างขึ้นเองเท่านั้น:
+
+      frame-src/object-src blob:  ตัวอย่างใบแจ้งหนี้ก่อนพิมพ์ — ฝั่ง main เรนเดอร์เป็น PDF
+                                  แล้วหน้าจอประกอบเป็น blob ให้ตัวอ่าน PDF ของ Chromium แสดง
+                                  ถ้าไม่เปิด iframe จะถูกปฏิเสธเงียบๆ เหลือแต่กรอบเปล่า
+      img-src data:               รูปในตาราง images ถูกส่งออกมาเป็น data URL (ดู migration 011)
+                                  เช่น QR พร้อมเพย์ที่จะไปอยู่บนใบแจ้งหนี้
+
+      ทั้งสองอย่างเป็นข้อมูลที่แอปสร้างเองในเครื่อง ไม่ได้เปิดทางให้โหลดอะไรจากภายนอก
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self' blob:; object-src 'self' blob:"
     />
     <title>Dormy Manager</title>
   </head>
