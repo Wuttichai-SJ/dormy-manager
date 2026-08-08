@@ -452,7 +452,7 @@ export function getInvoiceById(db, invoiceId) {
     .prepare(
       `SELECT i.*, r.room_number, a.apartment_id, a.name_th AS apartment_name,
               a.address_th AS apartment_address, a.phone AS apartment_phone,
-              a.qr_code_image_id, a.is_vat_enabled, a.payment_instructions
+              a.qr_code_image_id, a.is_vat_enabled, a.payment_instructions, a.invoice_note
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
@@ -520,7 +520,8 @@ export function getInvoiceById(db, invoiceId) {
       address: row.apartment_address,
       phone: row.apartment_phone,
       qrCodeImageId: row.qr_code_image_id,
-      paymentInstructions: row.payment_instructions
+      paymentInstructions: row.payment_instructions,
+      invoiceNote: row.invoice_note
     },
     bankAccounts,
     items: items.map(toPublicItem)

@@ -3338,34 +3338,99 @@ body {
   margin: 16px 0;
 }
 
-/* ช่องทางชำระเงินท้ายบิล — คั่นจากยอดรวมด้วยเส้น ไม่ใช่ลอยติดกันจนดูเป็นส่วนเดียวกัน */
+/* ท้ายบิล — โครงตามใบเสร็จ PDF ของต้นแบบ */
 .invoice-payment-info {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+  margin-top: 28px;
 }
 
-.invoice-payment-info h3 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  font-weight: 700;
+/* ช่องลงชื่อชิดขวา เว้นที่ให้เซ็นด้วยมือบนกระดาษจริง */
+.invoice-signature {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 260px;
+  margin: 0 0 20px auto;
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.invoice-signature strong {
   color: var(--text);
+  font-weight: 600;
+}
+
+/* กล่องเดียวครอบตารางบัญชีกับข้อความท้ายบิล เส้นบางๆ แบ่งเป็นแถวเหมือนต้นแบบ */
+.invoice-footer-box {
+  border: 1px solid var(--border);
+  border-bottom: 0;
 }
 
 .invoice-banks {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 13px;
+}
+
+.invoice-banks th {
+  padding: 7px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  background: #eceaea;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-banks td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+/* คอลัมน์แรกกว้างกว่า เพราะมีสองบรรทัด (ชื่อบัญชี + ธนาคาร) */
+.invoice-banks th:first-child,
+.invoice-banks td:first-child {
+  width: 55%;
+  border-right: 1px solid var(--border);
+}
+
+.invoice-banks td strong {
+  display: block;
+  font-size: 14px;
+}
+
+.invoice-bank-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .invoice-account-number {
   font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 15px;
   letter-spacing: 0.4px;
 }
 
-.invoice-payment-note {
-  margin: 10px 0 0;
+.invoice-footer-note {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-footer-note strong {
   font-size: 13px;
+  color: var(--text);
+}
+
+/* ข้อความท้ายบิลใช้สีน้ำตาลของแบรนด์ ให้ต่างจากตัวเลขในตารางอย่างชัดเจน
+   ผู้เช่าจะได้เห็นว่าเป็นข้อความที่ต้องอ่าน ไม่ใช่ข้อมูลอีกชุด */
+.invoice-footer-note p {
+  margin: 3px 0 0;
+  font-size: 12px;
   line-height: 1.7;
-  color: var(--text-soft);
+  color: var(--accent);
   white-space: pre-line;
 }
 

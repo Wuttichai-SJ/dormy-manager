@@ -20,7 +20,8 @@ import { printDocument, revealPdf, savePdf } from '../services/printService.js'
 // ต้นแบบทำเป็นหน้าต่างซ้อน แต่ที่นี่เป็นหน้าเต็ม เพราะเนื้อหายาวกว่าหน้าต่างซ้อนจะรับไหว
 // (เอกสาร + ฟอร์มรับเงิน + ประวัติการรับเงิน + ฟอร์มเพิ่มรายการ) และแอปนี้เดินด้วยหน้า
 // ไม่ได้เดินด้วย URL แบบเว็บ การเปิดซ้อนจึงไม่ได้ประโยชน์เรื่องปุ่มย้อนกลับของเบราว์เซอร์
-export default function InvoiceDetailPage({ invoiceId, onBack }) {
+// signedBy = ชื่อผู้ที่กำลังออก/พิมพ์เอกสารใบนี้ ไปขึ้นในช่อง "ลงชื่อ" ท้ายบิล
+export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
   const [invoice, setInvoice] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -64,6 +65,7 @@ export default function InvoiceDetailPage({ invoiceId, onBack }) {
         <div className="invoice-main">
           <InvoiceDocument
             invoice={invoice}
+            signedBy={signedBy}
             onError={setError}
             onRemoveItem={async (itemId) => {
               setError('')
@@ -128,7 +130,7 @@ function BackLink({ onBack }) {
 // ------------------------------------------------------------------
 // ตัวเอกสาร
 // ------------------------------------------------------------------
-function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError }) {
+function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [busy, setBusy] = useState(false)
   const closed = invoice.status === 'cancelled'
@@ -308,46 +310,74 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError }) {
         </div>
       </dl>
 
-      <InvoicePaymentInfo invoice={invoice} />
+      <InvoicePaymentInfo invoice={invoice} signedBy={signedBy} />
     </section>
   )
 }
 
-// ช่องทางชำระเงินท้ายบิล — ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนที่ไหน
-// ทั้งบล็อกหายไปถ้าหอยังไม่ได้ตั้งบัญชีและไม่มีข้อความแจ้งชำระ ไม่ทิ้งหัวข้อว่างไว้บนกระดาษ
-function InvoicePaymentInfo({ invoice }) {
+// ท้ายบิล — ลอกโครงจากใบเสร็จ PDF ของต้นแบบ:
+//   กล่องลงชื่อชิดขวา
+//   ตารางบัญชี 2 คอลัมน์ (ชื่อบัญชีตัวหนา ธนาคารตัวเล็กใต้ | เลขบัญชี)
+//   การแจ้งชำระเงิน:
+//   Note:
+//
+// แต่ละบล็อกหายไปเองถ้าไม่มีข้อมูล ไม่ทิ้งหัวข้อว่างไว้บนกระดาษ
+function InvoicePaymentInfo({ invoice, signedBy }) {
   const banks = invoice.bankAccounts ?? []
-  const note = invoice.apartment.paymentInstructions
-  if (banks.length === 0 && !note) return null
+  const instructions = invoice.apartment.paymentInstructions
+  const note = invoice.apartment.invoiceNote
+  if (banks.length === 0 && !instructions && !note) return null
 
   return (
     <section className="invoice-payment-info">
-      <h3>ช่องทางการชำระเงิน</h3>
-
-      {banks.length > 0 && (
-        <table className="data-table invoice-banks">
-          <thead>
-            <tr>
-              <th>ธนาคาร</th>
-              <th>ชื่อบัญชี</th>
-              <th>เลขที่บัญชี</th>
-            </tr>
-          </thead>
-          <tbody>
-            {banks.map((bank) => (
-              <tr key={`${bank.bankName}-${bank.accountNumber}`}>
-                <td>{bank.bankName}</td>
-                <td>{bank.accountName}</td>
-                {/* เลขบัญชีเป็นตัวเลขที่คนต้องคัดลอกทีละหลัก จึงใช้ฟอนต์ความกว้างเท่ากัน
-                    เพื่อให้ตาไล่ตัวเลขได้ไม่หลง */}
-                <td className="invoice-account-number">{bank.accountNumber}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* ช่องลงชื่อผู้ออกบิล — เว้นที่ไว้เซ็นด้วยมือบนกระดาษ ชื่อที่พิมพ์คือคนที่กำลัง
+          ออก/พิมพ์เอกสารใบนี้ */}
+      {signedBy && (
+        <div className="invoice-signature">
+          <span>ลงชื่อ</span>
+          <strong>{signedBy}</strong>
+        </div>
       )}
 
-      {note && <p className="invoice-payment-note">{note}</p>}
+      <div className="invoice-footer-box">
+        {banks.length > 0 && (
+          <table className="invoice-banks">
+            <thead>
+              <tr>
+                <th>บัญชี</th>
+                <th>เลขบัญชี</th>
+              </tr>
+            </thead>
+            <tbody>
+              {banks.map((bank) => (
+                <tr key={`${bank.bankName}-${bank.accountNumber}`}>
+                  <td>
+                    <strong>{bank.accountName}</strong>
+                    <span className="invoice-bank-name">{bank.bankName}</span>
+                  </td>
+                  {/* เลขบัญชีเป็นตัวเลขที่คนต้องคัดลอกทีละหลัก จึงใช้ฟอนต์ความกว้างเท่ากัน
+                      เพื่อให้ตาไล่ตัวเลขได้ไม่หลง */}
+                  <td className="invoice-account-number">{bank.accountNumber}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {instructions && (
+          <div className="invoice-footer-note">
+            <strong>การแจ้งชำระเงิน:</strong>
+            <p>{instructions}</p>
+          </div>
+        )}
+
+        {note && (
+          <div className="invoice-footer-note">
+            <strong>Note:</strong>
+            <p>{note}</p>
+          </div>
+        )}
+      </div>
     </section>
   )
 }

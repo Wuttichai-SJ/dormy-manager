@@ -22,7 +22,7 @@ const EMPTY_FILTERS = { roomNumber: '', invoiceNumber: '', dateFrom: '', dateTo:
 //
 // โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "ออกบิลรายเดือน"): กดปุ่มออกบิล → ตัวช่วย 2 ขั้น
 // (เลือกใบจดมิเตอร์+เดือน → ตารางพรีวิวทุกห้องแล้วกดสร้าง) ไม่ใช่กรอกทีละห้องเอง
-export default function InvoicesPage({ apartment }) {
+export default function InvoicesPage({ apartment, user }) {
   const [wizard, setWizard] = useState(false)
   // บิลที่กำลังเปิดดูอยู่ — null = อยู่ที่ตารางรายการ
   const [openInvoiceId, setOpenInvoiceId] = useState(null)
@@ -59,6 +59,7 @@ export default function InvoicesPage({ apartment }) {
     return (
       <InvoiceDetailPage
         invoiceId={openInvoiceId}
+        signedBy={user?.fullName}
         onBack={() => {
           setOpenInvoiceId(null)
           load()

@@ -141,7 +141,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
           ) : active === 'meters' ? (
             <MetersPage apartment={apartment} />
           ) : active === 'invoices' ? (
-            <InvoicesPage apartment={apartment} />
+            <InvoicesPage apartment={apartment} user={user} />
           ) : settingsItem ? (
             <SettingsSection
               section={active}

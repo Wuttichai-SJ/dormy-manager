@@ -128,6 +128,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`apartments` (
   -- QR รับเงินตัวจริง (migration 011) — NULL = ยังไม่ได้อัปโหลด ใบแจ้งหนี้ก็ยังออกได้
   `qr_code_image_id` INT NULL,
   `payment_instructions` TEXT NULL,
+  -- เพิ่มใน 017: ข้อความประจำที่ติดท้ายใบแจ้งหนี้ทุกใบ ("Note:" ของต้นแบบ)
+  -- ต่างจาก payment_instructions ที่บอก "วิธีแจ้งเมื่อโอนแล้ว" — อันนี้เป็นข้อตกลงประจำของหอ
+  `invoice_note` TEXT NULL,
   `show_tenant_info_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
   `show_unit_qty_in_invoice` TINYINT(1) NOT NULL DEFAULT 1,
   `default_rent_item_text` VARCHAR(255) NULL DEFAULT 'ค่าเช่าห้อง/Rent',

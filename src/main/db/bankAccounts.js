@@ -210,6 +210,32 @@ export function savePaymentInstructions(db, apartmentId, text) {
 }
 
 // -----------------------------------------------------
+// ข้อความประจำท้ายบิล ("Note:") — เก็บที่ apartments.invoice_note (ดู migration 017)
+// ต่างจาก payment_instructions ตรงที่อันนั้นบอก "วิธีแจ้งเมื่อโอนแล้ว" ส่วนอันนี้เป็น
+// ข้อตกลง/ข้อควรรู้ประจำของหอ เช่นวันกำหนดชำระ
+//
+// ไม่บังคับกรอก — ล้างเป็นค่าว่างได้ แล้วบล็อกนี้จะหายไปจากบิล
+// -----------------------------------------------------
+export function getInvoiceNote(db, apartmentId) {
+  const row = db
+    .prepare('SELECT invoice_note FROM apartments WHERE apartment_id = ?')
+    .get(apartmentId)
+  if (!row) throw new Error('ไม่พบหอพัก')
+  return row.invoice_note ?? ''
+}
+
+export function saveInvoiceNote(db, apartmentId, text) {
+  const trimmed = String(text ?? '').trim()
+
+  const result = db
+    .prepare('UPDATE apartments SET invoice_note = ?, updated_at = ? WHERE apartment_id = ?')
+    .run(trimmed || null, new Date().toISOString(), apartmentId)
+
+  if (result.changes === 0) throw new Error('ไม่พบหอพัก')
+  return trimmed
+}
+
+// -----------------------------------------------------
 export function toPublicBankAccount(row) {
   if (!row) return null
   return {

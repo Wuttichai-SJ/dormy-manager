@@ -7,6 +7,7 @@ import {
   createBankAccount,
   deleteBankAccount,
   listBankAccounts,
+  saveInvoiceNote,
   savePaymentInstructions,
   setDefaultBankAccount,
   updateBankAccount
@@ -19,6 +20,7 @@ const EMPTY = { bankName: '', accountName: '', accountNumber: '' }
 export default function BankAccountsPage({ apartment }) {
   const [accounts, setAccounts] = useState([])
   const [instructions, setInstructions] = useState('')
+  const [invoiceNote, setInvoiceNote] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [form, setForm] = useState(EMPTY)
@@ -34,6 +36,7 @@ export default function BankAccountsPage({ apartment }) {
     setError('')
     setAccounts(res.data.accounts)
     setInstructions(res.data.paymentInstructions)
+    setInvoiceNote(res.data.invoiceNote ?? '')
   }, [apartment.apartmentId])
 
   useEffect(() => {
@@ -69,12 +72,19 @@ export default function BankAccountsPage({ apartment }) {
     load()
   }
 
+  // สองข้อความนี้อยู่ในฟอร์มเดียวกัน จึงบันทึกพร้อมกัน — ถ้าแยกปุ่มจะมีสองปุ่ม "บันทึก"
+  // ในการ์ดเดียวและผู้ใช้ต้องจำว่าปุ่มไหนคุมช่องไหน
   async function submitInstructions(e) {
     e.preventDefault()
     setError('')
     setInstructionsSaved(false)
+
     const res = await savePaymentInstructions(apartment.apartmentId, instructions)
     if (!res.success) return setError(res.error)
+
+    const noteRes = await saveInvoiceNote(apartment.apartmentId, invoiceNote)
+    if (!noteRes.success) return setError(noteRes.error)
+
     setInstructionsSaved(true)
   }
 
@@ -248,6 +258,25 @@ export default function BankAccountsPage({ apartment }) {
             <p className="field-hint">
               ตัวอย่าง: เมื่อชำระเงินแล้ว กรุณาส่งหลักฐานการชำระเงินมาที่ Line: @apartment
               หรือโทรแจ้ง 08x-xxx-xxxx
+            </p>
+          </div>
+
+          {/* ข้อความที่สองท้ายบิล — คนละหน้าที่กับข้างบน อันบนบอก "วิธีแจ้งเมื่อโอนแล้ว"
+              อันนี้เป็นข้อตกลงประจำของหอ ต้นแบบขึ้นเป็นหัวข้อ "Note:" แยกกัน */}
+          <div className="field">
+            <label htmlFor="invoiceNote">ข้อความประจำท้ายใบแจ้งหนี้</label>
+            <textarea
+              id="invoiceNote"
+              rows={2}
+              value={invoiceNote}
+              onChange={(e) => {
+                setInvoiceNote(e.target.value)
+                setInstructionsSaved(false)
+              }}
+            />
+            <p className="field-hint">
+              ข้อความนี้จะติดไปกับใบแจ้งหนี้ทุกใบ · ไม่บังคับ เว้นว่างไว้ได้ ·
+              ตัวอย่าง: วันกำหนดชำระเงินวันที่ 25 ของทุกเดือน
             </p>
           </div>
 

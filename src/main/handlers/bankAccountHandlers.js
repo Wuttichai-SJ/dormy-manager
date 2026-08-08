@@ -4,9 +4,11 @@ import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import {
   deleteBankAccount,
+  getInvoiceNote,
   getPaymentInstructions,
   insertBankAccount,
   listBankAccounts,
+  saveInvoiceNote,
   savePaymentInstructions,
   setDefaultBankAccount,
   updateBankAccount,
@@ -32,7 +34,8 @@ function assertValid(payload) {
 export function registerBankAccountHandlers() {
   handle('bankAccount:list', ({ apartmentId }) => ({
     accounts: listBankAccounts(getDatabase(), apartmentId),
-    paymentInstructions: getPaymentInstructions(getDatabase(), apartmentId)
+    paymentInstructions: getPaymentInstructions(getDatabase(), apartmentId),
+    invoiceNote: getInvoiceNote(getDatabase(), apartmentId)
   }))
 
   handle('bankAccount:create', ({ apartmentId, ...payload }) => {
@@ -64,6 +67,12 @@ export function registerBankAccountHandlers() {
   handle('bankAccount:savePaymentInstructions', ({ apartmentId, text }) => {
     const saved = savePaymentInstructions(getDatabase(), apartmentId, text)
     logInfo(`บันทึกข้อความแจ้งการชำระเงิน (apartment_id ${apartmentId})`)
+    return saved
+  })
+
+  handle('bankAccount:saveInvoiceNote', ({ apartmentId, text }) => {
+    const saved = saveInvoiceNote(getDatabase(), apartmentId, text)
+    logInfo(`บันทึกข้อความประจำท้ายบิล (apartment_id ${apartmentId})`)
     return saved
   })
 }

@@ -25,3 +25,8 @@ export function deleteBankAccount(bankAccountId) {
 export function savePaymentInstructions(apartmentId, text) {
   return invoke('bankAccount:savePaymentInstructions', { apartmentId, text })
 }
+
+// ข้อความประจำที่ติดท้ายบิลทุกใบ ("Note:") — ไม่บังคับ ล้างเป็นค่าว่างได้
+export function saveInvoiceNote(apartmentId, text) {
+  return invoke('bankAccount:saveInvoiceNote', { apartmentId, text })
+}
