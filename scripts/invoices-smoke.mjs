@@ -279,6 +279,27 @@ check('บิลจำวันที่จดมิเตอร์ที่ใ�
   assert(invoice1.roomNumber === '101', `ได้ ${invoice1.roomNumber}`)
 })
 
+// ใบแจ้งหนี้ที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น
+check('บิลแนบชื่อผู้เช่าไปด้วย ผู้เช่าหลักมาก่อน', () => {
+  assert(invoice1.tenants.length >= 1, `ได้ ${invoice1.tenants.length} คน`)
+  assert(invoice1.tenants[0].isPrimary === true, 'ผู้เช่าหลักต้องอยู่ตัวแรก')
+  assert(invoice1.tenants[0].fullName === 'สมชาย ทดสอบ', `ได้ ${invoice1.tenants[0].fullName}`)
+  assert(invoice1.tenants[0].phone === '0812345678', `ได้ ${invoice1.tenants[0].phone}`)
+})
+
+check('หอที่ปิดการแสดงข้อมูลผู้เช่า ต้องไม่ส่งชื่อออกไปเลย', () => {
+  const db2 = db
+  db2
+    .prepare('UPDATE apartments SET show_tenant_info_in_invoice = 0 WHERE apartment_id = ?')
+    .run(apartmentId)
+  const hidden = invoices.getInvoiceById(db2, invoice1.invoiceId)
+  assert(hidden.tenants.length === 0, `ยังส่งมา ${hidden.tenants.length} คน`)
+
+  db2
+    .prepare('UPDATE apartments SET show_tenant_info_in_invoice = 1 WHERE apartment_id = ?')
+    .run(apartmentId)
+})
+
 // ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนเข้าบัญชีไหน
 check('บิลแนบบัญชีธนาคารและข้อความแจ้งชำระไปด้วย บัญชีหลักมาก่อน', () => {
   assert(invoice1.bankAccounts.length === 2, `ได้ ${invoice1.bankAccounts.length} บัญชี`)

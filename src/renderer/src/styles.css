@@ -3371,6 +3371,52 @@ body {
   font-weight: 600;
 }
 
+/* ผู้เช่าของบิล — สองคอลัมน์ตามต้นแบบ (ชื่อ/ที่อยู่ ซ้าย เบอร์โทร ขวา)
+   คั่นจากหัวหอด้วยเส้นบาง เพื่อให้เห็นว่าเป็นข้อมูลของคนละฝ่าย */
+.invoice-tenant {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+  margin: 0 0 18px;
+  padding: 12px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-tenant > div {
+  display: flex;
+  gap: 8px;
+}
+
+.invoice-tenant dt {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.invoice-tenant dt::after {
+  content: ':';
+}
+
+.invoice-tenant dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* ที่อยู่ยาวกว่าช่องอื่น ให้กินเต็มแถว */
+.invoice-tenant-address {
+  grid-column: 1 / -1;
+}
+
+.invoice-tenant-address dd {
+  font-weight: 400;
+}
+
+.invoice-cotenants {
+  font-weight: 400;
+  color: var(--text-soft);
+}
+
 .invoice-col-no {
   width: 36px;
   color: var(--text-muted);

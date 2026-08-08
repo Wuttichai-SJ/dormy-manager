@@ -452,7 +452,8 @@ export function getInvoiceById(db, invoiceId) {
     .prepare(
       `SELECT i.*, r.room_number, a.apartment_id, a.name_th AS apartment_name,
               a.address_th AS apartment_address, a.phone AS apartment_phone,
-              a.qr_code_image_id, a.is_vat_enabled, a.payment_instructions, a.invoice_note
+              a.qr_code_image_id, a.is_vat_enabled, a.payment_instructions, a.invoice_note,
+              a.show_tenant_info_in_invoice
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
@@ -466,6 +467,31 @@ export function getInvoiceById(db, invoiceId) {
   const items = db
     .prepare('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY invoice_item_id')
     .all(invoiceId)
+
+  // ผู้เช่าของสัญญานี้ — ใบแจ้งหนี้ที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น
+  // ผู้เช่าหลักขึ้นก่อนเสมอ (ดู 010_contract_tenants.sql) เพราะเป็นคนที่ชื่อขึ้นใบแจ้งหนี้
+  //
+  // ซ่อนได้ด้วย apartments.show_tenant_info_in_invoice — หอที่ส่งบิลแบบติดหน้าห้อง
+  // อาจไม่อยากให้ชื่อกับเบอร์ของผู้เช่าติดไปกับกระดาษที่คนเดินผ่านเห็นได้
+  const tenants =
+    row.show_tenant_info_in_invoice === 1
+      ? db
+          .prepare(
+            `SELECT t.tenant_id, t.first_name, t.last_name, t.phone, t.address, ct.is_primary
+               FROM contract_tenants ct
+               JOIN tenants t ON t.tenant_id = ct.tenant_id
+              WHERE ct.contract_id = ?
+              ORDER BY ct.is_primary DESC, t.tenant_id`
+          )
+          .all(row.contract_id)
+          .map((t) => ({
+            tenantId: t.tenant_id,
+            fullName: `${t.first_name} ${t.last_name}`.trim(),
+            phone: t.phone,
+            address: t.address,
+            isPrimary: t.is_primary === 1
+          }))
+      : []
 
   // บัญชีธนาคารกับข้อความแจ้งชำระต้องไปอยู่บนใบแจ้งหนี้ ไม่ใช่แค่ในหน้าตั้งค่า —
   // ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนเข้าบัญชีไหน (ต้นแบบก็มี)
@@ -523,6 +549,7 @@ export function getInvoiceById(db, invoiceId) {
       paymentInstructions: row.payment_instructions,
       invoiceNote: row.invoice_note
     },
+    tenants,
     bankAccounts,
     items: items.map(toPublicItem)
   }

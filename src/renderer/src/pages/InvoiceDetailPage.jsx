@@ -251,6 +251,8 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         </dl>
       </div>
 
+      <InvoiceTenantInfo tenants={invoice.tenants} />
+
       <table className="data-table invoice-items">
         <thead>
           <tr>
@@ -326,6 +328,52 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         />
       )}
     </section>
+  )
+}
+
+// ผู้เช่าที่บิลใบนี้ออกให้ — วางระหว่างหัวหอกับตารางรายการ สองคอลัมน์ตามต้นแบบ
+//
+// ใบแจ้งหนี้ที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น ไม่งั้นพอส่งไฟล์ทางไลน์ไปหลายห้อง
+// ผู้เช่าจะแยกไม่ออกว่าใบไหนของตัวเอง (เลขห้องอย่างเดียวอ่านยากกว่าชื่อ)
+//
+// **ไม่พิมพ์เลขบัตรประชาชนลงบิล** ต่างจากต้นแบบที่ขึ้นเป็น "เลขประจำตัวผู้เสียภาษี" —
+// หอนี้ไม่ได้ออกใบกำกับภาษีเต็มรูป (ตัดออกตั้งแต่ตอนวางขอบเขต) เลขบัตรจึงไม่มีหน้าที่
+// บนกระดาษที่ส่งต่อทางแชต มีแต่ความเสี่ยง ถ้าวันหนึ่งต้องออกใบกำกับภาษีค่อยเพิ่ม
+function InvoiceTenantInfo({ tenants }) {
+  const list = tenants ?? []
+  if (list.length === 0) return null
+
+  const primary = list[0]
+  const others = list.slice(1)
+
+  return (
+    <dl className="invoice-tenant">
+      <div>
+        <dt>ผู้เช่า</dt>
+        <dd>
+          {primary.fullName}
+          {/* สัญญาหนึ่งมีผู้เช่าได้หลายคน (ดู 010) ชื่อคนอื่นต้องอยู่บนบิลด้วย
+              ไม่งั้นคนที่ร่วมสัญญาจะไม่มีหลักฐานว่าตัวเองเกี่ยวข้องกับบิลใบนี้ */}
+          {others.length > 0 && (
+            <span className="invoice-cotenants"> · ร่วมสัญญา: {others.map((t) => t.fullName).join(', ')}</span>
+          )}
+        </dd>
+      </div>
+
+      {primary.phone && (
+        <div>
+          <dt>เบอร์โทรศัพท์</dt>
+          <dd>{primary.phone}</dd>
+        </div>
+      )}
+
+      {primary.address && (
+        <div className="invoice-tenant-address">
+          <dt>ที่อยู่</dt>
+          <dd>{primary.address}</dd>
+        </div>
+      )}
+    </dl>
   )
 }
 
