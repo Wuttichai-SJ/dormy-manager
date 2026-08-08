@@ -19,6 +19,45 @@ const PAGE = {
   landscape: false
 }
 
+// ย่อทีละขั้นจนเอกสารลงหน้าเดียว — เริ่มที่ขนาดเต็มเสมอ ลดเมื่อจำเป็นเท่านั้น
+// หยุดที่ 0.5 เพราะเล็กกว่านั้นอ่านไม่ออกบนกระดาษ (บิลที่ยาวขนาดนั้นควรไปแก้ที่รายการ
+// ไม่ใช่ย่อจนกลายเป็นมดตัวเล็ก)
+const FIT_SCALES = [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55, 0.5]
+
+// นับจำนวนหน้าจากไบต์ของ PDF
+//
+// ไม่ได้แกะโครงสร้าง PDF จริงจัง — แค่หา object ที่เป็นหน้ากระดาษ ซึ่งใน PDF ที่ Chromium
+// สร้างจะเขียนเป็นข้อความธรรมดา `/Type /Page` (ส่วน `/Type /Pages` คือโหนดรวม ต้องไม่นับ)
+//
+// ถ้าอ่านไม่ออกด้วยวิธีไหนเลย คืน 1 = "ถือว่าพอดีแล้ว" เพื่อไม่ให้ไปย่อเอกสารทิ้งโดยไม่จำเป็น
+function countPdfPages(buffer) {
+  const text = buffer.toString('latin1')
+
+  const pageObjects = text.match(/\/Type\s*\/Page[^s]/g)
+  if (pageObjects) return pageObjects.length
+
+  // สำรอง: โหนด Pages บอกจำนวนไว้ที่ /Count
+  const count = text.match(/\/Count\s+(\d+)/)
+  if (count) return Number(count[1])
+
+  return 1
+}
+
+// เรนเดอร์เอกสารให้ลงหน้าเดียว แล้วคืนทั้งไฟล์และสัดส่วนที่ใช้
+//
+// ใช้ตัวเดียวกันทั้งพรีวิว บันทึก PDF และส่งเข้าเครื่องพิมพ์ ทั้งสามทางจึงได้หน้าตาเดียวกัน
+// และ "หน้าเดียว" ที่ได้คือหน้าเดียวจริงๆ เพราะวัดจากไฟล์ที่เรนเดอร์ออกมา ไม่ใช่คำนวณคาดคะเน
+async function renderFittedPdf(win) {
+  let last = null
+  for (const scale of FIT_SCALES) {
+    const pdf = await win.webContents.printToPDF({ ...PAGE, scale })
+    last = { pdf, scale }
+    if (countPdfPages(pdf) <= 1) return last
+  }
+  // ย่อจนสุดแล้วยังไม่พอ — ส่งขนาดเล็กสุดไป ดีกว่าคืนขนาดเต็มที่ล้นหลายหน้า
+  return last
+}
+
 function handle(channel, fn) {
   ipcMain.handle(channel, async (event, payload) => {
     try {
@@ -81,8 +120,8 @@ export function registerPrintHandlers() {
   //
   // ส่งเป็น base64 เพราะ Buffer ข้ามสะพาน IPC แล้วกลายเป็น object ที่หน้าจอเอาไปใช้ต่อยาก
   handle('print:preview', async (_payload, event) => {
-    const pdf = await windowOf(event).webContents.printToPDF(PAGE)
-    return { base64: pdf.toString('base64') }
+    const { pdf, scale } = await renderFittedPdf(windowOf(event))
+    return { base64: pdf.toString('base64'), scale }
   })
 
   // ส่งเข้าเครื่องพิมพ์ที่ผู้ใช้เลือกจากกล่องของเรา จึงพิมพ์เงียบได้ (ไม่เปิดกล่องซ้อนอีกชั้น)
@@ -95,9 +134,13 @@ export function registerPrintHandlers() {
       throw new Error('จำนวนชุดต้องเป็นตัวเลข 1-20')
     }
 
+    // หาสัดส่วนที่ทำให้ลงหน้าเดียวก่อน แล้วค่อยส่งเข้าเครื่องพิมพ์ด้วยสัดส่วนเดียวกัน
+    // กระดาษที่ออกจากเครื่องจึงเหมือนกับที่เห็นในตัวอย่างเป๊ะ
+    const { scale } = await renderFittedPdf(win)
+
     const done = await new Promise((resolve) => {
       win.webContents.print(
-        { ...PAGE, silent: true, deviceName, copies: count },
+        { ...PAGE, silent: true, deviceName, copies: count, scaleFactor: scale * 100 },
         (success, reason) => resolve({ success, reason })
       )
     })
@@ -123,9 +166,9 @@ export function registerPrintHandlers() {
     })
     if (canceled || !filePath) return { cancelled: true }
 
-    const pdf = await win.webContents.printToPDF(PAGE)
+    const { pdf, scale } = await renderFittedPdf(win)
     fs.writeFileSync(filePath, pdf)
-    logInfo(`บันทึก PDF: ${filePath}`)
+    logInfo(`บันทึก PDF: ${filePath} (ย่อ ${Math.round(scale * 100)}%)`)
 
     return { cancelled: false, filePath }
   })

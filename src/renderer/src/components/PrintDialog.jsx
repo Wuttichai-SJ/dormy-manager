@@ -12,6 +12,8 @@ import { listPrinters, previewDocument, printDocument } from '../services/printS
 // ที่เครื่องพิมพ์จะได้ จึงไม่ใช่ "ของที่คล้ายกัน" แต่เป็นของชิ้นเดียวกัน
 export default function PrintDialog({ onClose, onPrinted }) {
   const [pdfUrl, setPdfUrl] = useState('')
+  // สัดส่วนที่ฝั่ง main ใช้ย่อเอกสารให้ลงหน้าเดียว — 1 = ไม่ได้ย่อ
+  const [scale, setScale] = useState(1)
   const [printers, setPrinters] = useState(null)
   const [deviceName, setDeviceName] = useState('')
   const [copies, setCopies] = useState('1')
@@ -30,6 +32,7 @@ export default function PrintDialog({ onClose, onPrinted }) {
       const bytes = Uint8Array.from(atob(res.data.base64), (c) => c.charCodeAt(0))
       url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
       setPdfUrl(url)
+      setScale(res.data.scale ?? 1)
     })()
 
     // คืนหน่วยความจำของ blob เมื่อปิดกล่อง ไม่งั้นไฟล์ค้างอยู่จนกว่าจะปิดแอป
@@ -88,6 +91,14 @@ export default function PrintDialog({ onClose, onPrinted }) {
           <iframe src={pdfUrl} title="ตัวอย่างใบแจ้งหนี้" />
         )}
       </div>
+
+      {/* บอกตรงๆ ว่าเอกสารถูกย่อ ไม่ให้ผู้ใช้เจอกระดาษที่ตัวอักษรเล็กกว่าที่คาดโดยไม่รู้สาเหตุ */}
+      {scale < 1 && (
+        <p className="field-hint print-scale-note">
+          รายการในบิลมีจำนวนมาก ระบบย่อเอกสารเหลือ {Math.round(scale * 100)}%
+          เพื่อให้อยู่ในกระดาษแผ่นเดียว
+        </p>
+      )}
 
       {noPrinter ? (
         <Alert kind="warn">

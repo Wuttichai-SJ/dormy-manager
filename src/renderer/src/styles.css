@@ -1667,6 +1667,11 @@ body {
   color: #e6e0d9;
 }
 
+.print-scale-note {
+  margin: 0 0 12px;
+  color: var(--warn);
+}
+
 /* เครื่องพิมพ์กับจำนวนชุดอยู่แถวเดียวกันใต้ตัวอย่าง ไม่กินความสูงของตัวอย่างไปมาก */
 .print-options {
   display: flex;
@@ -3210,16 +3215,77 @@ body {
   }
 
   /* ห้ามให้ตารางรายการถูกตัดกลางแถวเมื่อขึ้นหน้าใหม่ — ยอดเงินจะไปคนละหน้ากับชื่อรายการ
-     และช่องทางชำระเงินต้องอยู่ครบบล็อกเดียว ไม่ใช่เลขบัญชีไปโผล่หน้าถัดไปคนละที่กับชื่อธนาคาร */
+     และช่องทางชำระเงินต้องอยู่ครบบล็อกเดียว ไม่ใช่เลขบัญชีไปโผล่หน้าถัดไปคนละที่กับชื่อธนาคาร
+     (ปกติจะไม่ได้ใช้ เพราะฝั่ง main ย่อเอกสารให้ลงหน้าเดียวอยู่แล้ว — นี่คือตาข่ายชั้นสุดท้าย) */
   .invoice-items tr,
   .invoice-totals,
   .invoice-payment-info {
     break-inside: avoid;
   }
 
-  /* หัวตารางซ้ำทุกหน้าเมื่อบิลยาวเกินหนึ่งหน้า */
-  .invoice-items thead {
-    display: table-header-group;
+  /* -----------------------------------------------------
+     บีบระยะให้แน่นขึ้นเฉพาะตอนพิมพ์
+     -----------------------------------------------------
+     บนจอมีที่ให้เลื่อน บนกระดาษไม่มี — ระยะที่อ่านสบายบนจอกินหน้ากระดาษไปเปล่าๆ
+     ยิ่งบีบตรงนี้ได้มาก ฝั่ง main ก็ยิ่งไม่ต้องย่อสัดส่วนลง ตัวอักษรบนกระดาษจึงคมกว่า */
+  .invoice-doc-title {
+    margin-bottom: 12px;
+    font-size: 17px;
+  }
+
+  .invoice-doc-head {
+    margin-bottom: 12px;
+  }
+
+  .invoice-tenant {
+    margin-bottom: 12px;
+    padding: 8px 0;
+  }
+
+  .invoice-items th,
+  .invoice-items td {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .invoice-line-vat,
+  .invoice-col-sub {
+    font-size: 10px;
+  }
+
+  .invoice-totals {
+    font-size: 12px;
+  }
+
+  .invoice-totals > div {
+    padding: 3px 0;
+  }
+
+  .invoice-total-row {
+    padding-top: 7px !important;
+    font-size: 15px;
+  }
+
+  .invoice-payment-info {
+    margin-top: 14px;
+  }
+
+  .invoice-signature {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+  }
+
+  .invoice-banks th {
+    padding: 5px 10px;
+  }
+
+  .invoice-banks td {
+    padding: 7px 10px;
+  }
+
+  .invoice-footer-note {
+    padding: 6px 10px;
   }
 }
 
