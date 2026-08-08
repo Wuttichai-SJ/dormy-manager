@@ -175,6 +175,33 @@ check('แก้ไขหอที่ไม่มีอยู่ต้องแ�
   )
 })
 
+// เจอจริง 2026-08-08: เจ้าของหอติ๊ก "ต้องการเก็บค่าปรับ" แต่ช่องค่าปรับยังเป็น 0.00
+// ระบบจึงไม่เคยคิดค่าปรับให้ และไม่มีอะไรบอกว่าทำไม — ดูเหมือนฟีเจอร์เสีย
+check('เปิดเก็บค่าปรับแต่ตั้งอัตราไว้ 0 ต้องไม่ผ่าน', () => {
+  const errors = apartments.validateApartmentInput({
+    nameTh: 'หอทดสอบ',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0',
+    isAutoLateFeeEnabled: true
+  })
+  assert(
+    errors.some((e) => e.includes('มากกว่า 0')),
+    `ควรเตือนให้กรอกอัตรา ได้ ${errors.join(' | ')}`
+  )
+})
+
+check('ปิดเก็บค่าปรับแล้วตั้งอัตรา 0 ได้ตามปกติ', () => {
+  const errors = apartments.validateApartmentInput({
+    nameTh: 'หอทดสอบ',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0',
+    isAutoLateFeeEnabled: false
+  })
+  assert(errors.length === 0, errors.join(' | '))
+})
+
 // -----------------------------------------------------
 group('จัดเรียงลำดับ')
 

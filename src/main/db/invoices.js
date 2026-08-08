@@ -884,6 +884,9 @@ export function getLateFeeForInvoice(db, invoiceId, paymentDate) {
 
   return {
     enabled,
+    // เปิดสวิตช์ไว้แต่อัตราเป็น 0 — ตั้งค่าไม่ครบ ไม่ใช่ "ตั้งใจไม่เก็บ"
+    // หน้าจอต้องบอกให้รู้ ไม่งั้นดูเหมือนระบบไม่ทำงาน (เจอจริง 2026-08-08)
+    misconfigured: row.is_auto_late_fee_enabled === 1 && row.late_fee_per_day_cents === 0,
     dueDate: row.due_date,
     ratePerDayCents: row.late_fee_per_day_cents,
     graceDays,

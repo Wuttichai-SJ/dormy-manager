@@ -17,7 +17,13 @@ export const DEFAULT_RENT_ITEM_TEXT = 'ค่าเช่าห้อง'
 // ตรวจข้อมูลก่อนเขียน
 // -----------------------------------------------------
 // คืนข้อผิดพลาดทั้งหมดพร้อมกัน ไม่ใช่ throw ตัวแรกที่เจอ (เหมือน validateUserInput)
-export function validateApartmentInput({ nameTh, addressTh, dueDateDay, lateFeePerDay }) {
+export function validateApartmentInput({
+  nameTh,
+  addressTh,
+  dueDateDay,
+  lateFeePerDay,
+  isAutoLateFeeEnabled
+}) {
   const errors = []
 
   if (!String(nameTh ?? '').trim()) errors.push('กรุณากรอกชื่อหอพัก (ภาษาไทย)')
@@ -31,10 +37,19 @@ export function validateApartmentInput({ nameTh, addressTh, dueDateDay, lateFeeP
   }
 
   // ค่าปรับเป็น 0 ได้ (หอที่ไม่คิดค่าปรับ) แต่ต้องกรอก ไม่ใช่เว้นว่าง
+  let lateFeeCents = null
   try {
-    toCents(lateFeePerDay, 'ค่าปรับชำระล่าช้าต่อวัน')
+    lateFeeCents = toCents(lateFeePerDay, 'ค่าปรับชำระล่าช้าต่อวัน')
   } catch (err) {
     errors.push(err.message)
+  }
+
+  // เปิดสวิตช์เก็บค่าปรับแต่ตั้งอัตราไว้ 0 = สถานะที่เป็นไปไม่ได้ ต้องกันตั้งแต่ตอนบันทึก
+  //
+  // เคยปล่อยผ่านแล้วเจอจริง: เจ้าของหอติ๊ก "ต้องการ" ไว้ แต่ช่องค่าปรับยังเป็น 0.00
+  // ระบบจึงไม่เคยคิดค่าปรับให้เลย และไม่มีอะไรบอกว่าทำไม — ดูเหมือนฟีเจอร์เสีย
+  if (isAutoLateFeeEnabled && lateFeeCents === 0) {
+    errors.push('เปิดการเก็บค่าปรับแล้ว กรุณากรอกค่าปรับต่อวันให้มากกว่า 0 บาท')
   }
 
   return errors

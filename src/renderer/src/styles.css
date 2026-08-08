@@ -3775,6 +3775,12 @@ body {
   background: #eceaea;
 }
 
+/* คำอธิบายใต้ช่องกรอกที่กำลังเตือนอยู่ ไม่ใช่แค่บอกข้อมูล */
+.field-hint-warn {
+  color: var(--warn);
+  font-weight: 500;
+}
+
 /* "เกิน N วัน" ต่อท้ายป้ายสถานะ — บอกความหนักของการค้าง ไม่ใช่แค่ว่าค้างหรือไม่ */
 .invoice-overdue {
   display: inline-block;
