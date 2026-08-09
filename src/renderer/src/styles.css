@@ -3921,6 +3921,39 @@ body {
 
 /* แถบค้นหาเหนือตารางบิล — พื้นครีมแบบเดียวกับต้นแบบ ช่องเรียงแถวเดียวแล้วตัดบรรทัดเอง
    เมื่อจอแคบ ปุ่มรีเซ็ตอยู่ท้ายสุดและวางให้ตรงกับแถวของช่องกรอก ไม่ใช่ตรงกับป้ายชื่อ */
+/* แท็บกรองตามการชำระ — ขีดใต้แท็บที่เลือกอยู่ ไม่ใช่ปุ่มทึบ เพราะนี่คือ "กำลังดูอะไรอยู่"
+   ไม่ใช่ปุ่มสั่งงาน ปุ่มทึบสามปุ่มติดกันจะแย่งสายตากับปุ่ม "ออกบิลรายเดือน" ที่อยู่เหนือขึ้นไป */
+.settlement-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settlement-tab {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  /* เส้นโปร่งความหนาเท่าเส้นของแท็บที่เลือก — กันไม่ให้ข้อความขยับขึ้นลงตอนสลับแท็บ */
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.settlement-tab:hover {
+  color: var(--text);
+}
+
+/* ใช้ --accent (น้ำตาลเข้ม) ไม่ใช่ --brand (เหลือง) — เหลืองบนพื้นขาวอ่านไม่ออก
+   มันเป็นสีสำหรับถมพื้นแล้ววางตัวอักษรเข้มทับ ไม่ใช่สีตัวอักษร */
+.settlement-tab-active {
+  color: var(--accent);
+  font-weight: 500;
+  border-bottom-color: var(--accent);
+}
+
 .invoice-filters {
   display: flex;
   flex-wrap: wrap;

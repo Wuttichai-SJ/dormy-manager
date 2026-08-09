@@ -582,14 +582,37 @@ function toPublicItem(row) {
   }
 }
 
+// จับกลุ่มสถานะเป็น "ยังต้องตามเก็บ" กับ "จบแล้ว" สำหรับตัวกรองบนหน้าจอ
+//
+// **ค้างชำระต้องรวม `partial_paid` ด้วย** — จ่ายมาครึ่งเดียวก็ยังเป็นหนี้ที่ต้องตามเก็บ
+// ถ้ากรองแค่ `unpaid` บิลที่จ่ายบางส่วนจะหายไปจากทั้งสองแท็บแล้วไม่มีใครตามต่อ
+// (ชื่อป้ายสถานะ `unpaid` ก็แปลว่า "ค้างชำระ" เหมือนกัน จุดนี้จึงพลาดได้ง่ายมาก)
+//
+// บิลที่ยกเลิกไม่อยู่ในกลุ่มไหนเลย ต่อให้ยอดค้างคำนวณออกมาเป็นบวกก็ไม่ใช่หนี้จริง
+// จึงกรองด้วย "สถานะ" ไม่ใช่ "ยอดค้าง > 0"
+const SETTLEMENT_STATUSES = {
+  outstanding: ['unpaid', 'partial_paid'],
+  paid: ['paid']
+}
+
 // รายการบิลค้างชำระของหอ — คอลัมน์ตามต้นแบบ: เลขใบแจ้งหนี้ | วันที่ | สถานะ | ห้อง | ยอดเงิน
 export function listInvoices(
   db,
   apartmentId,
-  { status, billingMonth, roomNumber, invoiceNumber, dateFrom, dateTo } = {}
+  { status, settlement, billingMonth, roomNumber, invoiceNumber, dateFrom, dateTo } = {}
 ) {
   const where = ['f.apartment_id = @apartmentId']
   if (status) where.push('i.status = @status')
+
+  if (settlement) {
+    const statuses = SETTLEMENT_STATUSES[settlement]
+    // ค่าที่ไม่รู้จักต้องดังออกมา ไม่ใช่เงียบแล้วคืนบิลทั้งหมด — ตัวกรองที่ไม่ทำงาน
+    // แต่หน้าจอยังไฮไลต์แท็บอยู่ ทำให้อ่านตัวเลขผิดโดยไม่รู้ตัว
+    if (!statuses) throw new Error(`ตัวกรองสถานะไม่ถูกต้อง: ${settlement}`)
+    // ค่าในลิสต์มาจากค่าคงที่ของเราเอง ไม่ได้มาจากผู้เรียก จึงต่อเป็นข้อความได้
+    where.push(`i.status IN (${statuses.map((s) => `'${s}'`).join(', ')})`)
+  }
+
   if (billingMonth) where.push('i.billing_month = @billingMonth')
   if (roomNumber) where.push('r.room_number LIKE @roomNumber')
   if (invoiceNumber) where.push('i.invoice_number LIKE @invoiceNumber')

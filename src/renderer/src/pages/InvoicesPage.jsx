@@ -18,6 +18,16 @@ import {
 
 const EMPTY_FILTERS = { roomNumber: '', invoiceNumber: '', dateFrom: '', dateTo: '' }
 
+// แท็บกรองตามการชำระ — `settlement` ต้องตรงกับ SETTLEMENT_STATUSES ใน db/invoices.js
+//
+// "ค้างชำระ" รวมบิลที่จ่ายมาบางส่วนด้วย เพราะยังเป็นหนี้ที่ต้องตามเก็บอยู่
+// บิลที่ยกเลิกไม่เข้าแท็บไหนเลย เห็นได้ที่ "ทั้งหมด" เท่านั้น
+const SETTLEMENT_TABS = [
+  { key: '', label: 'ทั้งหมด' },
+  { key: 'outstanding', label: 'ค้างชำระ' },
+  { key: 'paid', label: 'ชำระแล้ว' }
+]
+
 // หน้าใบแจ้งหนี้ — รายการบิลที่ออกไปแล้ว + ทางเข้าไปออกบิลรอบใหม่
 //
 // โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "ออกบิลรายเดือน"): กดปุ่มออกบิล → ตัวช่วย 2 ขั้น
@@ -30,6 +40,9 @@ export default function InvoicesPage({ apartment, user }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  // '' = ทั้งหมด · แยกจาก filters ตัวอื่นเพราะปุ่ม "รีเซ็ต" ของแถบค้นหาไม่ควรเด้งแท็บกลับด้วย
+  // — แท็บคือ "กำลังดูอะไรอยู่" ส่วนแถบค้นหาคือ "หาอะไรในสิ่งที่ดูอยู่"
+  const [settlement, setSettlement] = useState('')
   // บิลที่กำลังยืนยันจะลบอยู่ — null = ไม่มีหน้าต่างเปิดค้าง
   const [deleting, setDeleting] = useState(null)
 
@@ -39,6 +52,7 @@ export default function InvoicesPage({ apartment, user }) {
   const load = useCallback(async () => {
     setLoading(true)
     const res = await listInvoices(apartment.apartmentId, {
+      settlement: settlement || undefined,
       roomNumber: filters.roomNumber.trim() || undefined,
       invoiceNumber: filters.invoiceNumber.trim() || undefined,
       // DateField คืน '' จนกว่าจะกรอกวันที่ครบและเป็นวันที่ที่มีอยู่จริง จึงส่งต่อได้เลย
@@ -49,7 +63,7 @@ export default function InvoicesPage({ apartment, user }) {
     if (!res.success) return setError(res.error)
     setError('')
     setInvoices(res.data)
-  }, [apartment.apartmentId, filters])
+  }, [apartment.apartmentId, settlement, filters])
 
   useEffect(() => {
     load()
@@ -98,6 +112,25 @@ export default function InvoicesPage({ apartment, user }) {
             <Icon name="plus" />
             <span>ออกบิลรายเดือน</span>
           </button>
+        </div>
+
+        {/* แท็บกรองตามการชำระ อยู่เหนือแถบค้นหา เพราะเป็นการเลือก "ชุดข้อมูล" ที่จะดู
+            ส่วนแถบค้นหาคือการหาของในชุดนั้น สองอย่างนี้ทำงานร่วมกัน ไม่ได้แทนกัน */}
+        <div className="settlement-tabs" role="tablist">
+          {SETTLEMENT_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={settlement === tab.key}
+              className={
+                settlement === tab.key ? 'settlement-tab settlement-tab-active' : 'settlement-tab'
+              }
+              onClick={() => setSettlement(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* แถบค้นหาเรียงตามต้นแบบ: เลขที่ห้อง | เลขที่ใบแจ้งหนี้ | วันที่เริ่ม | วันที่สิ้นสุด | รีเซ็ต
@@ -159,8 +192,16 @@ export default function InvoicesPage({ apartment, user }) {
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
         ) : invoices.length === 0 ? (
+          // ตารางว่างเพราะไม่มีบิลเลย กับว่างเพราะแท็บ/คำค้นกรองจนไม่เหลือ เป็นคนละเรื่อง
+          // บอกผิดแล้วผู้ใช้จะเข้าใจว่าออกบิลไม่สำเร็จ ทั้งที่แค่ดูอยู่ผิดแท็บ
           <p className="muted table-empty">
-            {hasFilters ? 'ไม่พบใบแจ้งหนี้ตามเงื่อนไขที่ค้นหา' : 'ยังไม่มีใบแจ้งหนี้'}
+            {hasFilters
+              ? 'ไม่พบใบแจ้งหนี้ตามเงื่อนไขที่ค้นหา'
+              : settlement === 'outstanding'
+                ? 'ไม่มีใบแจ้งหนี้ที่ค้างชำระ'
+                : settlement === 'paid'
+                  ? 'ยังไม่มีใบแจ้งหนี้ที่ชำระครบแล้ว'
+                  : 'ยังไม่มีใบแจ้งหนี้'}
           </p>
         ) : (
           <table className="data-table">

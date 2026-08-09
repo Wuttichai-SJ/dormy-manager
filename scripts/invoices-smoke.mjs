@@ -793,5 +793,94 @@ check('วันที่รวมกับเงื่อนไขอื่น�
 })
 
 // -----------------------------------------------------
+// ตัวกรอง "ค้างชำระ / ชำระแล้ว" บนหน้าใบแจ้งหนี้ (ผู้ใช้สั่ง 2026-08-09)
+group('กรองตามการชำระ')
+
+const payments = await import('../src/main/db/payments.js')
+
+// ทำให้มีครบทั้งสามแบบในหอเดียว: จ่ายครบ / จ่ายบางส่วน / ยกเลิก
+const [toPayFull, toPayPartial] = invoices.listInvoices(db, apartmentId, { status: 'unpaid' })
+
+payments.recordInvoicePayment(db, {
+  invoiceId: toPayFull.invoiceId,
+  amount: String(toPayFull.totalAmountCents / 100),
+  paymentMethod: 'cash',
+  paymentDate: '2026-09-05',
+  createdBy: staffUser.user_id
+})
+payments.recordInvoicePayment(db, {
+  invoiceId: toPayPartial.invoiceId,
+  amount: '100',
+  paymentMethod: 'cash',
+  paymentDate: '2026-09-05',
+  createdBy: staffUser.user_id
+})
+
+check('แท็บ "ชำระแล้ว" คืนเฉพาะบิลที่จ่ายครบ', () => {
+  const paid = invoices.listInvoices(db, apartmentId, { settlement: 'paid' })
+  assert(paid.length === 1, `ได้ ${paid.length} ใบ`)
+  assert(paid[0].invoiceId === toPayFull.invoiceId, 'ได้คนละใบกับที่จ่ายครบ')
+  assert(paid[0].outstandingCents === 0, `ยอดค้างต้องเป็น 0 ได้ ${paid[0].outstandingCents}`)
+})
+
+// จุดที่พลาดง่ายที่สุดของตัวกรองนี้ — ป้ายสถานะ `unpaid` ก็แปลว่า "ค้างชำระ" เหมือนกัน
+// ถ้ากรองแค่สถานะเดียว บิลที่จ่ายมาครึ่งเดียวจะไม่อยู่ในแท็บไหนเลยแล้วไม่มีใครตามเก็บ
+check('แท็บ "ค้างชำระ" รวมบิลที่จ่ายมาบางส่วนด้วย', () => {
+  const outstanding = invoices.listInvoices(db, apartmentId, { settlement: 'outstanding' })
+  assert(
+    outstanding.some((i) => i.invoiceId === toPayPartial.invoiceId),
+    'บิลที่จ่ายบางส่วนหายไปจากแท็บค้างชำระ'
+  )
+  assert(
+    outstanding.every((i) => i.outstandingCents > 0),
+    'มีบิลที่ไม่ได้ค้างเงินหลุดเข้ามา'
+  )
+})
+
+// ยอดค้างของบิลที่ยกเลิกคำนวณออกมาเป็นบวกได้ (ยอดรวมยังอยู่ ไม่มีใครจ่าย)
+// แต่ไม่ใช่หนี้จริง จึงต้องกรองด้วยสถานะ ไม่ใช่ "ยอดค้าง > 0"
+check('บิลที่ยกเลิกไม่เข้าทั้งสองแท็บ', () => {
+  const cancelled = invoices.listInvoices(db, apartmentId, { status: 'cancelled' })
+  assert(cancelled.length > 0, 'ต้องมีบิลที่ยกเลิกอยู่ในหอนี้ ไม่งั้นเทสต์นี้ไม่ได้ทดสอบอะไร')
+
+  for (const settlement of ['outstanding', 'paid']) {
+    const list = invoices.listInvoices(db, apartmentId, { settlement })
+    assert(
+      list.every((i) => i.status !== 'cancelled'),
+      `แท็บ ${settlement} มีบิลที่ยกเลิกหลุดเข้ามา`
+    )
+  }
+})
+
+check('ไม่ระบุแท็บ = ได้ทั้งหมด รวมใบที่ยกเลิก', () => {
+  const all = invoices.listInvoices(db, apartmentId)
+  const outstanding = invoices.listInvoices(db, apartmentId, { settlement: 'outstanding' })
+  const paid = invoices.listInvoices(db, apartmentId, { settlement: 'paid' })
+  const cancelled = invoices.listInvoices(db, apartmentId, { status: 'cancelled' })
+  assert(
+    all.length === outstanding.length + paid.length + cancelled.length,
+    `ทั้งหมด ${all.length} ≠ ค้าง ${outstanding.length} + จ่ายครบ ${paid.length} + ยกเลิก ${cancelled.length}`
+  )
+})
+
+check('แท็บใช้ร่วมกับเงื่อนไขค้นหาอื่นได้', () => {
+  const list = invoices.listInvoices(db, apartmentId, {
+    settlement: 'outstanding',
+    roomNumber: toPayPartial.roomNumber
+  })
+  assert(list.length === 1, `ได้ ${list.length} ใบ`)
+  assert(list[0].invoiceId === toPayPartial.invoiceId, 'ได้คนละใบ')
+})
+
+// ตัวกรองที่สะกดผิดต้องดังออกมา ไม่ใช่เงียบแล้วคืนบิลทั้งหมดทั้งที่หน้าจอไฮไลต์แท็บอยู่
+check('ค่าแท็บที่ไม่รู้จักต้องเตือน', () => {
+  throws(
+    () => invoices.listInvoices(db, apartmentId, { settlement: 'overdue' }),
+    'ตัวกรองสถานะไม่ถูกต้อง',
+    'ต้องกันค่าที่ไม่รู้จัก'
+  )
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลออกบิลทำงานครบทุกเส้นทาง')
