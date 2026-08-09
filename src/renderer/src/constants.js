@@ -93,11 +93,27 @@ export const METER_SIDES = [
 //
 // คืน null เมื่อคำนวณไม่ได้ (เลขลดลงโดยไม่ได้ติ๊กเกินรอบ) เพื่อให้หน้าจอขึ้นเครื่องหมาย
 // เตือนแทนตัวเลข — ฝั่ง main จะโยน error ข้อความเดียวกันนี้ตอนกดบันทึก
-export function previewUnitsUsed(previous, current, isOverCycle) {
+export function previewUnitsUsed(previous, current, options = {}) {
+  const { isOverCycle, isMeterReplaced, removedReading, newStartReading } = options
+
   const prev = Number(previous)
   const curr = Number(current)
   if (!Number.isFinite(prev) || !Number.isFinite(curr) || prev < 0 || curr < 0) return null
   if (String(current).trim() === '') return null
+
+  // เปลี่ยนมิเตอร์ลูกใหม่ — (เลขถอดเก่า − ครั้งก่อน) + (ปัจจุบัน − เลขเริ่มลูกใหม่)
+  if (isMeterReplaced) {
+    if (isOverCycle) return null
+    if (String(removedReading ?? '').trim() === '') return null
+    if (String(newStartReading ?? '').trim() === '') return null
+
+    const removed = Number(removedReading)
+    const newStart = Number(newStartReading)
+    if (!Number.isFinite(removed) || !Number.isFinite(newStart)) return null
+    if (removed < 0 || newStart < 0 || removed < prev || curr < newStart) return null
+
+    return round2(removed - prev + (curr - newStart))
+  }
 
   if (curr >= prev) return round2(curr - prev)
   if (!isOverCycle) return null

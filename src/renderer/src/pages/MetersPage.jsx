@@ -190,8 +190,13 @@ function MeterSheet({ batchId, side, onBack }) {
       res.data.rooms.map((room) => ({
         ...room,
         // ช่องกรอกเก็บเป็นข้อความ ไม่ใช่ตัวเลข — ไม่งั้นลบเลขจนว่างแล้วจะเด้งเป็น 0
-        // ทันทีจนพิมพ์ต่อไม่ได้ (มีแค่ช่อง "ปัจจุบัน" ช่องเดียวที่กรอกได้)
-        currentInput: room.currentReading === null ? '' : String(room.currentReading)
+        // ทันทีจนพิมพ์ต่อไม่ได้
+        currentInput: room.currentReading === null ? '' : String(room.currentReading),
+        // สามสถานะที่เลือกได้ทีละอย่าง เก็บเป็นค่าเดียวไม่ใช่ boolean สองตัว — สองตัวติ๊ก
+        // พร้อมกันได้ แล้วต้องมาตัดสินทีหลังว่าอันไหนชนะ
+        meterEvent: room.isMeterReplaced ? 'replaced' : room.isOverCycle ? 'over_cycle' : 'normal',
+        removedInput: room.removedReading === null ? '' : String(room.removedReading),
+        newStartInput: room.newStartReading === null ? '' : String(room.newStartReading)
       }))
     )
   }, [batchId, side])
@@ -241,7 +246,12 @@ function MeterSheet({ batchId, side, onBack }) {
         roomId: r.roomId,
         roomNumber: r.roomNumber,
         currentReading: Number(r.currentInput || 0),
-        isOverCycle: r.isOverCycle
+        isOverCycle: r.meterEvent === 'over_cycle',
+        isMeterReplaced: r.meterEvent === 'replaced',
+        // ส่งเป็นข้อความไปตามที่พิมพ์ — ช่องว่างต้องไปถึงฝั่ง main เพื่อให้มันเป็นคน
+        // บอกว่า "ต้องกรอกเลขตอนถอดมิเตอร์เก่า" ไม่ใช่กลายเป็น 0 เงียบๆ ระหว่างทาง
+        removedReading: r.removedInput,
+        newStartReading: r.newStartInput
       }))
     )
     setBusy(false)
@@ -268,6 +278,12 @@ function MeterSheet({ batchId, side, onBack }) {
           ระบบกำหนดให้เอง แก้ไม่ได้ · ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก ·{' '}
           <strong>กด Enter เพื่อลงไปกรอกห้องถัดไป</strong>
         </p>
+        <p>
+          ถ้าเลขปัจจุบันน้อยกว่าครั้งก่อน ให้เลือกว่าเกิดอะไรขึ้น —{' '}
+          <strong>เกินรอบมิเตอร์</strong> คือมิเตอร์ลูกเดิมวิ่งจนสุดหน้าปัดแล้ววนกลับมาศูนย์ ส่วน{' '}
+          <strong>เปลี่ยนมิเตอร์ใหม่</strong> คือถอดลูกเก่าออกแล้วติดลูกใหม่
+          สองกรณีนี้คิดหน่วยคนละแบบ เลือกผิดบิลจะผิดไปมาก
+        </p>
       </div>
 
       <section className="panel">
@@ -292,9 +308,15 @@ function MeterSheet({ batchId, side, onBack }) {
                   // ยังไม่กรอกกับกรอกแล้วคำนวณไม่ได้ ต้องแสดงคนละอย่าง — ถ้ารวมเป็นกรณีเดียว
                   // ห้องที่ยังไม่ได้ไปจดจะขึ้นเครื่องหมายเตือนสีแดงทั้งตารางตั้งแต่เปิดหน้ามา
                   const pending = row.currentInput.trim() === ''
+                  const replaced = row.meterEvent === 'replaced'
                   const units = pending
                     ? null
-                    : previewUnitsUsed(row.previousReading, row.currentInput, row.isOverCycle)
+                    : previewUnitsUsed(row.previousReading, row.currentInput, {
+                        isOverCycle: row.meterEvent === 'over_cycle',
+                        isMeterReplaced: replaced,
+                        removedReading: row.removedInput,
+                        newStartReading: row.newStartInput
+                      })
                   return (
                     <tr key={row.roomId}>
                       <td>{row.roomNumber}</td>
@@ -323,18 +345,52 @@ function MeterSheet({ batchId, side, onBack }) {
                             focusNextRoom(row.roomId)
                           }}
                         />
-                        {/* มิเตอร์วิ่งจนสุดหน้าปัดแล้วหมุนกลับไป 0 ทำให้เลขปัจจุบันน้อยกว่า
-                            ครั้งก่อนทั้งที่ใช้ไปจริง — ติ๊กช่องนี้เพื่อบอกระบบว่าไม่ได้กรอกผิด */}
-                        <label className="meter-overcycle">
-                          <input
-                            type="checkbox"
-                            checked={row.isOverCycle}
-                            onChange={(e) =>
-                              setRow(row.roomId, { isOverCycle: e.target.checked })
-                            }
-                          />
-                          <span>เกินรอบมิเตอร์</span>
-                        </label>
+                        {/* สองเหตุการณ์ที่ทำให้เลขปัจจุบันน้อยกว่าครั้งก่อนได้โดยไม่ได้จดผิด
+                            และคิดหน่วยคนละสูตรกัน จึงเป็นตัวเลือกที่เลือกได้ทีละอย่าง
+                            ไม่ใช่ช่องติ๊กสองช่องที่ติ๊กพร้อมกันได้ */}
+                        <select
+                          className={
+                            row.meterEvent === 'normal'
+                              ? 'meter-event'
+                              : 'meter-event meter-event-special'
+                          }
+                          value={row.meterEvent}
+                          onChange={(e) => setRow(row.roomId, { meterEvent: e.target.value })}
+                          aria-label={`กรณีพิเศษของมิเตอร์ ห้อง ${row.roomNumber}`}
+                        >
+                          <option value="normal">มิเตอร์ปกติ</option>
+                          <option value="over_cycle">เกินรอบมิเตอร์</option>
+                          <option value="replaced">เปลี่ยนมิเตอร์ใหม่</option>
+                        </select>
+
+                        {/* เลขสองตัวนี้ต้องเก็บไว้ ไม่ใช่แค่ใช้คำนวณแล้วทิ้ง — ปีหน้ามีคนถามแน่
+                            ว่าทำไมเลขมิเตอร์ห้องนี้กระโดด แล้วต้องตอบได้จากข้อมูลที่มี */}
+                        {replaced && (
+                          <div className="meter-replace-fields">
+                            <label>
+                              <span>เลขตอนถอดลูกเก่า</span>
+                              <input
+                                className="meter-input"
+                                inputMode="decimal"
+                                value={row.removedInput}
+                                onChange={(e) =>
+                                  setRow(row.roomId, { removedInput: e.target.value })
+                                }
+                              />
+                            </label>
+                            <label>
+                              <span>เลขเริ่มลูกใหม่</span>
+                              <input
+                                className="meter-input"
+                                inputMode="decimal"
+                                value={row.newStartInput}
+                                onChange={(e) =>
+                                  setRow(row.roomId, { newStartInput: e.target.value })
+                                }
+                              />
+                            </label>
+                          </div>
+                        )}
                       </td>
                       <td className="align-right">
                         {pending ? (
@@ -342,7 +398,11 @@ function MeterSheet({ batchId, side, onBack }) {
                         ) : units === null ? (
                           <span
                             className="meter-units-bad"
-                            title="เลขปัจจุบันน้อยกว่าครั้งก่อน — ถ้ามิเตอร์หมุนครบรอบ ให้ติ๊ก “เกินรอบมิเตอร์”"
+                            title={
+                              replaced
+                                ? 'ยังกรอกเลขตอนถอดลูกเก่า/เลขเริ่มลูกใหม่ไม่ครบ หรือเลขไม่สมเหตุสมผล'
+                                : 'เลขปัจจุบันน้อยกว่าครั้งก่อน — ถ้ามิเตอร์หมุนครบรอบ เลือก “เกินรอบมิเตอร์” ถ้าเปลี่ยนมิเตอร์ลูกใหม่ เลือก “เปลี่ยนมิเตอร์ใหม่”'
+                            }
                           >
                             <Icon name="warning" />
                           </span>

@@ -63,6 +63,99 @@ check('เลขมิเตอร์ติดลบไม่ได้', () => {
 })
 
 // -----------------------------------------------------
+// เปลี่ยนมิเตอร์ลูกใหม่ — มองจากตัวเลขสองตัวจะเหมือน "เกินรอบมิเตอร์" ทุกประการ
+// (เลขปัจจุบันน้อยกว่าครั้งก่อน) แต่คิดหน่วยคนละสูตร เลือกผิดคือบิลผิดเป็นหลักหมื่น
+group('คำนวณหน่วยตอนเปลี่ยนมิเตอร์ใหม่')
+
+check('รวมหน่วยของลูกเก่ากับลูกใหม่เข้าด้วยกัน', () => {
+  // ครั้งก่อน 1,000 → ถอดลูกเก่าตอน 1,250 (ใช้ไป 250) → ลูกใหม่เริ่ม 0 อ่านได้ 40
+  const units = meter.calculateUnitsUsed(1000, 40, {
+    isMeterReplaced: true,
+    removedReading: 1250,
+    newStartReading: 0
+  })
+  assert(units === 290, `ได้ ${units} ควรเป็น 290`)
+})
+
+// นี่คือเหตุผลทั้งหมดที่ตัวเลือกนี้มีอยู่ ถ้าเจ้าของหอเปลี่ยนมิเตอร์แล้วเลือก "เกินรอบมิเตอร์"
+// เพราะไม่มีตัวเลือกอื่นให้เลือก ระบบจะคิดหน่วยเกินไปเกือบเต็มหน้าปัดโดยไม่เตือนอะไรเลย
+check('สูตรเกินรอบให้คำตอบคนละเรื่องกับสูตรเปลี่ยนมิเตอร์ ในตัวเลขชุดเดียวกัน', () => {
+  const asOverCycle = meter.calculateUnitsUsed(1000, 40, { isOverCycle: true })
+  assert(asOverCycle === 9040, `ได้ ${asOverCycle} ควรเป็น 9040`)
+})
+
+check('มิเตอร์ลูกใหม่ที่มีเลขค้างมาก่อน ไม่ถูกคิดเงินกับผู้เช่า', () => {
+  // ช่างทดสอบมิเตอร์มาก่อนติดตั้ง เข็มจึงค้างที่ 5 — ผู้เช่าใช้จริงแค่ 35 หน่วยของลูกใหม่
+  const units = meter.calculateUnitsUsed(1000, 40, {
+    isMeterReplaced: true,
+    removedReading: 1250,
+    newStartReading: 5
+  })
+  assert(units === 285, `ได้ ${units} ควรเป็น 285`)
+})
+
+check('ไม่กรอกเลขตอนถอดลูกเก่า ต้องเตือน ไม่ใช่เหมาว่าเป็น 0', () => {
+  throws(
+    () => meter.calculateUnitsUsed(1000, 40, { isMeterReplaced: true, newStartReading: 0 }),
+    'เลขตอนถอดมิเตอร์เก่า',
+    'ต้องบังคับกรอก'
+  )
+})
+
+check('ไม่กรอกเลขเริ่มลูกใหม่ ต้องเตือน ไม่ใช่เหมาว่าเป็น 0', () => {
+  throws(
+    () => meter.calculateUnitsUsed(1000, 40, { isMeterReplaced: true, removedReading: 1250 }),
+    'เลขเริ่มต้นของมิเตอร์ลูกใหม่',
+    'ต้องบังคับกรอก'
+  )
+})
+
+check('เลขตอนถอดลูกเก่าน้อยกว่าเลขครั้งก่อน = จดผิด ต้องให้คนดู', () => {
+  throws(
+    () =>
+      meter.calculateUnitsUsed(1000, 40, {
+        isMeterReplaced: true,
+        removedReading: 900,
+        newStartReading: 0
+      }),
+    'น้อยกว่าเลขที่จดครั้งก่อน',
+    'มิเตอร์ลูกเก่าเดินถอยหลังไม่ได้'
+  )
+})
+
+check('เลขปัจจุบันน้อยกว่าเลขเริ่มลูกใหม่ = จดผิด ต้องให้คนดู', () => {
+  throws(
+    () =>
+      meter.calculateUnitsUsed(1000, 3, {
+        isMeterReplaced: true,
+        removedReading: 1250,
+        newStartReading: 5
+      }),
+    'น้อยกว่าเลขเริ่มต้นของมิเตอร์ลูกใหม่',
+    'มิเตอร์ลูกใหม่เดินถอยหลังไม่ได้'
+  )
+})
+
+check('เลือกทั้งเกินรอบและเปลี่ยนมิเตอร์พร้อมกันไม่ได้', () => {
+  throws(
+    () =>
+      meter.calculateUnitsUsed(1000, 40, {
+        isOverCycle: true,
+        isMeterReplaced: true,
+        removedReading: 1250,
+        newStartReading: 0
+      }),
+    'พร้อมกันไม่ได้',
+    'สองกรณีนี้คิดคนละสูตร เลือกได้ทีละอย่าง'
+  )
+})
+
+check('พารามิเตอร์ที่สามเป็น boolean แบบเดิมยังใช้ได้', () => {
+  assert(meter.calculateUnitsUsed(99850, 120, true) === 270, 'ควรได้ 270')
+  assert(meter.calculateUnitsUsed(10, 30, false) === 20, 'ควรได้ 20')
+})
+
+// -----------------------------------------------------
 group('ใบจดมิเตอร์')
 
 const batch1 = meter.createBatch(db, apartmentId, '2026-08-31')
@@ -302,6 +395,69 @@ check('ลบใบที่ยังไม่ได้ออกบิลได�
 
 check('ลบใบที่ไม่มีอยู่ต้องแจ้งเตือน', () => {
   throws(() => meter.deleteBatch(db, 9999), 'ไม่พบใบจดมิเตอร์', 'ต้องแจ้งเตือน')
+})
+
+// -----------------------------------------------------
+group('บันทึกการเปลี่ยนมิเตอร์')
+
+// ห้อง 101 ฝั่งน้ำปิดรอบล่าสุด (2026-11-30) ไว้ที่ 1,000
+const swapBatch = meter.createBatch(db, apartmentId, '2027-07-31')
+
+check('บันทึกการเปลี่ยนมิเตอร์แล้วได้หน่วยรวมของทั้งสองลูก', () => {
+  const result = meter.saveBatchReadings(db, swapBatch.batchId, 'water', [
+    {
+      roomId: room1.roomId,
+      roomNumber: '101',
+      currentReading: 40,
+      isMeterReplaced: true,
+      removedReading: 1250,
+      newStartReading: 0
+    }
+  ])
+  const r101 = result.rooms.find((r) => r.roomNumber === '101')
+  assert(r101.previousReading === 1000, `เลขครั้งก่อนได้ ${r101.previousReading}`)
+  assert(r101.unitsUsed === 290, `ได้ ${r101.unitsUsed} ควรเป็น 290`)
+})
+
+// ตัวเลขสองตัวนี้ต้องอยู่ในฐานข้อมูล ไม่ใช่ใช้คำนวณแล้วทิ้ง — ปีหน้ามีคนถามว่าทำไม
+// เลขมิเตอร์ห้องนี้กระโดดจาก 1,250 มา 40 แล้วต้องตอบได้จากข้อมูลที่มี
+check('เลขตอนถอดลูกเก่าและเลขเริ่มลูกใหม่ถูกเก็บไว้ อ่านกลับมาได้', () => {
+  const again = meter.getBatchSheet(db, swapBatch.batchId, 'water')
+  const r101 = again.rooms.find((r) => r.roomNumber === '101')
+  assert(r101.isMeterReplaced === true, 'ต้องจำได้ว่ารอบนี้เปลี่ยนมิเตอร์')
+  assert(r101.removedReading === 1250, `ได้ ${r101.removedReading}`)
+  assert(r101.newStartReading === 0, `ได้ ${r101.newStartReading}`)
+  assert(r101.isOverCycle === false, 'ต้องไม่ถูกจำสลับกับเกินรอบมิเตอร์')
+})
+
+check('รอบถัดไปเดินต่อจากเลขของมิเตอร์ลูกใหม่ ไม่ใช่ลูกเก่า', () => {
+  const next = meter.createBatch(db, apartmentId, '2027-08-31')
+  const sheet = meter.getBatchSheet(db, next.batchId, 'water')
+  const r101 = sheet.rooms.find((r) => r.roomNumber === '101')
+  assert(r101.previousReading === 40, `ได้ ${r101.previousReading} ควรเป็น 40 (เลขของลูกใหม่)`)
+})
+
+check('แก้แถวเดิมกลับเป็นมิเตอร์ปกติ ต้องล้างเลขการเปลี่ยนมิเตอร์ทิ้ง', () => {
+  meter.saveBatchReadings(db, swapBatch.batchId, 'water', [
+    { roomId: room1.roomId, roomNumber: '101', currentReading: 1100 }
+  ])
+  const again = meter.getBatchSheet(db, swapBatch.batchId, 'water')
+  const r101 = again.rooms.find((r) => r.roomNumber === '101')
+  assert(r101.isMeterReplaced === false, 'ต้องไม่ค้างว่าเปลี่ยนมิเตอร์')
+  assert(r101.removedReading === null, `ต้องเป็น null ได้ ${r101.removedReading}`)
+  assert(r101.newStartReading === null, `ต้องเป็น null ได้ ${r101.newStartReading}`)
+  assert(r101.unitsUsed === 100, `ได้ ${r101.unitsUsed} ควรเป็น 100`)
+})
+
+check('กรอกเลขการเปลี่ยนมิเตอร์ไม่ครบ ต้องบอกว่าห้องไหน', () => {
+  throws(
+    () =>
+      meter.saveBatchReadings(db, swapBatch.batchId, 'water', [
+        { roomId: room1.roomId, roomNumber: '101', currentReading: 40, isMeterReplaced: true }
+      ]),
+    'ห้อง 101',
+    'ต้องบอกห้องที่ผิด'
+  )
 })
 
 // -----------------------------------------------------

@@ -591,6 +591,17 @@ CREATE TABLE IF NOT EXISTS `mydb`.`meter_readings` (
   `electric_current_reading` DECIMAL(10,2) NULL,
   `electric_units_used` DECIMAL(10,2) NULL,
   `is_electric_over_cycle` TINYINT(1) NULL,
+  -- 019: เปลี่ยนมิเตอร์ลูกใหม่ — คนละเรื่องกับ over_cycle และคิดหน่วยคนละสูตร
+  -- over_cycle = ลูกเดิมวิ่งจนสุดหน้าปัดแล้ววนกลับศูนย์ (ต้องบวกส่วนที่วิ่งจนสุดเข้าไป)
+  -- meter_replaced = ถอดลูกเก่าติดลูกใหม่ (แค่รวมหน่วยของสองลูก ไม่มีอะไรให้บวก)
+  --   หน่วยที่ใช้ = (removed_reading − previous) + (current − new_start_reading)
+  -- NULL = รอบนี้ไม่ได้เปลี่ยนมิเตอร์ (0 เป็นเลขมิเตอร์ที่อ่านได้จริง แยกกันไม่ออกถ้าใช้ 0)
+  `is_water_meter_replaced` TINYINT(1) NULL,
+  `water_removed_reading` DECIMAL(10,2) NULL,
+  `water_new_start_reading` DECIMAL(10,2) NULL,
+  `is_electric_meter_replaced` TINYINT(1) NULL,
+  `electric_removed_reading` DECIMAL(10,2) NULL,
+  `electric_new_start_reading` DECIMAL(10,2) NULL,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`meter_reading_id`),

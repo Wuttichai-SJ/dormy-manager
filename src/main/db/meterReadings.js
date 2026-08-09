@@ -22,6 +22,9 @@ const SIDE_COLUMNS = {
     current: 'water_current_reading',
     units: 'water_units_used',
     overCycle: 'is_water_over_cycle',
+    replaced: 'is_water_meter_replaced',
+    removed: 'water_removed_reading',
+    newStart: 'water_new_start_reading',
     contractStart: 'water_meter_start'
   },
   electric: {
@@ -29,6 +32,9 @@ const SIDE_COLUMNS = {
     current: 'electric_current_reading',
     units: 'electric_units_used',
     overCycle: 'is_electric_over_cycle',
+    replaced: 'is_electric_meter_replaced',
+    removed: 'electric_removed_reading',
+    newStart: 'electric_new_start_reading',
     contractStart: 'electric_meter_start'
   }
 }
@@ -42,28 +48,43 @@ function columnsFor(side) {
 // ------------------------------------------------------------------
 // คำนวณหน่วยที่ใช้
 // ------------------------------------------------------------------
-// ปกติคือ ปัจจุบัน - ครั้งก่อน ตรงๆ
+// ปกติคือ ปัจจุบัน − ครั้งก่อน ตรงๆ
 //
-// "เกินรอบมิเตอร์" คือกรณีที่หน้าปัดมิเตอร์วิ่งจนสุดแล้วหมุนกลับไปเริ่มใหม่ที่ 0
-// (เช่นมิเตอร์ 5 หลักอ่านได้ 99,850 เดือนถัดมาอ่านได้ 120) เลขปัจจุบันจะน้อยกว่าครั้งก่อน
-// ทั้งที่ใช้น้ำ/ไฟไปจริง ถ้าลบตรงๆ จะได้ค่าติดลบแล้วบิลออกมาผิด
+// มีสองเหตุการณ์ที่ทำให้เลขปัจจุบันน้อยกว่าครั้งก่อนได้โดยที่ไม่ได้จดผิด และทั้งสอง
+// **คิดหน่วยคนละสูตรกัน** จึงต้องแยกให้ผู้ใช้เลือกว่าเจอเหตุการณ์ไหน:
 //
-// เราไม่รู้ว่ามิเตอร์แต่ละตัวมีกี่หลัก จึงเดาจากจำนวนหลักของเลขครั้งก่อน:
-// ครั้งก่อน 99,850 = 5 หลัก → จุดหมุนกลับคือ 100,000 → หน่วยที่ใช้ = 100000 - 99850 + 120
+// 1) เกินรอบมิเตอร์ — หน้าปัดวิ่งจนสุดแล้วหมุนกลับไปเริ่มที่ 0 ตัวมิเตอร์เป็นลูกเดิม
+//    น้ำ/ไฟที่ใช้ระหว่างทางจนถึงจุดสุดหน้าปัดต้องถูกนับด้วย
 //
-// **ข้อสมมติที่ยังไม่ได้ยืนยันกับของจริง** — ถ้าเจ้าของหอเจอมิเตอร์หมุนครบรอบจริงเมื่อไหร่
-// ให้เทียบตัวเลขที่ระบบคิดกับที่การประปา/การไฟฟ้าคิด แล้วกลับมาแก้ตรงนี้
-export function calculateUnitsUsed(previous, current, isOverCycle) {
+// 2) เปลี่ยนมิเตอร์ลูกใหม่ — ของเก่าหยุดที่เลขหนึ่ง ของใหม่เริ่มที่อีกเลขหนึ่ง
+//    ไม่มีช่วงไหนหายไป จึงไม่มีอะไรให้บวก แค่รวมหน่วยของสองลูกเข้าด้วยกัน
+//
+// เลือกผิดข้อคือบิลผิดเป็นหลักหมื่น — เปลี่ยนมิเตอร์แล้วไปติ๊ก "เกินรอบ" จะได้หน่วย
+// เกินมาเกือบเต็มหน้าปัด และไม่มีอะไรเตือนเลยเพราะตัวเลขดูสมเหตุสมผลในตัวมันเอง
+export function calculateUnitsUsed(previous, current, options) {
+  // เดิมพารามิเตอร์ที่สามเป็น boolean ของ "เกินรอบมิเตอร์" ตัวเดียว รับทั้งสองแบบไว้
+  // เพื่อให้ที่เรียกแบบเก่ายังอ่านออกว่าหมายถึงอะไร
+  const opts = typeof options === 'object' && options !== null ? options : { isOverCycle: options }
+  const { isOverCycle, isMeterReplaced, removedReading, newStartReading } = opts
+
   const prev = Number(previous ?? 0)
   const curr = Number(current ?? 0)
 
   if (prev < 0 || curr < 0) throw new Error('เลขมิเตอร์ติดลบไม่ได้')
 
+  if (isMeterReplaced) {
+    if (isOverCycle) {
+      throw new Error('เลือก "เกินรอบมิเตอร์" กับ "เปลี่ยนมิเตอร์ใหม่" พร้อมกันไม่ได้')
+    }
+    return unitsAcrossMeterChange(prev, curr, removedReading, newStartReading)
+  }
+
   if (!isOverCycle) {
     if (curr < prev) {
       throw new Error(
         `เลขมิเตอร์ปัจจุบัน (${curr}) น้อยกว่าครั้งก่อน (${prev}) — ` +
-          'ถ้ามิเตอร์หมุนครบรอบกลับมาเริ่มใหม่ ให้ติ๊ก "เกินรอบมิเตอร์"'
+          'ถ้ามิเตอร์หมุนครบรอบกลับมาเริ่มใหม่ ให้ติ๊ก "เกินรอบมิเตอร์" ' +
+          'ถ้าเปลี่ยนมิเตอร์ลูกใหม่ ให้ติ๊ก "เปลี่ยนมิเตอร์ใหม่"'
       )
     }
     return round2(curr - prev)
@@ -72,9 +93,56 @@ export function calculateUnitsUsed(previous, current, isOverCycle) {
   // ติ๊กเกินรอบแล้วแต่เลขยังเดินหน้าปกติ = ติ๊กผิด คิดแบบธรรมดาให้ ไม่ต้องบวกรอบเกิน
   if (curr >= prev) return round2(curr - prev)
 
+  // **จุดหมุนกลับเดาจากจำนวนหลักของเลขครั้งก่อน** — ครั้งก่อน 99,850 มี 5 หลัก
+  // จึงเดาว่ามิเตอร์เป็น 5 หลักและหมุนกลับที่ 100,000 → 100000 − 99850 + 120 = 270
+  //
+  // เหตุผลที่การเดานี้น่าจะถูก: มิเตอร์จะหมุนครบรอบได้ก็ต่อเมื่อเลขเดินไปจนสุดหน้าปัด
+  // แล้วเท่านั้น เลขครั้งก่อนจึงต้องใช้หลักครบพอดีอยู่แล้ว
+  //
+  // **ยังไม่เคยยืนยันกับมิเตอร์จริงของหอ** — อยู่ระหว่างถามเจ้าของหอว่ามิเตอร์กี่หลัก
+  // ถ้าคำตอบไม่ตรงกับที่เดาไว้ (เช่นเป็นมิเตอร์ที่มีหลักทศนิยมสีแดงรวมอยู่ด้วย)
+  // ต้องกลับมาแก้ตรงนี้ และควรเก็บจำนวนหลักไว้ที่ห้องหรือที่หอแทนการเดา
   const digits = String(Math.floor(prev)).length
   const rollover = 10 ** digits
   return round2(rollover - prev + curr)
+}
+
+// หน่วยที่ใช้ตอนเปลี่ยนมิเตอร์ = ส่วนที่ลูกเก่าเดินไปก่อนถูกถอด + ส่วนที่ลูกใหม่เดินมาจนถึงวันจด
+//
+//   (เลขถอดเก่า − ครั้งก่อน) + (ปัจจุบัน − เลขเริ่มลูกใหม่)
+//
+// เลขเริ่มลูกใหม่มักเป็น 0 แต่ไม่เสมอไป มิเตอร์มือสองหรือมิเตอร์ที่ช่างทดสอบมาก่อนติดตั้ง
+// จะมีเลขค้างอยู่ ถ้าเหมาว่าเป็น 0 หน่วยที่ค้างในลูกใหม่จะถูกคิดเงินกับผู้เช่าทันที
+function unitsAcrossMeterChange(prev, curr, removedReading, newStartReading) {
+  if (removedReading === null || removedReading === undefined || removedReading === '') {
+    throw new Error('เปลี่ยนมิเตอร์ใหม่ ต้องกรอกเลขตอนถอดมิเตอร์เก่า')
+  }
+  if (newStartReading === null || newStartReading === undefined || newStartReading === '') {
+    throw new Error('เปลี่ยนมิเตอร์ใหม่ ต้องกรอกเลขเริ่มต้นของมิเตอร์ลูกใหม่')
+  }
+
+  const removed = Number(removedReading)
+  const newStart = Number(newStartReading)
+
+  if (!Number.isFinite(removed) || !Number.isFinite(newStart)) {
+    throw new Error('เลขมิเตอร์ตอนเปลี่ยนต้องเป็นตัวเลข')
+  }
+  if (removed < 0 || newStart < 0) throw new Error('เลขมิเตอร์ติดลบไม่ได้')
+
+  // มิเตอร์ลูกเก่าเดินถอยหลังไม่ได้ ถ้าเลขถอดน้อยกว่าครั้งก่อนแปลว่าจดผิด หรือลูกเก่า
+  // หมุนครบรอบก่อนถูกถอดด้วย — กรณีหลังหายากจนไม่คุ้มจะเดาแทนผู้ใช้ ให้คนดูดีกว่า
+  if (removed < prev) {
+    throw new Error(
+      `เลขตอนถอดมิเตอร์เก่า (${removed}) น้อยกว่าเลขที่จดครั้งก่อน (${prev}) — กรุณาตรวจสอบเลขที่กรอก`
+    )
+  }
+  if (curr < newStart) {
+    throw new Error(
+      `เลขมิเตอร์ปัจจุบัน (${curr}) น้อยกว่าเลขเริ่มต้นของมิเตอร์ลูกใหม่ (${newStart}) — กรุณาตรวจสอบเลขที่กรอก`
+    )
+  }
+
+  return round2(removed - prev + (curr - newStart))
 }
 
 function round2(n) {
@@ -175,6 +243,9 @@ export function getBatchSheet(db, batchId, side) {
               saved.${cols.current}  AS savedCurrent,
               saved.${cols.units}    AS savedUnits,
               saved.${cols.overCycle} AS savedOverCycle,
+              saved.${cols.replaced} AS savedReplaced,
+              saved.${cols.removed}  AS savedRemoved,
+              saved.${cols.newStart} AS savedNewStart,
               (SELECT pr.${cols.current}
                  FROM meter_readings pr
                  JOIN meter_batches pb ON pb.batch_id = pr.meter_batch_id
@@ -222,6 +293,9 @@ export function getBatchSheet(db, batchId, side) {
         currentReading: row.savedCurrent === null ? null : Number(row.savedCurrent),
         unitsUsed: row.savedUnits === null ? null : Number(row.savedUnits),
         isOverCycle: row.savedOverCycle === 1,
+        isMeterReplaced: row.savedReplaced === 1,
+        removedReading: row.savedRemoved === null ? null : Number(row.savedRemoved),
+        newStartReading: row.savedNewStart === null ? null : Number(row.savedNewStart),
         isSaved: row.savedCurrent !== null
       }
     })
@@ -272,13 +346,23 @@ export function saveBatchReadings(db, batchId, side, rows) {
 
     const previous = derived.get(row.roomId)
     try {
-      const units = calculateUnitsUsed(previous, row.currentReading, row.isOverCycle)
+      const units = calculateUnitsUsed(previous, row.currentReading, {
+        isOverCycle: row.isOverCycle,
+        isMeterReplaced: row.isMeterReplaced,
+        removedReading: row.removedReading,
+        newStartReading: row.newStartReading
+      })
       prepared.push({
         roomId: row.roomId,
         previous,
         current: Number(row.currentReading ?? 0),
         units,
-        overCycle: row.isOverCycle ? 1 : 0
+        overCycle: row.isOverCycle ? 1 : 0,
+        replaced: row.isMeterReplaced ? 1 : 0,
+        // เก็บเลขของการเปลี่ยนมิเตอร์เฉพาะรอบที่เปลี่ยนจริง แถวอื่นต้องเป็น NULL
+        // ไม่ใช่ 0 — 0 เป็นเลขมิเตอร์ที่อ่านได้จริง แยกจาก "ไม่มีเหตุการณ์นี้" ไม่ออก
+        removed: row.isMeterReplaced ? Number(row.removedReading) : null,
+        newStart: row.isMeterReplaced ? Number(row.newStartReading) : null
       })
     } catch (err) {
       errors.push(`ห้อง ${label}: ${err.message}`)
@@ -296,10 +380,12 @@ export function saveBatchReadings(db, batchId, side, rows) {
     `INSERT INTO meter_readings (
        meter_batch_id, room_id,
        ${cols.previous}, ${cols.current}, ${cols.units}, ${cols.overCycle},
+       ${cols.replaced}, ${cols.removed}, ${cols.newStart},
        created_at
      ) VALUES (
        @batchId, @roomId,
        @previous, @current, @units, @overCycle,
+       @replaced, @removed, @newStart,
        @now
      )
      ON CONFLICT (meter_batch_id, room_id) DO UPDATE SET
@@ -307,6 +393,9 @@ export function saveBatchReadings(db, batchId, side, rows) {
        ${cols.current}  = @current,
        ${cols.units}    = @units,
        ${cols.overCycle} = @overCycle,
+       ${cols.replaced} = @replaced,
+       ${cols.removed}  = @removed,
+       ${cols.newStart} = @newStart,
        updated_at = @now`
   )
 

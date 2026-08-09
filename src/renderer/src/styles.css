@@ -4083,22 +4083,38 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ช่องติ๊ก "เกินรอบมิเตอร์" อยู่ใต้ช่องเลขปัจจุบันของแถวนั้น ไม่ใช่คอลัมน์แยก
+/* ตัวเลือกกรณีพิเศษของมิเตอร์อยู่ใต้ช่องเลขปัจจุบันของแถวนั้น ไม่ใช่คอลัมน์แยก
    เพราะมันขยายความช่องนั้นช่องเดียว และคอลัมน์แยกจะกินความกว้างทั้งตารางไปเปล่าๆ */
-.meter-overcycle {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
+.meter-event {
+  width: 110px;
   margin-top: 5px;
+  padding: 2px 4px;
   font-size: 11px;
   color: var(--text-muted);
   cursor: pointer;
 }
 
-.meter-overcycle input {
-  width: auto;
-  margin: 0;
+/* ค่าปกติไม่ต้องเด่น มันคือทุกแถวในตาราง — แถวที่ผู้ใช้ตั้งใจเลือกกรณีพิเศษต่างหาก
+   ที่ต้องมองเห็นตอนกวาดตาทบทวนก่อนกดบันทึก */
+.meter-event-special {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.meter-replace-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.meter-replace-fields label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .meter-units {
