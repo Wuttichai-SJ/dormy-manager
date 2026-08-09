@@ -1,0 +1,121 @@
+// ทดสอบการสร้างไฟล์ CSV — รันด้วย: npm run test:csv
+//
+// ไม่ต้องเรียก ensureElectronRuntime เพราะ src/main/csv.js เป็นตรรกะล้วน ไม่แตะฐานข้อมูล
+// และไม่แตะ electron — นั่นคือเหตุผลที่แยกออกมาจาก exportHandlers.js ตั้งแต่แรก
+import { assert, check, group, summarize, throws } from './lib/harness.mjs'
+
+const { UTF8_BOM, buildCsv, safeFileName } = await import('../src/main/csv.js')
+
+const COLUMNS = [
+  { key: 'no', label: 'เลขที่' },
+  { key: 'name', label: 'ชื่อผู้เช่า' },
+  { key: 'amount', label: 'จำนวนเงิน' }
+]
+
+// -----------------------------------------------------
+group('รูปแบบไฟล์ที่ Excel บน Windows อ่านออก')
+
+// นี่คือบั๊กคลาสสิกของการ export ภาษาไทย: ไม่มี BOM แล้ว Excel เดาเป็น ANSI
+// ทั้งไฟล์กลายเป็นตัวยึกยือ ทดสอบไว้เพราะแก้ง่ายแต่พลาดแล้วไม่มีใครสังเกตจนส่งถึงมือผู้ใช้
+check('ขึ้นต้นไฟล์ด้วย BOM ของ UTF-8', () => {
+  const csv = buildCsv(COLUMNS, [{ no: 'R-001', name: 'สมชาย ใจดี', amount: '3,500.00' }])
+  assert(csv.startsWith(UTF8_BOM), 'ไม่มี BOM นำหน้า')
+  assert(csv.charCodeAt(0) === 0xfeff, `อักขระแรกคือ ${csv.charCodeAt(0).toString(16)}`)
+})
+
+check('จบบรรทัดด้วย \\r\\n ทุกบรรทัด รวมบรรทัดสุดท้าย', () => {
+  const csv = buildCsv(COLUMNS, [
+    { no: 'R-001', name: 'ก', amount: '1' },
+    { no: 'R-002', name: 'ข', amount: '2' }
+  ])
+  assert(csv.endsWith('\r\n'), 'บรรทัดสุดท้ายไม่จบด้วย \\r\\n')
+
+  // \n ที่ไม่มี \r นำหน้าเลยสักตัว = ปนรูปแบบขึ้นบรรทัดใหม่
+  assert(!/[^\r]\n/.test(csv), 'มี \\n ที่ไม่มี \\r นำหน้า')
+})
+
+check('ภาษาไทยอยู่ในไฟล์ครบ ไม่ถูกแปลงระหว่างทาง', () => {
+  const csv = buildCsv(COLUMNS, [{ no: 'R-001', name: 'สมหญิง รักเรียน', amount: '3,500.00' }])
+  assert(csv.includes('สมหญิง รักเรียน'), 'ชื่อภาษาไทยหายไป')
+  assert(csv.includes('ชื่อผู้เช่า'), 'หัวตารางภาษาไทยหายไป')
+})
+
+// -----------------------------------------------------
+group('การใส่เครื่องหมายคำพูด')
+
+check('แถวแรกคือหัวตารางตามลำดับคอลัมน์ที่ส่งมา', () => {
+  const csv = buildCsv(COLUMNS, [{ no: '1', name: 'ก', amount: '2' }])
+  const [header] = csv.slice(1).split('\r\n')
+  assert(header === '"เลขที่","ชื่อผู้เช่า","จำนวนเงิน"', header)
+})
+
+// ถ้าไม่คูณ " เป็น "" ช่องจะปิดกลางคัน แล้วคอลัมน์ที่เหลือทั้งแถวเลื่อนผิดตำแหน่ง
+check('เครื่องหมายคำพูดในข้อมูลถูกคูณเป็นสองตัว', () => {
+  const csv = buildCsv([{ key: 'note', label: 'หมายเหตุ' }], [{ note: 'ห้อง "A" ชั้น 2' }])
+  const rows = csv.slice(1).split('\r\n')
+  assert(rows[1] === '"ห้อง ""A"" ชั้น 2"', rows[1])
+})
+
+// ลูกน้ำกับการขึ้นบรรทัดใหม่ในเนื้อข้อมูลจะทำให้ไฟล์เพี้ยนถ้าไม่ได้ครอบด้วยเครื่องหมายคำพูด
+check('ลูกน้ำและการขึ้นบรรทัดใหม่ในข้อมูลไม่ทำให้คอลัมน์เลื่อน', () => {
+  const csv = buildCsv(
+    [
+      { key: 'a', label: 'ก' },
+      { key: 'b', label: 'ข' }
+    ],
+    [{ a: '1,234', b: 'บรรทัดแรก\nบรรทัดสอง' }]
+  )
+  assert(csv.includes('"1,234","บรรทัดแรก\nบรรทัดสอง"'), csv)
+})
+
+check('ช่องที่เป็น null หรือไม่มีค่า กลายเป็นช่องว่าง ไม่ใช่คำว่า null', () => {
+  const csv = buildCsv(COLUMNS, [{ no: 'R-001', name: null, amount: undefined }])
+  const rows = csv.slice(1).split('\r\n')
+  assert(rows[1] === '"R-001","",""', rows[1])
+})
+
+check('ตัวเลขที่เป็นชนิด number ก็ส่งออกได้', () => {
+  const csv = buildCsv([{ key: 'n', label: 'จำนวน' }], [{ n: 0 }, { n: 3500 }])
+  const rows = csv.slice(1).split('\r\n')
+  assert(rows[1] === '"0"', rows[1])
+  assert(rows[2] === '"3500"', rows[2])
+})
+
+// -----------------------------------------------------
+group('ข้อมูลที่ส่งออกไม่ได้')
+
+// ทั้งสองกรณีนี้เกิดจริงบนหน้าจอ: กดส่งออกทั้งที่กรองจนไม่เหลือแถวเลย
+// ต้องได้ข้อความไทยที่อ่านรู้เรื่อง ไม่ใช่ไฟล์เปล่าที่เปิดแล้วงง
+check('ไม่มีแถวเลย ต้องบอกเป็นภาษาไทย', () => {
+  throws(() => buildCsv(COLUMNS, []), 'ไม่มีข้อมูลให้ส่งออก', 'ควรกันไว้')
+})
+
+check('ไม่ได้ระบุคอลัมน์ ต้องบอกเป็นภาษาไทย', () => {
+  throws(() => buildCsv([], [{ a: 1 }]), 'ไม่ได้ระบุคอลัมน์', 'ควรกันไว้')
+  throws(() => buildCsv(null, [{ a: 1 }]), 'ไม่ได้ระบุคอลัมน์', 'ควรกันไว้')
+})
+
+// -----------------------------------------------------
+group('ชื่อไฟล์')
+
+// ชื่อรายงานประกอบด้วยช่วงวันที่ เช่น "ใบเสร็จ 01/08/2569-31/08/2569"
+// เครื่องหมาย / ตั้งเป็นชื่อไฟล์บน Windows ไม่ได้ — ถ้าไม่ตัดออก กล่องบันทึกจะไม่ยอมเปิด
+check('ตัดอักขระที่ตั้งเป็นชื่อไฟล์บน Windows ไม่ได้ออก', () => {
+  assert(safeFileName('ใบเสร็จ 01/08/2569') === 'ใบเสร็จ 01082569', safeFileName('ใบเสร็จ 01/08/2569'))
+  assert(safeFileName('a\\b:c*d?e"f<g>h|i') === 'abcdefghi', safeFileName('a\\b:c*d?e"f<g>h|i'))
+})
+
+check('ชื่อว่างหรือไม่มีชื่อ ใช้ค่าสำรอง', () => {
+  assert(safeFileName('') === 'export', safeFileName(''))
+  assert(safeFileName(null) === 'export', safeFileName(null))
+  assert(safeFileName('   ') === 'export', safeFileName('   '))
+  assert(safeFileName('///') === 'export', safeFileName('///'))
+  assert(safeFileName(null, 'ใบเสร็จ') === 'ใบเสร็จ', safeFileName(null, 'ใบเสร็จ'))
+})
+
+check('ชื่อภาษาไทยปกติไม่ถูกแตะ', () => {
+  assert(safeFileName('รายงานใบเสร็จรับเงิน') === 'รายงานใบเสร็จรับเงิน', 'ชื่อถูกเปลี่ยน')
+})
+
+// -----------------------------------------------------
+summarize('การส่งออก CSV ทำงานครบทุกเส้นทาง')

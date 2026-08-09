@@ -10,7 +10,20 @@ export async function invoke(channel, payload) {
   try {
     return await window.electron.invoke(channel, payload)
   } catch (err) {
-    // ถ้ามาถึงตรงนี้แปลว่าสะพาน IPC เองมีปัญหา (เช่นยังไม่ได้ลงทะเบียนช่องนั้น)
-    return { success: false, error: err?.message ?? 'เรียกใช้ระบบไม่สำเร็จ' }
+    const message = err?.message ?? ''
+
+    // ช่องที่ยังไม่ได้ลงทะเบียน = โปรเซสหลักที่กำลังรันอยู่เก่ากว่าโค้ดบนดิสก์
+    //
+    // เกิดตอนพัฒนาเป็นประจำ: หน้าจอถูก hot-reload ไปแล้วแต่โปรเซสหลักไม่ได้รีสตาร์ต
+    // จึงยังไม่รู้จักช่องที่เพิ่งเพิ่ม — ข้อความดิบของ Electron เป็นอังกฤษและไม่ได้บอกว่า
+    // ต้องทำอะไรต่อ ทำให้เสียเวลาไล่หาบั๊กในโค้ดที่ไม่ได้ผิด
+    if (message.includes('No handler registered')) {
+      return {
+        success: false,
+        error: `ระบบยังไม่รู้จักคำสั่ง "${channel}" — โปรเซสหลักที่รันอยู่เก่ากว่าโค้ดปัจจุบัน กรุณาปิดแอปแล้วเปิดใหม่`
+      }
+    }
+
+    return { success: false, error: message || 'เรียกใช้ระบบไม่สำเร็จ' }
   }
 }
