@@ -7,6 +7,7 @@ import ReceiptDocument from '../components/ReceiptDocument.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { formatBaht } from '../format.js'
 import { exportCsv, revealExport } from '../services/exportService.js'
+import { getInvoice } from '../services/invoiceService.js'
 import { listReceipts } from '../services/paymentService.js'
 
 // รายงานใบเสร็จรับเงิน — โครงตามหน้า "รายงาน › ใบเสร็จรับเงิน" ของต้นแบบ:
@@ -36,6 +37,28 @@ export default function ReceiptsPage({ apartment }) {
   // paymentId ที่ติ๊กไว้ — Set เพื่อให้เช็ค/สลับได้เร็วโดยไม่ต้องไล่อาร์เรย์
   const [selected, setSelected] = useState(() => new Set())
   const [printing, setPrinting] = useState(false)
+  // บิลของใบเสร็จที่เลือกไว้ ดึงมาตอนกดพิมพ์เท่านั้น — ตารางรายงานไม่ได้ใช้
+  const [invoicesById, setInvoicesById] = useState({})
+
+  // เตรียมเอกสารก่อนเปิดกล่องพิมพ์ ไม่ใช่ระหว่างที่กล่องเปิดอยู่ — ถ้าดึงทีหลัง
+  // printToPDF อาจจับภาพตอนที่เอกสารยังไม่มีรายการ แล้วได้ใบเสร็จเปล่า
+  async function startPrinting() {
+    setError('')
+    setBusy(true)
+    const ids = [...new Set(chosen.map((r) => r.invoiceId).filter(Boolean))]
+    const results = await Promise.all(ids.map((id) => getInvoice(id)))
+    setBusy(false)
+
+    const failed = results.find((res) => !res.success)
+    if (failed) return setError(failed.error)
+
+    const map = {}
+    results.forEach((res, index) => {
+      map[ids[index]] = res.data
+    })
+    setInvoicesById(map)
+    setPrinting(true)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -97,7 +120,13 @@ export default function ReceiptsPage({ apartment }) {
       <>
         <div className="receipt-sheets">
           {chosen.map((r) => (
-            <ReceiptDocument key={r.paymentId} receipt={r} />
+            <ReceiptDocument
+              key={r.paymentId}
+              receipt={r}
+              // ใบเสร็จของบิลแสดงรายการของบิลใบนั้น จึงต้องดึงบิลมาด้วย
+              // ใบเสร็จของสัญญาไม่มีบิล ส่ง null ไป ReceiptDocument ประกอบเอกสารเอง
+              invoice={invoicesById[r.invoiceId] ?? null}
+            />
           ))}
         </div>
 
@@ -180,8 +209,8 @@ export default function ReceiptsPage({ apartment }) {
             <button
               type="button"
               className="btn btn-outline btn-sm"
-              onClick={() => setPrinting(true)}
-              disabled={chosen.length === 0}
+              onClick={startPrinting}
+              disabled={busy || chosen.length === 0}
             >
               <Icon name="printer" />
               <span>พิมพ์ ({chosen.length})</span>

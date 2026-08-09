@@ -1,93 +1,88 @@
 import React from 'react'
+import BillDocument, { BillSignature } from './BillDocument.jsx'
 import { formatBaht } from '../format.js'
 
-// ใบเสร็จรับเงินหนึ่งใบ — เอกสารที่ยื่นให้ผู้เช่าเมื่อรับเงินสด
+// ใบเสร็จรับเงินหนึ่งใบ — **หน้าตาเดียวกับใบแจ้งหนี้ทุกอย่าง** (ผู้ใช้สั่ง 2026-08-09)
+// ต่างกันแค่:
+//   หัวเอกสารเป็น "ใบเสร็จรับเงิน"
+//   มุมขวาบนเป็นเลขที่ใบเสร็จ/วันที่รับเงิน แทนเลขที่บิล/ครบกำหนด
+//   **ไม่มีช่องทางการชำระเงินและไม่มี QR** — เงินรับไปแล้ว ไม่ต้องบอกวิธีจ่ายอีก
+//   ท้ายเอกสารเป็นช่อง "ผู้รับเงิน"
 //
-// โครงเดียวกับใบแจ้งหนี้โดยตั้งใจ (หัวหอซ้าย เลขที่/วันที่ขวา แล้วค่อยเนื้อหา แล้วช่องลงชื่อ)
-// เพื่อให้ผู้เช่าที่ได้รับทั้งสองใบเห็นว่าเป็นเอกสารจากที่เดียวกัน และเราดูแลสไตล์ชุดเดียว
-//
-// ใบละหนึ่งหน้ากระดาษ — พิมพ์หลายใบพร้อมกันแล้วแต่ละคนได้ใบของตัวเองแยกแผ่น
-export default function ReceiptDocument({ receipt }) {
-  const apartment = receipt.apartment ?? {}
+// ตัวเอกสารมาจาก BillDocument ตัวเดียวกับใบแจ้งหนี้ ไม่ได้ลอกมาวางใหม่ — สองไฟล์ที่
+// ลอกกันจะค่อยๆ เพี้ยนจากกันทุกครั้งที่แก้ข้างเดียว
+export default function ReceiptDocument({ receipt, invoice }) {
+  const meta = [
+    { label: 'เลขที่ใบเสร็จ', value: receipt.receiptNumber },
+    { label: 'วันที่รับเงิน', value: formatDate(receipt.paymentDate) },
+    { label: 'ห้อง', value: receipt.roomNumber ?? '-' },
+    { label: 'ชำระโดย', value: receipt.paymentMethodLabel }
+  ]
 
-  return (
-    <article className="receipt-doc">
-      <h2 className="invoice-doc-title">ใบเสร็จรับเงิน</h2>
-
-      <div className="invoice-doc-head">
-        <div>
-          <strong className="invoice-apartment">{apartment.name}</strong>
-          {apartment.address && <p className="muted">{apartment.address}</p>}
-          {apartment.phone && <p className="muted">โทร: {apartment.phone}</p>}
-        </div>
-
-        <dl className="invoice-doc-meta">
-          <div>
-            <dt>เลขที่</dt>
-            <dd>{receipt.receiptNumber}</dd>
-          </div>
-          <div>
-            <dt>วันที่</dt>
-            <dd>{formatDate(receipt.paymentDate)}</dd>
-          </div>
-          <div>
-            <dt>ห้อง</dt>
-            <dd>{receipt.roomNumber ?? '-'}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <dl className="invoice-tenant">
-        <div>
-          <dt>ได้รับเงินจาก</dt>
-          <dd>{receipt.tenantName ?? '-'}</dd>
-        </div>
-        <div>
-          <dt>ชำระโดย</dt>
-          <dd>{receipt.paymentMethodLabel}</dd>
-        </div>
-      </dl>
-
-      <table className="data-table invoice-items">
-        <thead>
-          <tr>
-            <th>รายการ</th>
-            <th className="align-right">จำนวนเงิน</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            {/* อ้างว่าเงินก้อนนี้เป็นค่าอะไร — ใบแจ้งหนี้เลขไหน หรือเป็นเงินก้อนของสัญญา
-                (เงินประกัน/เงินล่วงหน้า) ซึ่งไม่มีใบแจ้งหนี้อยู่เบื้องหลัง */}
-            <td>
-              {receipt.isRefund ? 'คืนเงิน — ' : ''}
-              {receipt.sourceType === 'invoice'
-                ? `ชำระตาม${receipt.sourceLabel}`
-                : 'เงินประกัน / เงินล่วงหน้าตามสัญญาเช่า'}
-              {receipt.remark && <span className="receipt-doc-remark">{receipt.remark}</span>}
-            </td>
-            <td className="align-right">
-              <span className={receipt.isRefund ? 'negative' : undefined}>
-                {formatBaht(receipt.amountCents)}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <dl className="invoice-totals">
+  const footer = (
+    <>
+      {/* ยอดที่รับจริงในครั้งนี้ — ต่างจาก "รวม" ของบิลได้ เพราะจ่ายบางส่วนก็ได้
+          ผู้เช่าต้องเห็นว่าใบนี้เป็นหลักฐานว่าจ่ายไปเท่าไหร่ ไม่ใช่ว่าบิลเท่าไหร่ */}
+      <dl className="invoice-totals receipt-received">
         <div className="invoice-total-row">
-          <dt>{receipt.isRefund ? 'รวมเงินที่คืน' : 'รวมเงินที่ได้รับ'}</dt>
+          <dt>{receipt.isRefund ? 'จำนวนเงินที่คืน' : 'จำนวนเงินที่ได้รับ'}</dt>
           <dd>{formatBaht(Math.abs(receipt.amountCents))}</dd>
         </div>
       </dl>
 
       <div className="invoice-payment-info">
-        <div className="invoice-signature">
-          <span>ผู้รับเงิน</span>
-          <strong>{receipt.createdByName ?? '-'}</strong>
-        </div>
+        <BillSignature label="ผู้รับเงิน" name={receipt.createdByName} />
       </div>
+    </>
+  )
+
+  // ใบเสร็จของบิล — แสดงรายการของบิลใบนั้นเหมือนใบแจ้งหนี้เป๊ะ
+  if (invoice) {
+    return (
+      <article className="receipt-doc">
+        <BillDocument
+          invoice={invoice}
+          title="ใบเสร็จรับเงิน"
+          tenants={invoice.tenants}
+          meta={[...meta, { label: 'อ้างอิง', value: invoice.invoiceNumber }]}
+          footer={footer}
+        />
+      </article>
+    )
+  }
+
+  // ใบเสร็จของสัญญา (เงินประกัน/เงินล่วงหน้า) — ไม่มีบิลอยู่เบื้องหลัง จึงประกอบเอกสาร
+  // ที่มีรายการเดียวขึ้นมาเอง แล้วส่งเข้า BillDocument ตัวเดิม หน้าตาจึงยังเหมือนกัน
+  const standalone = {
+    apartment: receipt.apartment ?? {},
+    isVatEnabled: false,
+    items: [
+      {
+        invoiceItemId: `contract-${receipt.paymentId}`,
+        description: receipt.isRefund
+          ? 'คืนเงินประกันตามสัญญาเช่า'
+          : 'เงินประกัน / เงินล่วงหน้าตามสัญญาเช่า',
+        unitPriceCents: Math.abs(receipt.amountCents),
+        vatRate: 0,
+        vatAmountCents: 0,
+        totalAmountCents: Math.abs(receipt.amountCents)
+      }
+    ],
+    exemptAmountCents: Math.abs(receipt.amountCents),
+    taxableAmountCents: 0,
+    vatAmountCents: 0,
+    totalAmountCents: Math.abs(receipt.amountCents)
+  }
+
+  return (
+    <article className="receipt-doc">
+      <BillDocument
+        invoice={standalone}
+        title="ใบเสร็จรับเงิน"
+        tenants={receipt.tenantName ? [{ fullName: receipt.tenantName }] : []}
+        meta={meta}
+        footer={footer}
+      />
     </article>
   )
 }

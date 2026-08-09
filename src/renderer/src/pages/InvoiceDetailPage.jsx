@@ -14,6 +14,7 @@ import {
 } from '../services/invoiceService.js'
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
 import PrintDialog from '../components/PrintDialog.jsx'
+import BillDocument, { BillSignature } from '../components/BillDocument.jsx'
 import { revealPdf, savePdf } from '../services/printService.js'
 import { getImageDataUrl } from '../services/imageService.js'
 
@@ -137,9 +138,6 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [busy, setBusy] = useState(false)
   const closed = invoice.status === 'cancelled'
-  // หอที่ไม่ได้จดทะเบียน VAT ไม่ต้องเห็นคำว่า vat ที่ไหนเลยบนบิล — ทุกบรรทัดจะขึ้นว่า
-  // "ไม่มี" เหมือนกันหมด ซึ่งเป็นข้อมูลที่ไม่ได้บอกอะไรและกินที่บนกระดาษเปล่าๆ
-  const showVat = invoice.isVatEnabled
 
   // กล่องเลือกเครื่องพิมพ์ต้องเปิด "นอก" ตัวเอกสาร ไม่งั้นมันจะถูกซ่อนไปพร้อมกันตอนพิมพ์
   // (แต่ Modal เรนเดอร์ทับทั้งหน้าอยู่แล้ว จึงไม่มีปัญหา)
@@ -193,8 +191,6 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         </div>
       </div>
 
-      <h2 className="invoice-doc-title">ใบแจ้งหนี้ / Invoice</h2>
-
       {confirmingCancel && (
         <Alert kind="warn">
           ยกเลิกบิล {invoice.invoiceNumber} ใช่ไหม? บิลจะยังอยู่ในระบบแต่ถูกทำเครื่องหมายว่ายกเลิก
@@ -221,129 +217,28 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         </Alert>
       )}
 
-      <div className="invoice-doc-head">
-        <div>
-          <strong className="invoice-apartment">{invoice.apartment.name}</strong>
-          <p className="muted">{invoice.apartment.address}</p>
-          {invoice.apartment.phone && <p className="muted">โทร: {invoice.apartment.phone}</p>}
-        </div>
-
-        <dl className="invoice-doc-meta">
-          <div>
-            <dt>สถานะ</dt>
-            <dd>
+      <BillDocument
+        invoice={invoice}
+        title="ใบแจ้งหนี้ / Invoice"
+        tenants={invoice.tenants}
+        meta={[
+          {
+            label: 'สถานะ',
+            value: (
               <span className={`invoice-status invoice-${invoice.status}`}>
                 {INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status}
               </span>
-            </dd>
-          </div>
-          <div>
-            <dt>เลขที่</dt>
-            <dd>{invoice.invoiceNumber}</dd>
-          </div>
-          <div>
-            <dt>ห้อง</dt>
-            <dd>{invoice.roomNumber}</dd>
-          </div>
-          <div>
-            <dt>วันที่</dt>
-            <dd>{formatDate(invoice.issueDate)}</dd>
-          </div>
-          <div>
-            <dt>ครบกำหนด</dt>
-            <dd>{formatDate(invoice.dueDate)}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <InvoiceTenantInfo tenants={invoice.tenants} />
-
-      <table className="data-table invoice-items">
-        <thead>
-          <tr>
-            <th className="invoice-col-no">#</th>
-            <th>รายการ</th>
-            {/* หัวคอลัมน์บอกให้ชัดว่าราคาต่อหน่วยยังไม่รวมภาษี แต่ยอดเงินรวมแล้ว
-                ไม่งั้นผู้เช่าเอาราคาต่อหน่วยคูณจำนวนแล้วไม่ตรงกับยอดเงิน จะคิดว่าคิดเงินผิด */}
-            <th className="align-right">
-              ราคาต่อหน่วย
-              {showVat && <span className="invoice-col-sub">(ก่อน VAT)</span>}
-            </th>
-            <th className="align-right">
-              ยอดเงิน
-              {showVat && <span className="invoice-col-sub">(รวม VAT)</span>}
-            </th>
-            {!closed && <th className="align-right" />}
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.items.map((item, index) => (
-            <tr key={item.invoiceItemId}>
-              <td className="invoice-col-no">{index + 1}</td>
-              <td>{item.description}</td>
-              <td className="align-right">
-                {formatBaht(item.unitPriceCents)}
-                {showVat && (
-                  <span className="invoice-line-vat">
-                    vat: {item.vatRate > 0 ? `${item.vatRate}%` : 'ไม่มี'}
-                  </span>
-                )}
-              </td>
-              {/* ยอดเงินรวม VAT ของบรรทัดนั้นแล้ว (ฐาน + ภาษี) ตามที่หัวคอลัมน์บอกไว้
-                  ฐานกับภาษีเก็บแยกกันในฐานข้อมูล บวกตอนแสดงผลเท่านั้น */}
-              <td className="align-right">
-                <span className={item.totalAmountCents < 0 ? 'negative' : undefined}>
-                  {formatBaht(item.totalAmountCents + item.vatAmountCents)}
-                </span>
-                {showVat && (
-                  <span className="invoice-line-vat">
-                    ยอด VAT: {item.vatAmountCents > 0 ? formatBaht(item.vatAmountCents) : '-'}
-                  </span>
-                )}
-              </td>
-              {!closed && (
-                <td className="align-right">
-                  <button
-                    type="button"
-                    className="link-btn link-danger table-action icon-only"
-                    onClick={() => onRemoveItem(item.invoiceItemId)}
-                    aria-label={`ลบรายการ ${item.description}`}
-                  >
-                    <Icon name="trash" />
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <dl className="invoice-totals">
-        {/* แถว VAT ขึ้นก็ต่อเมื่อหอจดทะเบียน VAT — ดูจากธงของหอ ไม่ใช่ดูว่ายอดเป็น 0
-            หอที่จด VAT แต่เดือนนี้ไม่มีรายการที่เสียภาษี ยังต้องเห็น VAT 0.00 บนบิล */}
-        {invoice.isVatEnabled && (
-          <>
-            <div>
-              <dt>ยอดยกเว้นภาษี</dt>
-              <dd>{formatBaht(invoice.exemptAmountCents)}</dd>
-            </div>
-            <div>
-              <dt>ยอดก่อนภาษี</dt>
-              <dd>{formatBaht(invoice.taxableAmountCents)}</dd>
-            </div>
-            <div>
-              <dt>VAT {VAT_RATE}%</dt>
-              <dd>{formatBaht(invoice.vatAmountCents)}</dd>
-            </div>
-          </>
-        )}
-        <div className="invoice-total-row">
-          <dt>รวม</dt>
-          <dd>{formatBaht(invoice.totalAmountCents)}</dd>
-        </div>
-      </dl>
-
-      <InvoicePaymentInfo invoice={invoice} signedBy={signedBy} />
+            )
+          },
+          { label: 'เลขที่', value: invoice.invoiceNumber },
+          { label: 'ห้อง', value: invoice.roomNumber },
+          { label: 'วันที่', value: formatDate(invoice.issueDate) },
+          { label: 'ครบกำหนด', value: formatDate(invoice.dueDate) }
+        ]}
+        // บิลที่ยกเลิกแล้วแก้ไม่ได้ ไม่ส่ง onRemoveItem ไป คอลัมน์ปุ่มลบจึงหายไปเอง
+        onRemoveItem={closed ? undefined : onRemoveItem}
+        footer={<InvoicePaymentInfo invoice={invoice} signedBy={signedBy} />}
+      />
 
       {printing && (
         <PrintDialog
@@ -355,52 +250,6 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         />
       )}
     </section>
-  )
-}
-
-// ผู้เช่าที่บิลใบนี้ออกให้ — วางระหว่างหัวหอกับตารางรายการ สองคอลัมน์ตามต้นแบบ
-//
-// ใบแจ้งหนี้ที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น ไม่งั้นพอส่งไฟล์ทางไลน์ไปหลายห้อง
-// ผู้เช่าจะแยกไม่ออกว่าใบไหนของตัวเอง (เลขห้องอย่างเดียวอ่านยากกว่าชื่อ)
-//
-// **ไม่พิมพ์เลขบัตรประชาชนลงบิล** ต่างจากต้นแบบที่ขึ้นเป็น "เลขประจำตัวผู้เสียภาษี" —
-// หอนี้ไม่ได้ออกใบกำกับภาษีเต็มรูป (ตัดออกตั้งแต่ตอนวางขอบเขต) เลขบัตรจึงไม่มีหน้าที่
-// บนกระดาษที่ส่งต่อทางแชต มีแต่ความเสี่ยง ถ้าวันหนึ่งต้องออกใบกำกับภาษีค่อยเพิ่ม
-function InvoiceTenantInfo({ tenants }) {
-  const list = tenants ?? []
-  if (list.length === 0) return null
-
-  const primary = list[0]
-  const others = list.slice(1)
-
-  return (
-    <dl className="invoice-tenant">
-      <div>
-        <dt>ผู้เช่า</dt>
-        <dd>
-          {primary.fullName}
-          {/* สัญญาหนึ่งมีผู้เช่าได้หลายคน (ดู 010) ชื่อคนอื่นต้องอยู่บนบิลด้วย
-              ไม่งั้นคนที่ร่วมสัญญาจะไม่มีหลักฐานว่าตัวเองเกี่ยวข้องกับบิลใบนี้ */}
-          {others.length > 0 && (
-            <span className="invoice-cotenants"> · ร่วมสัญญา: {others.map((t) => t.fullName).join(', ')}</span>
-          )}
-        </dd>
-      </div>
-
-      {primary.phone && (
-        <div>
-          <dt>เบอร์โทรศัพท์</dt>
-          <dd>{primary.phone}</dd>
-        </div>
-      )}
-
-      {primary.address && (
-        <div className="invoice-tenant-address">
-          <dt>ที่อยู่</dt>
-          <dd>{primary.address}</dd>
-        </div>
-      )}
-    </dl>
   )
 }
 
@@ -437,12 +286,7 @@ function InvoicePaymentInfo({ invoice, signedBy }) {
     <section className="invoice-payment-info">
       {/* ช่องลงชื่อผู้ออกบิล — เว้นที่ไว้เซ็นด้วยมือบนกระดาษ ชื่อที่พิมพ์คือคนที่กำลัง
           ออก/พิมพ์เอกสารใบนี้ */}
-      {signedBy && (
-        <div className="invoice-signature">
-          <span>ลงชื่อ</span>
-          <strong>{signedBy}</strong>
-        </div>
-      )}
+      <BillSignature name={signedBy} />
 
       {/* QR อยู่ข้างกล่องบัญชี — ผู้เช่าสแกนได้ทันทีจากไฟล์ที่ได้รับทางแชต
           โดยไม่ต้องพิมพ์เลขบัญชีทีละหลัก */}

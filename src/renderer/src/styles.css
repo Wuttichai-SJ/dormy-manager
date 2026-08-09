@@ -3824,9 +3824,19 @@ body {
   padding-bottom: 9px;
 }
 
-/* ใบเสร็จที่กำลังจะพิมพ์ — ใบละหนึ่งหน้ากระดาษ */
+/* ใบเสร็จที่กำลังจะพิมพ์ — ใบละหนึ่งหน้ากระดาษ ตัวเอกสารใช้สไตล์ชุดเดียวกับใบแจ้งหนี้ */
 .receipt-doc + .receipt-doc {
   margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+/* ยอดที่รับจริงในครั้งนี้ คั่นจากยอดรวมของบิลด้วยเส้น เพราะเป็นคนละตัวเลข
+   (จ่ายบางส่วนแล้วสองยอดนี้ไม่เท่ากัน) */
+.receipt-received {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
 @media print {
