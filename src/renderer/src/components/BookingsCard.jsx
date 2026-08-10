@@ -34,6 +34,8 @@ export default function BookingsCard({ room, onConvert }) {
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(null)
   const [busy, setBusy] = useState(false)
+  // ใบจองที่จบไปแล้วพับเก็บไว้ ไม่ได้ลบทิ้ง — ดูเหตุผลที่ตัวแปร past ด้านล่าง
+  const [showPast, setShowPast] = useState(false)
 
   const load = useCallback(async () => {
     const res = await listBookingsByRoom(room.roomId)
@@ -65,6 +67,17 @@ export default function BookingsCard({ room, onConvert }) {
     load()
   }
 
+  // การ์ดนี้ชื่อ "คนจองรอเข้าพัก" จึงต้องมีแต่คนที่ยังรออยู่จริง — คนที่ทำสัญญาเข้าอยู่แล้ว
+  // หรือยกเลิกไปแล้วไม่ได้รออะไร (ผู้ใช้รายงาน 2026-08-10: วุฒิชัยเข้าอยู่ห้อง 101 แล้ว
+  // แต่ยังค้างอยู่ในรายชื่อคนรอ)
+  //
+  // **แต่ไม่ลบออกจากสายตาถาวร** — ใบจองเป็นหลักฐานที่ยังถูกอ้างถึงอยู่: สัญญาเก็บเลขที่
+  // ใบจองไว้ และใบเสร็จเงินประกันเขียนว่า "เงินจองตามใบจอง B..." ถ้าหายไปเลยจะตามไม่ได้ว่า
+  // เงินก้อนนั้นมาจากไหน จึงพับเก็บไว้ให้กดดูได้
+  const open = (bookings ?? []).filter((b) => b.isOpen)
+  const past = (bookings ?? []).filter((b) => !b.isOpen)
+  const shown = showPast ? [...open, ...past] : open
+
   return (
     <section className="panel">
       <div className="panel-head-row">
@@ -91,8 +104,10 @@ export default function BookingsCard({ room, onConvert }) {
 
       {bookings === null ? (
         <p className="muted">กำลังโหลด...</p>
-      ) : bookings.length === 0 ? (
-        <p className="muted">ยังไม่มีรายการจองห้องนี้</p>
+      ) : shown.length === 0 ? (
+        <p className="muted">
+          {past.length > 0 ? 'ไม่มีคนจองรอเข้าพักในตอนนี้' : 'ยังไม่มีรายการจองห้องนี้'}
+        </p>
       ) : (
         <table className="data-table">
           <thead>
@@ -106,8 +121,8 @@ export default function BookingsCard({ room, onConvert }) {
             </tr>
           </thead>
           <tbody>
-            {bookings.map((b) => (
-              <tr key={b.bookingId}>
+            {shown.map((b) => (
+              <tr key={b.bookingId} className={b.isOpen ? undefined : 'booking-past'}>
                 <td>
                   {/* ใบที่จองไว้ก่อนระบบจะออกเลขให้ไม่มีเลข — ขึ้นขีดแทน ไม่ใช่ช่องว่างเปล่า */}
                   <div>{b.bookingNumber ?? '—'}</div>
@@ -161,6 +176,20 @@ export default function BookingsCard({ room, onConvert }) {
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* ใบจองที่จบไปแล้วยังกดดูได้ ไม่ได้หายไปจากระบบ — สัญญาอ้างเลขที่ใบจองอยู่ และ
+          ใบเสร็จเงินประกันก็อ้างถึง ถ้าดูย้อนหลังไม่ได้จะตามที่มาของเงินจองไม่เจอ */}
+      {past.length > 0 && (
+        <button
+          type="button"
+          className="link-btn booking-past-toggle"
+          onClick={() => setShowPast((v) => !v)}
+        >
+          {showPast
+            ? 'ซ่อนประวัติการจอง'
+            : `ดูประวัติการจองที่จบแล้ว (${past.length} รายการ)`}
+        </button>
       )}
 
       {adding && (

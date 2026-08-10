@@ -241,6 +241,29 @@ check('การจองเปลี่ยนสถานะเป็นทำ�
   assert(after.isOpen === false, 'ไม่ควรกันห้องแล้ว')
 })
 
+// ผู้ใช้รายงาน 2026-08-10 (หอพักวาสนา ห้อง 101): วุฒิชัยทำสัญญาเข้าอยู่แล้ว
+// แต่ยังค้างอยู่ใน "รายชื่อคนจองรอเข้าพัก"
+//
+// การ์ดนั้นแยกด้วย isOpen — คนที่เข้าอยู่แล้วต้องหลุดออกจากรายชื่อคนรอ
+// **แต่ใบจองต้องยังอยู่ในระบบ** เพราะสัญญาเก็บเลขที่ใบจองไว้ และใบเสร็จเงินประกัน
+// เขียนว่า "เงินจองตามใบจอง B..." ถ้าใบหายจะตามที่มาของเงินก้อนนั้นไม่ได้
+check('ใบจองที่ทำสัญญาแล้วหลุดจากรายชื่อคนรอ แต่ยังอยู่ในประวัติ', () => {
+  const all = bookings.listBookingsByRoom(db, room1.roomId)
+  const converted = all.find((b) => b.bookingId === booking.bookingId)
+
+  assert(converted !== undefined, 'ใบจองต้องยังอยู่ในประวัติ ไม่ใช่ถูกลบทิ้ง')
+  assert(converted.isOpen === false, 'ต้องไม่นับเป็นคนรอเข้าพักอีก')
+  assert(
+    all.filter((b) => b.isOpen).length === 0,
+    'ห้องนี้ไม่ควรเหลือคนรอเข้าพักแล้ว'
+  )
+  // เลขที่ใบจองยังโยงกับสัญญาอยู่ — เป็นเหตุผลที่ห้ามลบใบทิ้ง
+  assert(
+    contract.bookingReceiptNo === converted.bookingNumber,
+    `สัญญาอ้าง ${contract.bookingReceiptNo} แต่ใบจองคือ ${converted.bookingNumber}`
+  )
+})
+
 check('ห้องกลายเป็นไม่ว่างตามสัญญาที่เพิ่งสร้าง', () => {
   const room = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomId === room1.roomId)
   assert(room.status === 'occupied', `สถานะห้อง ${room.status}`)
