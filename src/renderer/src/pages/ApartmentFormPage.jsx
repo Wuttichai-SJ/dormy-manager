@@ -19,7 +19,8 @@ const EMPTY = {
   nameEn: '',
   addressEn: '',
   phone: '',
-  dueDateDay: '5',
+  // วันที่ 10 คือกติกาของหอจริง (ผู้ใช้ยืนยัน 2026-08-10) — หอที่สร้างใหม่จะได้ค่านี้เลย
+  dueDateDay: '10',
   lateFeePerDay: '0.00',
   lateFeeGraceDays: '0',
   isAutoLateFeeEnabled: false,
@@ -217,6 +218,13 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
                 (ก.พ. ไม่มีวันที่ 29-31) ต้นแบบไม่มีคำอธิบายบรรทัดนี้ เราใส่เพิ่มเอง
                 เพราะมีคนถามแล้วว่าทำไมเลื่อนต่อไม่ได้ */}
             <p className="field-hint">เลือกได้ถึงวันที่ {MAX_DUE_DATE_DAY} เพื่อให้มีวันนี้ครบทุกเดือน</p>
+            {/* ตัวเลขเฉยๆ ไม่บอกว่าเกิดอะไรขึ้นเมื่อออกบิลหลังวันนั้นไปแล้ว ยกตัวอย่างด้วยวันที่
+                ที่เลือกอยู่จริง จะได้ไม่ต้องออกบิลจริงแล้วมานั่งเดาว่าทำไมได้วันนั้น */}
+            <p className="field-hint">
+              ครบกำหนด = วันที่ {form.dueDateDay} ครั้งถัดไปหลังวันออกบิล — ออกบิลวันที่ 01
+              จะครบกำหนดวันที่ {form.dueDateDay} ของเดือนเดียวกัน · ออกบิลตั้งแต่วันที่{' '}
+              {form.dueDateDay} เป็นต้นไป จะเลื่อนไปวันที่ {form.dueDateDay} ของเดือนถัดไป
+            </p>
           </div>
 
           <div className="field field-required">
