@@ -247,14 +247,11 @@ check('เงินจองและส่วนที่เหลือถู�
 
   const rows = db
     .prepare(
-      "SELECT payment_date, amount_cents, purpose FROM payments WHERE contract_id = ? ORDER BY payment_date"
+      `SELECT payment_date, amount_cents, purpose FROM payments
+        WHERE contract_id = ? AND purpose = 'deposit' ORDER BY payment_date`
     )
     .all(contract.contractId)
-  assert(rows.length === 2, `ควรมีใบเสร็จ 2 ใบ ได้ ${rows.length}`)
-  assert(
-    rows.every((r) => r.purpose === 'deposit'),
-    'ทั้งสองใบต้องเป็นเงินประกัน'
-  )
+  assert(rows.length === 2, `ควรมีใบเสร็จเงินประกัน 2 ใบ ได้ ${rows.length}`)
 
   // เงินจองลงวันที่ที่รับเงินจริง (วันจอง) ส่วนที่เหลือลงวันเซ็นสัญญา — สองวันนี้ห่างกันได้
   // หลายเดือน ถ้ายุบเป็นวันเดียวรายรับของเดือนที่รับเงินจองจะหายไป

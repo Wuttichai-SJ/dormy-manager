@@ -56,7 +56,8 @@ export function calculateAdvanceRentCents(rentAmountCents, startDate) {
 
   // วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้ (กันเดือน ก.พ. / ปีอธิกสุรทินเอง)
   const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  // นับวันเข้าพักเป็นวันแรกที่คิดเงิน — เข้า 15 มิ.ย. = อยู่ 16 วัน (15 ถึง 30)
+  // **นับวันเข้าพักเป็นวันแรกที่คิดเงินด้วย** (ผู้ใช้ยืนยัน 2026-08-10)
+  // เข้า 15 มิ.ย. = อยู่ 16 วัน (15 ถึง 30) ไม่ใช่ 15 วัน — ต่างกันวันเดียวก็คือเงินหนึ่งวัน
   const daysStaying = daysInMonth - dayOfMonth + 1
 
   return Math.round((rent * daysStaying) / PRORATE_DAYS_PER_MONTH)
@@ -352,6 +353,10 @@ export function createContract(db, input) {
       ? Math.max(0, depositCents - bookingFeeCents)
       : toCents(input.depositReceived, 'เงินประกันที่รับวันนี้')
 
+  // ค่าเช่าเดือนแรก — เก็บตอนย้ายเข้าเลย (สัญญารายวันไม่มีเรื่องนี้)
+  const firstMonthRentCents =
+    input.rentType === 'monthly' ? calculateAdvanceRentCents(rentAmountCents, input.startDate) : 0
+
   // เก็บเกินยอดที่ตกลงกันไว้ไม่ได้ — เงินส่วนเกินไม่มีที่ไป และยอดค้างจะติดลบ
   if (bookingFeeCents + depositReceivedCents > depositCents) {
     throw new Error(
@@ -397,11 +402,8 @@ export function createContract(db, input) {
         depositPaymentMethod: input.depositPaymentMethod,
         bookingFeeCents,
         bookingReceiptNo,
-        // ค่าเช่าล่วงหน้าคิดให้เอง ไม่ให้กรอกมือ — คิดมือแล้วผิดคือเก็บเงินผิดตั้งแต่วันแรก
-        advanceCents:
-          input.rentType === 'monthly'
-            ? calculateAdvanceRentCents(rentAmountCents, input.startDate)
-            : 0,
+        // ค่าเช่าเดือนแรกคิดให้เอง ไม่ให้กรอกมือ — คิดมือแล้วผิดคือเก็บเงินผิดตั้งแต่วันแรก
+        advanceCents: firstMonthRentCents,
         waterMeterStart: Number(input.waterMeterStart),
         electricMeterStart: Number(input.electricMeterStart),
         note: String(input.note ?? '').trim() || null,
@@ -474,6 +476,26 @@ export function createContract(db, input) {
         paymentMethod: input.depositPaymentMethod,
         paymentDate: input.startDate,
         remark: 'เงินประกันวันทำสัญญา',
+        createdBy: input.createdBy
+      })
+    }
+
+    // *** ค่าเช่าเดือนแรก ***
+    //
+    // เจ้าของหอเก็บค่าเช่าเดือนแรกตอนผู้เช่าย้ายเข้า (ยืนยัน 2026-08-10) จึงต้องออกใบเสร็จ
+    // ไม่งั้นเงินก้อนนี้ไม่โผล่ในรายงานใบเสร็จเลย — รูเดียวกับเงินจองที่แก้ไปแล้ว
+    //
+    // **บิลรายเดือนของเดือนนี้จะไม่คิดค่าเช่าซ้ำ** — createMonthlyInvoicesForApartment
+    // ข้ามสัญญาที่เริ่มในเดือนที่กำลังออกบิล ดูเหตุผลที่นั่น
+    if (firstMonthRentCents > 0) {
+      const [startYear, startMonth] = String(input.startDate).split('-')
+      recordContractPayment(db, {
+        contractId,
+        amount: String(firstMonthRentCents / 100),
+        purpose: 'advance',
+        paymentMethod: input.depositPaymentMethod,
+        paymentDate: input.startDate,
+        remark: `ค่าเช่าเดือนแรก (เดือน ${startMonth}-${Number(startYear) + 543})`,
         createdBy: input.createdBy
       })
     }

@@ -431,7 +431,7 @@ function getDueDateDay(db, apartmentId) {
 export function previewMonthlyBilling(db, { apartmentId, meterBatchId, billingMonth }) {
   const contracts = db
     .prepare(
-      `SELECT c.contract_id, r.room_number, r.status
+      `SELECT c.contract_id, c.start_date, r.room_number, r.status
          FROM contracts c
          JOIN rooms r  ON r.room_id = c.room_id
          JOIN floors f ON f.floor_id = r.floor_id
@@ -471,7 +471,16 @@ export function previewMonthlyBilling(db, { apartmentId, meterBatchId, billingMo
       unpricedSides: items.filter((i) => i.unpriced).map((i) => i.itemType),
       // ห้องที่ออกบิลไปแล้วยังต้องแสดงในตาราง (ต้นแบบขึ้น "สร้างสำเร็จ") แต่กดสร้างซ้ำไม่ได้
       existingInvoiceId: existing ? existing.invoice_id : null,
-      existingInvoiceNumber: existing ? existing.invoice_number : null
+      existingInvoiceNumber: existing ? existing.invoice_number : null,
+      // **สัญญาที่เริ่มในเดือนที่กำลังออกบิล = จ่ายค่าเช่าเดือนนี้ไปแล้วตอนย้ายเข้า**
+      //
+      // เจ้าของหอเก็บค่าเช่าเดือนแรกวันที่ผู้เช่าย้ายเข้า (เต็มเดือนถ้าเข้าวันที่ 1-3
+      // ไม่งั้นคิดตามวัน) และ createContract ออกใบเสร็จให้แล้ว ถ้าออกบิลของเดือนเดียวกัน
+      // ให้อีก ผู้เช่าจะโดนเก็บค่าเช่าเดือนนั้นสองรอบ
+      //
+      // เดือนถัดไปถึงจะเข้ารอบบิลปกติ — แล้วค่าน้ำ-ค่าไฟของช่วงที่อยู่ในเดือนแรก
+      // ก็จะไปอยู่บนบิลใบนั้น ไม่ได้หายไปไหน
+      startsThisMonth: String(row.start_date ?? '').slice(0, 7) === billingMonth
     }
   })
 }
@@ -489,7 +498,21 @@ export function createMonthlyInvoicesForApartment(
 
   for (const row of rows) {
     if (row.existingInvoiceId) {
-      skipped.push({ roomNumber: row.roomNumber, invoiceNumber: row.existingInvoiceNumber })
+      skipped.push({
+        roomNumber: row.roomNumber,
+        invoiceNumber: row.existingInvoiceNumber,
+        reason: 'ออกบิลของเดือนนี้ไปแล้ว'
+      })
+      continue
+    }
+
+    // จ่ายค่าเช่าเดือนนี้ไปแล้วตอนย้ายเข้า — ออกบิลอีกใบคือเก็บซ้ำ
+    if (row.startsThisMonth) {
+      skipped.push({
+        roomNumber: row.roomNumber,
+        invoiceNumber: null,
+        reason: 'เพิ่งย้ายเข้าเดือนนี้ จ่ายค่าเช่าเดือนแรกแล้ว'
+      })
       continue
     }
     try {

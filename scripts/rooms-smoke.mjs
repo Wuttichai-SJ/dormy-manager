@@ -206,6 +206,15 @@ check('แก้เลขห้องเป็นเลขเดิมของ�
 const tenantsDb = await import('../src/main/db/tenants.js')
 const contractsDb = await import('../src/main/db/contracts.js')
 
+// ค่าเช่าเดือนแรกถูกออกเป็นใบเสร็จตอนทำสัญญา จึงต้องมีผู้รับเงิน
+const staff = (await import('../src/main/db/users.js')).insertUser(db, {
+  fullName: 'ผู้จัดการหอ',
+  phone: '0801112222',
+  email: 'manager-rooms@example.com',
+  passwordHash: 'x',
+  recoveryCodeHash: 'y'
+})
+
 const lockApt = newApartment('หอทดสอบปิดห้อง')
 rooms.generateFloorPlan(db, lockApt.apartmentId, [{ roomCount: 1 }])
 const lockRoom = rooms.listFloors(db, lockApt.apartmentId)[0].rooms[0]
@@ -225,7 +234,8 @@ contractsDb.createContract(db, {
   bookingFee: '0',
   waterMeterStart: 0,
   electricMeterStart: 0,
-  tenants: [lockTenant.tenantId]
+  tenants: [lockTenant.tenantId],
+  createdBy: staff.user_id
 })
 
 check('ห้องที่ยังมีสัญญาใช้งานอยู่ ปิดใช้งานไม่ได้', () => {

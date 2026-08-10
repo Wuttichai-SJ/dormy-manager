@@ -92,7 +92,7 @@ const staffUser = (await import('../src/main/db/users.js')).insertUser(db, {
 const contract1 = contracts.createContract(db, {
   roomId: room1.roomId,
   rentType: 'monthly',
-  startDate: '2026-08-01',
+  startDate: '2026-07-01',
   rentAmount: '5000',
   deposit: '5000',
   depositPaymentMethod: 'cash',
@@ -106,7 +106,7 @@ const contract1 = contracts.createContract(db, {
 const contract2 = contracts.createContract(db, {
   roomId: room2.roomId,
   rentType: 'monthly',
-  startDate: '2026-08-01',
+  startDate: '2026-07-01',
   rentAmount: '5000',
   deposit: '5000',
   depositPaymentMethod: 'cash',
@@ -699,7 +699,7 @@ const plainTenant = tenants.insertTenant(db, {
 const plainContract = contracts.createContract(db, {
   roomId: plainRoom.roomId,
   rentType: 'monthly',
-  startDate: '2026-08-01',
+  startDate: '2026-07-01',
   rentAmount: '4000',
   deposit: '4000',
   depositPaymentMethod: 'cash',
@@ -945,14 +945,16 @@ const rivalContracts = rivalRooms.map((room, index) => {
   return contracts.createContract(db, {
     roomId: room.roomId,
     rentType: 'monthly',
-    startDate: '2026-08-01',
+    startDate: '2026-07-01',
     rentAmount: '3000',
     deposit: '0',
     depositPaymentMethod: 'cash',
     bookingFee: '0',
     waterMeterStart: 0,
     electricMeterStart: 0,
-    tenants: [person.tenantId]
+    tenants: [person.tenantId],
+    // ค่าเช่าเดือนแรกออกเป็นใบเสร็จตอนทำสัญญา จึงต้องมีผู้รับเงิน
+    createdBy: staffUser.user_id
   })
 })
 
@@ -1004,6 +1006,7 @@ check('เลขที่ซ้ำในหอเดียวกัน ฐาน
     'หอเดียวกันต้องออกเลขซ้ำไม่ได้'
   )
 })
+
 
 // -----------------------------------------------------
 // ตัวกรอง "ค้างชำระ / ชำระแล้ว" บนหน้าใบแจ้งหนี้ (ผู้ใช้สั่ง 2026-08-09)
@@ -1091,6 +1094,83 @@ check('ค่าแท็บที่ไม่รู้จักต้องเ�
     () => invoices.listInvoices(db, apartmentId, { settlement: 'overdue' }),
     'ตัวกรองสถานะไม่ถูกต้อง',
     'ต้องกันค่าที่ไม่รู้จัก'
+  )
+})
+
+// -----------------------------------------------------
+// ผู้เช่าจ่ายค่าเช่าเดือนแรกตอนย้ายเข้าแล้ว (createContract ออกใบเสร็จให้) ถ้าออกบิล
+// ของเดือนเดียวกันให้อีก ผู้เช่าจะโดนเก็บค่าเช่าเดือนนั้นสองรอบ
+group('ห้องที่เพิ่งย้ายเข้าเดือนนี้')
+
+const newcomerRoom = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+const newcomer = newcomerRoom[newcomerRoom.length - 1].rooms[0]
+rooms.setRoomRates(db, [newcomer.roomId], { monthlyRent: '4000' })
+
+const newTenant = tenants.insertTenant(db, {
+  firstName: 'เพิ่งย้ายเข้า',
+  lastName: 'ทดสอบ',
+  phone: '0855555555'
+})
+const newContract = contracts.createContract(db, {
+  roomId: newcomer.roomId,
+  rentType: 'monthly',
+  startDate: '2027-09-01',
+  rentAmount: '4000',
+  deposit: '0',
+  depositPaymentMethod: 'cash',
+  bookingFee: '0',
+  waterMeterStart: 0,
+  electricMeterStart: 0,
+  tenants: [newTenant.tenantId],
+  createdBy: staffUser.user_id
+})
+
+check('จ่ายค่าเช่าเดือนแรกแล้ว มีใบเสร็จเป็นหลักฐาน', () => {
+  const row = db
+    .prepare("SELECT amount_cents, purpose FROM payments WHERE contract_id = ? AND purpose = 'advance'")
+    .get(newContract.contractId)
+  assert(row !== undefined, 'ต้องมีใบเสร็จค่าเช่าเดือนแรก')
+  // เข้าพักวันที่ 1 → คิดเต็มเดือน
+  assert(row.amount_cents === 400000, `ได้ ${row.amount_cents}`)
+})
+
+check('พรีวิวออกบิลติดธงว่าห้องนี้จ่ายค่าเช่าเดือนนี้ไปแล้ว', () => {
+  const sepBatch = meter.createBatch(db, apartmentId, '2027-09-01')
+  const rows = invoices.previewMonthlyBilling(db, {
+    apartmentId,
+    meterBatchId: sepBatch.batchId,
+    billingMonth: '2027-09'
+  })
+  const row = rows.find((r) => r.roomNumber === newcomer.roomNumber)
+  assert(row.startsThisMonth === true, 'ต้องติดธงว่าเพิ่งย้ายเข้าเดือนนี้')
+
+  // เดือนถัดไปเข้ารอบบิลปกติ ไม่ติดธงแล้ว
+  const october = invoices.previewMonthlyBilling(db, {
+    apartmentId,
+    meterBatchId: sepBatch.batchId,
+    billingMonth: '2027-10'
+  })
+  assert(
+    october.find((r) => r.roomNumber === newcomer.roomNumber).startsThisMonth === false,
+    'เดือนถัดไปต้องออกบิลได้ตามปกติ'
+  )
+})
+
+check('ออกบิลทั้งหอแล้วข้ามห้องนั้น พร้อมบอกเหตุผล', () => {
+  const sep = meter.createBatch(db, apartmentId, '2027-09-02')
+  const result = invoices.createMonthlyInvoicesForApartment(db, {
+    apartmentId,
+    meterBatchId: sep.batchId,
+    billingMonth: '2027-09',
+    issueDate: '2027-09-02'
+  })
+
+  const skipped = result.skipped.find((s) => s.roomNumber === newcomer.roomNumber)
+  assert(skipped !== undefined, 'ต้องอยู่ในกองที่ข้าม')
+  assert(skipped.reason.includes('เพิ่งย้ายเข้า'), `เหตุผลได้ "${skipped.reason}"`)
+  assert(
+    !result.created.some((c) => c.roomNumber === newcomer.roomNumber),
+    'ต้องไม่มีบิลของห้องนั้นถูกสร้าง'
   )
 })
 

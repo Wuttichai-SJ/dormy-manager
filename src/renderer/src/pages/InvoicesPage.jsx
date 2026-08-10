@@ -493,7 +493,9 @@ function BillingWizard({ apartment, onClose }) {
     refreshPreview()
   }
 
-  const pending = preview.filter((row) => !row.existingInvoiceId)
+  // ห้องที่จ่ายค่าเช่าเดือนแรกไปแล้วไม่นับเป็นห้องที่รอออกบิล ไม่งั้นปุ่ม "สร้างทุกห้อง"
+  // จะบอกจำนวนเกินจริงแล้วผู้ใช้จะสงสัยว่าทำไมสร้างได้ไม่ครบ
+  const pending = preview.filter((row) => !row.existingInvoiceId && !row.startsThisMonth)
   const unpriced = preview.filter((row) => row.unpricedSides?.length > 0 && !row.existingInvoiceId)
 
   return (
@@ -679,6 +681,10 @@ function BillingWizard({ apartment, onClose }) {
                             <Icon name="check" />
                             <span>{row.existingInvoiceNumber}</span>
                           </span>
+                        ) : row.startsThisMonth ? (
+                          /* เพิ่งย้ายเข้าเดือนนี้ = จ่ายค่าเช่าเดือนแรกไปแล้วตอนทำสัญญา
+                             ต้องบอกว่าทำไมกดไม่ได้ ไม่ใช่ปุ่มหายไปเฉยๆ */
+                          <span className="muted billing-skip">จ่ายค่าเช่าเดือนแรกแล้ว</span>
                         ) : (
                           <button
                             type="button"
