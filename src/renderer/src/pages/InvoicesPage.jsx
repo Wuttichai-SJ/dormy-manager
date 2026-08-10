@@ -398,17 +398,25 @@ function BillingWizard({ apartment, onClose }) {
       if (!res.success) return setError(res.error)
       setBatches(res.data)
       // ใบจดล่าสุดคือใบที่จะออกบิลเกือบทุกครั้ง เลือกให้เลยจะได้ไม่ต้องกดซ้ำ
-      if (res.data.length > 0) applyBatchDefaults(res.data[0])
+      if (res.data.length > 0) setBatchId(String(res.data[0].batchId))
     })()
+  }, [apartment.apartmentId])
+
+  // **วันที่ออกบิลตั้งต้นเป็นวันนี้ ไม่ใช่วันจดมิเตอร์** — หอจดมิเตอร์ปลายเดือนแล้วออกบิล
+  // วันที่ 1 ของเดือนถัดไป สองวันนี้คนละวันเสมอ (ยืนยันกับใบเสร็จจริง 2026-08-10)
+  useEffect(() => {
+    const now = today()
+    setIssueDate(now)
+    setBillingMonth(billingMonthOf(now))
   }, [apartment.apartmentId])
 
   const batch = batches.find((b) => String(b.batchId) === String(batchId))
 
-  // เปลี่ยนใบจดมิเตอร์แล้วเดือนค่าเช่ากับวันที่ออกบิลต้องขยับตาม ไม่งั้นจะค้างค่าของใบก่อน
-  function applyBatchDefaults(nextBatch) {
-    setBatchId(String(nextBatch.batchId))
-    setBillingMonth(billingMonthAfter(nextBatch.readingDate))
-    setIssueDate(nextBatch.readingDate)
+  // เดือนค่าเช่าเดินตามวันที่ออกบิล ไม่ใช่ตามใบจดมิเตอร์ — แก้วันที่แล้วเดือนขยับตามเอง
+  // (เลือกเดือนเองทีหลังได้ ไม่ถูกทับ เพราะทับเฉพาะตอนที่วันที่เปลี่ยน)
+  function changeIssueDate(next) {
+    setIssueDate(next)
+    if (next) setBillingMonth(billingMonthOf(next))
   }
 
   async function goToPreview() {
@@ -531,14 +539,7 @@ function BillingWizard({ apartment, onClose }) {
                 <label htmlFor="batchId">
                   วันที่จดมิเตอร์ <span className="required">* จำเป็น</span>
                 </label>
-                <select
-                  id="batchId"
-                  value={batchId}
-                  onChange={(e) => {
-                    const next = batches.find((b) => String(b.batchId) === e.target.value)
-                    if (next) applyBatchDefaults(next)
-                  }}
-                >
+                <select id="batchId" value={batchId} onChange={(e) => setBatchId(e.target.value)}>
                   {batches.map((b) => (
                     <option key={b.batchId} value={b.batchId}>
                       {formatDate(b.readingDate)} (จดแล้ว {b.roomCount} ห้อง)
@@ -546,9 +547,22 @@ function BillingWizard({ apartment, onClose }) {
                   ))}
                 </select>
                 <p className="field-hint">
-                  ค่าน้ำ/ค่าไฟในบิลจะคิดจากหน่วยที่จดไว้ในใบนี้ — เป็นการใช้ของเดือน{' '}
-                  <strong>{formatBillingMonth(utilityMonthOf(batch?.readingDate))}</strong> ·
+                  ค่าน้ำ/ค่าไฟในบิลจะคิดจากหน่วยที่จดไว้ในใบนี้ ·
                   ห้องที่ยังไม่ได้จดจะคิดเป็น 0 หน่วย
+                </p>
+              </div>
+
+              {/* วันที่ออกบิลมาก่อนเดือนค่าเช่า เพราะเดือนค่าเช่าเดินตามวันนี้
+                  (หอออกบิลวันที่ 1 เสมอ — วันจดมิเตอร์เป็นคนละวันและไม่แน่นอน) */}
+              <div className="field">
+                <label htmlFor="issueDate">
+                  วันที่ออกบิล <span className="required">* จำเป็น</span>
+                </label>
+                <DateField id="issueDate" value={issueDate} onChange={changeIssueDate} />
+                {/* วันที่นี้ไม่ได้เป็นแค่ตัวเลขบนหัวบิล — เลขที่บิลใช้ปี-เดือนของวันนี้
+                    (I2569 02 0001) วันครบกำหนดนับต่อจากวันนี้ และเดือนค่าเช่าก็มาจากวันนี้ */}
+                <p className="field-hint">
+                  ตั้งต้นเป็นวันนี้ · เลขที่บิล วันครบกำหนดชำระ และเดือนค่าเช่า คิดจากวันนี้
                 </p>
               </div>
 
@@ -561,7 +575,7 @@ function BillingWizard({ apartment, onClose }) {
                   value={billingMonth}
                   onChange={(e) => setBillingMonth(e.target.value)}
                 >
-                  {monthOptions(batch?.readingDate).map((m) => (
+                  {monthOptions(issueDate).map((m) => (
                     <option key={m} value={m}>
                       {formatBillingMonth(m)}
                     </option>
@@ -570,21 +584,9 @@ function BillingWizard({ apartment, onClose }) {
                 {/* บิลใบเดียวมีสองเดือนอยู่ในนั้น — ต้องเขียนให้ชัดตั้งแต่ตอนเลือก ไม่ใช่ให้ไป
                     เจอเอาตอนบิลออกไปถึงมือผู้เช่าแล้ว */}
                 <p className="field-hint">
-                  ค่าเช่าห้องเป็นของเดือนที่กำลังจะอยู่ ส่วนค่าน้ำ-ค่าไฟเป็นของเดือนที่ผ่านมา
-                  ระบบเลือกเดือนถัดจากวันจดมิเตอร์ให้แล้ว เปลี่ยนได้ถ้าไม่ตรง
-                </p>
-              </div>
-
-              <div className="field">
-                <label htmlFor="issueDate">
-                  วันที่ออกบิล <span className="required">* จำเป็น</span>
-                </label>
-                <DateField id="issueDate" value={issueDate} onChange={setIssueDate} />
-                {/* วันที่นี้ไม่ได้เป็นแค่ตัวเลขบนหัวบิล — เลขที่บิลใช้ปี-เดือนของวันนี้
-                    (I2569 02 0001) และวันครบกำหนดนับต่อจากวันนี้ */}
-                <p className="field-hint">
-                  ตั้งต้นเป็นวันที่จดมิเตอร์ · เลขที่บิลและวันครบกำหนดชำระคิดจากวันนี้
-                  ถ้าออกบิลจริงคนละวันกับวันจด ให้แก้เป็นวันที่ออกบิลจริง
+                  ค่าเช่าเป็นของเดือนนี้ ส่วนค่าน้ำ-ค่าไฟเป็นของเดือน{' '}
+                  <strong>{formatBillingMonth(utilityMonthOf(billingMonth))}</strong> (เดือนก่อนหน้า)
+                  · ระบบเลือกตามวันที่ออกบิลให้แล้ว เปลี่ยนได้ถ้าออกบิลย้อนหลัง
                 </p>
               </div>
 
@@ -600,7 +602,7 @@ function BillingWizard({ apartment, onClose }) {
             <div className="panel-head-row">
               <h2 className="panel-title">
                 ค่าเช่าเดือน {formatBillingMonth(billingMonth)} · ค่าน้ำ-ค่าไฟเดือน{' '}
-                {formatBillingMonth(utilityMonthOf(batch?.readingDate))} · ออกบิล{' '}
+                {formatBillingMonth(utilityMonthOf(billingMonth))} · ออกบิล{' '}
                 {formatDate(issueDate)}
               </h2>
               <button
@@ -698,38 +700,34 @@ function BillingWizard({ apartment, onClose }) {
 // ------------------------------------------------------------------
 // ตัวเลือกเดือนที่ออกบิล — เดือนของใบจดเป็นหลัก แล้วให้เลือกย้อนหลังได้อีก 5 เดือน
 // กับล่วงหน้า 1 เดือน (หอที่เก็บค่าเช่าล่วงหน้าจะออกบิลของเดือนถัดไป)
-// เดือนที่ค่าเช่าบนบิลเป็นของ = เดือนของ "วันถัดจากวันจดมิเตอร์"
+// เดือนที่ค่าเช่าบนบิลเป็นของ = **เดือนของวันที่ออกบิล**
 //
-// การจดมิเตอร์ปิดยอดการใช้ของเดือนที่ผ่านมา เดือนที่เริ่มนับหนึ่งหลังจากนั้นคือเดือนที่
-// ผู้เช่ากำลังจะอยู่ กติกาเดียวนี้ครอบคลุมทั้งหอที่จดสิ้นเดือนและหอที่จดวันที่ 1:
-//   จด 31 ม.ค. → วันถัดไป 1 ก.พ.  → กุมภาพันธ์
-//   จด  1 ก.พ. → วันถัดไป 2 ก.พ.  → กุมภาพันธ์
+// ยืนยันกับใบเสร็จจริงของหอแล้ว: ออกวันที่ 1 ก.พ. → ค่าเช่า (1 - 28 ก.พ.) + ค่าน้ำ-ไฟ (ม.ค.)
 //
-// ของเดิมใช้ "เดือนของวันจดมิเตอร์" ตรงๆ ซึ่งหอที่จดสิ้นเดือนจะได้เดือนที่ผ่านไปแล้วทุกครั้ง
-// แล้วต้องกดแก้เองทุกเดือน — เดือนไหนลืมกด บิลทั้งหอเขียนเดือนผิด
-function billingMonthAfter(readingDate) {
-  return monthShift(readingDate, 1)
+// เคยคิดจากวันจดมิเตอร์ (วันถัดไป / วันก่อนหน้า) ซึ่งใช้ได้เฉพาะหอที่จดวันสุดท้ายของเดือน
+// หรือวันที่ 1 เท่านั้น — หอที่จดวันที่ 28 จะได้เดือนค่าเช่าย้อนไปหนึ่งเดือนทุกครั้ง
+// และผู้ใช้ยืนยัน 2026-08-10 ว่า **ไม่รู้ว่าหอจดมิเตอร์วันไหน แต่รู้แน่ว่าออกบิลวันที่ 1 เสมอ**
+// วันจดมิเตอร์จึงเป็นหลักยึดที่เชื่อไม่ได้ ส่วนวันออกบิลเชื่อได้
+function billingMonthOf(issueDate) {
+  return String(issueDate ?? '').slice(0, 7)
 }
 
-// เดือนที่ค่าน้ำ-ค่าไฟเป็นของ = เดือนของ "วันก่อนวันจดมิเตอร์"
+// เดือนที่ค่าน้ำ-ค่าไฟเป็นของ = เดือนก่อนเดือนค่าเช่า
 // **ต้องตรงกับ utilityMonthOf ใน src/main/db/invoices.js** — ที่นี่ใช้แสดงบนหน้าจอเท่านั้น
 // ข้อความที่ลงบิลจริงประกอบฝั่ง main
-function utilityMonthOf(readingDate) {
-  return monthShift(readingDate, -1)
+function utilityMonthOf(billingMonth) {
+  if (!billingMonth) return ''
+  const [year, month] = String(billingMonth).split('-').map(Number)
+  if (!year || !month) return ''
+  const previous = new Date(Date.UTC(year, month - 2, 1))
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
-function monthShift(readingDate, days) {
-  if (!readingDate) return ''
-  const [year, month, day] = String(readingDate).split('-').map(Number)
-  if (!year || !month || !day) return ''
-  // UTC เพื่อไม่ให้เขตเวลาของเครื่องดันวันข้ามไปมา
-  const shifted = new Date(Date.UTC(year, month - 1, day + days))
-  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-function monthOptions(readingDate) {
-  if (!readingDate) return []
-  const [year, month] = readingDate.split('-').map(Number)
+// ให้เลือกย้อนหลังได้เผื่อออกบิลตามหลัง และล่วงหน้าหนึ่งเดือนเผื่อออกก่อนสิ้นเดือน
+function monthOptions(issueDate) {
+  const anchor = billingMonthOf(issueDate)
+  if (!anchor) return []
+  const [year, month] = anchor.split('-').map(Number)
 
   const list = []
   for (let offset = 1; offset >= -5; offset -= 1) {

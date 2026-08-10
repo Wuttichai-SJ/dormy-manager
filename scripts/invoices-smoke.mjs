@@ -228,12 +228,12 @@ check('ไม่มีคำอังกฤษหลงเหลือในช�
   }
 })
 
-// จดมิเตอร์ 31/08 = ปิดยอดการใช้ของเดือนสิงหาคม บรรทัดจึงต้องเขียน (เดือน 08-2026)
-// แม้ค่าเช่าบนบิลใบเดียวกันจะเป็นของอีกเดือนหนึ่ง
+// บิลค่าเช่าเดือนสิงหาคม → ค่าน้ำ-ค่าไฟเป็นของกรกฎาคม (เดือนก่อนหน้าเสมอ)
+// ไม่ขึ้นกับว่าใบจดมิเตอร์ลงวันที่อะไร
 check('ค่าน้ำคิดจากหน่วยที่จด พร้อมเดือนและเลขมิเตอร์ก่อน/หลัง', () => {
   const water = built.items.find((i) => i.itemType === 'water')
   assert(
-    water.description === 'ค่าน้ำ (เดือน 08-2569) : 98 หน่วย (2 - 100)',
+    water.description === 'ค่าน้ำ (เดือน 07-2569) : 98 หน่วย (2 - 100)',
     `ได้ "${water.description}"`
   )
   assert(water.totalAmountCents === 98 * 2000, `ได้ ${water.totalAmountCents}`)
@@ -242,7 +242,7 @@ check('ค่าน้ำคิดจากหน่วยที่จด พร
 check('ค่าไฟคิดจากหน่วยที่จดเช่นกัน', () => {
   const elec = built.items.find((i) => i.itemType === 'electricity')
   assert(elec.totalAmountCents === 300 * 700, `ได้ ${elec.totalAmountCents}`)
-  assert(elec.description.includes('(เดือน 08-2569)'), `ได้ "${elec.description}"`)
+  assert(elec.description.includes('(เดือน 07-2569)'), `ได้ "${elec.description}"`)
 })
 
 // -----------------------------------------------------
@@ -250,30 +250,28 @@ check('ค่าไฟคิดจากหน่วยที่จดเช่�
 // เดือนที่ผ่านไปแล้ว (ธรรมเนียมจริงของหอ — ผู้ใช้อธิบาย 2026-08-10)
 group('เดือนของค่าน้ำ-ค่าไฟบนบิล')
 
-check('จดสิ้นเดือนกับจดวันที่ 1 ของเดือนถัดไป ได้เดือนเดียวกัน', () => {
-  // ทั้งคู่คือการปิดยอดการใช้ของเดือนมกราคม ต่างแค่ธรรมเนียมของแต่ละหอ
-  assert(invoices.utilityMonthOf('2026-01-31') === '2026-01', invoices.utilityMonthOf('2026-01-31'))
-  assert(invoices.utilityMonthOf('2026-02-01') === '2026-01', invoices.utilityMonthOf('2026-02-01'))
+// ยืนยันกับใบเสร็จจริงของหอแล้ว (2026-08-10): ออกวันที่ 1 ก.พ. → ค่าเช่า ก.พ. + ค่าน้ำ-ไฟ ม.ค.
+//
+// **คิดจากเดือนค่าเช่า ไม่ใช่จากวันจดมิเตอร์** — ผู้ใช้ไม่รู้ว่าหอจดมิเตอร์วันไหน
+// แต่รู้แน่ว่าออกบิลวันที่ 1 เสมอ วันจดมิเตอร์จึงเป็นหลักยึดที่เชื่อไม่ได้
+check('ค่าน้ำ-ค่าไฟเป็นของเดือนก่อนเดือนค่าเช่าเสมอ', () => {
+  assert(invoices.utilityMonthOf('2026-02') === '2026-01', invoices.utilityMonthOf('2026-02'))
+  assert(invoices.utilityMonthOf('2026-07') === '2026-06', invoices.utilityMonthOf('2026-07'))
 })
 
 check('ข้ามปีได้ถูกต้อง', () => {
-  assert(invoices.utilityMonthOf('2027-01-01') === '2026-12', invoices.utilityMonthOf('2027-01-01'))
+  assert(invoices.utilityMonthOf('2027-01') === '2026-12', invoices.utilityMonthOf('2027-01'))
 })
 
-check('เดือนกุมภาพันธ์ที่มี 28/29 วันไม่ทำให้เพี้ยน', () => {
-  assert(invoices.utilityMonthOf('2026-03-01') === '2026-02', invoices.utilityMonthOf('2026-03-01'))
-  assert(invoices.utilityMonthOf('2028-03-01') === '2028-02', invoices.utilityMonthOf('2028-03-01'))
-})
-
-check('วันที่ไม่ถูกต้องคืน null ไม่ใช่เดือนมั่วๆ', () => {
-  for (const bad of ['', null, undefined, 'ไม่ใช่วันที่']) {
+check('เดือนที่ส่งมาไม่ถูกต้องคืน null ไม่ใช่เดือนมั่วๆ', () => {
+  for (const bad of ['', null, undefined, 'ไม่ใช่เดือน']) {
     assert(invoices.utilityMonthOf(bad) === null, `${bad} ควรได้ null`)
   }
 })
 
-// เดือนของค่าน้ำผูกกับใบจดมิเตอร์ ไม่ได้ผูกกับเดือนค่าเช่า — เจ้าของหอเลือกเดือนค่าเช่า
-// เป็นอะไรก็ได้ แต่หน่วยที่จดมาเป็นของเดือนไหนก็ต้องเขียนเดือนนั้น
-check('เปลี่ยนเดือนค่าเช่าแล้ว เดือนของค่าน้ำไม่เปลี่ยนตาม', () => {
+// ออกบิลย้อนหลังก็ยังถูก — ตั้งเดือนค่าเช่าเป็นธันวาคม ค่าน้ำก็ต้องเป็นพฤศจิกายน
+// ไม่ใช่ค้างเป็นเดือนของใบจดมิเตอร์ที่หยิบมาใช้
+check('เปลี่ยนเดือนค่าเช่าแล้ว เดือนของค่าน้ำขยับตามไปด้วยเสมอ', () => {
   const other = invoices.buildInvoiceItems(db, {
     contractId: contract1.contractId,
     billingMonth: '2026-12',
@@ -282,7 +280,26 @@ check('เปลี่ยนเดือนค่าเช่าแล้ว เ
   const rent = other.items.find((i) => i.itemType === 'rent')
   const water = other.items.find((i) => i.itemType === 'water')
   assert(rent.description.includes('(เดือน 12-2569)'), `ค่าเช่าได้ "${rent.description}"`)
-  assert(water.description.includes('(เดือน 08-2569)'), `ค่าน้ำได้ "${water.description}"`)
+  assert(water.description.includes('(เดือน 11-2569)'), `ค่าน้ำได้ "${water.description}"`)
+})
+
+// เคสจริงจากใบเสร็จของหอ: จดมิเตอร์วันที่ 28 แล้วออกบิลวันที่ 1 ของเดือนถัดไป
+// กติกาเดิม (วันถัดจากวันจดมิเตอร์) จะได้เดือนค่าเช่าย้อนไปหนึ่งเดือนทุกครั้ง
+check('จดมิเตอร์วันที่ 28 แล้วออกบิลเดือนถัดไป ค่าน้ำต้องเป็นเดือนที่จด', () => {
+  const lateBatch = meter.createBatch(db, apartmentId, '2027-06-28')
+  meter.saveBatchReadings(db, lateBatch.batchId, 'water', [
+    { roomId: room1.roomId, roomNumber: '101', currentReading: 200 }
+  ])
+
+  const july = invoices.buildInvoiceItems(db, {
+    contractId: contract1.contractId,
+    billingMonth: '2027-07',
+    meterBatchId: lateBatch.batchId
+  })
+  const rent = july.items.find((i) => i.itemType === 'rent')
+  const water = july.items.find((i) => i.itemType === 'water')
+  assert(rent.description.includes('(เดือน 07-2570)'), `ค่าเช่าได้ "${rent.description}"`)
+  assert(water.description.includes('(เดือน 06-2570)'), `ค่าน้ำได้ "${water.description}"`)
 })
 
 check('ไม่ได้เลือกใบจดมิเตอร์ ก็ไม่เขียนเดือนมั่วลงไป', () => {
