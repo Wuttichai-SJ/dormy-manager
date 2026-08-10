@@ -72,27 +72,44 @@ group('ค่าเช่าล่วงหน้าตามสัดส่ว�
 
 // ตัวเลขชุดนี้ถอดจากหน้าจอจริงของต้นแบบ: ค่าเช่า 5,000 เข้าพัก 18 ก.ค. → 2,258.06
 check('เข้าพักกลางเดือน คิดเฉพาะวันที่เหลือ', () => {
+  // เข้า 18 ก.ค. = อยู่ 14 วัน (18-31) → 5000 ÷ 30 × 14 = 2,333.33
   const got = contracts.calculateAdvanceRentCents(500000, '2026-07-18')
-  assert(got === 225806, `ควรได้ 225806 สตางค์ ได้ ${got}`)
+  assert(got === 233333, `ควรได้ 233333 สตางค์ ได้ ${got}`)
 })
 
-check('เข้าพักวันที่ 1 คิดเต็มเดือน', () => {
-  const got = contracts.calculateAdvanceRentCents(500000, '2026-07-01')
-  assert(got === 500000, `ควรได้เต็มเดือน ได้ ${got}`)
+// **กติกาจริงของหอ ยืนยันกับเจ้าของหอ 2026-08-10** — "เข้าอยู่ช่วงวันที่ 2 หรือ 3 ก็คิดเต็มเดือน"
+check('เข้าพักวันที่ 1-3 คิดเต็มเดือน ไม่ปัดลดให้', () => {
+  for (const day of ['01', '02', '03']) {
+    const got = contracts.calculateAdvanceRentCents(500000, `2026-07-${day}`)
+    assert(got === 500000, `วันที่ ${day} ควรได้เต็มเดือน ได้ ${got}`)
+  }
 })
 
-check('เข้าพักวันสุดท้ายของเดือน คิดวันเดียว', () => {
-  const got = contracts.calculateAdvanceRentCents(500000, '2026-07-31')
-  assert(got === Math.round(500000 / 31), `ได้ ${got}`)
+check('เข้าพักวันที่ 4 เริ่มคิดตามวัน', () => {
+  // 4-31 ก.ค. = 28 วัน → 5000 ÷ 30 × 28 = 4,666.67 (น้อยกว่าเต็มเดือน)
+  const got = contracts.calculateAdvanceRentCents(500000, '2026-07-04')
+  assert(got === 466667, `ได้ ${got}`)
+  assert(got < 500000, 'ต้องไม่เกินค่าเช่าเต็มเดือน')
 })
 
-check('เดือนกุมภาพันธ์ปีอธิกสุรทินนับ 29 วัน', () => {
-  // 2028 เป็นปีอธิกสุรทิน — เข้าพัก 1 ก.พ. ต้องได้เต็มเดือน ไม่ใช่ 28/29 ของเดือน
-  const got = contracts.calculateAdvanceRentCents(290000, '2028-02-01')
-  assert(got === 290000, `ได้ ${got}`)
-  // เข้าวันที่ 29 = เหลือวันเดียว
-  const lastDay = contracts.calculateAdvanceRentCents(290000, '2028-02-29')
-  assert(lastDay === Math.round(290000 / 29), `ได้ ${lastDay}`)
+// **หารด้วย 30 เสมอ ไม่ใช่จำนวนวันจริงของเดือน** — เจ้าของหอบอกว่า "เอาราคาห้องหาร 30 วัน
+// แล้วนับวันคิด" ต่างจากของเดิมที่หารด้วยจำนวนวันจริง ซึ่งเพี้ยนทุกเดือนที่ไม่มี 30 วัน
+check('หารด้วย 30 เสมอ เดือน 31 วันกับ 28 วันจึงได้ต่อวันเท่ากัน', () => {
+  const perDay = Math.round(500000 / 30)
+
+  // ก.ค. 31 วัน เข้าวันสุดท้าย = อยู่ 1 วัน
+  assert(contracts.calculateAdvanceRentCents(500000, '2026-07-31') === perDay, 'ก.ค. วันสุดท้าย')
+  // ก.พ. 28 วัน เข้าวันสุดท้าย = อยู่ 1 วัน ต้องได้เท่ากันเป๊ะ
+  assert(contracts.calculateAdvanceRentCents(500000, '2026-02-28') === perDay, 'ก.พ. วันสุดท้าย')
+})
+
+check('ปีอธิกสุรทินนับวันที่อยู่จริงถูก แต่ยังหารด้วย 30', () => {
+  // 2028 เป็นปีอธิกสุรทิน ก.พ. มี 29 วัน — เข้า 20 ก.พ. = อยู่ 10 วัน (20-29)
+  const got = contracts.calculateAdvanceRentCents(300000, '2028-02-20')
+  assert(got === Math.round((300000 * 10) / 30), `ได้ ${got}`)
+
+  // เข้าวันที่ 1 ยังคิดเต็มเดือนเหมือนเดิม
+  assert(contracts.calculateAdvanceRentCents(290000, '2028-02-01') === 290000, 'วันที่ 1 เต็มเดือน')
 })
 
 // -----------------------------------------------------
@@ -142,7 +159,8 @@ const created = contracts.createContract(db, {
 check('เก็บเงินเป็นสตางค์ และคิดค่าเช่าล่วงหน้าให้เอง', () => {
   assert(created.rentAmountCents === 500000, `ค่าเช่า ${created.rentAmountCents}`)
   assert(created.depositAmountCents === 500000, `เงินประกัน ${created.depositAmountCents}`)
-  assert(created.advancePaymentAmountCents === 225806, `ล่วงหน้า ${created.advancePaymentAmountCents}`)
+  // เข้าพัก 18 ก.ค. = อยู่ 14 วัน → 5000 ÷ 30 × 14 = 2,333.33 (กติกาของหอ ยืนยัน 2026-08-10)
+  assert(created.advancePaymentAmountCents === 233333, `ล่วงหน้า ${created.advancePaymentAmountCents}`)
 })
 
 // เลขที่ใบจองออกให้เฉพาะตอนมีเงินจองจริง ไม่ใช่ออกให้ทุกสัญญา
