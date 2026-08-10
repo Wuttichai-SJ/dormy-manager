@@ -117,6 +117,29 @@ function pad2(n) {
 }
 
 // ------------------------------------------------------------------
+// เดือนที่ค่าน้ำ-ค่าไฟบนบิลเป็นของ
+// ------------------------------------------------------------------
+// บิลหนึ่งใบมีสองเดือนอยู่ในนั้น: **ค่าเช่าเป็นของเดือนที่กำลังจะอยู่ ส่วนค่าน้ำ-ค่าไฟ
+// เป็นของเดือนที่เพิ่งผ่านไป** (ออกบิล 1 ก.พ. = ค่าเช่าเดือน ก.พ. + มิเตอร์เดือน ม.ค.)
+// ผู้เช่าที่อ่านบิลจึงต้องเห็นว่าค่าน้ำเป็นของเดือนไหน ไม่งั้นจะเข้าใจว่าเป็นเดือนเดียวกับค่าเช่า
+//
+// คิดจาก **วันก่อนวันจดมิเตอร์** ไม่ใช่เดือนของวันจดตรงๆ — การจดมิเตอร์คือการปิดยอด
+// การใช้ของเดือนที่ผ่านมา หอที่จดวันที่ 31 ม.ค. กับหอที่จดวันที่ 1 ก.พ. ปิดยอดเดือนมกราคม
+// เหมือนกัน ต่างแค่ธรรมเนียม ถ้าใช้เดือนของวันจดตรงๆ หอแบบหลังจะได้เดือนกุมภาพันธ์
+// ซึ่งยังไม่ได้ใช้น้ำสักหยด
+//
+// **ไม่ได้คิดจาก billingMonth** เพราะค่าน้ำผูกกับใบจดมิเตอร์ ไม่ได้ผูกกับเดือนค่าเช่า
+// เจ้าของหอเลือกเดือนค่าเช่าเป็นอะไรก็ได้ แต่หน่วยน้ำที่จดมาเป็นของเดือนไหนก็เดือนนั้น
+export function utilityMonthOf(readingDate) {
+  const [year, month, day] = String(readingDate ?? '').split('-').map(Number)
+  if (!year || !month || !day) return null
+
+  // UTC เพื่อไม่ให้เขตเวลาของเครื่องดันวันข้ามไปมา
+  const dayBefore = new Date(Date.UTC(year, month - 1, day - 1))
+  return `${dayBefore.getUTCFullYear()}-${pad2(dayBefore.getUTCMonth() + 1)}`
+}
+
+// ------------------------------------------------------------------
 // ประกอบรายการในบิล
 // ------------------------------------------------------------------
 // คืน "รายการที่จะลงบิล" โดยยังไม่เขียนอะไร เพื่อให้หน้าพรีวิวก่อนออกบิลกับตอนออกบิลจริง
@@ -167,6 +190,13 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
           .get(meterBatchId, contract.room_id)
       : null
 
+    // เดือนที่หน่วยน้ำ/ไฟชุดนี้เป็นของ — ไม่ได้จดมิเตอร์มาก็ไม่มีเดือนให้เขียน
+    const batch = meterBatchId
+      ? db.prepare('SELECT reading_date FROM meter_batches WHERE batch_id = ?').get(meterBatchId)
+      : null
+    const utilityMonth = batch ? utilityMonthOf(batch.reading_date) : null
+    const monthTag = utilityMonth ? ` (เดือน ${formatBillingMonth(utilityMonth)})` : ''
+
     // ชื่อรายการเป็นภาษาไทยล้วน — เคยเขียนคู่กับอังกฤษ ('ค่าน้ำ/water') ตามต้นแบบ
     // แต่ผู้เช่าอ่านไทยกันหมด และคอลัมน์รายการบนบิลแคบ คำอังกฤษเบียดจนอ่านยาก
     for (const [side, itemType, label] of [
@@ -183,10 +213,13 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
 
       // ต้นแบบเขียนบรรทัดเป็น "ค่าน้ำ/water : 98 หน่วย (2 - 100)" — เลขมิเตอร์ก่อน/หลัง
       // ซ่อนได้ด้วยสวิตช์รายห้อง เพราะหอที่คิดแบบเหมาจ่ายไม่มีเลขมิเตอร์ให้แสดง
+      //
+      // เดือนต่อท้ายชื่อรายการเหมือนบรรทัดค่าเช่า ('ค่าเช่าห้อง (เดือน 02-2569)') เพื่อให้
+      // สองเดือนบนบิลใบเดียวกันอ่านออกว่าอันไหนเป็นของเดือนไหน
       const showReading = config.showReadingInInvoice && contract.show_unit_qty_in_invoice === 1
       const description = showReading
-        ? `${label} : ${units} หน่วย (${previous} - ${current})`
-        : label
+        ? `${label}${monthTag} : ${units} หน่วย (${previous} - ${current})`
+        : `${label}${monthTag}`
 
       items.push({
         itemType,
