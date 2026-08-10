@@ -24,6 +24,23 @@ export function receivePayment({
   })
 }
 
+// รับเงินหลายห้องในครั้งเดียว
+// rows = [{ invoiceId, roomNumber, amount, lateFee }] · ช่องทาง/วันที่/หมายเหตุ ใช้ร่วมกันทั้งชุด
+// คืนอาร์เรย์ของใบเสร็จที่ออก — ใบละห้อง ไม่ได้ยุบเป็นใบเดียว
+export function receiveManyPayments({ rows, paymentMethod, paymentDate, remark }) {
+  return invoke('payment:receiveMany', { rows, paymentMethod, paymentDate, remark })
+}
+
+// บิลของเดือนที่เลือก พร้อมค่าปรับที่คิดได้ ณ วันที่รับเงิน (ค่าปรับขยับตามวันที่ จึงต้อง
+// ดึงใหม่ทุกครั้งที่ผู้ใช้เปลี่ยนวัน — สูตรอยู่ฝั่ง main ที่เดียว)
+export function getMultiPaymentSheet({ apartmentId, billingMonth, paymentDate }) {
+  return invoke('payment:multiSheet', { apartmentId, billingMonth, paymentDate })
+}
+
+export function listBillingMonths(apartmentId) {
+  return invoke('payment:billingMonths', { apartmentId })
+}
+
 // **ไม่มีการคืนเงินค่าบิล** — หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลให้ผู้เช่า
 // (ผู้ใช้ตัดสินใจ 2026-08-08) ส่วนการคืนเงินประกันตอนย้ายออกใช้ receiveContractPayment
 // พร้อม isRefund ซึ่งผูกกับสัญญา ไม่ใช่กับบิล

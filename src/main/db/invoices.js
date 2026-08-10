@@ -699,6 +699,25 @@ export function listInvoices(
     }))
 }
 
+// รอบเดือนที่หอนี้เคยออกบิลไว้ ใหม่สุดก่อน — ใช้ทำตัวเลือกเดือนบนหน้ารับเงินหลายห้อง
+//
+// ดึงจากบิลที่มีจริง ไม่ใช่ไล่เดือนย้อนหลังไปเรื่อยๆ จากวันนี้ เพราะหอที่เพิ่งเริ่มใช้ระบบ
+// จะได้เดือนเปล่าเต็มไปหมด ส่วนหอที่ค้างบิลข้ามปีจะหาเดือนเก่าไม่เจอ
+export function listBillingMonths(db, apartmentId) {
+  return db
+    .prepare(
+      `SELECT DISTINCT i.billing_month AS month
+         FROM invoices i
+         JOIN contracts c ON c.contract_id = i.contract_id
+         JOIN rooms r     ON r.room_id = c.room_id
+         JOIN floors f    ON f.floor_id = r.floor_id
+        WHERE f.apartment_id = ? AND i.billing_month IS NOT NULL
+        ORDER BY i.billing_month DESC`
+    )
+    .all(apartmentId)
+    .map((row) => row.month)
+}
+
 // ------------------------------------------------------------------
 // แก้ไขบิลที่ออกไปแล้ว
 // ------------------------------------------------------------------

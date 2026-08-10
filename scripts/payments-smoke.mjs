@@ -543,5 +543,167 @@ check('เรียงใบใหม่สุดขึ้นก่อน', () =
 })
 
 // -----------------------------------------------------
+// รับเงินหลายห้องพร้อมกัน (ผู้เช่าหลายคนมาจ่ายที่โต๊ะเดียว) — ตามหน้า "รับเงินหลายห้อง"
+// ของต้นแบบ
+group('รับเงินหลายห้อง')
+
+const mayBatch = meter.createBatch(db, apartmentId, '2027-05-01')
+const may1 = invoices.createMonthlyInvoice(db, {
+  contractId: contract1.contractId,
+  billingMonth: '2027-05',
+  meterBatchId: mayBatch.batchId,
+  issueDate: '2027-05-01'
+})
+const may2 = invoices.createMonthlyInvoice(db, {
+  contractId: contract2.contractId,
+  billingMonth: '2027-05',
+  meterBatchId: mayBatch.batchId,
+  issueDate: '2027-05-01'
+})
+
+function countPayments() {
+  return db.prepare('SELECT COUNT(*) AS n FROM payments').get().n
+}
+
+check('ตารางของหน้ารับเงินหลายห้องคืนบิลของเดือนที่เลือก', () => {
+  const sheet = payments.getMultiPaymentSheet(db, apartmentId, {
+    billingMonth: '2027-05',
+    paymentDate: '2027-05-03'
+  })
+  assert(sheet.length === 2, `ได้ ${sheet.length} ใบ`)
+  assert(
+    sheet.every((row) => row.outstandingCents === 500000),
+    'ทั้งสองห้องต้องค้างอยู่ห้องละ 5,000'
+  )
+  // ค่าปรับติดมากับแถวเลย หน้าจอจะได้ไม่ต้องยิงถามทีละห้อง
+  assert(
+    sheet.every((row) => row.lateFee !== null),
+    'บิลที่ยังค้างต้องมีข้อมูลค่าปรับติดมาด้วย'
+  )
+})
+
+check('ไม่เลือกห้องเลย ต้องเตือน', () => {
+  throws(
+    () => payments.recordInvoicePayments(db, { ...BASE, rows: [] }),
+    'ยังไม่ได้เลือกห้อง',
+    'ต้องกันการกดบันทึกทั้งที่ยังไม่เลือกอะไร'
+  )
+})
+
+// ใบเดียวกันสองแถวจะรับเงินซ้ำ และแถวที่สองอาจผ่านการตรวจยอดค้างไปได้ถ้ารวมกันแล้วยังไม่เกิน
+check('ใบแจ้งหนี้ซ้ำในชุดเดียวกัน ต้องเตือน', () => {
+  throws(
+    () =>
+      payments.recordInvoicePayments(db, {
+        ...BASE,
+        rows: [
+          { invoiceId: may1.invoiceId, amount: '1000' },
+          { invoiceId: may1.invoiceId, amount: '1000' }
+        ]
+      }),
+    'ซ้ำกัน',
+    'ต้องกันใบซ้ำ'
+  )
+})
+
+check('ช่องทางการชำระเงินตรวจครั้งเดียวสำหรับทั้งชุด', () => {
+  throws(
+    () =>
+      payments.recordInvoicePayments(db, {
+        ...BASE,
+        paymentMethod: 'bitcoin',
+        rows: [{ invoiceId: may1.invoiceId, amount: '100' }]
+      }),
+    'ช่องทางการชำระเงิน',
+    'ต้องกันช่องทางที่ไม่รู้จัก'
+  )
+})
+
+// **หัวใจของฟังก์ชันนี้** — ถ้าห้องที่สองกรอกผิด ต้องไม่มีใบเสร็จของห้องแรกค้างอยู่
+// เจ้าของหอที่เห็น error แล้วแก้ยอดกดใหม่ จะรับเงินห้องแรกซ้ำโดยไม่รู้ตัว
+check('ห้องเดียวกรอกผิด ทั้งชุดต้องไม่ถูกบันทึกเลย', () => {
+  const before = countPayments()
+  throws(
+    () =>
+      payments.recordInvoicePayments(db, {
+        ...BASE,
+        paymentDate: '2027-05-03',
+        rows: [
+          { invoiceId: may1.invoiceId, roomNumber: '101', amount: '5000' },
+          // ห้อง 102 ค้างอยู่ 5,000 — กรอก 9,000 คือเกินยอดค้าง
+          { invoiceId: may2.invoiceId, roomNumber: '102', amount: '9000' }
+        ]
+      }),
+    'ห้อง 102',
+    'ต้องบอกว่าห้องไหนผิด'
+  )
+  assert(countPayments() === before, 'ห้อง 101 ไม่ควรถูกบันทึก เพราะทั้งชุดต้องล้มพร้อมกัน')
+  assert(
+    invoices.getInvoiceById(db, may1.invoiceId).status === 'unpaid',
+    'สถานะบิลห้อง 101 ต้องไม่ขยับ'
+  )
+})
+
+check('รับเงินสองห้องพร้อมกัน ได้ใบเสร็จแยกใบ คนละเลข', () => {
+  const receipts = payments.recordInvoicePayments(db, {
+    ...BASE,
+    paymentDate: '2027-05-03',
+    remark: 'จ่ายพร้อมกันที่ออฟฟิศ',
+    rows: [
+      { invoiceId: may1.invoiceId, roomNumber: '101', amount: '5000' },
+      { invoiceId: may2.invoiceId, roomNumber: '102', amount: '2000' }
+    ]
+  })
+
+  assert(receipts.length === 2, `ได้ ${receipts.length} ใบ`)
+  assert(
+    receipts[0].receiptNumber !== receipts[1].receiptNumber,
+    'ใบเสร็จสองใบต้องคนละเลข ไม่ใช่ยุบเป็นใบเดียว'
+  )
+  assert(receipts[0].amountCents === 500000, `ห้องแรกได้ ${receipts[0].amountCents}`)
+  assert(receipts[1].amountCents === 200000, `ห้องที่สองได้ ${receipts[1].amountCents}`)
+})
+
+check('ช่องทาง วันที่ และหมายเหตุ ใช้ร่วมกันทั้งชุด', () => {
+  const list = payments
+    .listReceipts(db, apartmentId, { dateFrom: '2027-05-03', dateTo: '2027-05-03' })
+    .receipts
+  assert(list.length === 2, `ได้ ${list.length} ใบ`)
+  for (const receipt of list) {
+    assert(receipt.paymentMethod === 'cash', `ได้ ${receipt.paymentMethod}`)
+    assert(receipt.remark === 'จ่ายพร้อมกันที่ออฟฟิศ', `ได้ "${receipt.remark}"`)
+  }
+})
+
+// จ่ายเต็มกับจ่ายบางส่วนในชุดเดียวกันต้องได้สถานะคนละอย่าง ไม่ใช่เหมารวม
+check('สถานะบิลถูกคิดใหม่รายใบตามยอดที่รับจริง', () => {
+  assert(invoices.getInvoiceById(db, may1.invoiceId).status === 'paid', 'ห้อง 101 จ่ายครบ')
+  const second = invoices.getInvoiceById(db, may2.invoiceId)
+  assert(second.status === 'partial_paid', `ห้อง 102 ได้ ${second.status}`)
+  assert(second.outstandingCents === 300000, `ห้อง 102 ค้างเหลือ ${second.outstandingCents}`)
+})
+
+check('บิลที่จ่ายครบแล้วยังอยู่ในตาราง แต่ไม่มีค่าปรับให้คิด', () => {
+  const sheet = payments.getMultiPaymentSheet(db, apartmentId, {
+    billingMonth: '2027-05',
+    paymentDate: '2027-05-10'
+  })
+  const settled = sheet.find((row) => row.invoiceId === may1.invoiceId)
+  assert(settled !== undefined, 'ห้องที่จ่ายแล้วต้องยังเห็นอยู่ ไม่ใช่หายไปเฉยๆ')
+  assert(settled.outstandingCents === 0, `ได้ ${settled.outstandingCents}`)
+  assert(settled.lateFee === null, 'บิลที่ปิดแล้วไม่ต้องคิดค่าปรับ')
+})
+
+check('รับเงินส่วนที่เหลือของห้องเดิมต่อได้', () => {
+  const receipts = payments.recordInvoicePayments(db, {
+    ...BASE,
+    paymentDate: '2027-05-20',
+    rows: [{ invoiceId: may2.invoiceId, roomNumber: '102', amount: '3000' }]
+  })
+  assert(receipts.length === 1, `ได้ ${receipts.length} ใบ`)
+  assert(invoices.getInvoiceById(db, may2.invoiceId).status === 'paid', 'ต้องกลายเป็นจ่ายครบ')
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลรับชำระเงินทำงานครบทุกเส้นทาง')

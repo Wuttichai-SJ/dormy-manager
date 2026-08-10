@@ -9,11 +9,14 @@ import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import { requireSessionUserId } from './authHandlers.js'
 import {
+  getMultiPaymentSheet,
   listPaymentsForInvoice,
   listReceipts,
   recordContractPayment,
-  recordInvoicePayment
+  recordInvoicePayment,
+  recordInvoicePayments
 } from '../db/payments.js'
+import { listBillingMonths } from '../db/invoices.js'
 
 function handle(channel, fn) {
   ipcMain.handle(channel, async (_event, payload) => {
@@ -40,6 +43,30 @@ export function registerPaymentHandlers() {
     logInfo(`รับชำระ ${payment.receiptNumber} ห้อง ${payment.roomNumber} ${amount} บาท`)
     return payment
   })
+
+  // รับเงินหลายห้องพร้อมกัน — ได้ใบเสร็จแยกใบต่อห้อง แต่ทั้งชุดสำเร็จหรือล้มพร้อมกัน
+  handle('payment:receiveMany', ({ rows, paymentMethod, paymentDate, remark }) => {
+    const payments = recordInvoicePayments(getDatabase(), {
+      rows,
+      paymentMethod,
+      paymentDate,
+      remark,
+      createdBy: requireSessionUserId()
+    })
+    logInfo(
+      `รับชำระหลายห้อง ${payments.length} ใบ: ` +
+        payments.map((p) => `${p.receiptNumber}/ห้อง ${p.roomNumber}`).join(', ')
+    )
+    return payments
+  })
+
+  handle('payment:multiSheet', ({ apartmentId, billingMonth, paymentDate }) =>
+    getMultiPaymentSheet(getDatabase(), apartmentId, { billingMonth, paymentDate })
+  )
+
+  handle('payment:billingMonths', ({ apartmentId }) =>
+    listBillingMonths(getDatabase(), apartmentId)
+  )
 
   // ไม่มีช่องคืนเงินค่าบิล — ดู db/payments.js ว่าทำไม
   // การคืนเงินประกันตอนย้ายออกใช้ payment:receiveForContract พร้อม isRefund

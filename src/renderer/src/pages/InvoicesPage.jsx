@@ -7,6 +7,7 @@ import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS } from '../constants.js'
 import { formatBaht } from '../format.js'
 import InvoiceDetailPage from './InvoiceDetailPage.jsx'
+import MultiPaymentPage from './MultiPaymentPage.jsx'
 import { listMeterBatches } from '../services/meterService.js'
 import {
   createMonthlyInvoice,
@@ -34,6 +35,7 @@ const SETTLEMENT_TABS = [
 // (เลือกใบจดมิเตอร์+เดือน → ตารางพรีวิวทุกห้องแล้วกดสร้าง) ไม่ใช่กรอกทีละห้องเอง
 export default function InvoicesPage({ apartment, user }) {
   const [wizard, setWizard] = useState(false)
+  const [multiPay, setMultiPay] = useState(false)
   // บิลที่กำลังเปิดดูอยู่ — null = อยู่ที่ตารางรายการ
   const [openInvoiceId, setOpenInvoiceId] = useState(null)
   const [invoices, setInvoices] = useState([])
@@ -94,6 +96,18 @@ export default function InvoicesPage({ apartment, user }) {
     )
   }
 
+  if (multiPay) {
+    return (
+      <MultiPaymentPage
+        apartment={apartment}
+        onBack={() => {
+          setMultiPay(false)
+          load()
+        }}
+      />
+    )
+  }
+
   return (
     <>
       <div className="info-banner">
@@ -108,10 +122,18 @@ export default function InvoicesPage({ apartment, user }) {
 
         <div className="panel-head-row">
           <h2 className="panel-title">รายการใบแจ้งหนี้</h2>
-          <button type="button" className="btn" onClick={() => setWizard(true)}>
-            <Icon name="plus" />
-            <span>ออกบิลรายเดือน</span>
-          </button>
+          {/* สองปุ่มนี้คือสองงานที่ทำบ่อยที่สุดของหน้านี้: ออกบิลต้นเดือน แล้วตามเก็บเงิน
+              รับเงินหลายห้องเป็นปุ่มรอง เพราะออกบิลต้องเกิดก่อนเสมอ */}
+          <div className="panel-head-actions">
+            <button type="button" className="btn btn-outline" onClick={() => setMultiPay(true)}>
+              <Icon name="payments" />
+              <span>รับเงินหลายห้อง</span>
+            </button>
+            <button type="button" className="btn" onClick={() => setWizard(true)}>
+              <Icon name="plus" />
+              <span>ออกบิลรายเดือน</span>
+            </button>
+          </div>
         </div>
 
         {/* แท็บกรองตามการชำระ อยู่เหนือแถบค้นหา เพราะเป็นการเลือก "ชุดข้อมูล" ที่จะดู

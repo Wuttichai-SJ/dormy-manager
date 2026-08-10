@@ -15,6 +15,7 @@ import { toCents } from '../money.js'
 import {
   addLateFeeItem,
   getLateFeeForInvoice,
+  listInvoices,
   nextDocumentNumber,
   refreshInvoiceStatus
 } from './invoices.js'
@@ -97,6 +98,78 @@ export function recordInvoicePayment(
     remark,
     createdBy
   })
+}
+
+// ------------------------------------------------------------------
+// รับเงินหลายห้องในครั้งเดียว
+// ------------------------------------------------------------------
+// ตรงกับหน้า "รับเงินหลายห้อง" ของต้นแบบ (บิลรายเดือน → multiple-monthly-billings)
+// ผู้เช่าหลายคนเดินมาจ่ายพร้อมกันที่โต๊ะเดียว เจ้าของหอจึงกรอกทีเดียวจบ ไม่ต้องเปิดบิล
+// ทีละใบแล้วกรอกช่องทาง/วันที่ซ้ำทุกครั้ง
+//
+// **ยังเป็นใบเสร็จแยกใบต่อหนึ่งใบแจ้งหนี้** ไม่ได้ยุบเป็นใบเดียว — ผู้เช่าแต่ละคนต้องได้
+// ใบเสร็จของตัวเองไปถือ และหนี้ของแต่ละห้องเป็นคนละก้อนกัน ที่รวมกันคือ "จังหวะที่รับเงิน"
+// เท่านั้น (ช่องทาง/วันที่/หมายเหตุ จึงใช้ร่วมกันทั้งชุด)
+//
+// **ทั้งชุดสำเร็จหรือไม่สำเร็จพร้อมกัน** ถ้าห้องที่ห้ากรอกยอดเกิน ต้องไม่มีใบเสร็จของ
+// สี่ห้องแรกค้างอยู่ — เจ้าของหอที่เห็น error แล้วกดใหม่จะรับเงินซ้ำโดยไม่รู้ตัว
+export function recordInvoicePayments(
+  db,
+  { rows, paymentMethod, paymentDate, remark, createdBy }
+) {
+  const errors = validateCommon({ paymentMethod, paymentDate })
+  if (errors.length > 0) throw new Error(errors.join('\n'))
+
+  const list = (Array.isArray(rows) ? rows : []).filter((row) => row?.invoiceId)
+  if (list.length === 0) throw new Error('ยังไม่ได้เลือกห้องที่จะรับเงิน')
+
+  // ใบเดียวกันสองแถวจะรับเงินซ้ำ — แถวที่สองอาจผ่านการตรวจยอดค้างไปได้ถ้ายอดรวมยังไม่เกิน
+  const seen = new Set()
+  for (const row of list) {
+    if (seen.has(row.invoiceId)) throw new Error('มีใบแจ้งหนี้ซ้ำกันในรายการที่เลือก')
+    seen.add(row.invoiceId)
+  }
+
+  // เรียก recordInvoicePayment ทีละใบ ไม่ได้เขียน SQL ชุดใหม่ — กฎทั้งหมด (ห้ามเกินยอดค้าง
+  // ห้ามรับบิลที่ยกเลิก เพดานค่าปรับ ออกเลขใบเสร็จ คิดสถานะบิลใหม่) จะได้อยู่ที่เดียว
+  // better-sqlite3 ทำธุรกรรมซ้อนเป็น SAVEPOINT ให้อยู่แล้ว
+  const run = db.transaction(() =>
+    list.map((row) => {
+      try {
+        return recordInvoicePayment(db, {
+          invoiceId: row.invoiceId,
+          amount: row.amount,
+          lateFee: row.lateFee,
+          paymentMethod,
+          paymentDate,
+          remark,
+          createdBy
+        })
+      } catch (err) {
+        // บอกว่าห้องไหนพัง ไม่งั้นเจ้าของหอเห็นแค่ "รับเงินได้ไม่เกินยอดค้าง" แล้วไม่รู้ว่าแถวไหน
+        const label = row.roomNumber ? `ห้อง ${row.roomNumber}` : `ใบแจ้งหนี้ #${row.invoiceId}`
+        throw new Error(`${label}: ${err.message}`)
+      }
+    })
+  )
+
+  return run()
+}
+
+// ตารางสำหรับหน้า "รับเงินหลายห้อง" — บิลของเดือนที่เลือก พร้อมค่าปรับที่คิดได้ ณ วันที่รับเงิน
+//
+// ส่งบิลที่จ่ายครบแล้วมาด้วย (ต้นแบบก็แสดง) เพราะเจ้าของหอต้องเห็นว่าห้องไหนจ่ายไปแล้ว
+// ไม่ใช่ห้องหายไปเฉยๆ จนต้องไปไล่หาว่าตกหล่นหรือจ่ายแล้ว — หน้าจอเป็นคนปิดไม่ให้ติ๊ก
+export function getMultiPaymentSheet(db, apartmentId, { billingMonth, paymentDate } = {}) {
+  return listInvoices(db, apartmentId, { billingMonth }).map((invoice) => ({
+    ...invoice,
+    // บิลที่ยกเลิกหรือจ่ายครบแล้วไม่ต้องคิดค่าปรับ — คิดไปก็ไม่มีที่ใช้ และ
+    // getLateFeeForInvoice จะไปแตะบิลที่ปิดไปแล้วโดยไม่จำเป็น
+    lateFee:
+      invoice.status === 'cancelled' || invoice.outstandingCents <= 0
+        ? null
+        : getLateFeeForInvoice(db, invoice.invoiceId, paymentDate)
+  }))
 }
 
 // **ไม่มีการคืนเงินค่าบิล โดยตั้งใจ** (ผู้ใช้ตัดสินใจ 2026-08-08)

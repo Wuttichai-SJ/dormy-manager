@@ -3072,6 +3072,150 @@ body {
   margin-bottom: 0;
 }
 
+/* หัวการ์ดที่มีปุ่มมากกว่าหนึ่งปุ่ม */
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------------
+   รับเงินหลายห้อง
+   ------------------------------------------------------------------ */
+/* ช่องทาง/วันที่/หมายเหตุ อยู่แถวเดียวกันด้านบน ใช้ร่วมกันทั้งหน้า — วางแยกจากการ์ดรายห้อง
+   ให้ชัด เพื่อไม่ให้เข้าใจว่าเป็นของห้องใดห้องหนึ่ง */
+.multi-pay-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: var(--input-bg);
+  border-radius: 10px;
+}
+
+.multi-pay-head .field {
+  width: 180px;
+  margin: 0;
+}
+
+.multi-pay-head .multi-pay-remark {
+  flex: 1;
+  min-width: 220px;
+}
+
+.multi-pay-selectall {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.multi-pay-selectall input {
+  width: auto;
+  margin: 0;
+}
+
+.multi-pay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+/* ซ้ายคือบิล ขวาคือช่องรับเงิน ตามต้นแบบ — ฝั่งขวากว้างคงที่เพื่อให้ช่องกรอกของทุกห้อง
+   อยู่ตรงกันเป็นแนวตั้ง กวาดตาไล่ยอดได้โดยไม่ต้องหาช่องใหม่ทุกแถว */
+.multi-pay-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ห้องที่จ่ายแล้ว/ยกเลิกแล้วยังต้องเห็น (ไม่ใช่หายไป) แต่ต้องไม่แย่งสายตากับห้องที่ต้องทำ */
+.multi-pay-card.is-locked {
+  background: var(--bg);
+  border-style: dashed;
+}
+
+.multi-pay-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.multi-pay-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.multi-pay-room input {
+  width: auto;
+  margin: 0;
+}
+
+.multi-pay-entry {
+  width: 260px;
+  flex-shrink: 0;
+}
+
+.multi-pay-entry .field {
+  margin: 0;
+}
+
+.multi-pay-done {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  width: 260px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.multi-pay-latefee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.multi-pay-latefee input {
+  width: auto;
+  margin: 0;
+}
+
+.multi-pay-foot {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.multi-pay-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.multi-pay-total strong {
+  font-size: 18px;
+  color: var(--accent);
+}
+
 /* ป้ายสถานะการจอง — สีบอกว่ายังกันห้องอยู่ไหม */
 .booking-status {
   display: inline-block;
