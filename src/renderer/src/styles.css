@@ -3124,6 +3124,30 @@ body {
   white-space: nowrap;
 }
 
+/* จอที่ขึ้นแทนหน้าที่พัง — ต้องอ่านออกและกดต่อได้ ไม่ใช่จอขาวเปล่าๆ */
+.error-screen {
+  max-width: 720px;
+  margin: 48px auto;
+}
+
+.error-screen h2 {
+  margin-bottom: 8px;
+  color: var(--err);
+}
+
+/* ข้อความ error ดิบ — ตัวหนังสือเล็กและอยู่ในกรอบ เพราะเป็นของสำหรับถ่ายรูปส่งต่อ
+   ไม่ใช่ของที่ต้องอ่านรู้เรื่องด้วยตัวเอง */
+.error-screen-detail {
+  margin: 16px 0;
+  padding: 12px 14px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--err);
+  background: var(--err-weak);
+  border-radius: 8px;
+}
+
 /* หัวการ์ดที่มีปุ่มมากกว่าหนึ่งปุ่ม */
 .panel-head-actions {
   display: flex;

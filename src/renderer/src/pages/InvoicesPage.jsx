@@ -405,7 +405,7 @@ function BillingWizard({ apartment, onClose }) {
   // **วันที่ออกบิลตั้งต้นเป็นวันนี้ ไม่ใช่วันจดมิเตอร์** — หอจดมิเตอร์ปลายเดือนแล้วออกบิล
   // วันที่ 1 ของเดือนถัดไป สองวันนี้คนละวันเสมอ (ยืนยันกับใบเสร็จจริง 2026-08-10)
   useEffect(() => {
-    const now = today()
+    const now = todayIso()
     setIssueDate(now)
     setBillingMonth(billingMonthOf(now))
   }, [apartment.apartmentId])
@@ -710,6 +710,12 @@ function BillingWizard({ apartment, onClose }) {
 // วันจดมิเตอร์จึงเป็นหลักยึดที่เชื่อไม่ได้ ส่วนวันออกบิลเชื่อได้
 function billingMonthOf(issueDate) {
   return String(issueDate ?? '').slice(0, 7)
+}
+
+function todayIso() {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
 // เดือนที่ค่าน้ำ-ค่าไฟเป็นของ = เดือนก่อนเดือนค่าเช่า
