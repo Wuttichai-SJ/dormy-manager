@@ -23,10 +23,13 @@ const EMPTY = {
   lateFeePerDay: '0.00',
   lateFeeGraceDays: '0',
   isAutoLateFeeEnabled: false,
-  isVatEnabled: false
+  isVatEnabled: false,
+  // 5 หลักคือมิเตอร์ที่หอใช้จริง (เจ้าของหอยืนยัน 2026-08-10) หอใหม่จึงไม่ต้องมาตั้งเอง
+  meterDigits: '5'
 }
 
 const DUE_DATE_DAYS = Array.from({ length: MAX_DUE_DATE_DAY }, (_, i) => i + 1)
+const METER_DIGIT_CHOICES = [4, 5, 6, 7, 8]
 
 export default function ApartmentFormPage({ apartmentId, onDone }) {
   const isEdit = Boolean(apartmentId)
@@ -55,7 +58,8 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
         lateFeePerDay: centsToInput(a.lateFeePerDayCents),
         lateFeeGraceDays: String(a.lateFeeGraceDays ?? 0),
         isAutoLateFeeEnabled: a.isAutoLateFeeEnabled,
-        isVatEnabled: a.isVatEnabled
+        isVatEnabled: a.isVatEnabled,
+        meterDigits: String(a.meterDigits ?? 5)
       })
     })
 
@@ -154,6 +158,35 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
               onChange={(e) => set('phone', e.target.value)}
               inputMode="tel"
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="form-section">
+        <div className="form-section-head">
+          <h2>มิเตอร์น้ำ-ไฟ</h2>
+          <p>จำนวนหลักบนหน้าปัดมิเตอร์ ใช้กันการกรอกเลขเกินและคิดหน่วยตอนมิเตอร์หมุนครบรอบ</p>
+        </div>
+        <div className="form-section-body">
+          <div className="field">
+            <label htmlFor="meterDigits">จำนวนหลักของมิเตอร์</label>
+            <select
+              id="meterDigits"
+              value={form.meterDigits}
+              onChange={(e) => set('meterDigits', e.target.value)}
+            >
+              {METER_DIGIT_CHOICES.map((digits) => (
+                <option key={digits} value={digits}>
+                  {digits} หลัก (สูงสุด {(10 ** digits - 1).toLocaleString()})
+                </option>
+              ))}
+            </select>
+            {/* บอกให้ชัดว่าตัวเลขนี้มีผลกับอะไร ไม่งั้นดูเหมือนช่องตกแต่งที่ไม่ต้องสนใจ
+                แล้วหอที่ใช้มิเตอร์คนละแบบจะปล่อยไว้ผิดโดยไม่รู้ตัว */}
+            <p className="field-hint">
+              นับเฉพาะหลักที่อยู่บนหน้าปัด — มิเตอร์ 5 หลักอ่านได้ถึง 99,999 แล้วหมุนกลับไป 0
+              · เลขที่จดเกินกว่านี้ระบบจะไม่รับ เพราะเป็นการพิมพ์เกินหลัก
+            </p>
           </div>
         </div>
       </section>

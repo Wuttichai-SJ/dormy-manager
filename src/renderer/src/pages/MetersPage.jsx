@@ -279,6 +279,11 @@ function MeterSheet({ batchId, side, onBack }) {
           <strong>กด Enter เพื่อลงไปกรอกห้องถัดไป</strong>
         </p>
         <p>
+          มิเตอร์ของหอนี้ตั้งไว้ <strong>{sheet?.meterDigits ?? '...'} หลัก</strong>{' '}
+          จึงอ่านได้สูงสุด {sheet ? (10 ** sheet.meterDigits - 1).toLocaleString() : '...'} —
+          เลขที่เกินกว่านี้ระบบจะไม่รับ (แก้จำนวนหลักได้ที่หน้าตั้งค่าหอพัก)
+        </p>
+        <p>
           ถ้าเลขปัจจุบันน้อยกว่าครั้งก่อน ให้เลือกว่าเกิดอะไรขึ้น —{' '}
           <strong>เกินรอบมิเตอร์</strong> คือมิเตอร์ลูกเดิมวิ่งจนสุดหน้าปัดแล้ววนกลับมาศูนย์ ส่วน{' '}
           <strong>เปลี่ยนมิเตอร์ใหม่</strong> คือถอดลูกเก่าออกแล้วติดลูกใหม่
@@ -309,13 +314,17 @@ function MeterSheet({ batchId, side, onBack }) {
                   // ห้องที่ยังไม่ได้ไปจดจะขึ้นเครื่องหมายเตือนสีแดงทั้งตารางตั้งแต่เปิดหน้ามา
                   const pending = row.currentInput.trim() === ''
                   const replaced = row.meterEvent === 'replaced'
+                  // แยกกรณี "พิมพ์เกินหลัก" ออกมาเพื่อให้คำเตือนบอกตรงเหตุ — เป็นความผิดพลาด
+                  // ที่เกิดบ่อยสุดตอนไล่พิมพ์เร็วๆ ทั้งหอ (กด 0 เกินไปหนึ่งตัว)
+                  const overDial = !pending && Number(row.currentInput) >= 10 ** sheet.meterDigits
                   const units = pending
                     ? null
                     : previewUnitsUsed(row.previousReading, row.currentInput, {
                         isOverCycle: row.meterEvent === 'over_cycle',
                         isMeterReplaced: replaced,
                         removedReading: row.removedInput,
-                        newStartReading: row.newStartInput
+                        newStartReading: row.newStartInput,
+                        meterDigits: sheet?.meterDigits
                       })
                   return (
                     <tr key={row.roomId}>
@@ -399,9 +408,11 @@ function MeterSheet({ batchId, side, onBack }) {
                           <span
                             className="meter-units-bad"
                             title={
-                              replaced
-                                ? 'ยังกรอกเลขตอนถอดลูกเก่า/เลขเริ่มลูกใหม่ไม่ครบ หรือเลขไม่สมเหตุสมผล'
-                                : 'เลขปัจจุบันน้อยกว่าครั้งก่อน — ถ้ามิเตอร์หมุนครบรอบ เลือก “เกินรอบมิเตอร์” ถ้าเปลี่ยนมิเตอร์ลูกใหม่ เลือก “เปลี่ยนมิเตอร์ใหม่”'
+                              overDial
+                                ? `เลขที่กรอกเกินหน้าปัดมิเตอร์ ${sheet.meterDigits} หลัก ซึ่งอ่านได้สูงสุด ${10 ** sheet.meterDigits - 1}`
+                                : replaced
+                                  ? 'ยังกรอกเลขตอนถอดลูกเก่า/เลขเริ่มลูกใหม่ไม่ครบ หรือเลขไม่สมเหตุสมผล'
+                                  : 'เลขปัจจุบันน้อยกว่าครั้งก่อน — ถ้ามิเตอร์หมุนครบรอบ เลือก “เกินรอบมิเตอร์” ถ้าเปลี่ยนมิเตอร์ลูกใหม่ เลือก “เปลี่ยนมิเตอร์ใหม่”'
                             }
                           >
                             <Icon name="warning" />

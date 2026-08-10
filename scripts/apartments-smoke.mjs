@@ -81,6 +81,30 @@ check('วันที่ 1-28 และค่าปรับ 0 ผ่านไ�
   assert(errors.length === 0, errors.join(' | '))
 })
 
+// จำนวนหลักไปเป็นเลขยกกำลังของจุดหมุนกลับ ค่าเพี้ยนคือบิลเพี้ยนทั้งหอ
+check('จำนวนหลักของมิเตอร์นอกช่วงที่รับได้ ถูกปฏิเสธ', () => {
+  for (const digits of [0, 2, 9, 12, 5.5]) {
+    const errors = apartments.validateApartmentInput({
+      nameTh: 'หอทดสอบ',
+      addressTh: '123',
+      dueDateDay: 5,
+      lateFeePerDay: '0',
+      meterDigits: digits
+    })
+    assert(errors.length === 1, `${digits} หลักควรถูกปฏิเสธ — ได้ ${errors.length} ข้อ`)
+  }
+})
+
+check('ไม่ส่งจำนวนหลักมา = ไม่ได้มาแก้ช่องนี้ ไม่ใช่ข้อผิดพลาด', () => {
+  const errors = apartments.validateApartmentInput({
+    nameTh: 'หอทดสอบ',
+    addressTh: '123',
+    dueDateDay: 5,
+    lateFeePerDay: '0'
+  })
+  assert(errors.length === 0, errors.join(' | '))
+})
+
 // -----------------------------------------------------
 group('สร้าง / อ่าน / แก้ไข')
 
@@ -103,6 +127,32 @@ check('เก็บค่าปรับเป็นสตางค์ ไม่
 check('แปลง 0/1 เป็น boolean ให้หน้าจอ', () => {
   assert(first.isAutoLateFeeEnabled === true, 'is_auto_late_fee_enabled ควรเป็น true')
   assert(first.isVatEnabled === false, 'is_vat_enabled ควรเป็น false')
+})
+
+// หอที่หอเจ้าของใช้จริงเป็นมิเตอร์ 5 หลัก หอใหม่จึงไม่ต้องมาตั้งเอง
+check('ไม่ระบุจำนวนหลักของมิเตอร์ ได้ 5 หลักเป็นค่าเริ่มต้น', () => {
+  assert(first.meterDigits === 5, `ได้ ${first.meterDigits}`)
+})
+
+check('ตั้งจำนวนหลักเองแล้วบันทึกและอ่านกลับได้', () => {
+  const updated = apartments.updateApartment(db, first.apartmentId, {
+    nameTh: first.nameTh,
+    addressTh: first.addressTh,
+    dueDateDay: 5,
+    lateFeePerDay: '50',
+    isAutoLateFeeEnabled: true,
+    meterDigits: 6
+  })
+  assert(updated.meterDigits === 6, `ได้ ${updated.meterDigits}`)
+
+  apartments.updateApartment(db, first.apartmentId, {
+    nameTh: first.nameTh,
+    addressTh: first.addressTh,
+    dueDateDay: 5,
+    lateFeePerDay: '50',
+    isAutoLateFeeEnabled: true,
+    meterDigits: 5
+  })
 })
 
 check('ช่องไม่บังคับที่เว้นว่างเก็บเป็น NULL ไม่ใช่สตริงว่าง', () => {

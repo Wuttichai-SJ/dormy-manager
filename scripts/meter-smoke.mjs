@@ -49,9 +49,58 @@ check('เลขปัจจุบันน้อยกว่าครั้ง�
   )
 })
 
-check('ติ๊กเกินรอบแล้วคิดจากจุดหมุนกลับตามจำนวนหลักของเลขครั้งก่อน', () => {
+check('ติ๊กเกินรอบแล้วคิดจากจุดหมุนกลับตามจำนวนหลักของมิเตอร์', () => {
   // มิเตอร์ 5 หลัก 99,850 → หมุนกลับที่ 100,000 → ใช้ไป 150 + 120 = 270
+  assert(meter.calculateUnitsUsed(99850, 120, { isOverCycle: true, meterDigits: 5 }) === 270, 'ควรได้ 270')
+})
+
+// เดิมระบบเดาจำนวนหลักจากเลขครั้งก่อน — ครั้งก่อน 850 มี 3 หลัก จึงเดาว่าหมุนกลับที่ 1,000
+// แล้วได้ 270 ซึ่ง "ดูสมเหตุสมผล" ทั้งที่มิเตอร์ 5 หลักต้องเดินไป 99,270 หน่วยถึงจะกลับมา
+// ที่ 120 ได้ ตัวเลขที่ควรตะโกนว่า "ติ๊กผิดแล้ว" กลับถูกกลบจนเงียบ
+check('ใช้จำนวนหลักของมิเตอร์จริง ไม่ใช่จำนวนหลักของเลขครั้งก่อน', () => {
+  const units = meter.calculateUnitsUsed(850, 120, { isOverCycle: true, meterDigits: 5 })
+  assert(units === 99270, `ได้ ${units} ควรเป็น 99270 (ไม่ใช่ 270 ที่ได้จากการเดา 3 หลัก)`)
+})
+
+check('มิเตอร์คนละจำนวนหลัก ให้คำตอบคนละค่า', () => {
+  assert(
+    meter.calculateUnitsUsed(9850, 120, { isOverCycle: true, meterDigits: 4 }) === 270,
+    'มิเตอร์ 4 หลักควรได้ 270'
+  )
+  assert(
+    meter.calculateUnitsUsed(999850, 120, { isOverCycle: true, meterDigits: 6 }) === 270,
+    'มิเตอร์ 6 หลักควรได้ 270'
+  )
+})
+
+// -----------------------------------------------------
+// เพดานหน้าปัด — ความผิดพลาดที่เกิดบ่อยที่สุดตอนไล่พิมพ์เลขทั้งหอคือกด 0 เกินไปหนึ่งตัว
+group('เลขที่กรอกเกินหน้าปัด')
+
+check('เลขเกินหน้าปัดต้องไม่ผ่าน และบอกเพดานที่รับได้', () => {
+  throws(
+    () => meter.calculateUnitsUsed(10000, 105000, { meterDigits: 5 }),
+    'เกินหน้าปัดมิเตอร์ 5 หลัก',
+    'มิเตอร์ 5 หลักอ่านได้ไม่เกิน 99,999'
+  )
+})
+
+check('เลขสูงสุดที่หน้าปัดอ่านได้จริงต้องผ่าน', () => {
+  const units = meter.calculateUnitsUsed(99000, 99999, { meterDigits: 5 })
+  assert(units === 999, `ได้ ${units} ควรเป็น 999`)
+})
+
+check('ไม่ส่งจำนวนหลักมา ใช้ 5 หลักซึ่งเป็นของหอจริง', () => {
   assert(meter.calculateUnitsUsed(99850, 120, true) === 270, 'ควรได้ 270')
+  throws(() => meter.calculateUnitsUsed(0, 100000), 'เกินหน้าปัดมิเตอร์ 5 หลัก', 'ต้องใช้ 5 หลัก')
+})
+
+// 10 ** 0 = 1 จะทำให้ทุกเลขมิเตอร์ "เกินหน้าปัด" แล้วบันทึกอะไรไม่ได้เลยทั้งหอ
+check('จำนวนหลักที่เพี้ยนถูกปัดกลับเป็น 5 ไม่ใช่ปล่อยให้พังทั้งระบบ', () => {
+  for (const bad of [0, -3, 99, null, 'ห้า', NaN]) {
+    const units = meter.calculateUnitsUsed(99850, 120, { isOverCycle: true, meterDigits: bad })
+    assert(units === 270, `meterDigits=${bad} ได้ ${units} ควรเป็น 270`)
+  }
 })
 
 check('ติ๊กเกินรอบทั้งที่เลขยังเดินหน้าปกติ ต้องคิดแบบธรรมดา ไม่บวกรอบเกินให้', () => {
@@ -80,8 +129,8 @@ check('รวมหน่วยของลูกเก่ากับลูก�
 // นี่คือเหตุผลทั้งหมดที่ตัวเลือกนี้มีอยู่ ถ้าเจ้าของหอเปลี่ยนมิเตอร์แล้วเลือก "เกินรอบมิเตอร์"
 // เพราะไม่มีตัวเลือกอื่นให้เลือก ระบบจะคิดหน่วยเกินไปเกือบเต็มหน้าปัดโดยไม่เตือนอะไรเลย
 check('สูตรเกินรอบให้คำตอบคนละเรื่องกับสูตรเปลี่ยนมิเตอร์ ในตัวเลขชุดเดียวกัน', () => {
-  const asOverCycle = meter.calculateUnitsUsed(1000, 40, { isOverCycle: true })
-  assert(asOverCycle === 9040, `ได้ ${asOverCycle} ควรเป็น 9040`)
+  const asOverCycle = meter.calculateUnitsUsed(1000, 40, { isOverCycle: true, meterDigits: 5 })
+  assert(asOverCycle === 99040, `ได้ ${asOverCycle} ควรเป็น 99040`)
 })
 
 check('มิเตอร์ลูกใหม่ที่มีเลขค้างมาก่อน ไม่ถูกคิดเงินกับผู้เช่า', () => {
@@ -153,6 +202,20 @@ check('เลือกทั้งเกินรอบและเปลี่�
 check('พารามิเตอร์ที่สามเป็น boolean แบบเดิมยังใช้ได้', () => {
   assert(meter.calculateUnitsUsed(99850, 120, true) === 270, 'ควรได้ 270')
   assert(meter.calculateUnitsUsed(10, 30, false) === 20, 'ควรได้ 20')
+})
+
+check('เลขตอนเปลี่ยนมิเตอร์ก็ต้องไม่เกินหน้าปัดเหมือนกัน', () => {
+  throws(
+    () =>
+      meter.calculateUnitsUsed(1000, 40, {
+        isMeterReplaced: true,
+        removedReading: 125000,
+        newStartReading: 0,
+        meterDigits: 5
+      }),
+    'เลขตอนถอดมิเตอร์เก่า',
+    'เลขถอดลูกเก่าต้องอยู่ในหน้าปัดด้วย'
+  )
 })
 
 // -----------------------------------------------------
@@ -457,6 +520,48 @@ check('กรอกเลขการเปลี่ยนมิเตอร์�
       ]),
     'ห้อง 101',
     'ต้องบอกห้องที่ผิด'
+  )
+})
+
+// -----------------------------------------------------
+// จำนวนหลักต้องเดินทางจาก "ค่าตั้งค่าของหอ" มาถึงสูตรจริง ไม่ใช่ตั้งไว้แล้วไม่มีใครอ่าน
+group('จำนวนหลักของมิเตอร์ที่ตั้งไว้ที่หอ')
+
+check('ใบจดมิเตอร์บอกจำนวนหลักของหอมาให้หน้าจอด้วย', () => {
+  const batch = meter.createBatch(db, apartmentId, '2027-09-30')
+  const sheet = meter.getBatchSheet(db, batch.batchId, 'water')
+  assert(sheet.meterDigits === 5, `ได้ ${sheet.meterDigits} ควรเป็น 5 (ค่าเริ่มต้น)`)
+})
+
+check('แก้จำนวนหลักที่หอแล้ว การบันทึกเลขมิเตอร์เปลี่ยนตามทันที', () => {
+  // ตั้งเป็น 4 หลัก → 12,345 กลายเป็นเลขที่หน้าปัดอ่านไม่ได้
+  db.prepare('UPDATE apartments SET meter_digits = 4 WHERE apartment_id = ?').run(apartmentId)
+
+  const batch = meter.createBatch(db, apartmentId, '2027-10-31')
+  assert(meter.getBatchSheet(db, batch.batchId, 'water').meterDigits === 4, 'ใบจดต้องเห็น 4 หลัก')
+
+  throws(
+    () =>
+      meter.saveBatchReadings(db, batch.batchId, 'water', [
+        { roomId: room3.roomId, roomNumber: '103', currentReading: 12345 }
+      ]),
+    'เกินหน้าปัดมิเตอร์ 4 หลัก',
+    'ต้องใช้ค่าที่ตั้งไว้ที่หอ ไม่ใช่ค่าเริ่มต้น'
+  )
+
+  db.prepare('UPDATE apartments SET meter_digits = 5 WHERE apartment_id = ?').run(apartmentId)
+})
+
+// หน้าจอส่งอะไรมาก็ไม่มีผล — เหตุผลเดียวกับเลขครั้งก่อน (ล็อกที่หน้าจออย่างเดียวไม่พอ)
+check('ส่งจำนวนหลักมาเองจากหน้าจอก็ไม่ถูกใช้', () => {
+  const batch = meter.createBatch(db, apartmentId, '2027-11-30')
+  throws(
+    () =>
+      meter.saveBatchReadings(db, batch.batchId, 'water', [
+        { roomId: room3.roomId, roomNumber: '103', currentReading: 123456, meterDigits: 9 }
+      ]),
+    'เกินหน้าปัดมิเตอร์ 5 หลัก',
+    'ต้องยึดค่าของหอเสมอ'
   )
 })
 

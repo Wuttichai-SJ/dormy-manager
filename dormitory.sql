@@ -126,6 +126,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`apartments` (
   `late_fee_grace_days` INTEGER NOT NULL DEFAULT 0,
   `due_date_day` INT NOT NULL,
   `is_vat_enabled` TINYINT NULL,
+  -- เพิ่มใน 020: จำนวนหลักบนหน้าปัดมิเตอร์ (เจ้าของหอยืนยัน 2026-08-10 ว่าเป็น 5 หลัก)
+  -- ใช้ 2 อย่าง: จุดหมุนกลับตอนมิเตอร์วนรอบ (10 ** หลัก) และเพดานเลขที่กรอกได้
+  -- อยู่ที่นี่ ไม่ใช่ apartment_utility_defaults เพราะเป็นคุณสมบัติของตัวมิเตอร์
+  -- ไม่ใช่กติกาคิดเงิน และต้องไม่ถูกคัดลอกลงห้องแล้วแยกกันเดินทีหลัง
+  `meter_digits` INTEGER NOT NULL DEFAULT 5,
   -- เลิกใช้ตั้งแต่ migration 011 — รูปย้ายไปเก็บเป็น BLOB ในตาราง images แล้ว
   -- ไม่เคยมีโค้ดไหนเขียนค่าลงคอลัมน์นี้ ปล่อยว่างไว้ตลอด (ลบทิ้งต้องสร้างตารางใหม่ทั้งใบ)
   `qr_code_image` VARCHAR(255) NULL,

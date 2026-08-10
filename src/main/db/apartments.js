@@ -14,6 +14,14 @@ export const MAX_DUE_DATE_DAY = 28
 // เจ้าของหอแก้เป็นข้อความของตัวเองได้ที่หน้าตั้งค่าหอ
 export const DEFAULT_RENT_ITEM_TEXT = 'ค่าเช่าห้อง'
 
+// จำนวนหลักของหน้าปัดมิเตอร์ — เจ้าของหอยืนยัน 2026-08-10 ว่าเป็น 5 หลัก
+// ใช้ 2 อย่าง: หาจุดหมุนกลับตอนมิเตอร์วนรอบ และกันเลขที่กรอกเกินหน้าปัด
+//
+// ขอบเขตกว้างไว้เผื่อมิเตอร์แบบอื่น แต่ 3 หลักก็แทบไม่มีแล้ว และเกิน 8 หลักคือกรอกผิด
+export const MIN_METER_DIGITS = 3
+export const MAX_METER_DIGITS = 8
+export const DEFAULT_METER_DIGITS = 5
+
 // -----------------------------------------------------
 // ตรวจข้อมูลก่อนเขียน
 // -----------------------------------------------------
@@ -23,7 +31,8 @@ export function validateApartmentInput({
   addressTh,
   dueDateDay,
   lateFeePerDay,
-  isAutoLateFeeEnabled
+  isAutoLateFeeEnabled,
+  meterDigits
 }) {
   const errors = []
 
@@ -53,7 +62,25 @@ export function validateApartmentInput({
     errors.push('เปิดการเก็บค่าปรับแล้ว กรุณากรอกค่าปรับต่อวันให้มากกว่า 0 บาท')
   }
 
+  // ไม่ส่งมา = ไม่ได้มาแก้ช่องนี้ ใช้ของเดิม/ค่าเริ่มต้นต่อ
+  if (meterDigits !== undefined && meterDigits !== null && meterDigits !== '') {
+    const digits = Number(meterDigits)
+    if (!Number.isInteger(digits) || digits < MIN_METER_DIGITS || digits > MAX_METER_DIGITS) {
+      errors.push(`จำนวนหลักของมิเตอร์ต้องอยู่ระหว่าง ${MIN_METER_DIGITS}-${MAX_METER_DIGITS} หลัก`)
+    }
+  }
+
   return errors
+}
+
+// ใช้ทั้งตอนเขียนและตอนอ่านแถวเก่าที่ยังไม่มีค่า — ตัวเลขนี้ไปคูณกับเงินในบิล
+// จึงต้องไม่มีทางกลายเป็น NaN หรือ 0 ได้เลย (10 ** 0 = 1 คือจุดหมุนกลับที่พังที่สุด)
+function normalizeMeterDigits(value) {
+  const digits = Math.floor(Number(value))
+  if (!Number.isInteger(digits) || digits < MIN_METER_DIGITS || digits > MAX_METER_DIGITS) {
+    return DEFAULT_METER_DIGITS
+  }
+  return digits
 }
 
 // แปลงค่าจากฟอร์มเป็นรูปที่พร้อมเขียนลงตาราง ใช้ร่วมกันทั้งตอนสร้างและตอนแก้ไข
@@ -77,7 +104,8 @@ function toRow(input) {
     isAutoLateFeeEnabled: input.isAutoLateFeeEnabled ? 1 : 0,
     // ผ่อนผันกี่วันหลังวันครบกำหนดจึงเริ่มปรับ (0 = ปรับตั้งแต่วันถัดไปเลย)
     lateFeeGraceDays: Math.max(0, Math.floor(Number(input.lateFeeGraceDays) || 0)),
-    isVatEnabled: input.isVatEnabled ? 1 : 0
+    isVatEnabled: input.isVatEnabled ? 1 : 0,
+    meterDigits: normalizeMeterDigits(input.meterDigits)
   }
 }
 
@@ -146,12 +174,12 @@ export function insertApartment(db, input) {
       `INSERT INTO apartments (
          logo_url, name_th, name_en, address_th, address_en, phone,
          late_fee_per_day_cents, is_auto_late_fee_enabled, late_fee_grace_days,
-         due_date_day, is_vat_enabled,
+         due_date_day, is_vat_enabled, meter_digits,
          default_rent_item_text, display_order, created_at
        ) VALUES (
          @logoUrl, @nameTh, @nameEn, @addressTh, @addressEn, @phone,
          @lateFeePerDayCents, @isAutoLateFeeEnabled, @lateFeeGraceDays,
-         @dueDateDay, @isVatEnabled,
+         @dueDateDay, @isVatEnabled, @meterDigits,
          @rentItemText, @displayOrder, @now
        )`
     )
@@ -182,6 +210,7 @@ export function updateApartment(db, apartmentId, input) {
          late_fee_grace_days = @lateFeeGraceDays,
          due_date_day = @dueDateDay,
          is_vat_enabled = @isVatEnabled,
+         meter_digits = @meterDigits,
          updated_at = @now
        WHERE apartment_id = @apartmentId`
     )
@@ -261,6 +290,7 @@ export function toPublicApartment(row) {
     lateFeeGraceDays: row.late_fee_grace_days ?? 0,
     dueDateDay: row.due_date_day,
     isVatEnabled: row.is_vat_enabled === 1,
+    meterDigits: normalizeMeterDigits(row.meter_digits),
     displayOrder: row.display_order,
     // null = ยังเดินตัวช่วยตั้งค่าไม่ครบ หน้าจอใช้ค่านี้ตัดสินว่าจะให้เข้าหน้าทำงานได้ไหม
     setupCompletedAt: row.setup_completed_at ?? null,

@@ -65,18 +65,24 @@ export function calculateUnitsUsed(previous, current, options) {
   // เดิมพารามิเตอร์ที่สามเป็น boolean ของ "เกินรอบมิเตอร์" ตัวเดียว รับทั้งสองแบบไว้
   // เพื่อให้ที่เรียกแบบเก่ายังอ่านออกว่าหมายถึงอะไร
   const opts = typeof options === 'object' && options !== null ? options : { isOverCycle: options }
-  const { isOverCycle, isMeterReplaced, removedReading, newStartReading } = opts
+  const { isOverCycle, isMeterReplaced, removedReading, newStartReading, meterDigits } = opts
+
+  const digits = normalizeMeterDigits(meterDigits)
+  // มิเตอร์ 5 หลักอ่านได้สูงสุด 99,999 แล้ววนกลับไป 0 — เลข 100,000 จึงเป็นจุดหมุนกลับ
+  // และเป็นเพดานที่เลขบนหน้าปัดไปไม่ถึงในเวลาเดียวกัน
+  const rollover = 10 ** digits
 
   const prev = Number(previous ?? 0)
   const curr = Number(current ?? 0)
 
   if (prev < 0 || curr < 0) throw new Error('เลขมิเตอร์ติดลบไม่ได้')
+  requireWithinDial(curr, rollover, digits, 'เลขมิเตอร์ปัจจุบัน')
 
   if (isMeterReplaced) {
     if (isOverCycle) {
       throw new Error('เลือก "เกินรอบมิเตอร์" กับ "เปลี่ยนมิเตอร์ใหม่" พร้อมกันไม่ได้')
     }
-    return unitsAcrossMeterChange(prev, curr, removedReading, newStartReading)
+    return unitsAcrossMeterChange(prev, curr, removedReading, newStartReading, rollover, digits)
   }
 
   if (!isOverCycle) {
@@ -93,18 +99,34 @@ export function calculateUnitsUsed(previous, current, options) {
   // ติ๊กเกินรอบแล้วแต่เลขยังเดินหน้าปกติ = ติ๊กผิด คิดแบบธรรมดาให้ ไม่ต้องบวกรอบเกิน
   if (curr >= prev) return round2(curr - prev)
 
-  // **จุดหมุนกลับเดาจากจำนวนหลักของเลขครั้งก่อน** — ครั้งก่อน 99,850 มี 5 หลัก
-  // จึงเดาว่ามิเตอร์เป็น 5 หลักและหมุนกลับที่ 100,000 → 100000 − 99850 + 120 = 270
+  // มิเตอร์ 5 หลัก ครั้งก่อน 99,850 ปัจจุบัน 120 → 100000 − 99850 + 120 = 270
   //
-  // เหตุผลที่การเดานี้น่าจะถูก: มิเตอร์จะหมุนครบรอบได้ก็ต่อเมื่อเลขเดินไปจนสุดหน้าปัด
-  // แล้วเท่านั้น เลขครั้งก่อนจึงต้องใช้หลักครบพอดีอยู่แล้ว
-  //
-  // **ยังไม่เคยยืนยันกับมิเตอร์จริงของหอ** — อยู่ระหว่างถามเจ้าของหอว่ามิเตอร์กี่หลัก
-  // ถ้าคำตอบไม่ตรงกับที่เดาไว้ (เช่นเป็นมิเตอร์ที่มีหลักทศนิยมสีแดงรวมอยู่ด้วย)
-  // ต้องกลับมาแก้ตรงนี้ และควรเก็บจำนวนหลักไว้ที่ห้องหรือที่หอแทนการเดา
-  const digits = String(Math.floor(prev)).length
-  const rollover = 10 ** digits
+  // **จำนวนหลักมาจากค่าตั้งค่าของหอ ไม่ได้เดาจากเลขครั้งก่อนแล้ว** (เจ้าของหอยืนยัน
+  // 2026-08-10 ว่าเป็น 5 หลัก) ของเดิมนับหลักของเลขครั้งก่อนเอา ซึ่งให้คำตอบตรงกันเฉพาะ
+  // ตอนที่วนรอบจริง แต่ตอนติ๊กผิดมันจะเงียบ: ครั้งก่อน 850 ปัจจุบัน 120 เคยได้ 270
+  // ทั้งที่มิเตอร์ 5 หลักต้องเดินไป 99,270 หน่วยถึงจะกลับมาที่ 120 ได้ — ตัวเลขที่บอกชัดว่า
+  // ไม่ได้วนรอบ แต่ติ๊กผิด กลับถูกกลบจนดูสมเหตุสมผล
   return round2(rollover - prev + curr)
+}
+
+// จำนวนหลักต้องใช้ได้เสมอ ต่อให้ผู้เรียกลืมส่งมา — ตัวเลขนี้ไปเป็นตัวหารของบิล
+// (10 ** 0 = 1 จะทำให้ทุกเลขมิเตอร์ "เกินหน้าปัด" แล้วบันทึกอะไรไม่ได้เลยทั้งหอ)
+function normalizeMeterDigits(value) {
+  const digits = Math.floor(Number(value))
+  return Number.isInteger(digits) && digits >= 3 && digits <= 8 ? digits : 5
+}
+
+// มิเตอร์ 5 หลักอ่านได้ไม่เกิน 99,999 — เลขที่เกินนั้นคือพิมพ์เกินหลัก ไม่ใช่ค่าที่อ่านได้จริง
+//
+// เป็นความผิดพลาดที่เกิดง่ายที่สุดของงานนี้ (กด 0 เกินไปหนึ่งตัวตอนไล่พิมพ์เร็วๆ ทั้งหอ)
+// และแพงที่สุด เพราะ 10,500 → 105,000 จะกลายเป็นค่าน้ำหลักหมื่นบาทในบิลใบเดียว
+function requireWithinDial(value, rollover, digits, label) {
+  if (value >= rollover) {
+    throw new Error(
+      `${label} (${value}) เกินหน้าปัดมิเตอร์ ${digits} หลัก ซึ่งอ่านได้สูงสุด ${rollover - 1} — ` +
+        'กรุณาตรวจสอบเลขที่กรอก หรือแก้จำนวนหลักของมิเตอร์ที่หน้าตั้งค่าหอพัก'
+    )
+  }
 }
 
 // หน่วยที่ใช้ตอนเปลี่ยนมิเตอร์ = ส่วนที่ลูกเก่าเดินไปก่อนถูกถอด + ส่วนที่ลูกใหม่เดินมาจนถึงวันจด
@@ -113,7 +135,7 @@ export function calculateUnitsUsed(previous, current, options) {
 //
 // เลขเริ่มลูกใหม่มักเป็น 0 แต่ไม่เสมอไป มิเตอร์มือสองหรือมิเตอร์ที่ช่างทดสอบมาก่อนติดตั้ง
 // จะมีเลขค้างอยู่ ถ้าเหมาว่าเป็น 0 หน่วยที่ค้างในลูกใหม่จะถูกคิดเงินกับผู้เช่าทันที
-function unitsAcrossMeterChange(prev, curr, removedReading, newStartReading) {
+function unitsAcrossMeterChange(prev, curr, removedReading, newStartReading, rollover, digits) {
   if (removedReading === null || removedReading === undefined || removedReading === '') {
     throw new Error('เปลี่ยนมิเตอร์ใหม่ ต้องกรอกเลขตอนถอดมิเตอร์เก่า')
   }
@@ -128,6 +150,8 @@ function unitsAcrossMeterChange(prev, curr, removedReading, newStartReading) {
     throw new Error('เลขมิเตอร์ตอนเปลี่ยนต้องเป็นตัวเลข')
   }
   if (removed < 0 || newStart < 0) throw new Error('เลขมิเตอร์ติดลบไม่ได้')
+  requireWithinDial(removed, rollover, digits, 'เลขตอนถอดมิเตอร์เก่า')
+  requireWithinDial(newStart, rollover, digits, 'เลขเริ่มต้นของมิเตอร์ลูกใหม่')
 
   // มิเตอร์ลูกเก่าเดินถอยหลังไม่ได้ ถ้าเลขถอดน้อยกว่าครั้งก่อนแปลว่าจดผิด หรือลูกเก่า
   // หมุนครบรอบก่อนถูกถอดด้วย — กรณีหลังหายากจนไม่คุ้มจะเดาแทนผู้ใช้ ให้คนดูดีกว่า
@@ -179,6 +203,15 @@ export function getBatchById(db, batchId) {
   const row = db.prepare('SELECT * FROM meter_batches WHERE batch_id = ?').get(batchId)
   if (!row) return null
   return { batchId: row.batch_id, apartmentId: row.apartment_id, readingDate: row.reading_date }
+}
+
+// จำนวนหลักของหน้าปัดมิเตอร์ ตั้งไว้ที่ระดับหอ (migration 020)
+//
+// อ่านด้วย SQL ตรงๆ ไม่ import db/apartments.js เพื่อไม่ให้สองโมดูลนี้อ้างกันไปมา
+// — ตอนออกบิล invoices.js เรียกทั้งคู่อยู่แล้ว
+function getMeterDigits(db, apartmentId) {
+  const row = db.prepare('SELECT meter_digits FROM apartments WHERE apartment_id = ?').get(apartmentId)
+  return row?.meter_digits ?? undefined
 }
 
 export function createBatch(db, apartmentId, readingDate) {
@@ -276,6 +309,9 @@ export function getBatchSheet(db, batchId, side) {
     batchId: batch.batchId,
     readingDate: batch.readingDate,
     side,
+    // หน้าจอต้องใช้ตัวเลขเดียวกับที่ฝั่ง main ใช้คำนวณ ไม่งั้นตัวเลขหน่วยที่ขึ้นระหว่างพิมพ์
+    // จะไม่ตรงกับที่บันทึกจริง
+    meterDigits: normalizeMeterDigits(getMeterDigits(db, batch.apartmentId)),
     rooms: rows.map((row) => {
       // เลขครั้งก่อนที่ระบบไล่หาให้ — เลขปิดของรอบก่อนหน้า แล้วค่อยลงไปที่เลขมิเตอร์
       // วันเข้าพักในสัญญา สุดท้ายคือ 0
@@ -329,9 +365,10 @@ export function saveBatchReadings(db, batchId, side, rows) {
   // — และไม่มีทางรู้ย้อนหลังว่าขาดตรงไหน เพราะทุกแถวดูสมเหตุสมผลในตัวเอง
   //
   // ล็อกที่หน้าจออย่างเดียวไม่พอ ต้องบังคับที่นี่ด้วย ไม่งั้นก็ยังส่งค่าอื่นเข้ามาได้อยู่ดี
-  const derived = new Map(
-    getBatchSheet(db, batchId, side).rooms.map((r) => [r.roomId, r.derivedPreviousReading])
-  )
+  const sheet = getBatchSheet(db, batchId, side)
+  const derived = new Map(sheet.rooms.map((r) => [r.roomId, r.derivedPreviousReading]))
+  // จำนวนหลักมาจากค่าตั้งค่าของหอเสมอ ไม่รับจากหน้าจอ — เหตุผลเดียวกับเลขครั้งก่อน
+  const meterDigits = sheet.meterDigits
 
   // คำนวณและตรวจให้ครบทุกแถวก่อน แล้วค่อยเขียน — รวบ error ทุกแถวไว้บอกทีเดียว
   // ไม่ใช่ให้ผู้ใช้แก้ทีละแถวแล้วกดบันทึกใหม่รอบละห้อง
@@ -350,7 +387,8 @@ export function saveBatchReadings(db, batchId, side, rows) {
         isOverCycle: row.isOverCycle,
         isMeterReplaced: row.isMeterReplaced,
         removedReading: row.removedReading,
-        newStartReading: row.newStartReading
+        newStartReading: row.newStartReading,
+        meterDigits
       })
       prepared.push({
         roomId: row.roomId,

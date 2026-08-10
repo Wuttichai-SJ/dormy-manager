@@ -94,12 +94,19 @@ export const METER_SIDES = [
 // คืน null เมื่อคำนวณไม่ได้ (เลขลดลงโดยไม่ได้ติ๊กเกินรอบ) เพื่อให้หน้าจอขึ้นเครื่องหมาย
 // เตือนแทนตัวเลข — ฝั่ง main จะโยน error ข้อความเดียวกันนี้ตอนกดบันทึก
 export function previewUnitsUsed(previous, current, options = {}) {
-  const { isOverCycle, isMeterReplaced, removedReading, newStartReading } = options
+  const { isOverCycle, isMeterReplaced, removedReading, newStartReading, meterDigits } = options
+
+  // จำนวนหลักของหน้าปัดมาจากค่าตั้งค่าของหอ ส่งมากับใบจดมิเตอร์ (ไม่ได้เดาจากเลขครั้งก่อน
+  // แล้ว) — ต้องเป็นตัวเดียวกับที่ main ใช้ ไม่งั้นเลขบนจอกับเลขที่บันทึกจะคนละตัว
+  const digits = Number.isInteger(Number(meterDigits)) ? Number(meterDigits) : 5
+  const rollover = 10 ** digits
 
   const prev = Number(previous)
   const curr = Number(current)
   if (!Number.isFinite(prev) || !Number.isFinite(curr) || prev < 0 || curr < 0) return null
   if (String(current).trim() === '') return null
+  // เกินหน้าปัด = พิมพ์เกินหลัก ขึ้นเครื่องหมายเตือนตั้งแต่ระหว่างพิมพ์ ไม่ต้องรอกดบันทึก
+  if (curr >= rollover) return null
 
   // เปลี่ยนมิเตอร์ลูกใหม่ — (เลขถอดเก่า − ครั้งก่อน) + (ปัจจุบัน − เลขเริ่มลูกใหม่)
   if (isMeterReplaced) {
@@ -111,6 +118,7 @@ export function previewUnitsUsed(previous, current, options = {}) {
     const newStart = Number(newStartReading)
     if (!Number.isFinite(removed) || !Number.isFinite(newStart)) return null
     if (removed < 0 || newStart < 0 || removed < prev || curr < newStart) return null
+    if (removed >= rollover || newStart >= rollover) return null
 
     return round2(removed - prev + (curr - newStart))
   }
@@ -118,7 +126,6 @@ export function previewUnitsUsed(previous, current, options = {}) {
   if (curr >= prev) return round2(curr - prev)
   if (!isOverCycle) return null
 
-  const rollover = 10 ** String(Math.floor(prev)).length
   return round2(rollover - prev + curr)
 }
 
