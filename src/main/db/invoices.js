@@ -349,13 +349,15 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
     const invoiceNumber = nextDocumentNumber(db, contract.apartment_id, 'invoice', issueDate)
     const result = db
       .prepare(
+        // apartment_id ซ้ำกับที่ไล่ผ่าน contract → room → floor ได้ แต่ต้องมีในแถวจริง
+        // เพราะ unique index ของเลขที่บิลเป็นแบบ (apartment_id, invoice_number) — ดู 021
         `INSERT INTO invoices (
-           contract_id, invoice_number, billing_month, issue_date, due_date, status,
+           contract_id, apartment_id, invoice_number, billing_month, issue_date, due_date, status,
            invoice_type, meter_batch_id,
            exempt_amount_cents, taxable_amount_cents, vat_amount_cents, total_amount_cents,
            created_at
          ) VALUES (
-           @contractId, @invoiceNumber, @billingMonth, @issueDate, @dueDate, 'unpaid',
+           @contractId, @apartmentId, @invoiceNumber, @billingMonth, @issueDate, @dueDate, 'unpaid',
            'monthly', @meterBatchId,
            @exempt, @taxable, @vat, @total,
            @now
@@ -363,6 +365,7 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
       )
       .run({
         contractId,
+        apartmentId: contract.apartment_id,
         invoiceNumber,
         billingMonth,
         issueDate,

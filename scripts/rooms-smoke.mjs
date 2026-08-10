@@ -197,6 +197,81 @@ check('แก้เลขห้องเป็นเลขเดิมของ�
   assert(updated.isActive === false, 'ควรถูกปิดใช้งาน')
 })
 
+// บั๊กที่เจอจริง 2026-08-10 (หอพักประตู 5 ห้อง 102): ห้องถูกปิดใช้งานทั้งที่ยังมีสัญญาอยู่
+// หน้าห้องยังขึ้นว่า "ไม่ว่าง" แต่ห้องหายจากใบจดมิเตอร์ (ซึ่งกรอง is_active = 1)
+// ผู้เช่าเลยอยู่ไปโดยไม่ถูกจดมิเตอร์และไม่มีใครสังเกต
+// ใช้หอแยกของตัวเอง ไม่ไปยุ่งกับห้องที่เทสต์ข้ออื่นใช้อยู่ (สร้างสัญญาแล้วห้องนั้นลบไม่ได้อีก)
+// **import ต้องอยู่นอก check()** — check() เป็น synchronous ส่ง async function เข้าไป
+// จะได้ Promise กลับมาแล้วนับว่าผ่านทันทีโดยไม่รอผล (กติกาชุดทดสอบ)
+const tenantsDb = await import('../src/main/db/tenants.js')
+const contractsDb = await import('../src/main/db/contracts.js')
+
+const lockApt = newApartment('หอทดสอบปิดห้อง')
+rooms.generateFloorPlan(db, lockApt.apartmentId, [{ roomCount: 1 }])
+const lockRoom = rooms.listFloors(db, lockApt.apartmentId)[0].rooms[0]
+rooms.setRoomRates(db, [lockRoom.roomId], { monthlyRent: '3000' })
+const lockTenant = tenantsDb.insertTenant(db, {
+  firstName: 'สมชาย',
+  lastName: 'ทดสอบปิดห้อง',
+  phone: '0800000001'
+})
+contractsDb.createContract(db, {
+  roomId: lockRoom.roomId,
+  rentType: 'monthly',
+  startDate: '2026-08-01',
+  rentAmount: '3000',
+  deposit: '0',
+  depositPaymentMethod: 'cash',
+  bookingFee: '0',
+  waterMeterStart: 0,
+  electricMeterStart: 0,
+  tenants: [lockTenant.tenantId]
+})
+
+check('ห้องที่ยังมีสัญญาใช้งานอยู่ ปิดใช้งานไม่ได้', () => {
+  const room = lockRoom
+
+  throws(
+    () =>
+      rooms.updateRoom(db, room.roomId, {
+        roomNumber: room.roomNumber,
+        roomTypeName: room.roomTypeName,
+        isActive: false
+      }),
+    'ยังมีสัญญาเช่าที่ใช้งานอยู่',
+    'ต้องกันไม่ให้ปิดห้องที่มีคนอยู่'
+  )
+
+  // เปิดใช้งานอยู่แล้วบันทึกซ้ำได้ตามปกติ ไม่ใช่โดนบล็อกไปด้วย
+  const result = rooms.updateRoom(db, room.roomId, {
+    roomNumber: room.roomNumber,
+    roomTypeName: room.roomTypeName,
+    isActive: true
+  })
+  assert(
+    result[0].rooms.find((r) => r.roomId === room.roomId).isActive === true,
+    'ห้องต้องยังเปิดใช้งานอยู่'
+  )
+})
+
+// ห้องว่างที่เลิกใช้จริงๆ ยังต้องปิดได้ ไม่งั้นกฎข้างบนจะกลายเป็นห้ามปิดห้องทั้งระบบ
+check('ห้องที่ไม่มีสัญญาใช้งานอยู่ ปิดใช้งานได้ตามปกติ', () => {
+  rooms.addRoom(db, lockRoom.floorId, { roomNumber: '199' })
+  const spare = rooms
+    .listFloors(db, lockApt.apartmentId)[0]
+    .rooms.find((r) => r.roomNumber === '199')
+
+  const result = rooms.updateRoom(db, spare.roomId, {
+    roomNumber: '199',
+    roomTypeName: spare.roomTypeName,
+    isActive: false
+  })
+  assert(
+    result[0].rooms.find((r) => r.roomId === spare.roomId).isActive === false,
+    'ห้องว่างต้องปิดใช้งานได้'
+  )
+})
+
 // -----------------------------------------------------
 group('เพิ่มชั้น / เพิ่มห้อง')
 

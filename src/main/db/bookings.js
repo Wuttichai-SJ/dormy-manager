@@ -130,18 +130,21 @@ export function createBooking(db, input) {
     const bookingNumber = nextDocumentNumber(db, room.apartment_id, 'booking', bookingDate)
     const result = db
       .prepare(
+        // apartment_id ต้องอยู่ในแถวจริง เพราะ unique index ของเลขที่ใบจองเป็นแบบ
+        // (apartment_id, booking_number) — เลขเดินแยกรายหอ (ดู migration 021)
         `INSERT INTO room_bookings (
-           room_id, booking_number, rent_type, check_in_date, check_out_date, booking_date,
-           rent_price_cents, booking_fee_cents, payment_method,
+           room_id, apartment_id, booking_number, rent_type, check_in_date, check_out_date,
+           booking_date, rent_price_cents, booking_fee_cents, payment_method,
            customer_name, customer_phone, note, status, created_at
          ) VALUES (
-           @roomId, @bookingNumber, @rentType, @checkInDate, @checkOutDate, @bookingDate,
-           @rentPriceCents, @bookingFeeCents, @paymentMethod,
+           @roomId, @apartmentId, @bookingNumber, @rentType, @checkInDate, @checkOutDate,
+           @bookingDate, @rentPriceCents, @bookingFeeCents, @paymentMethod,
            @customerName, @customerPhone, @note, 'pending', @now
          )`
       )
       .run({
         roomId,
+        apartmentId: room.apartment_id,
         bookingNumber,
         rentType: input.rentType,
         checkInDate: input.checkInDate,

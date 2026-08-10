@@ -881,6 +881,102 @@ check('วันที่รวมกับเงื่อนไขอื่น�
 })
 
 // -----------------------------------------------------
+// 🔴 บั๊กที่เจอจริง 2026-08-10 (หอพักประตู 5): ออกบิลได้ห้องเดียวจากสามห้อง
+// ที่เหลือล้มด้วย UNIQUE constraint failed: invoices.invoice_number
+//
+// ต้นเหตุ: document_counters เดินเลขแยกรายหอ แต่ unique index บังคับไม่ซ้ำทั้งฐานข้อมูล
+// หอที่สองจึงเริ่มนับ 0001 ใหม่แล้วไปชนเลขของหอแรกในงวดเดียวกัน (migration 021)
+group('เลขที่เอกสารของสองหอในงวดเดียวกัน')
+
+const rivalApartment = apartments.insertApartment(db, {
+  nameTh: 'หอที่สองในงวดเดียวกัน',
+  addressTh: 'ที่อยู่',
+  dueDateDay: 10,
+  lateFeePerDay: '0'
+})
+const rivalId = rivalApartment.apartmentId
+utility.saveUtilityDefaults(db, rivalId, {
+  water: { enabled: false },
+  electric: { enabled: false }
+})
+rooms.generateFloorPlan(db, rivalId, [{ roomCount: 2 }])
+const rivalRooms = rooms.listFloors(db, rivalId)[0].rooms
+rooms.setRoomRates(
+  db,
+  rivalRooms.map((r) => r.roomId),
+  { monthlyRent: '3000' }
+)
+
+const rivalContracts = rivalRooms.map((room, index) => {
+  const person = tenants.insertTenant(db, {
+    firstName: `ผู้เช่าหอสอง${index + 1}`,
+    lastName: 'ทดสอบ',
+    phone: `0810000${index + 1}00`
+  })
+  return contracts.createContract(db, {
+    roomId: room.roomId,
+    rentType: 'monthly',
+    startDate: '2026-08-01',
+    rentAmount: '3000',
+    deposit: '0',
+    depositPaymentMethod: 'cash',
+    bookingFee: '0',
+    waterMeterStart: 0,
+    electricMeterStart: 0,
+    tenants: [person.tenantId]
+  })
+})
+
+const rivalBatch = meter.createBatch(db, rivalId, '2026-08-31')
+
+check('หอที่สองออกบิลงวดเดียวกับหอแรกได้ ไม่ชนเลขที่กัน', () => {
+  const made = rivalContracts.map((contract) =>
+    invoices.createMonthlyInvoice(db, {
+      contractId: contract.contractId,
+      billingMonth: '2026-08',
+      meterBatchId: rivalBatch.batchId,
+      issueDate: '2026-08-31'
+    })
+  )
+  assert(made.length === 2, `ออกได้ ${made.length} ใบ`)
+  // เลขของแต่ละหอเริ่มที่ 0001 ของตัวเอง ไม่ใช่เดินต่อจากหออื่น
+  assert(made[0].invoiceNumber.endsWith('0001'), `ได้ ${made[0].invoiceNumber}`)
+  assert(made[1].invoiceNumber.endsWith('0002'), `ได้ ${made[1].invoiceNumber}`)
+})
+
+// ด่านสุดท้ายต้องอยู่ที่ฐานข้อมูล ไม่ใช่พึ่งตัวนับอย่างเดียว — เอกสารการเงินที่เลขซ้ำกัน
+// ในหอเดียวกันคือสิ่งที่ฐานข้อมูลต้องปฏิเสธเอง ไม่ว่าโค้ดข้างบนจะพลาดยังไง
+// ใช้เดือนไกลๆ ที่ยังไม่มีใครออกบิล เพราะยังมี partial unique index อีกอันคุมว่า
+// หนึ่งสัญญาออกบิลรายเดือนได้เดือนละใบ — ข้อนี้กำลังทดสอบเรื่อง "เลขที่" ไม่ใช่เรื่องนั้น
+const insertRaw = (contractId, apartmentIdOfRow, number, month) =>
+  db
+    .prepare(
+      `INSERT INTO invoices (contract_id, apartment_id, invoice_number, billing_month,
+                             issue_date, due_date, status, invoice_type,
+                             exempt_amount_cents, taxable_amount_cents,
+                             vat_amount_cents, total_amount_cents, created_at)
+       VALUES (?, ?, ?, ?, '2029-01-01', '2029-01-10', 'unpaid', 'monthly',
+               0, 0, 0, 0, '2029-01-01T00:00:00.000Z')`
+    )
+    .run(contractId, apartmentIdOfRow, number, month)
+
+check('เลขที่เดียวกันอยู่คนละหอได้ — นี่คือสิ่งที่บั๊กเดิมไม่ยอม', () => {
+  const theirNumber = invoices.listInvoices(db, rivalId)[0].invoiceNumber
+  const written = insertRaw(contract1.contractId, apartmentId, theirNumber, '2029-01')
+  assert(written.changes === 1, 'หอแรกต้องใช้เลขเดียวกันกับหอที่สองได้')
+  db.prepare('DELETE FROM invoices WHERE invoice_id = ?').run(written.lastInsertRowid)
+})
+
+check('เลขที่ซ้ำในหอเดียวกัน ฐานข้อมูลต้องปฏิเสธ', () => {
+  const theirNumber = invoices.listInvoices(db, rivalId)[0].invoiceNumber
+  throws(
+    () => insertRaw(rivalContracts[0].contractId, rivalId, theirNumber, '2029-02'),
+    'UNIQUE',
+    'หอเดียวกันต้องออกเลขซ้ำไม่ได้'
+  )
+})
+
+// -----------------------------------------------------
 // ตัวกรอง "ค้างชำระ / ชำระแล้ว" บนหน้าใบแจ้งหนี้ (ผู้ใช้สั่ง 2026-08-09)
 group('กรองตามการชำระ')
 

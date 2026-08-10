@@ -294,6 +294,15 @@ function MeterSheet({ batchId, side, onBack }) {
       <section className="panel">
         <Alert>{error}</Alert>
 
+        {/* ห้องที่มีผู้เช่าแต่ถูกปิดใช้งานไว้ จะไม่อยู่ในตารางนี้ — ต้องบอกว่าห้องไหนหายไป
+            และหายเพราะอะไร ไม่ใช่ปล่อยให้ไปนับห้องเอาเองว่าครบหรือไม่ */}
+        {sheet?.hiddenRooms?.length > 0 && (
+          <Alert kind="warn">
+            ห้อง {sheet.hiddenRooms.join(', ')} มีผู้เช่าอยู่แต่ถูกปิดใช้งานไว้
+            จึงไม่อยู่ในใบจดมิเตอร์นี้ — ถ้ายังใช้งานห้องอยู่ ให้เปิดใช้งานที่ ตั้งค่า → ผังห้อง
+          </Alert>
+        )}
+
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
         ) : (

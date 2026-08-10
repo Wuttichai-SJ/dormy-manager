@@ -463,7 +463,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`room_bookings` (
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`booking_id`),
-  UNIQUE INDEX `idx_room_bookings_number` (`booking_number` ASC) VISIBLE,
+  -- 021: เลขที่เอกสารเดินแยกรายหอ (document_counters) แต่ index เดิมบังคับไม่ซ้ำทั้ง
+  -- ฐานข้อมูล หอที่สองจึงออกเอกสารไม่ได้เลย — index ต้องผสม apartment_id ด้วย
+  -- **ทุก INSERT ต้องเขียน apartment_id เสมอ** (SQLite ถือว่า NULL ไม่ซ้ำกับ NULL)
+  `apartment_id` INT NULL,
+  UNIQUE INDEX `idx_room_bookings_number` (`apartment_id` ASC, `booking_number` ASC) VISIBLE,
   INDEX `fk_room_bookings_rooms1_idx` (`room_id` ASC) VISIBLE,
   CONSTRAINT `fk_room_bookings_rooms1`
     FOREIGN KEY (`room_id`)
@@ -651,7 +655,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`invoices` (
   `cancelled_at` TIMESTAMP NULL,
   PRIMARY KEY (`invoice_id`),
   -- 012: เลขที่ใบแจ้งหนี้ห้ามซ้ำ และหนึ่งสัญญาออกบิลรายเดือนได้เดือนละใบ (ที่ยังไม่ยกเลิก)
-  UNIQUE INDEX `idx_invoices_number` (`invoice_number` ASC) VISIBLE,
+  -- 021: ดูคำอธิบายที่ room_bookings — เลขที่ไม่ซ้ำ "รายหอ" ไม่ใช่ทั้งฐานข้อมูล
+  `apartment_id` INT NULL,
+  UNIQUE INDEX `idx_invoices_number` (`apartment_id` ASC, `invoice_number` ASC) VISIBLE,
   INDEX `fk_invoices_contracts1_idx` (`contract_id` ASC) VISIBLE,
   CONSTRAINT `fk_invoices_contracts1`
     FOREIGN KEY (`contract_id`)
@@ -712,7 +718,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`payments` (
   PRIMARY KEY (`payment_id`),
   -- ใบเสร็จหนึ่งใบอ้างอิงต้นทางได้ทางเดียวเท่านั้น ไม่ใช่ทั้งคู่ และไม่ใช่ไม่มีเลย
   CHECK ((`invoice_id` IS NOT NULL) <> (`contract_id` IS NOT NULL)),
-  UNIQUE INDEX `idx_payments_receipt_number` (`receipt_number` ASC) VISIBLE,
+  -- 021: ดูคำอธิบายที่ room_bookings — เลขใบเสร็จไม่ซ้ำ "รายหอ" ไม่ใช่ทั้งฐานข้อมูล
+  `apartment_id` INT NULL,
+  UNIQUE INDEX `idx_payments_receipt_number` (`apartment_id` ASC, `receipt_number` ASC) VISIBLE,
   INDEX `fk_payments_invoices1_idx` (`invoice_id` ASC) VISIBLE,
   INDEX `fk_payments_contracts1_idx` (`contract_id` ASC) VISIBLE,
   INDEX `fk_payments_users1_idx` (`created_by` ASC) VISIBLE,

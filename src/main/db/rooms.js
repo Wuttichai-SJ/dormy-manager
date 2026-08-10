@@ -382,11 +382,31 @@ export function addRoom(db, floorId, { roomNumber, roomTypeName } = {}) {
 }
 
 export function updateRoom(db, roomId, { roomNumber, roomTypeName, isActive }) {
-  const existing = db.prepare('SELECT floor_id FROM rooms WHERE room_id = ?').get(roomId)
+  const existing = db
+    .prepare('SELECT floor_id, room_number FROM rooms WHERE room_id = ?')
+    .get(roomId)
   if (!existing) throw new Error('ไม่พบห้องที่ต้องการแก้ไข')
 
   const number = String(roomNumber ?? '').trim()
   if (!number) throw new Error('กรุณากรอกเลขห้อง')
+
+  // **ห้องที่มีคนอยู่ ปิดใช้งานไม่ได้** (เจอจริง 2026-08-10 กับหอพักประตู 5 ห้อง 102)
+  //
+  // "ปิดใช้งาน" แปลว่าห้องนี้เลิกใช้แล้ว ไม่ให้เช่าอีก — แต่ถ้ายังมีสัญญาที่ยังไม่จบอยู่
+  // สถานะสองอย่างนี้ขัดกันเอง แล้วห้องจะกลายเป็นห้องที่ "มีผู้เช่า" ในหน้าห้อง แต่
+  // หายไปจากใบจดมิเตอร์ (ซึ่งกรอง is_active = 1) โดยไม่มีอะไรบอกว่าหายไปไหน
+  // ผู้เช่าจึงอยู่ไปเรื่อยๆ โดยไม่ถูกจดมิเตอร์และไม่มีใครสังเกต
+  if (!isActive) {
+    const active = db
+      .prepare("SELECT COUNT(*) AS n FROM contracts WHERE room_id = ? AND status = 'active'")
+      .get(roomId).n
+    if (active > 0) {
+      throw new Error(
+        `ห้อง ${existing.room_number} ยังมีสัญญาเช่าที่ใช้งานอยู่ ปิดใช้งานไม่ได้ — ` +
+          'ถ้าผู้เช่าย้ายออกแล้ว ให้ยกเลิกสัญญาก่อน'
+      )
+    }
+  }
 
   const apartmentId = apartmentIdOfFloor(db, existing.floor_id)
   assertRoomNumberAvailable(db, apartmentId, number, roomId)

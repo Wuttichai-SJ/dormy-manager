@@ -238,17 +238,20 @@ function writePayment(
     const receiptNumber = nextDocumentNumber(db, apartmentId, 'receipt', paymentDate)
     const result = db
       .prepare(
+        // apartment_id ต้องอยู่ในแถวจริง เพราะ unique index ของเลขใบเสร็จเป็นแบบ
+        // (apartment_id, receipt_number) — เลขใบเสร็จเดินแยกรายหอ (ดู migration 021)
         `INSERT INTO payments (
-           invoice_id, contract_id, receipt_number, payment_date,
+           invoice_id, contract_id, apartment_id, receipt_number, payment_date,
            amount_cents, vat_amount_cents, payment_method, remark, created_by, created_at
          ) VALUES (
-           @invoiceId, @contractId, @receiptNumber, @paymentDate,
+           @invoiceId, @contractId, @apartmentId, @receiptNumber, @paymentDate,
            @amountCents, 0, @paymentMethod, @remark, @createdBy, @now
          )`
       )
       .run({
         invoiceId,
         contractId,
+        apartmentId,
         receiptNumber,
         paymentDate,
         amountCents,

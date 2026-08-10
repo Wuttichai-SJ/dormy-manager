@@ -305,10 +305,30 @@ export function getBatchSheet(db, batchId, side) {
     )
     .all({ batchId, apartmentId: batch.apartmentId, readingDate: batch.readingDate })
 
+  // ห้องที่ถูกปิดใช้งานทั้งที่ยังมีผู้เช่าอยู่ — ตารางข้างบนกรอง is_active = 1 ทิ้งไปแล้ว
+  //
+  // **ห้ามให้ห้องหายไปเงียบๆ** (เจอจริง 2026-08-10: หอพักประตู 5 ห้อง 102 ถูกปิดใช้งาน
+  // ทั้งที่มีสัญญาอยู่ เจ้าของหอเห็นห้องเป็น "ไม่ว่าง" ในหน้าห้อง แต่ใบจดมิเตอร์มีแค่สองห้อง
+  // แล้วไม่มีอะไรบอกว่าห้องที่สามไปไหน) ตอนนี้ `updateRoom` กันไม่ให้เกิดสถานะนี้แล้ว
+  // แต่ข้อมูลเก่าที่ตั้งไว้ผิดอยู่ก่อนหน้ายังต้องมีทางให้เห็น
+  const hiddenRooms = db
+    .prepare(
+      `SELECT r.room_number
+         FROM rooms r
+         JOIN floors f ON f.floor_id = r.floor_id
+        WHERE f.apartment_id = ? AND r.is_active = 0
+          AND EXISTS (SELECT 1 FROM contracts c
+                       WHERE c.room_id = r.room_id AND c.status = 'active')
+        ORDER BY r.room_number`
+    )
+    .all(batch.apartmentId)
+    .map((row) => row.room_number)
+
   return {
     batchId: batch.batchId,
     readingDate: batch.readingDate,
     side,
+    hiddenRooms,
     // หน้าจอต้องใช้ตัวเลขเดียวกับที่ฝั่ง main ใช้คำนวณ ไม่งั้นตัวเลขหน่วยที่ขึ้นระหว่างพิมพ์
     // จะไม่ตรงกับที่บันทึกจริง
     meterDigits: normalizeMeterDigits(getMeterDigits(db, batch.apartmentId)),
