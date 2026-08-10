@@ -133,11 +133,26 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
          c.deposit_amount_cents - COALESCE((
            SELECT SUM(p.amount_cents) FROM payments p
             WHERE p.contract_id = c.contract_id AND p.purpose = 'deposit'
-         ), 0) AS deposit_outstanding
+         ), 0) AS deposit_outstanding,
+         -- การจองที่ยังกันห้องอยู่ (pending/confirmed) — **ไม่ได้เก็บเป็นสถานะห้อง**
+         -- ดูเหตุผลที่ toPublicRoomRow ด้านล่าง
+         b.booking_id, b.customer_name AS booking_customer, b.check_in_date AS booking_check_in,
+         b.status AS booking_status,
+         -- ยอดค้างชำระของสัญญาที่ยังใช้งานอยู่ (ไม่นับบิลที่ยกเลิก)
+         COALESCE((
+           SELECT SUM(i.total_amount_cents) - COALESCE((
+             SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id = i.invoice_id
+           ), 0)
+             FROM invoices i
+            WHERE i.contract_id = c.contract_id AND i.status IN ('unpaid', 'partial_paid')
+         ), 0) AS invoice_outstanding
        FROM rooms r
        JOIN floors f ON f.floor_id = r.floor_id
        LEFT JOIN room_types rt ON rt.room_type_id = r.room_type_id
        LEFT JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+       -- ห้องหนึ่งมีการจองที่ยังค้างอยู่ได้ใบเดียว (บังคับไว้ที่ createBooking แล้ว)
+       LEFT JOIN room_bookings b
+              ON b.room_id = r.room_id AND b.status IN ('pending', 'confirmed')
       WHERE f.apartment_id = ?
       ORDER BY r.room_number`
     )
@@ -202,6 +217,24 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
       // > 0 = ยังเก็บเงินประกันไม่ครบ หน้ารายการห้องขึ้นป้ายเตือนจากค่านี้
       // เก็บเกินไม่ทำให้ติดลบ เพราะติดลบอ่านไม่ออกว่าแปลว่าอะไร
       depositOutstandingCents: Math.max(0, row.deposit_outstanding ?? 0),
+      invoiceOutstandingCents: Math.max(0, row.invoice_outstanding ?? 0),
+      // **การจองไม่ได้ถูกเก็บเป็น rooms.status โดยตั้งใจ**
+      //
+      // rooms.status มีแค่ vacant / occupied / maintenance และห้องที่มีคนจองไว้ยัง "ว่าง"
+      // จริงๆ (ยังไม่มีใครอยู่) การเพิ่มสถานะ 'booked' แปลว่าต้องมีคนคอยตั้งและล้างมันตาม
+      // วงจรของใบจอง — จอง ยืนยัน ยกเลิก แปลงเป็นสัญญา — แล้วความจริงเรื่องเดียวกันจะอยู่
+      // สองที่ วันหนึ่งก็ไม่ตรงกัน (แบบเดียวกับ is_active ที่เพิ่งทำให้ห้อง 102 หายไป)
+      //
+      // หน้าจอจึงอ่านจากใบจองตรงๆ แล้วขึ้นป้าย "จองแล้ว" เอง — ตัวเลขบนจอมาจากใบจอง
+      // เสมอ ไม่มีทางค้างเป็นสถานะเก่าที่ไม่มีใครล้าง
+      booking: row.booking_id
+        ? {
+            bookingId: row.booking_id,
+            customerName: row.booking_customer,
+            checkInDate: row.booking_check_in,
+            status: row.booking_status
+          }
+        : null,
       tenants: occupants,
       primaryTenant: occupants.find((t) => t.isPrimary) ?? occupants[0] ?? null
     }

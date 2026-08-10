@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
-import { formatBaht } from '../format.js'
+import { formatBaht, formatDocumentDate } from '../format.js'
 import { formatPhone } from '../components/TenantDialog.jsx'
 import { ROOM_STATUS_LABELS } from '../constants.js'
 import { listRoomsForApartment } from '../services/contractService.js'
@@ -11,9 +11,10 @@ import { listRoomsForApartment } from '../services/contractService.js'
 // ต้นแบบไม่มีเมนู "ผู้เช่า" หรือ "สัญญา" แยก ทุกอย่างเริ่มจากห้อง: ตารางห้องบอกว่า
 // ห้องไหนมีใครอยู่ ค่าเช่าเท่าไหร่ แล้วกด "รายละเอียด" เข้าไปจัดการสัญญาของห้องนั้น
 //
-// การ์ดสถิติ "จองล่วงหน้า" กับ "ค้างชำระ" ยังไม่ใส่ตัวเลข เพราะตาราง room_bookings และ
-// invoices ยังไม่มีข้อมูล (Phase 2.4 / Phase 3) — จงใจแสดง "—" ไม่ใช่เลข 0 ที่ไม่ได้มาจาก
-// การนับจริง เพราะ 0 ทำให้เจ้าของหอเข้าใจผิดว่า "ไม่มีใครค้างเลย" ทั้งที่ยังไม่ได้เริ่มออกบิล
+// **สถานะ "จองแล้ว" ไม่ใช่ค่าใน rooms.status** — rooms.status มีแค่ ว่าง/ไม่ว่าง/ปิดปรับปรุง
+// และห้องที่มีคนจองไว้ก็ยังว่างจริงๆ (ยังไม่มีใครอยู่) หน้าจอจึงอ่านจากใบจองที่ยังกันห้องอยู่
+// แล้วขึ้นป้ายเอง ถ้าเก็บเป็นสถานะห้อง จะต้องมีคนคอยตั้งและล้างตามวงจรของใบจองทุกจังหวะ
+// แล้ววันหนึ่งก็ค้างเป็นสถานะเก่าที่ไม่ตรงกับความจริง
 export default function RoomsPage({ apartment, onOpenRoom }) {
   const [rooms, setRooms] = useState(null)
   const [error, setError] = useState('')
@@ -33,13 +34,16 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
   }, [load])
 
   // นับจากทั้งหอเสมอ ไม่ใช่นับจากผลที่กรองแล้ว — ตัวเลขสรุปต้องไม่เปลี่ยนตามคำค้น
-  const [totals, setTotals] = useState({ total: 0, vacant: 0 })
+  const [totals, setTotals] = useState({ total: 0, vacant: 0, booked: 0, outstanding: 0 })
   useEffect(() => {
     listRoomsForApartment(apartment.apartmentId).then((res) => {
       if (!res.success) return
       setTotals({
         total: res.data.length,
-        vacant: res.data.filter((r) => r.status === 'vacant').length
+        vacant: res.data.filter((r) => r.status === 'vacant').length,
+        // นับจากใบจองที่ยังกันห้องอยู่ ไม่ได้นับจากสถานะห้อง (ห้องที่มีคนจองยังว่างอยู่จริง)
+        booked: res.data.filter((r) => r.booking).length,
+        outstanding: res.data.filter((r) => r.invoiceOutstandingCents > 0).length
       })
     })
   }, [apartment.apartmentId, rooms])
@@ -49,8 +53,8 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
       <div className="room-stats">
         <StatCard value={totals.total} label="ห้องทั้งหมด" highlight />
         <StatCard value={totals.vacant} label="ห้องว่าง" />
-        <StatCard value="—" label="จองล่วงหน้า" hint="ยังไม่ได้สร้างระบบการจอง" />
-        <StatCard value="—" label="ค้างชำระ" hint="ยังไม่ได้สร้างระบบออกบิล" />
+        <StatCard value={totals.booked} label="จองล่วงหน้า" />
+        <StatCard value={totals.outstanding} label="ค้างชำระ" />
       </div>
 
       <div className="room-filters">
@@ -111,9 +115,16 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                 <tr key={room.roomId}>
                   <td>
                     <span className="room-cell-number">{room.roomNumber}</span>
-                    <span className={`room-badge status-${room.status}`}>
-                      {ROOM_STATUS_LABELS[room.status] ?? room.status}
-                    </span>
+                    {/* ห้องว่างที่มีคนจองไว้ขึ้น "จองแล้ว" แทน "ว่าง" — อ่านจากใบจองตรงๆ
+                        ไม่ได้เก็บเป็นสถานะห้อง จึงไม่มีทางค้างเป็นสถานะเก่าที่ไม่มีใครล้าง
+                        (ห้องที่มีคนอยู่แล้วยังขึ้น "ไม่ว่าง" เหมือนเดิม สัญญาชนะใบจองเสมอ) */}
+                    {room.status === 'vacant' && room.booking ? (
+                      <span className="room-badge status-booked">จองแล้ว</span>
+                    ) : (
+                      <span className={`room-badge status-${room.status}`}>
+                        {ROOM_STATUS_LABELS[room.status] ?? room.status}
+                      </span>
+                    )}
                     {/* เงินประกันที่ยังเก็บไม่ครบต้องเห็นตั้งแต่หน้ารวม ไม่ใช่ต้องกดเข้าไปดู
                         ทีละห้อง — เคสจริงคือวางมัดจำครึ่งเดียวตอนจอง แล้วลืมเก็บส่วนที่เหลือ */}
                     {room.depositOutstandingCents > 0 && (
@@ -130,6 +141,16 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                           {formatPhone(room.primaryTenant.phone)}
                           {/* ห้องที่อยู่กันหลายคน ต้องเห็นตั้งแต่ตาราง ไม่ใช่ต้องกดเข้าไปดู */}
                           {room.tenants.length > 1 && ` · และอีก ${room.tenants.length - 1} คน`}
+                        </div>
+                      </>
+                    ) : room.booking ? (
+                      /* ห้องที่จองไว้ต้องบอกว่าใครจองและจะเข้าวันไหน ไม่งั้นเจ้าของหอเห็นแค่
+                         ป้าย "จองแล้ว" แล้วต้องกดเข้าไปดูทีละห้องว่ารอใครอยู่ */
+                      <>
+                        <div>{room.booking.customerName}</div>
+                        <div className="muted room-cell-sub">
+                          เข้าพัก {formatDocumentDate(room.booking.checkInDate)}
+                          {room.booking.status === 'pending' && ' · รอยืนยัน'}
                         </div>
                       </>
                     ) : (

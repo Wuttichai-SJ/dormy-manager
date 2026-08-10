@@ -125,6 +125,57 @@ check('ตั้งสถานะเป็นทำสัญญาแล้ว�
 })
 
 // -----------------------------------------------------
+// ผู้ใช้รายงาน 2026-08-10 (หอพักวาสนา): จองห้องแล้วยืนยันเรียบร้อย แต่หน้าห้องยังขึ้นว่า
+// "ว่าง" และการ์ด "จองล่วงหน้า" ไม่มีตัวเลข — เพราะการจองไม่เคยถูกส่งไปถึงรายการห้องเลย
+//
+// **การจองไม่ได้เก็บเป็น rooms.status โดยตั้งใจ** ห้องที่จองไว้ยังว่างจริงๆ (ยังไม่มีใครอยู่)
+// รายการห้องจึงต้องแนบใบจองที่ยังกันห้องอยู่มาให้ แล้วหน้าจอขึ้นป้ายเอง
+group('การจองที่ส่งไปถึงรายการห้อง')
+
+const contractsDb = await import('../src/main/db/contracts.js')
+
+check('ห้องที่มีการจองค้างอยู่ แนบข้อมูลใบจองมากับรายการห้อง', () => {
+  const listed = contractsDb
+    .listRoomsForApartment(db, apartmentId)
+    .find((r) => r.roomId === room1.roomId)
+
+  assert(listed.booking !== null, 'ห้องที่จองไว้ต้องมีข้อมูลใบจองติดมา')
+  assert(listed.booking.customerName === booking.customerName, `ได้ ${listed.booking.customerName}`)
+  assert(listed.booking.checkInDate === booking.checkInDate, `ได้ ${listed.booking.checkInDate}`)
+  // สถานะห้องยังเป็น vacant — ป้าย "จองแล้ว" เป็นเรื่องของหน้าจอ ไม่ใช่ค่าที่เก็บไว้
+  assert(listed.status === 'vacant', `สถานะห้องได้ ${listed.status}`)
+})
+
+// ห้อง 3 เป็นห้องเดียวที่ไม่เคยถูกจองเลยตลอดไฟล์นี้ (ห้อง 2 มีใบจองค้างอยู่จากข้อ
+// "ยกเลิกแล้วจองห้องเดิมใหม่ได้")
+check('ห้องที่ไม่มีการจอง ไม่มีข้อมูลใบจองติดมา', () => {
+  const listed = contractsDb.listRoomsForApartment(db, apartmentId)
+  const untouched = listed.find((r) => r.roomId === room3.roomId)
+  assert(untouched.booking === null, 'ห้องที่ไม่ได้จองต้องไม่มีใบจองติดมา')
+
+  // และการนับต้องตรงกับจำนวนใบจองที่ยังกันห้องอยู่จริง ไม่ใช่นับจากสถานะห้อง
+  const booked = listed.filter((r) => r.booking !== null).length
+  assert(booked === bookings.countOpenBookings(db, apartmentId), `นับได้ ${booked}`)
+})
+
+// ใบจองที่ยกเลิกไปแล้วต้องไม่ค้างอยู่บนหน้าจอ — นี่คือข้อที่การเก็บเป็น rooms.status จะพลาด
+check('ยกเลิกใบจองแล้ว ห้องกลับมาว่างทันที', () => {
+  const spare = bookings.createBooking(db, { ...BASE, roomId: room3.roomId })
+  assert(
+    contractsDb.listRoomsForApartment(db, apartmentId).find((r) => r.roomId === room3.roomId)
+      .booking !== null,
+    'จองแล้วต้องเห็นใบจอง'
+  )
+
+  bookings.setBookingStatus(db, spare.bookingId, 'cancelled')
+  assert(
+    contractsDb.listRoomsForApartment(db, apartmentId).find((r) => r.roomId === room3.roomId)
+      .booking === null,
+    'ยกเลิกแล้วต้องไม่เหลือใบจองค้างบนห้อง'
+  )
+})
+
+// -----------------------------------------------------
 group('แปลงเป็นสัญญา')
 
 const somchai = tenants.insertTenant(db, {
