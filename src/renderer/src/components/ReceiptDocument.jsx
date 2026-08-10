@@ -1,6 +1,6 @@
 import React from 'react'
 import BillDocument, { BillSignature } from './BillDocument.jsx'
-import { formatBaht } from '../format.js'
+import { formatBaht, formatDocumentDate } from '../format.js'
 
 // ใบเสร็จรับเงินหนึ่งใบ — **หน้าตาเดียวกับใบแจ้งหนี้ทุกอย่าง** (ผู้ใช้สั่ง 2026-08-09)
 // ต่างกันแค่:
@@ -14,7 +14,7 @@ import { formatBaht } from '../format.js'
 export default function ReceiptDocument({ receipt, invoice }) {
   const meta = [
     { label: 'เลขที่ใบเสร็จ', value: receipt.receiptNumber },
-    { label: 'วันที่รับเงิน', value: formatDate(receipt.paymentDate) },
+    { label: 'วันที่รับเงิน', value: formatDocumentDate(receipt.paymentDate) },
     { label: 'ห้อง', value: receipt.roomNumber ?? '-' },
     { label: 'ชำระโดย', value: receipt.paymentMethodLabel }
   ]
@@ -85,10 +85,4 @@ export default function ReceiptDocument({ receipt, invoice }) {
       />
     </article>
   )
-}
-
-function formatDate(iso) {
-  if (!iso) return '-'
-  const [y, m, d] = String(iso).split('-')
-  return `${d}/${m}/${y}`
 }

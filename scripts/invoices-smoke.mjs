@@ -182,9 +182,10 @@ check('มีค่าเช่า ค่าน้ำ ค่าไฟ และ�
 })
 
 // ชื่อรายการเป็นไทยล้วน ไม่มีอังกฤษพ่วง (ผู้ใช้สั่ง 2026-08-08 — คอลัมน์แคบ อ่านยาก)
-check('ค่าเช่าขึ้นเป็นไทยล้วน พร้อมเดือนแบบ MM-YYYY', () => {
+// และเดือนบนเอกสารเป็น พ.ศ. (ผู้ใช้สั่ง 2026-08-10) — ฐานข้อมูลยังเก็บ '2026-08' เหมือนเดิม
+check('ค่าเช่าขึ้นเป็นไทยล้วน พร้อมเดือนแบบ MM-พ.ศ.', () => {
   const rent = built.items.find((i) => i.itemType === 'rent')
-  assert(rent.description === 'ค่าเช่าห้อง (เดือน 08-2026)', `ได้ "${rent.description}"`)
+  assert(rent.description === 'ค่าเช่าห้อง (เดือน 08-2569)', `ได้ "${rent.description}"`)
   assert(rent.totalAmountCents === 500000, `ได้ ${rent.totalAmountCents}`)
 })
 
@@ -199,7 +200,7 @@ check('ไม่มีคำอังกฤษหลงเหลือในช�
 check('ค่าน้ำคิดจากหน่วยที่จด พร้อมเดือนและเลขมิเตอร์ก่อน/หลัง', () => {
   const water = built.items.find((i) => i.itemType === 'water')
   assert(
-    water.description === 'ค่าน้ำ (เดือน 08-2026) : 98 หน่วย (2 - 100)',
+    water.description === 'ค่าน้ำ (เดือน 08-2569) : 98 หน่วย (2 - 100)',
     `ได้ "${water.description}"`
   )
   assert(water.totalAmountCents === 98 * 2000, `ได้ ${water.totalAmountCents}`)
@@ -208,7 +209,7 @@ check('ค่าน้ำคิดจากหน่วยที่จด พร
 check('ค่าไฟคิดจากหน่วยที่จดเช่นกัน', () => {
   const elec = built.items.find((i) => i.itemType === 'electricity')
   assert(elec.totalAmountCents === 300 * 700, `ได้ ${elec.totalAmountCents}`)
-  assert(elec.description.includes('(เดือน 08-2026)'), `ได้ "${elec.description}"`)
+  assert(elec.description.includes('(เดือน 08-2569)'), `ได้ "${elec.description}"`)
 })
 
 // -----------------------------------------------------
@@ -247,8 +248,8 @@ check('เปลี่ยนเดือนค่าเช่าแล้ว เ
   })
   const rent = other.items.find((i) => i.itemType === 'rent')
   const water = other.items.find((i) => i.itemType === 'water')
-  assert(rent.description.includes('(เดือน 12-2026)'), `ค่าเช่าได้ "${rent.description}"`)
-  assert(water.description.includes('(เดือน 08-2026)'), `ค่าน้ำได้ "${water.description}"`)
+  assert(rent.description.includes('(เดือน 12-2569)'), `ค่าเช่าได้ "${rent.description}"`)
+  assert(water.description.includes('(เดือน 08-2569)'), `ค่าน้ำได้ "${water.description}"`)
 })
 
 check('ไม่ได้เลือกใบจดมิเตอร์ ก็ไม่เขียนเดือนมั่วลงไป', () => {
@@ -336,6 +337,23 @@ check('ยอดบนหัวบิลตรงกับผลรวมขอ�
   assert(invoice1.totalAmountCents === 971520, `ได้ ${invoice1.totalAmountCents}`)
   assert(invoice1.outstandingCents === 971520, 'ยังไม่จ่ายเลย ต้องค้างเต็มจำนวน')
   assert(invoice1.paidAmountCents === 0, `ได้ ${invoice1.paidAmountCents}`)
+})
+
+// **ปี พ.ศ. อยู่แค่ข้อความบนเอกสาร ฐานข้อมูลยังเป็น ค.ศ. ทั้งหมด** (ผู้ใช้สั่ง 2026-08-10)
+//
+// ถ้าวันหนึ่งมีใครเผลอเก็บ พ.ศ. ลงคอลัมน์จริง การเทียบวันที่จะพังทั้งระบบ — ช่วงวันที่
+// ในการค้นหา ลำดับใบเสร็จ วันครบกำหนด ค่าปรับ ล้วนเทียบข้อความ 'YYYY-MM-DD' ตรงๆ
+// และแถวเก่ากับแถวใหม่จะแยกไม่ออกว่าเป็นปีระบบไหน
+check('ฐานข้อมูลเก็บวันที่และเดือนเป็น ค.ศ. แต่ข้อความบนเอกสารเป็น พ.ศ.', () => {
+  const row = db
+    .prepare('SELECT billing_month, issue_date, due_date FROM invoices WHERE invoice_id = ?')
+    .get(invoice1.invoiceId)
+  assert(row.billing_month === '2026-08', `เก็บเดือนเป็น ${row.billing_month}`)
+  assert(row.issue_date.startsWith('2026-'), `เก็บวันที่ออกบิลเป็น ${row.issue_date}`)
+  assert(row.due_date.startsWith('2026-'), `เก็บวันครบกำหนดเป็น ${row.due_date}`)
+
+  const rent = invoice1.items.find((i) => i.itemType === 'rent')
+  assert(rent.description.includes('08-2569'), `ข้อความบนบิลได้ "${rent.description}"`)
 })
 
 check('บิลจำวันที่จดมิเตอร์ที่ใช้ออก และแนบข้อมูลหอไปให้หน้าพิมพ์', () => {

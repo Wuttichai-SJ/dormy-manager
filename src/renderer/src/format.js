@@ -17,3 +17,30 @@ export function formatBaht(cents) {
 export function centsToInput(cents) {
   return (Number(cents ?? 0) / 100).toFixed(2)
 }
+
+// ------------------------------------------------------------------
+// วันที่บนเอกสารที่ยื่นให้ผู้เช่า — พ.ศ. (ผู้ใช้สั่ง 2026-08-10)
+// ------------------------------------------------------------------
+// ใบแจ้งหนี้กับใบเสร็จเป็นเอกสารที่ผู้เช่าคนไทยถือกลับบ้าน จึงใช้ปี พ.ศ. ต่างจากต้นแบบ
+// ที่ขึ้นเป็น ค.ศ.
+//
+// **ฐานข้อมูลยังเก็บเป็น ค.ศ. รูปแบบ ISO เหมือนเดิมทุกที่** — ที่นี่แปลงตอนแสดงผลอย่างเดียว
+// ถ้าเก็บเป็น พ.ศ. ลงฐานข้อมูล การเทียบวันที่ ('2026-08-31' > '2026-07-20') จะพังทั้งระบบ
+// และข้อมูลเก่ากับใหม่จะปนกันจนแยกไม่ออกว่าแถวไหนเป็นปีอะไร
+export const BUDDHIST_YEAR_OFFSET = 543
+
+// 'YYYY-MM-DD' -> 'DD/MM/พ.ศ.'
+export function formatDocumentDate(iso) {
+  if (!iso) return '-'
+  const [year, month, day] = String(iso).split('-')
+  if (!year || !month || !day) return '-'
+  return `${day}/${month}/${Number(year) + BUDDHIST_YEAR_OFFSET}`
+}
+
+// 'YYYY-MM' -> 'MM-พ.ศ.' (ลำดับเดือน-ปี ตามที่ต้นแบบขึ้นบนบิล)
+export function formatDocumentMonth(month) {
+  if (!month) return '-'
+  const [year, monthPart] = String(month).split('-')
+  if (!year || !monthPart) return '-'
+  return `${monthPart}-${Number(year) + BUDDHIST_YEAR_OFFSET}`
+}

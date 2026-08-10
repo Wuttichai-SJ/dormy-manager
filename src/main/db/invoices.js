@@ -166,7 +166,7 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
   const rentLabel = contract.default_rent_item_text || 'ค่าเช่าห้อง'
   items.push({
     itemType: 'rent',
-    description: `${rentLabel} (เดือน ${formatBillingMonth(billingMonth)})`,
+    description: `${rentLabel} (เดือน ${formatDocumentMonth(billingMonth)})`,
     quantity: 1,
     unitPriceCents: contract.rent_amount_cents,
     totalAmountCents: contract.rent_amount_cents,
@@ -195,7 +195,7 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
       ? db.prepare('SELECT reading_date FROM meter_batches WHERE batch_id = ?').get(meterBatchId)
       : null
     const utilityMonth = batch ? utilityMonthOf(batch.reading_date) : null
-    const monthTag = utilityMonth ? ` (เดือน ${formatBillingMonth(utilityMonth)})` : ''
+    const monthTag = utilityMonth ? ` (เดือน ${formatDocumentMonth(utilityMonth)})` : ''
 
     // ชื่อรายการเป็นภาษาไทยล้วน — เคยเขียนคู่กับอังกฤษ ('ค่าน้ำ/water') ตามต้นแบบ
     // แต่ผู้เช่าอ่านไทยกันหมด และคอลัมน์รายการบนบิลแคบ คำอังกฤษเบียดจนอ่านยาก
@@ -270,6 +270,19 @@ function formatBillingMonth(billingMonth) {
   // '2025-03' -> '03-2025' ตามที่ต้นแบบขึ้นบนบิล
   const [year, month] = String(billingMonth).split('-')
   return `${month}-${year}`
+}
+
+// เดือนที่จะไปอยู่ใน "ข้อความของรายการบนเอกสาร" — พ.ศ. (ผู้ใช้สั่ง 2026-08-10)
+//
+// **แยกจาก formatBillingMonth โดยตั้งใจ** ตัวนั้นยังใช้ ค.ศ. เพราะไปโผล่ในข้อความเตือน
+// ที่ผู้ใช้อ่านคู่กับตัวเลือกเดือนบนหน้าจอ ซึ่งยังเป็น ค.ศ. อยู่ ถ้าใช้ตัวเดียวกันทั้งสองที่
+// เจ้าของหอจะเลือกเดือน 08-2026 แล้วโดนเตือนว่า "ออกบิลของเดือน 08-2569 ไปแล้ว"
+//
+// ฐานข้อมูลยังเก็บ billing_month เป็น 'YYYY-MM' ค.ศ. เหมือนเดิม — แปลงตอนประกอบข้อความเท่านั้น
+function formatDocumentMonth(billingMonth) {
+  const [year, month] = String(billingMonth).split('-')
+  if (!year || !month) return String(billingMonth)
+  return `${month}-${Number(year) + 543}`
 }
 
 // ------------------------------------------------------------------

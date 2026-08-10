@@ -4,7 +4,7 @@ import Alert from '../components/Alert.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS, PAYMENT_METHODS, VAT_RATE } from '../constants.js'
-import { centsToInput, formatBaht } from '../format.js'
+import { centsToInput, formatBaht, formatDocumentDate } from '../format.js'
 import {
   addInvoiceItem,
   cancelInvoice,
@@ -232,8 +232,10 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
           },
           { label: 'เลขที่', value: invoice.invoiceNumber },
           { label: 'ห้อง', value: invoice.roomNumber },
-          { label: 'วันที่', value: formatDate(invoice.issueDate) },
-          { label: 'ครบกำหนด', value: formatDate(invoice.dueDate) }
+          // เอกสารที่ยื่นให้ผู้เช่าใช้ พ.ศ. ส่วนวันที่บนหน้าจอทำงาน (ประวัติรับเงิน ฯลฯ)
+          // ยังเป็น ค.ศ. — ดู formatDocumentDate ใน format.js
+          { label: 'วันที่', value: formatDocumentDate(invoice.issueDate) },
+          { label: 'ครบกำหนด', value: formatDocumentDate(invoice.dueDate) }
         ]}
         // บิลที่ยกเลิกแล้วแก้ไม่ได้ ไม่ส่ง onRemoveItem ไป คอลัมน์ปุ่มลบจึงหายไปเอง
         onRemoveItem={closed ? undefined : onRemoveItem}
