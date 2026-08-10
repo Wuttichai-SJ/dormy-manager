@@ -19,6 +19,14 @@ const meter = await import('../src/main/db/meterReadings.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-meter')
 
+const staff = (await import('../src/main/db/users.js')).insertUser(db, {
+  fullName: 'ผู้จัดการหอ',
+  phone: '0801112222',
+  email: 'manager-meter@example.com',
+  passwordHash: 'x',
+  recoveryCodeHash: 'y'
+})
+
 const apartment = apartments.insertApartment(db, {
   nameTh: 'หอทดสอบมิเตอร์',
   addressTh: 'ที่อยู่',
@@ -371,7 +379,9 @@ check('ห้องที่มีสัญญาแต่ยังไม่เ�
     bookingFee: '0',
     waterMeterStart: 77,
     electricMeterStart: 4200,
-    tenants: [somying.tenantId]
+    tenants: [somying.tenantId],
+    // เงินประกันที่รับวันทำสัญญาถูกออกเป็นใบเสร็จให้ทันที จึงต้องมีผู้รับเงิน
+    createdBy: staff.user_id
   })
   const batch3 = meter.createBatch(db, apartmentId, '2026-10-31')
   const sheet3 = meter.getBatchSheet(db, batch3.batchId, 'water')

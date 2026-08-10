@@ -68,7 +68,9 @@ const contract1 = contracts.createContract(db, {
   bookingFee: '0',
   waterMeterStart: 0,
   electricMeterStart: 0,
-  tenants: [tenant.tenantId]
+  tenants: [tenant.tenantId],
+  // เงินประกันที่รับวันทำสัญญาถูกออกเป็นใบเสร็จให้ทันที จึงต้องมีผู้รับเงิน
+  createdBy: staff.user_id
 })
 const contract2 = contracts.createContract(db, {
   roomId: room2.roomId,
@@ -80,7 +82,8 @@ const contract2 = contracts.createContract(db, {
   bookingFee: '0',
   waterMeterStart: 0,
   electricMeterStart: 0,
-  tenants: [tenant2.tenantId]
+  tenants: [tenant2.tenantId],
+  createdBy: staff.user_id
 })
 
 const batch = meter.createBatch(db, apartmentId, '2026-08-31')
@@ -269,8 +272,14 @@ check('ออกใบเสร็จเงินประกันได้โ�
   assert(depositReceipt.roomNumber === '102', `ได้ ${depositReceipt.roomNumber}`)
 })
 
+// ไม่ผูกกับลำดับที่แน่นอน — การทำสัญญาข้างบนออกใบเสร็จเงินประกันไปแล้วสองใบ
+// สิ่งที่ต้องพิสูจน์คือใบเสร็จของสัญญากับของบิลใช้ตัวนับชุดเดียวกัน (ขึ้นต้น R เหมือนกัน
+// และเลขไม่ชนกัน) ไม่ใช่ว่าเลขเท่าไหร่
 check('ใบเสร็จของสัญญาใช้ตัวนับชุดเดียวกับใบเสร็จบิล', () => {
-  assert(depositReceipt.receiptNumber === 'R2026080001', `ได้ ${depositReceipt.receiptNumber}`)
+  assert(depositReceipt.receiptNumber.startsWith('R202608'), `ได้ ${depositReceipt.receiptNumber}`)
+
+  const all = payments.listReceipts(db, apartmentId).receipts.map((r) => r.receiptNumber)
+  assert(new Set(all).size === all.length, 'เลขใบเสร็จต้องไม่ซ้ำกันเลยทั้งหอ')
 })
 
 check('คืนเงินประกันเขียนเป็นยอดติดลบได้', () => {
@@ -518,9 +527,10 @@ check('ใบเสร็จแนบข้อมูลหอและชื่�
 // ยอดรวมจึงต้องหักใบพวกนั้นออก เพื่อให้เป็น "เงินที่เข้าหอจริง" ไม่ใช่ผลบวกของใบที่ออก
 check('ยอดรวมหักใบคืนเงินประกันออก จึงเป็นเงินที่เข้าหอจริง', () => {
   const report = payments.listReceipts(db, apartmentId)
-  // ก.ย. 2,000 + 3,000 · สัญญา ส.ค. +5,000 · สัญญา ก.พ. -5,000 · ต.ค. 5,000
-  // · พ.ย. 5,100 (ค่าเช่า 5,000 + ค่าปรับ 100) = 15,100
-  assert(report.totalAmountCents === 1510000, `ได้ ${report.totalAmountCents}`)
+  // เงินประกันวันทำสัญญา 5,000 × 2 ห้อง = 10,000
+  // · ก.ย. 2,000 + 3,000 · สัญญา ส.ค. +5,000 · สัญญา ก.พ. -5,000 · ต.ค. 5,000
+  // · พ.ย. 5,100 (ค่าเช่า 5,000 + ค่าปรับ 100) = 25,100
+  assert(report.totalAmountCents === 2510000, `ได้ ${report.totalAmountCents}`)
   assert(
     report.receipts.some((r) => r.isRefund),
     'ต้องมีใบคืนเงินประกันปนอยู่ ไม่งั้นข้อนี้ไม่ได้ทดสอบอะไร'
@@ -529,8 +539,9 @@ check('ยอดรวมหักใบคืนเงินประกัน�
 
 check('ไม่กรองเดือนได้ใบเสร็จทุกใบของหอ รวมใบของสัญญาด้วย', () => {
   const report = payments.listReceipts(db, apartmentId)
-  // ก.ย. 2 ใบ + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน) + ต.ค. 1 ใบ + พ.ย. 1 ใบ (บิลที่มีค่าปรับ)
-  assert(report.receiptCount === 6, `ได้ ${report.receiptCount} ใบ`)
+  // เงินประกันวันทำสัญญา 2 ใบ + ก.ย. 2 ใบ + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน)
+  // + ต.ค. 1 ใบ + พ.ย. 1 ใบ (บิลที่มีค่าปรับ)
+  assert(report.receiptCount === 8, `ได้ ${report.receiptCount} ใบ`)
   assert(
     report.receipts.some((r) => r.sourceType === 'contract'),
     'ต้องมีใบเสร็จของสัญญาปนอยู่ด้วย'
@@ -730,10 +741,109 @@ const depositContract = contracts.createContract(db, {
   // เงินจอง 2,000 ที่รับไปแล้วตั้งแต่วันมาดูห้อง
   bookingFee: '2000',
   bookingPaidDate: '2026-03-01',
+  // วันเซ็นสัญญายังไม่ได้เก็บส่วนที่เหลือ (ผู้เช่าขอไปโอนทีหลัง) — กรณีที่การเตือน
+  // ยอดค้างมีไว้เพื่อสิ่งนี้ ถ้าไม่ส่งช่องนี้มา ระบบจะเหมาว่าเก็บครบตามปกติ
+  depositReceived: '0',
   waterMeterStart: 0,
   electricMeterStart: 0,
   tenants: [depositTenant.tenantId],
   createdBy: staff.user_id
+})
+
+// ผู้ใช้รายงาน 2026-08-10 (หอพักวาสนา): สายรุ้งเดินเข้ามาดูห้องแล้วเข้าอยู่เลย จ่ายเงินประกัน
+// ครบตั้งแต่วันทำสัญญา แต่ระบบยังขึ้นว่าค้าง 4,000
+//
+// เพราะเดิมออกใบเสร็จให้เฉพาะ "เงินจอง" — คนที่ไม่ได้จองมาก่อนจึงไม่มีใบเสร็จสักใบ
+// แล้วยอด "รับแล้ว" ซึ่งนับจากใบเสร็จก็เป็น 0 ทั้งที่เงินอยู่ในมือเจ้าของหอแล้ว
+check('เดินเข้ามาทำสัญญาเลย จ่ายครบ ต้องไม่ค้างเงินประกัน', () => {
+  const walkInRoom = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+  const target = walkInRoom[walkInRoom.length - 1].rooms[0]
+  rooms.setRoomRates(db, [target.roomId], { monthlyRent: '3500' })
+
+  const person = tenants.insertTenant(db, {
+    firstName: 'สายรุ้ง',
+    lastName: 'ทดสอบ',
+    phone: '0888888888'
+  })
+  const walkIn = contracts.createContract(db, {
+    roomId: target.roomId,
+    rentType: 'monthly',
+    startDate: '2026-06-01',
+    rentAmount: '3500',
+    deposit: '4000',
+    depositPaymentMethod: 'cash',
+    // ไม่เคยจองมาก่อน
+    bookingFee: '0',
+    waterMeterStart: 0,
+    electricMeterStart: 0,
+    tenants: [person.tenantId],
+    createdBy: staff.user_id
+  })
+
+  assert(walkIn.deposit.receivedCents === 400000, `รับแล้ว ${walkIn.deposit.receivedCents}`)
+  assert(walkIn.deposit.outstandingCents === 0, `ค้าง ${walkIn.deposit.outstandingCents}`)
+  assert(walkIn.deposit.isSettled === true, 'ต้องถือว่าเก็บครบแล้ว')
+})
+
+// ช่อง "รับเงินประกันวันนี้" ต้องกรอกได้เมื่อเก็บไม่ครบ ไม่งั้นการเตือนยอดค้างไม่มีวันทำงาน
+check('เก็บได้ไม่ครบในวันทำสัญญา ยอดที่ขาดขึ้นเป็นยอดค้าง', () => {
+  const partialRooms = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+  const target = partialRooms[partialRooms.length - 1].rooms[0]
+  rooms.setRoomRates(db, [target.roomId], { monthlyRent: '3500' })
+
+  const person = tenants.insertTenant(db, {
+    firstName: 'จ่ายไม่ครบ',
+    lastName: 'ทดสอบ',
+    phone: '0877777777'
+  })
+  const partial = contracts.createContract(db, {
+    roomId: target.roomId,
+    rentType: 'monthly',
+    startDate: '2026-06-01',
+    rentAmount: '3500',
+    deposit: '4000',
+    depositPaymentMethod: 'cash',
+    bookingFee: '0',
+    depositReceived: '1500',
+    waterMeterStart: 0,
+    electricMeterStart: 0,
+    tenants: [person.tenantId],
+    createdBy: staff.user_id
+  })
+
+  assert(partial.deposit.receivedCents === 150000, `รับแล้ว ${partial.deposit.receivedCents}`)
+  assert(partial.deposit.outstandingCents === 250000, `ค้าง ${partial.deposit.outstandingCents}`)
+})
+
+check('รับเงินประกันรวมกันเกินยอดที่ตกลงไว้ไม่ได้', () => {
+  const overRooms = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+  const target = overRooms[overRooms.length - 1].rooms[0]
+  rooms.setRoomRates(db, [target.roomId], { monthlyRent: '3500' })
+
+  const person = tenants.insertTenant(db, {
+    firstName: 'จ่ายเกิน',
+    lastName: 'ทดสอบ',
+    phone: '0866666666'
+  })
+  throws(
+    () =>
+      contracts.createContract(db, {
+        roomId: target.roomId,
+        rentType: 'monthly',
+        startDate: '2026-06-01',
+        rentAmount: '3500',
+        deposit: '4000',
+        depositPaymentMethod: 'cash',
+        bookingFee: '2000',
+        depositReceived: '3000',
+        waterMeterStart: 0,
+        electricMeterStart: 0,
+        tenants: [person.tenantId],
+        createdBy: staff.user_id
+      }),
+    'เกินยอดที่ตกลงไว้',
+    'ต้องกันการรับเกิน'
+  )
 })
 
 check('เงินจองที่รับไปแล้ว ถูกออกเป็นใบเสร็จเงินประกันให้อัตโนมัติ', () => {

@@ -80,6 +80,15 @@ const somying = tenants.insertTenant(db, {
   phone: '0891234567'
 })
 
+// เงินประกันที่รับในวันทำสัญญาถูกออกเป็นใบเสร็จให้ทันที จึงต้องมีผู้รับเงินตั้งแต่ต้นไฟล์
+const staffUser = (await import('../src/main/db/users.js')).insertUser(db, {
+  fullName: 'ผู้จัดการหอ',
+  phone: '0801112222',
+  email: 'manager@example.com',
+  passwordHash: 'x',
+  recoveryCodeHash: 'y'
+})
+
 const contract1 = contracts.createContract(db, {
   roomId: room1.roomId,
   rentType: 'monthly',
@@ -91,7 +100,8 @@ const contract1 = contracts.createContract(db, {
   // เลขมิเตอร์วันเข้าพัก = เลขครั้งก่อนของการจดรอบแรก (ระบบไล่หาให้ ห้ามกรอกทับ)
   waterMeterStart: 2,
   electricMeterStart: 0,
-  tenants: [somchai.tenantId]
+  tenants: [somchai.tenantId],
+  createdBy: staffUser.user_id
 })
 const contract2 = contracts.createContract(db, {
   roomId: room2.roomId,
@@ -103,7 +113,8 @@ const contract2 = contracts.createContract(db, {
   bookingFee: '0',
   waterMeterStart: 0,
   electricMeterStart: 0,
-  tenants: [somying.tenantId]
+  tenants: [somying.tenantId],
+  createdBy: staffUser.user_id
 })
 
 const batch = meter.createBatch(db, apartmentId, '2026-08-31')
@@ -132,9 +143,17 @@ check('ขึ้นเดือนใหม่เริ่มนับหนึ�
   assert(next === 'I2026090001', `ได้ ${next}`)
 })
 
+// ไม่ผูกกับลำดับที่แน่นอน เพราะการทำสัญญาข้างบนออกใบเสร็จเงินประกันไปแล้วหลายใบ
+// สิ่งที่ต้องพิสูจน์คือ "คนละตัวนับกับใบแจ้งหนี้" ไม่ใช่ว่าเลขเท่าไหร่
 check('ใบเสร็จใช้ตัวนับคนละชุดกับใบแจ้งหนี้', () => {
-  const receipt = invoices.nextDocumentNumber(db, apartmentId, 'receipt', '2026-08-31')
-  assert(receipt === 'R2026080001', `ได้ ${receipt}`)
+  const first = invoices.nextDocumentNumber(db, apartmentId, 'receipt', '2026-08-31')
+  const second = invoices.nextDocumentNumber(db, apartmentId, 'receipt', '2026-08-31')
+  assert(first.startsWith('R202608'), `ได้ ${first}`)
+  assert(Number(second.slice(-4)) === Number(first.slice(-4)) + 1, `${first} → ${second}`)
+
+  // ตัวนับของใบแจ้งหนี้ต้องไม่ขยับตามการออกเลขใบเสร็จ
+  const invoiceNumber = invoices.nextDocumentNumber(db, apartmentId, 'invoice', '2026-08-31')
+  assert(invoiceNumber === 'I2026080003', `ได้ ${invoiceNumber}`)
 })
 
 check('ชนิดเอกสารที่ไม่รู้จักต้องเตือน', () => {
@@ -670,7 +689,8 @@ const plainContract = contracts.createContract(db, {
   bookingFee: '0',
   waterMeterStart: 0,
   electricMeterStart: 0,
-  tenants: [plainTenant.tenantId]
+  tenants: [plainTenant.tenantId],
+  createdBy: staffUser.user_id
 })
 const plainBatch = meter.createBatch(db, plainId, '2026-08-31')
 
@@ -719,14 +739,6 @@ check('เพิ่มรายการเองแล้วสั่งให�
 // -----------------------------------------------------
 // ลบบิลที่ยกเลิกแล้วออกจากระบบ พร้อมเหตุผลที่บังคับกรอก (ผู้ใช้สั่ง 2026-08-07)
 group('ลบใบแจ้งหนี้')
-
-const staffUser = (await import('../src/main/db/users.js')).insertUser(db, {
-  fullName: 'ผู้จัดการหอ',
-  phone: '0801112222',
-  email: 'manager@example.com',
-  passwordHash: 'x',
-  recoveryCodeHash: 'y'
-})
 
 check('บิลที่ยังไม่ยกเลิก ลบไม่ได้', () => {
   const live = invoices.listInvoices(db, apartmentId, { status: 'unpaid' })[0]

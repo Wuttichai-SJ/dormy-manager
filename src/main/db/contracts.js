@@ -76,6 +76,15 @@ export function validateContractInput(input) {
     }
   }
 
+  // ไม่บังคับกรอก — เว้นว่าง = จ่ายส่วนที่เหลือครบในวันทำสัญญา (กรณีปกติ)
+  if (input.depositReceived !== undefined && input.depositReceived !== null && input.depositReceived !== '') {
+    try {
+      toCents(input.depositReceived, 'เงินประกันที่รับวันนี้')
+    } catch (err) {
+      errors.push(err.message)
+    }
+  }
+
   // เลขมิเตอร์เป็นค่าที่อ่านจากหน้าปัด ไม่ใช่เงิน จึงเป็นทศนิยมธรรมดา ไม่ใช่สตางค์
   for (const [key, label] of [
     ['waterMeterStart', 'เลขมิเตอร์ค่าน้ำ'],
@@ -317,6 +326,22 @@ export function createContract(db, input) {
     .get(room.apartment_id)
 
   const bookingFeeCents = toCents(input.bookingFee ?? 0, 'เงินจอง')
+  const depositCents = toCents(input.deposit, 'เงินประกัน')
+
+  // ไม่ส่งมา = จ่ายส่วนที่เหลือครบในวันทำสัญญา ซึ่งเป็นกรณีปกติ
+  // (ส่งมาเป็น 0 คือตั้งใจบอกว่าวันนี้ยังไม่ได้เก็บ — ต่างจากไม่ส่งมาเลย)
+  const depositReceivedCents =
+    input.depositReceived === undefined || input.depositReceived === null || input.depositReceived === ''
+      ? Math.max(0, depositCents - bookingFeeCents)
+      : toCents(input.depositReceived, 'เงินประกันที่รับวันนี้')
+
+  // เก็บเกินยอดที่ตกลงกันไว้ไม่ได้ — เงินส่วนเกินไม่มีที่ไป และยอดค้างจะติดลบ
+  if (bookingFeeCents + depositReceivedCents > depositCents) {
+    throw new Error(
+      `เงินประกันที่รับรวมกันเกินยอดที่ตกลงไว้ — ตกลง ${depositCents / 100} บาท ` +
+        `แต่รับมา ${(bookingFeeCents + depositReceivedCents) / 100} บาท (รวมเงินจอง)`
+    )
+  }
 
   const run = db.transaction(() => {
     // เลขที่ใบจอง: ยกมาจากใบจองเดิมถ้ามี (ดู convertBookingToContract) ถ้าไม่มีแต่มีการวาง
@@ -351,7 +376,7 @@ export function createContract(db, input) {
         startDate: input.startDate,
         endDate: input.endDate || null,
         rentAmountCents,
-        depositCents: toCents(input.deposit, 'เงินประกัน'),
+        depositCents,
         depositPaymentMethod: input.depositPaymentMethod,
         bookingFeeCents,
         bookingReceiptNo,
@@ -412,6 +437,26 @@ export function createContract(db, input) {
         paymentMethod: input.depositPaymentMethod,
         paymentDate: input.bookingPaidDate || input.startDate,
         remark: bookingReceiptNo ? `เงินจองตามใบจอง ${bookingReceiptNo}` : 'เงินจอง',
+        createdBy: input.createdBy
+      })
+    }
+
+    // *** เงินประกันส่วนที่รับในวันทำสัญญา ***
+    //
+    // ปกติผู้เช่าจ่ายส่วนที่เหลือครบในวันเซ็นสัญญา (เดินเข้ามาดูห้องแล้วเข้าอยู่เลยก็จ่าย
+    // เต็มจำนวนตรงนั้น) ฟอร์มจึงเติมยอด "เงินประกัน − เงินจอง" ไว้ให้ก่อน
+    //
+    // แต่แก้ลงได้ สำหรับกรณีที่ตกลงกันว่าจ่ายไม่ครบวันนี้ — ส่วนที่ขาดจะไปโผล่เป็นยอดค้าง
+    // บนหน้าห้องจนกว่าจะเก็บครบ ถ้าไม่มีช่องนี้ ระบบจะเหมาว่าเก็บครบเสมอ แล้วการเตือน
+    // เรื่องเงินประกันค้างก็ไม่มีวันทำงาน
+    if (depositReceivedCents > 0) {
+      recordContractPayment(db, {
+        contractId,
+        amount: String(depositReceivedCents / 100),
+        purpose: 'deposit',
+        paymentMethod: input.depositPaymentMethod,
+        paymentDate: input.startDate,
+        remark: 'เงินประกันวันทำสัญญา',
         createdBy: input.createdBy
       })
     }

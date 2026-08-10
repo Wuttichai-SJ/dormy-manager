@@ -3047,6 +3047,13 @@ body {
   border-top: 1px solid #ccd7ef;
 }
 
+/* ยอดเงินประกันที่จะค้างหลังกดบันทึก — โทนเตือน เพราะเป็นเงินที่ยังไม่ได้เก็บ
+   ไม่ใช่ข้อผิดพลาด และต้องเห็นตั้งแต่ก่อนบันทึก ไม่ใช่ไปเจอเอาทีหลังบนหน้าห้อง */
+.contract-summary-row.contract-summary-warn {
+  font-weight: 600;
+  color: var(--warn);
+}
+
 .contract-tenant {
   margin-bottom: 20px;
   padding: 16px;

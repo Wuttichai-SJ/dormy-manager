@@ -37,6 +37,9 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
     ),
     deposit: '',
     depositPaymentMethod: 'cash',
+    // เว้นว่าง = เก็บส่วนที่เหลือครบวันนี้ (กรณีปกติ) — ฝั่ง main คิดยอดให้เอง
+    // กรอกเมื่อวันนี้เก็บได้ไม่ครบ ส่วนที่ขาดจะไปขึ้นเป็นยอดค้างบนหน้าห้อง
+    depositReceived: '',
     bookingFee: booking ? centsToInput(booking.bookingFeeCents) : '',
     // มาจากใบจองก็เอาเลขของใบนั้นมาแสดง (ฝั่ง main ยกมาให้อยู่แล้ว ตรงนี้แค่ให้เห็นก่อนบันทึก)
     bookingReceiptNo: booking?.bookingNumber ?? '',
@@ -58,6 +61,12 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
   const depositCents = toCentsSafe(form.deposit)
   const bookingCents = toCentsSafe(form.bookingFee)
   const rentCents = toCentsSafe(form.rentAmount)
+
+  // ยอดที่ต้องเก็บเพิ่มวันนี้ = เงินประกัน − เงินจองที่วางไว้แล้ว
+  const dueToday = Math.max(depositCents - bookingCents, 0)
+  // เว้นช่อง "รับวันนี้" ไว้ = เก็บครบ จึงไม่ค้าง — ต้องคิดแบบเดียวกับฝั่ง main
+  const receivedToday = form.depositReceived.trim() === '' ? dueToday : toCentsSafe(form.depositReceived)
+  const depositShort = Math.max(dueToday - receivedToday, 0)
 
   async function submit() {
     setError('')
@@ -224,6 +233,27 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               </div>
             </div>
 
+            {/* ยอดที่ต้องเก็บเพิ่มวันนี้ — เว้นว่างไว้ = เก็บครบตามนี้ ซึ่งเป็นกรณีปกติ
+                กรอกเมื่อวันนี้เก็บได้ไม่ครบ ส่วนที่ขาดจะไปขึ้นเป็นยอดค้างบนหน้าห้อง
+                ถ้าไม่มีช่องนี้ ระบบจะเหมาว่าเก็บครบเสมอ แล้วการเตือนยอดค้างก็ไม่มีวันทำงาน */}
+            <div className="field">
+              <label htmlFor="depositReceived">รับเงินประกันวันนี้</label>
+              <div className="input-with-suffix">
+                <input
+                  id="depositReceived"
+                  value={form.depositReceived}
+                  onChange={(e) => set('depositReceived', e.target.value)}
+                  inputMode="decimal"
+                  placeholder={centsToInput(dueToday)}
+                />
+                <span className="input-suffix">บาท</span>
+              </div>
+              <p className="field-hint">
+                เว้นว่างไว้ = เก็บครบ {formatBaht(dueToday)} บาทในวันนี้ ·
+                กรอกเมื่อเก็บได้ไม่ครบ แล้วส่วนที่ขาดจะขึ้นเป็นยอดค้างที่หน้าห้องจนกว่าจะเก็บครบ
+              </p>
+            </div>
+
             {/* กล่องสรุปสีฟ้าแบบต้นแบบ — เงินจองที่วางไว้แล้วถูกหักออกจากยอดที่ต้องเก็บเพิ่ม */}
             <div className="contract-summary">
               <h4>สรุป</h4>
@@ -237,8 +267,15 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               </div>
               <div className="contract-summary-row total">
                 <span>รวม (เก็บเพิ่ม)</span>
-                <span>{formatBaht(Math.max(depositCents - bookingCents, 0))} บาท</span>
+                <span>{formatBaht(dueToday)} บาท</span>
               </div>
+              {/* บอกยอดค้างตั้งแต่ก่อนกดบันทึก ไม่ใช่ให้ไปเจอเอาทีหลังบนหน้าห้อง */}
+              {depositShort > 0 && (
+                <div className="contract-summary-row contract-summary-warn">
+                  <span>จะค้างเงินประกัน</span>
+                  <span>{formatBaht(depositShort)} บาท</span>
+                </div>
+              )}
             </div>
 
             <hr className="divider" />

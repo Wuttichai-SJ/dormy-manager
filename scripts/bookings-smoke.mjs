@@ -238,20 +238,30 @@ check('เงินจองถูกยกไปเป็นเงินจอ�
 
 // เงินจองคือเงินประกันส่วนแรก — ต้องนับเป็น "รับแล้ว" ไม่ใช่ให้เจ้าของหอไปเก็บซ้ำ
 // และใบเสร็จต้องลงวันที่ที่รับเงินจริง (วันจอง) ไม่ใช่วันทำสัญญาซึ่งอาจห่างกันหลายเดือน
-check('เงินจองถูกออกเป็นใบเสร็จเงินประกัน ลงวันที่วันจอง', () => {
-  const payments = bookings.getBookingById(db, booking.bookingId)
-  assert(payments !== null, 'ใบจองต้องยังอยู่')
-
+check('เงินจองและส่วนที่เหลือถูกออกเป็นใบเสร็จคนละใบ คนละวันที่', () => {
+  // เงินจอง 1,000 + ส่วนที่เหลือ 4,000 ที่เก็บวันเซ็นสัญญา = ครบ 5,000 ไม่มียอดค้าง
   const status = contract.deposit
   assert(status.requiredCents === 500000, `ตกลงไว้ ${status.requiredCents}`)
-  assert(status.receivedCents === 100000, `รับแล้ว ${status.receivedCents}`)
-  assert(status.outstandingCents === 400000, `ค้าง ${status.outstandingCents}`)
+  assert(status.receivedCents === 500000, `รับแล้ว ${status.receivedCents}`)
+  assert(status.outstandingCents === 0, `ค้าง ${status.outstandingCents}`)
 
-  const row = db
-    .prepare("SELECT payment_date, purpose FROM payments WHERE contract_id = ?")
-    .get(contract.contractId)
-  assert(row.purpose === 'deposit', `ได้ ${row.purpose}`)
-  assert(row.payment_date === booking.bookingDate, `ใบเสร็จลงวันที่ ${row.payment_date}`)
+  const rows = db
+    .prepare(
+      "SELECT payment_date, amount_cents, purpose FROM payments WHERE contract_id = ? ORDER BY payment_date"
+    )
+    .all(contract.contractId)
+  assert(rows.length === 2, `ควรมีใบเสร็จ 2 ใบ ได้ ${rows.length}`)
+  assert(
+    rows.every((r) => r.purpose === 'deposit'),
+    'ทั้งสองใบต้องเป็นเงินประกัน'
+  )
+
+  // เงินจองลงวันที่ที่รับเงินจริง (วันจอง) ส่วนที่เหลือลงวันเซ็นสัญญา — สองวันนี้ห่างกันได้
+  // หลายเดือน ถ้ายุบเป็นวันเดียวรายรับของเดือนที่รับเงินจองจะหายไป
+  assert(rows[0].payment_date === booking.bookingDate, `ใบแรกลงวันที่ ${rows[0].payment_date}`)
+  assert(rows[0].amount_cents === 100000, `ใบแรก ${rows[0].amount_cents}`)
+  assert(rows[1].payment_date === '2026-09-01', `ใบที่สองลงวันที่ ${rows[1].payment_date}`)
+  assert(rows[1].amount_cents === 400000, `ใบที่สอง ${rows[1].amount_cents}`)
 })
 
 // เลขที่ต้องเป็นใบเดียวกัน ไม่ใช่ออกเลขใหม่ — ผู้เช่าถือใบจองที่มีเลขนี้อยู่ในมือ
