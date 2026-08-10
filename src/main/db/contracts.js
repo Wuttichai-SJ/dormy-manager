@@ -137,7 +137,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
          -- การจองที่ยังกันห้องอยู่ (pending/confirmed) — **ไม่ได้เก็บเป็นสถานะห้อง**
          -- ดูเหตุผลที่ toPublicRoomRow ด้านล่าง
          b.booking_id, b.customer_name AS booking_customer, b.check_in_date AS booking_check_in,
-         b.status AS booking_status,
+         b.customer_phone AS booking_phone, b.status AS booking_status,
          -- ยอดค้างชำระของสัญญาที่ยังใช้งานอยู่ (ไม่นับบิลที่ยกเลิก)
          COALESCE((
            SELECT SUM(i.total_amount_cents) - COALESCE((
@@ -231,6 +231,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
         ? {
             bookingId: row.booking_id,
             customerName: row.booking_customer,
+            customerPhone: row.booking_phone,
             checkInDate: row.booking_check_in,
             status: row.booking_status
           }
@@ -250,9 +251,17 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
     if (tenant) {
       const keyword = String(tenant).trim()
       const asDigits = digits(keyword)
-      const hit = room.tenants.some(
-        (t) => t.fullName.includes(keyword) || (asDigits && digits(t.phone).includes(asDigits))
-      )
+      const matches = (name, phone) =>
+        String(name ?? '').includes(keyword) || (asDigits && digits(phone).includes(asDigits))
+
+      // **ค้นหาคนจองด้วย ไม่ใช่แค่ผู้เช่าตามสัญญา** (ผู้ใช้สั่ง 2026-08-10)
+      //
+      // คนที่จองห้องไว้ยังไม่ใช่ผู้เช่า — ระเบียนผู้เช่าเพิ่งถูกสร้างตอนทำสัญญา ถ้าค้นแต่
+      // ผู้เช่า คนที่จองไว้แล้วยังไม่ย้ายเข้าจะหาไม่เจอเลย ซึ่งเป็นช่วงเวลาเดียวที่ต้องหา
+      // จริงๆ: หอร้อยห้อง คนจองจำเลขห้องตัวเองไม่ได้ เหลือแค่ชื่อให้ค้น
+      const hit =
+        room.tenants.some((t) => matches(t.fullName, t.phone)) ||
+        (room.booking && matches(room.booking.customerName, room.booking.customerPhone))
       if (!hit) return false
     }
     return true

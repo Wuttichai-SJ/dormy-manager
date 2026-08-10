@@ -67,13 +67,15 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
             aria-label="ค้นหาเลขห้อง"
           />
         </div>
+        {/* ค้นได้ทั้งผู้เช่าตามสัญญาและคนที่จองไว้แต่ยังไม่ย้ายเข้า — หอร้อยห้อง คนจอง
+            จำเลขห้องตัวเองไม่ได้ ชื่อจึงเป็นทางเดียวที่หาห้องเจอ (ผู้ใช้สั่ง 2026-08-10) */}
         <div className="search-field">
           <Icon name="search" />
           <input
             value={tenant}
             onChange={(e) => setTenant(e.target.value)}
-            placeholder="ค้นหาชื่อหรือเบอร์ผู้เช่า"
-            aria-label="ค้นหาผู้เช่า"
+            placeholder="ค้นหาชื่อหรือเบอร์ (ผู้เช่า / ผู้จอง)"
+            aria-label="ค้นหาชื่อหรือเบอร์ของผู้เช่าหรือผู้จอง"
           />
         </div>
         <select value={rentType} onChange={(e) => setRentType(e.target.value)} aria-label="ประเภทสัญญา">

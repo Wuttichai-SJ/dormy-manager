@@ -158,6 +158,33 @@ check('ห้องที่ไม่มีการจอง ไม่มีข
   assert(booked === bookings.countOpenBookings(db, apartmentId), `นับได้ ${booked}`)
 })
 
+// หอร้อยห้อง คนจองจำเลขห้องตัวเองไม่ได้ — ชื่อคือทางเดียวที่หาห้องเจอ (ผู้ใช้สั่ง 2026-08-10)
+//
+// คนจองยังไม่ใช่ผู้เช่า (ระเบียนผู้เช่าเพิ่งถูกสร้างตอนทำสัญญา) ถ้าค้นแต่ผู้เช่า
+// คนที่จองแล้วยังไม่ย้ายเข้าจะหาไม่เจอเลย ซึ่งเป็นช่วงเดียวที่จำเป็นต้องหาจริงๆ
+check('ค้นหาด้วยชื่อผู้จอง เจอห้องที่เขาจองไว้', () => {
+  const byName = contractsDb.listRoomsForApartment(db, apartmentId, { tenant: 'สมชาย' })
+  assert(
+    byName.some((r) => r.roomId === room1.roomId),
+    'ค้นชื่อผู้จองแล้วต้องเจอห้องที่จองไว้'
+  )
+})
+
+check('ค้นหาด้วยเบอร์ผู้จองก็เจอ และรับเบอร์ที่มีขีดคั่นได้', () => {
+  for (const keyword of ['0812345678', '081-234-5678']) {
+    const found = contractsDb.listRoomsForApartment(db, apartmentId, { tenant: keyword })
+    assert(
+      found.some((r) => r.roomId === room1.roomId),
+      `ค้นด้วย ${keyword} แล้วไม่เจอ`
+    )
+  }
+})
+
+check('ชื่อที่ไม่มีใครตรง ต้องไม่คืนห้องมั่วๆ', () => {
+  const none = contractsDb.listRoomsForApartment(db, apartmentId, { tenant: 'ไม่มีคนชื่อนี้' })
+  assert(none.length === 0, `ได้ ${none.length} ห้อง`)
+})
+
 // ใบจองที่ยกเลิกไปแล้วต้องไม่ค้างอยู่บนหน้าจอ — นี่คือข้อที่การเก็บเป็น rooms.status จะพลาด
 check('ยกเลิกใบจองแล้ว ห้องกลับมาว่างทันที', () => {
   const spare = bookings.createBooking(db, { ...BASE, roomId: room3.roomId })
