@@ -74,7 +74,7 @@ export function registerPaymentHandlers() {
   // ใบเสร็จเงินประกัน/เงินล่วงหน้าของสัญญา — ไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
   handle(
     'payment:receiveForContract',
-    ({ contractId, amount, paymentMethod, paymentDate, remark, isRefund }) => {
+    ({ contractId, amount, paymentMethod, paymentDate, remark, isRefund, purpose }) => {
       const payment = recordContractPayment(getDatabase(), {
         contractId,
         amount,
@@ -82,6 +82,7 @@ export function registerPaymentHandlers() {
         paymentDate,
         remark,
         isRefund,
+        purpose,
         createdBy: requireSessionUserId()
       })
       logInfo(

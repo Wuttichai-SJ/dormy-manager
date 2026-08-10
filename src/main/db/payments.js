@@ -28,6 +28,17 @@ export const PAYMENT_METHOD_LABELS = {
   other: 'อื่นๆ'
 }
 
+// เงินก้อนนี้เป็นค่าอะไร (migration 022) — ต้องรู้เพื่อคิดว่า "เงินประกันรับมาครบหรือยัง"
+// เพราะใบเสร็จที่ผูกกับสัญญามีทั้งเงินประกัน ค่าเช่าล่วงหน้า และเงินประกันที่คืนตอนย้ายออก
+export const PAYMENT_PURPOSES = ['invoice', 'deposit', 'advance', 'other']
+
+export const PAYMENT_PURPOSE_LABELS = {
+  invoice: 'ค่าบิล',
+  deposit: 'เงินประกัน',
+  advance: 'ค่าเช่าล่วงหน้า',
+  other: 'อื่นๆ'
+}
+
 // **ไม่มีฟังก์ชันลบใบเสร็จโดยตั้งใจ**
 // ใบเสร็จที่หายไปเฉยๆ ทำให้ยอดรับเงินย้อนหลังกระทบไม่ได้ และเลขใบเสร็จที่ออกให้ผู้เช่า
 // ไปแล้วจะชี้ไปที่ความว่างเปล่า การแก้ที่รับเงินผิดทำโดย "คืนเงิน" ซึ่งเป็นใบเสร็จยอดติดลบ
@@ -93,6 +104,7 @@ export function recordInvoicePayment(
     contractId: null,
     apartmentId: invoice.apartmentId,
     amountCents,
+    purpose: 'invoice',
     paymentMethod,
     paymentDate,
     remark,
@@ -191,9 +203,13 @@ export function getMultiPaymentSheet(db, apartmentId, { billingMonth, paymentDat
 // ยอดติดลบได้ตรงๆ เพราะการคืนเงินประกันตอนย้ายออก (Phase 4) จะใช้ทางนี้
 export function recordContractPayment(
   db,
-  { contractId, amount, paymentMethod, paymentDate, remark, createdBy, isRefund }
+  { contractId, amount, paymentMethod, paymentDate, remark, createdBy, isRefund, purpose }
 ) {
   const errors = validateCommon({ paymentMethod, paymentDate })
+  // ค่าตั้งต้นเป็นเงินประกัน เพราะเป็นเงินก้อนที่รับกันจริงเกือบทุกครั้งของสัญญา
+  const kind = purpose ?? 'deposit'
+  if (!PAYMENT_PURPOSES.includes(kind)) errors.push(`ประเภทเงินไม่ถูกต้อง: ${purpose}`)
+  if (kind === 'invoice') errors.push('ใบเสร็จของสัญญาเป็นค่าบิลไม่ได้ — ค่าบิลต้องผูกกับใบแจ้งหนี้')
   if (errors.length > 0) throw new Error(errors.join('\n'))
 
   const contract = db
@@ -215,11 +231,45 @@ export function recordContractPayment(
     contractId,
     apartmentId: contract.apartment_id,
     amountCents: isRefund ? -magnitude : magnitude,
+    purpose: kind,
     paymentMethod,
     paymentDate,
     remark,
     createdBy
   })
+}
+
+// ------------------------------------------------------------------
+// เงินประกันรับมาครบหรือยัง
+// ------------------------------------------------------------------
+// **นับจากใบเสร็จจริง ไม่ใช่คอลัมน์ที่พิมพ์มือ** — `contracts.deposit_amount_cents` คือยอด
+// ที่ตกลงกันไว้ ส่วนยอดที่รับมาจริงคือผลรวมของใบเสร็จที่ระบุว่าเป็นเงินประกัน
+//
+// เงินจองที่ถูกหักเป็นเงินประกันก็อยู่ในผลรวมนี้ด้วย เพราะตอนทำสัญญาระบบออกใบเสร็จ
+// ให้เงินจองก้อนนั้นแล้ว (ดู createContract) จึงไม่ต้องบวก booking_fee_cents ซ้ำอีก
+//
+// ใบคืนเงินประกันตอนย้ายออกเป็นยอดติดลบ จึงหักออกเองโดยอัตโนมัติ
+export function getDepositStatus(db, contractId) {
+  const row = db
+    .prepare('SELECT deposit_amount_cents FROM contracts WHERE contract_id = ?')
+    .get(contractId)
+  if (!row) throw new Error('ไม่พบสัญญา')
+
+  const received = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS total
+         FROM payments WHERE contract_id = ? AND purpose = 'deposit'`
+    )
+    .get(contractId).total
+
+  const requiredCents = row.deposit_amount_cents
+  return {
+    requiredCents,
+    receivedCents: received,
+    // เก็บเกินได้ (เจ้าของหอเก็บเผื่อ) แต่ยอดค้างไม่ติดลบ — ติดลบอ่านไม่ออกว่าแปลว่าอะไร
+    outstandingCents: Math.max(0, requiredCents - received),
+    isSettled: received >= requiredCents
+  }
 }
 
 // ------------------------------------------------------------------
@@ -229,7 +279,17 @@ export function recordContractPayment(
 // ถ้าแยกกัน จะมีจังหวะที่ใบเสร็จมีอยู่แล้วแต่สถานะบิลยังเป็น "ค้างชำระ"
 function writePayment(
   db,
-  { invoiceId, contractId, apartmentId, amountCents, paymentMethod, paymentDate, remark, createdBy }
+  {
+    invoiceId,
+    contractId,
+    apartmentId,
+    amountCents,
+    purpose,
+    paymentMethod,
+    paymentDate,
+    remark,
+    createdBy
+  }
 ) {
   if (!createdBy) throw new Error('ไม่ทราบผู้รับเงิน กรุณาเข้าสู่ระบบใหม่')
 
@@ -242,10 +302,11 @@ function writePayment(
         // (apartment_id, receipt_number) — เลขใบเสร็จเดินแยกรายหอ (ดู migration 021)
         `INSERT INTO payments (
            invoice_id, contract_id, apartment_id, receipt_number, payment_date,
-           amount_cents, vat_amount_cents, payment_method, remark, created_by, created_at
+           amount_cents, vat_amount_cents, purpose, payment_method, remark,
+           created_by, created_at
          ) VALUES (
            @invoiceId, @contractId, @apartmentId, @receiptNumber, @paymentDate,
-           @amountCents, 0, @paymentMethod, @remark, @createdBy, @now
+           @amountCents, 0, @purpose, @paymentMethod, @remark, @createdBy, @now
          )`
       )
       .run({
@@ -255,6 +316,7 @@ function writePayment(
         receiptNumber,
         paymentDate,
         amountCents,
+        purpose,
         paymentMethod,
         remark: String(remark ?? '').trim() || null,
         createdBy,
@@ -376,6 +438,8 @@ function toPublicPayment(row) {
     amountCents: row.amount_cents,
     paymentMethod: row.payment_method,
     paymentMethodLabel: PAYMENT_METHOD_LABELS[row.payment_method] ?? row.payment_method,
+    purpose: row.purpose,
+    purposeLabel: PAYMENT_PURPOSE_LABELS[row.purpose] ?? row.purpose,
     remark: row.remark,
     roomNumber: row.room_number,
     invoiceId: row.invoice_id,

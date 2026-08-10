@@ -46,13 +46,16 @@ export function listBillingMonths(apartmentId) {
 // พร้อม isRefund ซึ่งผูกกับสัญญา ไม่ใช่กับบิล
 
 // ใบเสร็จเงินประกัน/เงินล่วงหน้าของสัญญา — ไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
+// purpose = 'deposit' (ค่าตั้งต้น) | 'advance' | 'other'
+// เฉพาะใบที่เป็น 'deposit' เท่านั้นที่ถูกนับเป็นเงินประกันที่รับมาแล้ว
 export function receiveContractPayment({
   contractId,
   amount,
   paymentMethod,
   paymentDate,
   remark,
-  isRefund
+  isRefund,
+  purpose
 }) {
   return invoke('payment:receiveForContract', {
     contractId,
@@ -60,7 +63,8 @@ export function receiveContractPayment({
     paymentMethod,
     paymentDate,
     remark,
-    isRefund
+    isRefund,
+    purpose
   })
 }
 

@@ -133,6 +133,15 @@ const somchai = tenants.insertTenant(db, {
   phone: '0812345678'
 })
 
+// เงินจองที่รับไว้แล้วจะถูกออกเป็นใบเสร็จเงินประกันตอนแปลงเป็นสัญญา จึงต้องมีผู้รับเงิน
+const staff = (await import('../src/main/db/users.js')).insertUser(db, {
+  fullName: 'ผู้จัดการหอ',
+  phone: '0801112222',
+  email: 'manager-bookings@example.com',
+  passwordHash: 'x',
+  recoveryCodeHash: 'y'
+})
+
 const contract = bookings.convertBookingToContract(db, booking.bookingId, {
   startDate: '2026-09-01',
   rentAmount: '5000',
@@ -140,12 +149,31 @@ const contract = bookings.convertBookingToContract(db, booking.bookingId, {
   depositPaymentMethod: 'cash',
   waterMeterStart: 100,
   electricMeterStart: 200,
-  tenants: [somchai.tenantId]
+  tenants: [somchai.tenantId],
+  createdBy: staff.user_id
 })
 
 // จุดสำคัญ: เงินจองที่รับไว้แล้วต้องไหลเข้าสัญญา ไม่ใช่หายไป
 check('เงินจองถูกยกไปเป็นเงินจองของสัญญา', () => {
   assert(contract.bookingFeeCents === 100000, `ได้ ${contract.bookingFeeCents}`)
+})
+
+// เงินจองคือเงินประกันส่วนแรก — ต้องนับเป็น "รับแล้ว" ไม่ใช่ให้เจ้าของหอไปเก็บซ้ำ
+// และใบเสร็จต้องลงวันที่ที่รับเงินจริง (วันจอง) ไม่ใช่วันทำสัญญาซึ่งอาจห่างกันหลายเดือน
+check('เงินจองถูกออกเป็นใบเสร็จเงินประกัน ลงวันที่วันจอง', () => {
+  const payments = bookings.getBookingById(db, booking.bookingId)
+  assert(payments !== null, 'ใบจองต้องยังอยู่')
+
+  const status = contract.deposit
+  assert(status.requiredCents === 500000, `ตกลงไว้ ${status.requiredCents}`)
+  assert(status.receivedCents === 100000, `รับแล้ว ${status.receivedCents}`)
+  assert(status.outstandingCents === 400000, `ค้าง ${status.outstandingCents}`)
+
+  const row = db
+    .prepare("SELECT payment_date, purpose FROM payments WHERE contract_id = ?")
+    .get(contract.contractId)
+  assert(row.purpose === 'deposit', `ได้ ${row.purpose}`)
+  assert(row.payment_date === booking.bookingDate, `ใบเสร็จลงวันที่ ${row.payment_date}`)
 })
 
 // เลขที่ต้องเป็นใบเดียวกัน ไม่ใช่ออกเลขใหม่ — ผู้เช่าถือใบจองที่มีเลขนี้อยู่ในมือ

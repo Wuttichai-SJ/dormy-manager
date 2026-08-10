@@ -13,6 +13,7 @@ import {
   validateBookingInput
 } from '../db/bookings.js'
 import { validateContractInput } from '../db/contracts.js'
+import { requireSessionUserId } from './authHandlers.js'
 
 function handle(channel, fn) {
   ipcMain.handle(channel, async (_event, payload) => {
@@ -51,7 +52,11 @@ export function registerBookingHandlers() {
     const errors = validateContractInput(contractInput)
     if (errors.length > 0) throw new Error(errors.join('\n'))
 
-    const contract = convertBookingToContract(getDatabase(), bookingId, contractInput)
+    // ผู้รับเงินของใบเสร็จเงินจองมาจากเซสชันเสมอ ห้ามให้หน้าจอส่งมาเอง
+    const contract = convertBookingToContract(getDatabase(), bookingId, {
+      ...contractInput,
+      createdBy: requireSessionUserId()
+    })
     logInfo(`แปลงการจอง ${bookingId} เป็นสัญญา (contract_id ${contract.contractId})`)
     return contract
   })

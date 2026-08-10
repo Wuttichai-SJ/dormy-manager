@@ -45,6 +45,16 @@ const somying = tenants.insertTenant(db, {
   phone: '0822222222'
 })
 
+// สัญญาที่มีเงินจอง ระบบจะออกใบเสร็จเงินประกันให้ก้อนนั้นทันที (ดู createContract)
+// ใบเสร็จต้องมีผู้รับเงินเสมอ จึงต้องมีผู้ใช้ในระบบให้อ้างถึง
+const staff = (await import('../src/main/db/users.js')).insertUser(db, {
+  fullName: 'ผู้จัดการหอ',
+  phone: '0801112222',
+  email: 'manager-contracts@example.com',
+  passwordHash: 'x',
+  recoveryCodeHash: 'y'
+})
+
 const BASE = {
   rentType: 'monthly',
   startDate: '2026-07-18',
@@ -53,7 +63,8 @@ const BASE = {
   depositPaymentMethod: 'cash',
   bookingFee: '0',
   waterMeterStart: 3124,
-  electricMeterStart: 4476
+  electricMeterStart: 4476,
+  createdBy: staff.user_id
 }
 
 // -----------------------------------------------------

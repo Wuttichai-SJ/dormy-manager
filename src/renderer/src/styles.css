@@ -3072,6 +3072,43 @@ body {
   margin-bottom: 0;
 }
 
+/* ยอดเงินประกันที่ยังเก็บไม่ครบ — อยู่ในการ์ดสัญญา ใช้โทนเตือนเพราะเป็นเงินที่ยังไม่ได้เก็บ
+   ไม่ใช่ข้อผิดพลาด จึงเป็นเหลืองไม่ใช่แดง */
+.deposit-due {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--warn-weak);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+}
+
+.deposit-due strong {
+  display: block;
+  color: var(--warn);
+}
+
+.deposit-due span {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+/* ป้ายในตารางห้อง — เห็นได้จากหน้ารวมโดยไม่ต้องกดเข้าไปทีละห้อง */
+.deposit-due-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--warn);
+  background: var(--warn-weak);
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
 /* หัวการ์ดที่มีปุ่มมากกว่าหนึ่งปุ่ม */
 .panel-head-actions {
   display: flex;

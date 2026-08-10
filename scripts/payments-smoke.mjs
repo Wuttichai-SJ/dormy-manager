@@ -705,5 +705,128 @@ check('รับเงินส่วนที่เหลือของห้�
 })
 
 // -----------------------------------------------------
+// เคสจริงที่ผู้ใช้ยกมา 2026-08-10: ผู้เช่ามาดูห้อง 01/03 วางเงินจอง 2,000 (= ครึ่งหนึ่งของ
+// เงินประกัน 4,000) แล้วเข้าอยู่จริง 25/05 — เจ้าของหอต้องไม่ลืมเก็บอีก 2,000
+group('เงินประกันที่ยังเก็บไม่ครบ')
+
+// หอนี้มีผังห้องอยู่แล้ว จึงเพิ่มเป็นชั้นใหม่ ไม่ใช่สร้างผังทับ
+const floorsAfter = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+const depositRoom = floorsAfter[floorsAfter.length - 1].rooms[0]
+rooms.setRoomRates(db, [depositRoom.roomId], { monthlyRent: '3500' })
+
+const depositTenant = tenants.insertTenant(db, {
+  firstName: 'ผู้เช่ามัดจำครึ่ง',
+  lastName: 'ทดสอบ',
+  phone: '0899999999'
+})
+
+const depositContract = contracts.createContract(db, {
+  roomId: depositRoom.roomId,
+  rentType: 'monthly',
+  startDate: '2026-05-25',
+  rentAmount: '3500',
+  deposit: '4000',
+  depositPaymentMethod: 'cash',
+  // เงินจอง 2,000 ที่รับไปแล้วตั้งแต่วันมาดูห้อง
+  bookingFee: '2000',
+  bookingPaidDate: '2026-03-01',
+  waterMeterStart: 0,
+  electricMeterStart: 0,
+  tenants: [depositTenant.tenantId],
+  createdBy: staff.user_id
+})
+
+check('เงินจองที่รับไปแล้ว ถูกออกเป็นใบเสร็จเงินประกันให้อัตโนมัติ', () => {
+  const status = payments.getDepositStatus(db, depositContract.contractId)
+  assert(status.requiredCents === 400000, `ตกลงไว้ ${status.requiredCents}`)
+  assert(status.receivedCents === 200000, `รับแล้ว ${status.receivedCents}`)
+  assert(status.outstandingCents === 200000, `ค้าง ${status.outstandingCents}`)
+  assert(status.isSettled === false, 'ยังเก็บไม่ครบ')
+})
+
+// เงินเข้าหอวันที่ 01/03 ไม่ใช่วันทำสัญญา 25/05 — ถ้าลงวันผิด รายรับเดือนมีนาคมจะหายทั้งก้อน
+check('ใบเสร็จเงินจองลงวันที่รับเงินจริง ไม่ใช่วันทำสัญญา', () => {
+  const list = payments.listReceipts(db, apartmentId, {
+    dateFrom: '2026-03-01',
+    dateTo: '2026-03-01'
+  }).receipts
+  assert(list.length === 1, `ได้ ${list.length} ใบ`)
+  assert(list[0].amountCents === 200000, `ได้ ${list[0].amountCents}`)
+  assert(list[0].purpose === 'deposit', `ได้ ${list[0].purpose}`)
+  assert(list[0].sourceType === 'contract', `ได้ ${list[0].sourceType}`)
+})
+
+check('รายการห้องบอกยอดเงินประกันที่ยังค้าง', () => {
+  const room = contracts
+    .listRoomsForApartment(db, apartmentId)
+    .find((r) => r.roomId === depositRoom.roomId)
+  assert(room.depositOutstandingCents === 200000, `ได้ ${room.depositOutstandingCents}`)
+})
+
+check('รับส่วนที่เหลือแล้วยอดค้างเป็นศูนย์', () => {
+  payments.recordContractPayment(db, {
+    contractId: depositContract.contractId,
+    amount: '2000',
+    purpose: 'deposit',
+    paymentMethod: 'cash',
+    paymentDate: '2026-05-25',
+    createdBy: staff.user_id
+  })
+  const status = payments.getDepositStatus(db, depositContract.contractId)
+  assert(status.receivedCents === 400000, `รับแล้ว ${status.receivedCents}`)
+  assert(status.outstandingCents === 0, `ค้าง ${status.outstandingCents}`)
+  assert(status.isSettled === true, 'ต้องถือว่าเก็บครบแล้ว')
+
+  const room = contracts
+    .listRoomsForApartment(db, apartmentId)
+    .find((r) => r.roomId === depositRoom.roomId)
+  assert(room.depositOutstandingCents === 0, `ป้ายในตารางยังขึ้น ${room.depositOutstandingCents}`)
+})
+
+// ค่าเช่าล่วงหน้าผูกกับสัญญาเหมือนกัน แต่ไม่ใช่เงินประกัน — ถ้านับรวมจะทำให้ยอดค้าง
+// หายไปทั้งที่ยังไม่ได้เก็บเงินประกันจริง
+check('ใบเสร็จค่าเช่าล่วงหน้าไม่ถูกนับเป็นเงินประกัน', () => {
+  payments.recordContractPayment(db, {
+    contractId: depositContract.contractId,
+    amount: '1000',
+    purpose: 'advance',
+    paymentMethod: 'cash',
+    paymentDate: '2026-05-25',
+    createdBy: staff.user_id
+  })
+  const status = payments.getDepositStatus(db, depositContract.contractId)
+  assert(status.receivedCents === 400000, `ได้ ${status.receivedCents} ไม่ควรขยับ`)
+})
+
+check('ประเภทเงินที่ไม่รู้จักต้องเตือน และใบเสร็จของสัญญาเป็นค่าบิลไม่ได้', () => {
+  throws(
+    () =>
+      payments.recordContractPayment(db, {
+        contractId: depositContract.contractId,
+        amount: '100',
+        purpose: 'ค่าอะไรก็ไม่รู้',
+        paymentMethod: 'cash',
+        paymentDate: '2026-05-25',
+        createdBy: staff.user_id
+      }),
+    'ประเภทเงินไม่ถูกต้อง',
+    'ต้องกันค่าที่ไม่รู้จัก'
+  )
+  throws(
+    () =>
+      payments.recordContractPayment(db, {
+        contractId: depositContract.contractId,
+        amount: '100',
+        purpose: 'invoice',
+        paymentMethod: 'cash',
+        paymentDate: '2026-05-25',
+        createdBy: staff.user_id
+      }),
+    'ค่าบิลต้องผูกกับใบแจ้งหนี้',
+    'ค่าบิลต้องมาทางใบแจ้งหนี้เท่านั้น'
+  )
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลรับชำระเงินทำงานครบทุกเส้นทาง')

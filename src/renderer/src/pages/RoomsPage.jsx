@@ -114,6 +114,13 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                     <span className={`room-badge status-${room.status}`}>
                       {ROOM_STATUS_LABELS[room.status] ?? room.status}
                     </span>
+                    {/* เงินประกันที่ยังเก็บไม่ครบต้องเห็นตั้งแต่หน้ารวม ไม่ใช่ต้องกดเข้าไปดู
+                        ทีละห้อง — เคสจริงคือวางมัดจำครึ่งเดียวตอนจอง แล้วลืมเก็บส่วนที่เหลือ */}
+                    {room.depositOutstandingCents > 0 && (
+                      <span className="deposit-due-badge">
+                        ค้างเงินประกัน {formatBaht(room.depositOutstandingCents)}
+                      </span>
+                    )}
                   </td>
                   <td>
                     {room.primaryTenant ? (

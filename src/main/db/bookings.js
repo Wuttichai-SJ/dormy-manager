@@ -210,6 +210,9 @@ export function convertBookingToContract(db, bookingId, contractInput) {
       rentType: booking.rentType,
       // เงินจองยกมาจากใบจองเสมอ ไม่ให้หน้าจอส่งค่าอื่นมาทับ — ตัวเลขนี้คือเงินที่รับไปแล้วจริง
       bookingFee: String(booking.bookingFeeCents / 100),
+      // **วันที่รับเงินจองคือวันที่จอง ไม่ใช่วันทำสัญญา** — จองไว้ 01/03 แล้วเข้าอยู่ 25/05
+      // ใบเสร็จเงินจองต้องลงวันที่ 01/03 ไม่งั้นรายรับของเดือนมีนาคมจะหายไปทั้งก้อน
+      bookingPaidDate: booking.bookingDate,
       // เลขที่ใบจองยกมาจากใบเดิม ไม่ออกเลขใหม่ — ผู้เช่าถือใบจองที่มีเลขนี้อยู่ในมือแล้ว
       // สัญญากับใบจองต้องอ้างเลขเดียวกันถึงจะตามเรื่องย้อนหลังได้
       bookingReceiptNo: booking.bookingNumber

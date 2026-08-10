@@ -3,9 +3,12 @@ import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { formatPhone } from '../components/TenantDialog.jsx'
-import { formatBaht } from '../format.js'
-import { ROOM_STATUS_LABELS } from '../constants.js'
+import { centsToInput, formatBaht } from '../format.js'
+import { PAYMENT_METHODS, ROOM_STATUS_LABELS } from '../constants.js'
 import { getContractsForRoom } from '../services/contractService.js'
+import DateField from '../components/DateField.jsx'
+import Modal from '../components/Modal.jsx'
+import { receiveContractPayment } from '../services/paymentService.js'
 import BookingsCard from '../components/BookingsCard.jsx'
 import ContractWizard from './ContractWizard.jsx'
 
@@ -79,7 +82,7 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
         <div className="room-detail-grid">
           <div className="room-detail-column">
             {active ? (
-              <ContractCard contract={active} />
+              <ContractCard contract={active} onReload={load} />
             ) : (
               <section className="panel">
                 <h3 className="panel-title">รายละเอียดสัญญา</h3>
@@ -121,13 +124,19 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
   )
 }
 
-function ContractCard({ contract }) {
+function ContractCard({ contract, onReload }) {
+  const [receiving, setReceiving] = useState(false)
+  const deposit = contract.deposit ?? { requiredCents: contract.depositAmountCents, receivedCents: 0, outstandingCents: 0 }
+
   const rows = [
     ['ประเภท', contract.rentType === 'monthly' ? 'รายเดือน' : 'รายวัน'],
     ['เริ่มต้น', contract.startDate],
     ['สิ้นสุด', contract.endDate ?? '-'],
     ['ค่าห้อง', formatBaht(contract.rentAmountCents)],
-    ['เงินประกัน', formatBaht(contract.depositAmountCents)]
+    ['เงินประกัน', formatBaht(contract.depositAmountCents)],
+    // ยอดที่รับมาจริง นับจากใบเสร็จ ไม่ใช่ยอดที่ตกลงกันไว้ — เงินจองที่หักเป็นเงินประกัน
+    // ก็อยู่ในนี้แล้ว เพราะตอนทำสัญญาระบบออกใบเสร็จให้ก้อนนั้นไปแล้ว
+    ['รับเงินประกันแล้ว', formatBaht(deposit.receivedCents)]
   ]
 
   // เงินจอง/เงินล่วงหน้าโผล่เฉพาะเมื่อมีจริง — สัญญาที่ไม่มีเงินจองไม่ต้องเห็นแถวว่างๆ
@@ -147,9 +156,120 @@ function ContractCard({ contract }) {
           </div>
         ))}
       </dl>
+
+      {/* ยอดค้างต้องตามหลอกหลอนอยู่บนหน้าจอจนกว่าจะเก็บครบ ไม่ใช่แจ้งเตือนที่กดปิดแล้วหาย
+          — เคสจริง: วางเงินจองครึ่งหนึ่งตอนมาดูห้อง อีกครึ่งเก็บวันเข้าอยู่จริงอีกสองเดือนถัดมา */}
+      {deposit.outstandingCents > 0 && (
+        <div className="deposit-due">
+          <div>
+            <strong>ยังเก็บเงินประกันไม่ครบ</strong>
+            <span>ค้างอีก {formatBaht(deposit.outstandingCents)} บาท</span>
+          </div>
+          <button type="button" className="btn" onClick={() => setReceiving(true)}>
+            รับเงินประกันเพิ่ม
+          </button>
+        </div>
+      )}
+
       {contract.note && <p className="field-hint">{contract.note}</p>}
+
+      {receiving && (
+        <DepositPaymentDialog
+          contract={contract}
+          outstandingCents={deposit.outstandingCents}
+          onClose={() => setReceiving(false)}
+          onDone={() => {
+            setReceiving(false)
+            onReload?.()
+          }}
+        />
+      )}
     </section>
   )
+}
+
+// รับเงินประกันส่วนที่ยังค้าง — ออกใบเสร็จจริง ไม่ใช่แค่ติ๊กว่าเก็บแล้ว
+// เพราะยอด "รับแล้ว" ถูกนับจากใบเสร็จ ถ้าไม่ออกใบ ยอดค้างก็ไม่ลด
+function DepositPaymentDialog({ contract, outstandingCents, onClose, onDone }) {
+  const [amount, setAmount] = useState(centsToInput(outstandingCents))
+  const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paymentDate, setPaymentDate] = useState(todayIso())
+  const [remark, setRemark] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function submit() {
+    setError('')
+    setBusy(true)
+    const res = await receiveContractPayment({
+      contractId: contract.contractId,
+      amount,
+      paymentMethod,
+      paymentDate,
+      remark,
+      purpose: 'deposit'
+    })
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    showToast(`รับเงินประกันแล้ว ออกใบเสร็จ ${res.data.receiptNumber}`)
+    onDone()
+  }
+
+  return (
+    <Modal title="รับเงินประกันเพิ่ม" icon="payments" busy={busy} onClose={onClose} onSubmit={submit}>
+      <Alert>{error}</Alert>
+
+      <div className="field">
+        <label htmlFor="depositAmount">
+          จำนวนเงิน <span className="muted">(ค้างอยู่ {formatBaht(outstandingCents)})</span>
+        </label>
+        <input
+          id="depositAmount"
+          inputMode="decimal"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="depositMethod">ชำระเงินโดย</label>
+        <select
+          id="depositMethod"
+          value={paymentMethod}
+          onChange={(e) => setPaymentMethod(e.target.value)}
+        >
+          {PAYMENT_METHODS.map((m) => (
+            <option key={m.key} value={m.key}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor="depositDate">
+          วันที่รับเงิน <span className="required">* จำเป็น</span>
+        </label>
+        <DateField id="depositDate" value={paymentDate} onChange={setPaymentDate} />
+      </div>
+
+      <div className="field">
+        <label htmlFor="depositRemark">หมายเหตุ</label>
+        <input
+          id="depositRemark"
+          value={remark}
+          onChange={(e) => setRemark(e.target.value)}
+          placeholder="เช่น เก็บส่วนที่เหลือวันเข้าอยู่"
+        />
+      </div>
+    </Modal>
+  )
+}
+
+function todayIso() {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
 function MeterCard({ contract }) {

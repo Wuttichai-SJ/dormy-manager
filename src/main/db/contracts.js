@@ -7,6 +7,8 @@
 import { toCents } from '../money.js'
 // invoices.js ไม่ได้นำเข้าอะไรจากไฟล์นี้ ทิศทางจึงไม่เป็นวงกลม
 import { nextDocumentNumber } from './invoices.js'
+// payments.js ไม่ได้ import ไฟล์นี้กลับ จึงไม่เกิดวงกลม
+import { getDepositStatus, recordContractPayment } from './payments.js'
 
 // SQLite ไม่มี ENUM — เก็บเป็น TEXT แล้วตรวจที่ JS ก่อนเขียนทุกครั้ง
 export const RENT_TYPES = ['monthly', 'daily']
@@ -125,7 +127,13 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
          r.room_id, r.room_number, r.status, r.monthly_rent_cents, r.daily_rent_cents,
          rt.name AS room_type_name,
          f.floor_name,
-         c.contract_id, c.rent_type, c.start_date, c.end_date, c.rent_amount_cents
+         c.contract_id, c.rent_type, c.start_date, c.end_date, c.rent_amount_cents,
+         -- เงินประกันที่ยังเก็บไม่ครบ — คิดในคิวรีเดียวกันเพื่อไม่ให้ยิงทีละห้อง
+         -- นับจากใบเสร็จที่ระบุว่าเป็นเงินประกัน (รวมเงินจองที่ออกใบให้ตอนทำสัญญา)
+         c.deposit_amount_cents - COALESCE((
+           SELECT SUM(p.amount_cents) FROM payments p
+            WHERE p.contract_id = c.contract_id AND p.purpose = 'deposit'
+         ), 0) AS deposit_outstanding
        FROM rooms r
        JOIN floors f ON f.floor_id = r.floor_id
        LEFT JOIN room_types rt ON rt.room_type_id = r.room_type_id
@@ -191,6 +199,9 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
       startDate: row.start_date ?? null,
       endDate: row.end_date ?? null,
       contractRentCents: row.rent_amount_cents ?? null,
+      // > 0 = ยังเก็บเงินประกันไม่ครบ หน้ารายการห้องขึ้นป้ายเตือนจากค่านี้
+      // เก็บเกินไม่ทำให้ติดลบ เพราะติดลบอ่านไม่ออกว่าแปลว่าอะไร
+      depositOutstandingCents: Math.max(0, row.deposit_outstanding ?? 0),
       tenants: occupants,
       primaryTenant: occupants.find((t) => t.isPrimary) ?? occupants[0] ?? null
     }
@@ -342,6 +353,27 @@ export function createContract(db, input) {
       roomId
     )
 
+    // *** เงินจองที่รับไปแล้ว ออกใบเสร็จเป็น "เงินประกัน" ให้ตรงนี้ ***
+    //
+    // เงินจองคือเงินประกันส่วนแรกที่ผู้เช่าวางไว้ตอนมาดูห้อง (ฟอร์มทำสัญญาก็คิดแบบนี้:
+    // "รวม (เก็บเพิ่ม) = เงินประกัน − เงินจอง") ถ้าไม่บันทึกเป็นใบเสร็จ จะเกิดสองปัญหา:
+    //   1. เงินที่เข้าหอไปจริงไม่โผล่ในรายงานใบเสร็จเลย
+    //   2. ระบบไม่รู้ว่าเงินประกันรับมาแล้วเท่าไหร่ จึงเตือนเรื่องยอดค้างไม่ได้
+    //
+    // **วันที่บนใบเสร็จเป็นวันที่รับเงินจริง ไม่ใช่วันทำสัญญา** — ผู้เช่าวางเงินจองวันที่
+    // 01/03 แล้วเข้าอยู่ 25/05 ใบเสร็จต้องลงวันที่ 01/03 ไม่งั้นรายงานรายรับเดือนมีนาคมจะหาย
+    if (bookingFeeCents > 0) {
+      recordContractPayment(db, {
+        contractId,
+        amount: String(bookingFeeCents / 100),
+        purpose: 'deposit',
+        paymentMethod: input.depositPaymentMethod,
+        paymentDate: input.bookingPaidDate || input.startDate,
+        remark: bookingReceiptNo ? `เงินจองตามใบจอง ${bookingReceiptNo}` : 'เงินจอง',
+        createdBy: input.createdBy
+      })
+    }
+
     return contractId
   })
 
@@ -388,6 +420,9 @@ export function toPublicContract(db, row) {
     endDate: row.end_date,
     rentAmountCents: row.rent_amount_cents,
     depositAmountCents: row.deposit_amount_cents,
+    // ยอดที่รับมาจริงกับยอดที่ยังค้าง — นับจากใบเสร็จ ไม่ใช่คอลัมน์ที่พิมพ์มือ
+    // หน้าจอใช้ตัวนี้ขึ้นป้ายเตือนว่ายังเก็บเงินประกันไม่ครบ
+    deposit: getDepositStatus(db, row.contract_id),
     depositPaymentMethod: row.deposit_payment_method,
     bookingFeeCents: row.booking_fee_cents,
     bookingReceiptNo: row.booking_receipt_no,

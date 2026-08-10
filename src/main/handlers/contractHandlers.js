@@ -3,6 +3,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireSessionUserId } from './authHandlers.js'
 import {
   createContract,
   getActiveContractByRoom,
@@ -45,7 +46,12 @@ export function registerContractHandlers() {
     const errors = validateContractInput(payload)
     if (errors.length > 0) throw new Error(errors.join('\n'))
 
-    const contract = createContract(getDatabase(), payload)
+    // ผู้รับเงินของใบเสร็จเงินจองมาจากเซสชันฝั่งนี้เสมอ ห้ามให้หน้าจอส่งมาเอง
+    // (กฎเดียวกับ paymentHandlers — ไม่งั้นเปิด DevTools แล้วออกใบเสร็จในนามคนอื่นได้)
+    const contract = createContract(getDatabase(), {
+      ...payload,
+      createdBy: requireSessionUserId()
+    })
     logInfo(
       `สร้างสัญญา (contract_id ${contract.contractId}) ห้อง ${payload.roomId} ผู้เช่า ${contract.tenants.length} คน`
     )

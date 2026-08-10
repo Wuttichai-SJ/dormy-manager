@@ -710,6 +710,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`payments` (
   -- ติดลบได้ = การคืนเงิน
   `amount_cents` INTEGER NOT NULL,
   `vat_amount_cents` INTEGER NOT NULL DEFAULT 0,
+  -- เพิ่มใน 022: เงินก้อนนี้เป็นค่าอะไร — 'invoice' | 'deposit' | 'advance' | 'other'
+  -- ต้องมี เพราะใบเสร็จที่ผูกกับสัญญามีทั้งเงินประกัน ค่าเช่าล่วงหน้า และเงินประกันที่คืน
+  -- ตอนย้ายออก · "เงินประกันรับมาครบหรือยัง" นับจากใบที่ purpose = 'deposit' เท่านั้น
+  -- (เงินจองที่หักเป็นเงินประกันก็ออกใบเสร็จ purpose = 'deposit' ตอนทำสัญญา)
+  `purpose` VARCHAR(50) NULL,
   `payment_method` VARCHAR(255) NOT NULL,
   `remark` TEXT NULL,
   `created_by` INT NOT NULL,
