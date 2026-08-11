@@ -8,11 +8,15 @@ import { INVOICE_STATUS_LABELS } from '../constants.js'
 import { formatBaht } from '../format.js'
 import InvoiceDetailPage from './InvoiceDetailPage.jsx'
 import MultiPaymentPage from './MultiPaymentPage.jsx'
+import InvoiceBill from '../components/InvoiceBill.jsx'
+import PrintDialog from '../components/PrintDialog.jsx'
 import { listMeterBatches } from '../services/meterService.js'
+import { getImageDataUrl } from '../services/imageService.js'
 import {
   createMonthlyInvoice,
   createMonthlyInvoicesForApartment,
   deleteInvoice,
+  getInvoice,
   listInvoices,
   previewMonthlyBilling
 } from '../services/invoiceService.js'
@@ -47,6 +51,9 @@ export default function InvoicesPage({ apartment, user }) {
   const [settlement, setSettlement] = useState('')
   // บิลที่กำลังยืนยันจะลบอยู่ — null = ไม่มีหน้าต่างเปิดค้าง
   const [deleting, setDeleting] = useState(null)
+  // ชุดเอกสารที่เตรียมไว้พิมพ์ทีเดียวทั้งหอ — null = ไม่ได้อยู่ในโหมดพิมพ์
+  const [printSet, setPrintSet] = useState(null)
+  const [busy, setBusy] = useState(false)
 
   const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
   const hasFilters = Object.values(filters).some((v) => v !== '')
@@ -70,6 +77,38 @@ export default function InvoicesPage({ apartment, user }) {
   useEffect(() => {
     load()
   }, [load])
+
+  // บิลที่ยกเลิกแล้วไม่เข้าชุดพิมพ์ — เอกสารที่ไม่มีผลแล้วต้องไม่หลุดไปถึงมือผู้เช่า
+  // ที่เหลือคือ "ทุกใบที่เห็นอยู่ในตารางตอนนี้" จริงๆ ตัวกรองด้านบนจึงเป็นตัวเลือกชุด
+  const printable = invoices.filter((inv) => inv.status !== 'cancelled')
+
+  // เตรียมเอกสารให้ครบก่อนเปิดกล่องพิมพ์ ไม่ใช่ระหว่างที่กล่องเปิดอยู่ — ถ้าดึงทีหลัง
+  // printToPDF อาจจับภาพตอนที่เอกสารยังไม่มีรายการ แล้วได้บิลเปล่า (เหมือนหน้ารายงานใบเสร็จ)
+  async function startBulkPrint() {
+    setError('')
+    setBusy(true)
+
+    // รายการบิลในตารางมีแต่ยอดรวม ตัวเอกสารต้องการรายการ ผู้เช่า บัญชีธนาคาร ครบทั้งใบ
+    const results = await Promise.all(printable.map((inv) => getInvoice(inv.invoiceId)))
+    const failed = results.find((res) => !res.success)
+    if (failed) {
+      setBusy(false)
+      return setError(failed.error)
+    }
+    const bills = results.map((res) => res.data)
+
+    // QR เป็นรูปเดียวกันทั้งหอ โหลดครั้งเดียวแล้วส่งต่อให้ทุกใบ — ปล่อยให้แต่ละใบโหลดเอง
+    // คือลากไบต์รูปเดิมข้ามสะพาน IPC ซ้ำเท่าจำนวนบิล
+    const qrImageId = bills[0]?.apartment?.qrCodeImageId
+    let qrDataUrl = null
+    if (qrImageId) {
+      const res = await getImageDataUrl(qrImageId)
+      if (res.success) qrDataUrl = res.data.dataUrl
+    }
+
+    setBusy(false)
+    setPrintSet({ bills, qrDataUrl })
+  }
 
   if (openInvoiceId) {
     return (
@@ -108,12 +147,50 @@ export default function InvoicesPage({ apartment, user }) {
     )
   }
 
+  // ระหว่างพิมพ์ หน้าจอแสดงเฉพาะตัวเอกสาร เพราะ printToPDF จับภาพหน้าที่กำลังแสดงอยู่
+  // (กล่องพิมพ์เองถูกซ่อนด้วย @media print อยู่แล้ว) — วิธีเดียวกับหน้ารายงานใบเสร็จ
+  if (printSet) {
+    return (
+      <>
+        <div className="invoice-sheets">
+          {printSet.bills.map((bill) => (
+            <article key={bill.invoiceId} className="invoice-sheet">
+              {/* เอกสารตัวเดียวกับที่เปิดทีละใบจากปุ่ม "รายละเอียด" — ไม่ส่ง onRemoveItem
+                  คอลัมน์ปุ่มลบจึงหายไปเอง */}
+              <InvoiceBill
+                invoice={bill}
+                signedBy={user?.fullName}
+                qrDataUrl={printSet.qrDataUrl}
+              />
+            </article>
+          ))}
+        </div>
+
+        {/* ใบแจ้งหนี้เป็น A4 เต็มแผ่นใบละหน้า (ต่างจากใบเสร็จที่สองใบต่อแผ่น)
+            จำนวนหน้าที่ควรมีจึงเท่ากับจำนวนใบพอดี */}
+        <PrintDialog
+          title={`พิมพ์ใบแจ้งหนี้ ${printSet.bills.length} ใบ`}
+          maxPages={printSet.bills.length}
+          onClose={() => setPrintSet(null)}
+          onPrinted={() => {
+            setPrintSet(null)
+            showToast(`ส่งใบแจ้งหนี้ ${printSet.bills.length} ใบเข้าเครื่องพิมพ์แล้ว`)
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <>
       <div className="info-banner">
         <strong>ใบแจ้งหนี้</strong>
         <p>
           บิลรายเดือนออกจากใบจดมิเตอร์หนึ่งใบ ครั้งเดียวได้ทั้งหอ — หนึ่งสัญญาออกบิลได้เดือนละใบ
+        </p>
+        <p>
+          ปุ่ม <strong>“พิมพ์ใบแจ้งหนี้ทุกห้อง”</strong> พิมพ์ทุกใบที่เห็นในตารางข้างล่าง ใบละหนึ่งแผ่น —
+          เลือกแท็บหรือกรอกช่วงวันที่ก่อน ถ้าต้องการเฉพาะบางชุด (บิลที่ยกเลิกแล้วไม่ถูกพิมพ์)
         </p>
       </div>
 
@@ -125,6 +202,20 @@ export default function InvoicesPage({ apartment, user }) {
           {/* สองปุ่มนี้คือสองงานที่ทำบ่อยที่สุดของหน้านี้: ออกบิลต้นเดือน แล้วตามเก็บเงิน
               รับเงินหลายห้องเป็นปุ่มรอง เพราะออกบิลต้องเกิดก่อนเสมอ */}
           <div className="panel-head-actions">
+            {/* พิมพ์ทั้งชุดในคราวเดียว — เดิมต้องเข้าไปกด "รายละเอียด" ทีละใบแล้วสั่งพิมพ์
+                ซึ่งหอสี่สิบห้องคือสี่สิบรอบ · พิมพ์ "ทุกใบที่เห็นในตารางตอนนี้"
+                ตัวกรองกับแท็บด้านล่างจึงเป็นตัวเลือกชุดไปในตัว (เช่น แท็บค้างชำระ) */}
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={startBulkPrint}
+              disabled={busy || printable.length === 0}
+            >
+              <Icon name="printer" />
+              <span>
+                {busy ? 'กำลังเตรียมเอกสาร...' : `พิมพ์ใบแจ้งหนี้ทุกห้อง (${printable.length})`}
+              </span>
+            </button>
             <button type="button" className="btn btn-outline" onClick={() => setMultiPay(true)}>
               <Icon name="payments" />
               <span>รับเงินหลายห้อง</span>

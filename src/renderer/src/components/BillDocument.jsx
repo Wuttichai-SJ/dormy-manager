@@ -58,7 +58,10 @@ export default function BillDocument({ invoice, title, meta, tenants, footer, on
               ยอดเงิน
               {showVat && <span className="invoice-col-sub">(รวม VAT)</span>}
             </th>
-            {onRemoveItem && <th className="align-right" />}
+            {/* คอลัมน์ปุ่มลบต้องมีชื่อคลาสของตัวเอง ไม่ใช่พึ่ง :last-child ตอนซ่อนเวลาพิมพ์
+                — เอกสารที่ไม่ได้ส่ง onRemoveItem มา (ใบเสร็จ / พิมพ์ทั้งหอ) ไม่มีคอลัมน์นี้
+                คอลัมน์สุดท้ายของมันคือ "ยอดเงิน" ซึ่งห้ามหายไปจากกระดาษเด็ดขาด */}
+            {onRemoveItem && <th className="align-right invoice-col-actions" />}
           </tr>
         </thead>
         <tbody>
@@ -87,7 +90,7 @@ export default function BillDocument({ invoice, title, meta, tenants, footer, on
                 )}
               </td>
               {onRemoveItem && (
-                <td className="align-right">
+                <td className="align-right invoice-col-actions">
                   <button
                     type="button"
                     className="link-btn link-danger table-action icon-only"

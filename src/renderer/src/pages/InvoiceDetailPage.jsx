@@ -3,8 +3,8 @@ import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
-import { INVOICE_STATUS_LABELS, PAYMENT_METHODS, VAT_RATE } from '../constants.js'
-import { centsToInput, formatBaht, formatDocumentDate } from '../format.js'
+import { PAYMENT_METHODS, VAT_RATE } from '../constants.js'
+import { centsToInput, formatBaht } from '../format.js'
 import {
   addInvoiceItem,
   cancelInvoice,
@@ -15,9 +15,8 @@ import {
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
 import CancelReceiptDialog from '../components/CancelReceiptDialog.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
-import BillDocument, { BillSignature } from '../components/BillDocument.jsx'
+import InvoiceBill from '../components/InvoiceBill.jsx'
 import { revealPdf, savePdf } from '../services/printService.js'
-import { getImageDataUrl } from '../services/imageService.js'
 
 // หน้าใบแจ้งหนี้ — โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "บิลค้างชำระ"): สองคอลัมน์
 // ซ้ายเป็นตัวเอกสาร ขวาเป็นยอดค้างกับการ์ดรับเงิน แล้วมี "เพิ่มรายการ" อยู่ใต้เอกสาร
@@ -236,29 +235,13 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         </Alert>
       )}
 
-      <BillDocument
+      {/* ตัวเอกสารมาจาก InvoiceBill ตัวเดียวกับที่ปุ่ม "พิมพ์ใบแจ้งหนี้ทุกห้อง" ใช้
+          เปิดทีละใบกับพิมพ์ทั้งหอจึงได้กระดาษหน้าตาเดียวกันเสมอ */}
+      <InvoiceBill
         invoice={invoice}
-        title="ใบแจ้งหนี้ / Invoice"
-        tenants={invoice.tenants}
-        meta={[
-          {
-            label: 'สถานะ',
-            value: (
-              <span className={`invoice-status invoice-${invoice.status}`}>
-                {INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status}
-              </span>
-            )
-          },
-          { label: 'เลขที่', value: invoice.invoiceNumber },
-          { label: 'ห้อง', value: invoice.roomNumber },
-          // เอกสารที่ยื่นให้ผู้เช่าใช้ พ.ศ. ส่วนวันที่บนหน้าจอทำงาน (ประวัติรับเงิน ฯลฯ)
-          // ยังเป็น ค.ศ. — ดู formatDocumentDate ใน format.js
-          { label: 'วันที่', value: formatDocumentDate(invoice.issueDate) },
-          { label: 'ครบกำหนด', value: formatDocumentDate(invoice.dueDate) }
-        ]}
+        signedBy={signedBy}
         // บิลที่ยกเลิกแล้วแก้ไม่ได้ ไม่ส่ง onRemoveItem ไป คอลัมน์ปุ่มลบจึงหายไปเอง
         onRemoveItem={closed ? undefined : onRemoveItem}
-        footer={<InvoicePaymentInfo invoice={invoice} signedBy={signedBy} />}
       />
 
       {printing && (
@@ -270,95 +253,6 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
           }}
         />
       )}
-    </section>
-  )
-}
-
-// ท้ายบิล — ลอกโครงจากใบเสร็จ PDF ของต้นแบบ:
-//   กล่องลงชื่อชิดขวา
-//   ตารางบัญชี 2 คอลัมน์ (ชื่อบัญชีตัวหนา ธนาคารตัวเล็กใต้ | เลขบัญชี)
-//   การแจ้งชำระเงิน:
-//   Note:
-//
-// แต่ละบล็อกหายไปเองถ้าไม่มีข้อมูล ไม่ทิ้งหัวข้อว่างไว้บนกระดาษ
-function InvoicePaymentInfo({ invoice, signedBy }) {
-  const banks = invoice.bankAccounts ?? []
-  const instructions = invoice.apartment.paymentInstructions
-  const note = invoice.apartment.invoiceNote
-  const qrImageId = invoice.apartment.qrCodeImageId
-
-  // QR ดึงแยกจากตัวบิล เพราะเป็นรูปที่ใหญ่กว่าข้อมูลบิลทั้งใบรวมกัน — ไม่ควรติดมากับ
-  // ทุกครั้งที่โหลดบิล และรายการบิลก็ไม่ได้ใช้
-  const [qrDataUrl, setQrDataUrl] = useState(null)
-  useEffect(() => {
-    if (!qrImageId) return setQrDataUrl(null)
-    let cancelled = false
-    getImageDataUrl(qrImageId).then((res) => {
-      if (!cancelled && res.success) setQrDataUrl(res.data.dataUrl)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [qrImageId])
-
-  if (banks.length === 0 && !instructions && !note && !qrDataUrl) return null
-
-  return (
-    <section className="invoice-payment-info">
-      {/* ช่องลงชื่อผู้ออกบิล — เว้นที่ไว้เซ็นด้วยมือบนกระดาษ ชื่อที่พิมพ์คือคนที่กำลัง
-          ออก/พิมพ์เอกสารใบนี้ */}
-      <BillSignature name={signedBy} />
-
-      {/* QR อยู่ข้างกล่องบัญชี — ผู้เช่าสแกนได้ทันทีจากไฟล์ที่ได้รับทางแชต
-          โดยไม่ต้องพิมพ์เลขบัญชีทีละหลัก */}
-      <div className={'invoice-footer-layout' + (qrDataUrl ? ' has-qr' : '')}>
-        <div className="invoice-footer-box">
-        {banks.length > 0 && (
-          <table className="invoice-banks">
-            <thead>
-              <tr>
-                <th>บัญชี</th>
-                <th>เลขบัญชี</th>
-              </tr>
-            </thead>
-            <tbody>
-              {banks.map((bank) => (
-                <tr key={`${bank.bankName}-${bank.accountNumber}`}>
-                  <td>
-                    <strong>{bank.accountName}</strong>
-                    <span className="invoice-bank-name">{bank.bankName}</span>
-                  </td>
-                  {/* เลขบัญชีเป็นตัวเลขที่คนต้องคัดลอกทีละหลัก จึงใช้ฟอนต์ความกว้างเท่ากัน
-                      เพื่อให้ตาไล่ตัวเลขได้ไม่หลง */}
-                  <td className="invoice-account-number">{bank.accountNumber}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {instructions && (
-          <div className="invoice-footer-note">
-            <strong>การแจ้งชำระเงิน:</strong>
-            <p>{instructions}</p>
-          </div>
-        )}
-
-        {note && (
-          <div className="invoice-footer-note">
-            <strong>Note:</strong>
-            <p>{note}</p>
-          </div>
-        )}
-        </div>
-
-        {qrDataUrl && (
-          <figure className="invoice-qr">
-            <img src={qrDataUrl} alt="QR Code สำหรับชำระเงิน" />
-            <figcaption>สแกนเพื่อชำระเงิน</figcaption>
-          </figure>
-        )}
-      </div>
     </section>
   )
 }
