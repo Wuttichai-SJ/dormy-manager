@@ -171,7 +171,6 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
   // เงินประกันที่ "รับมาจริง" ไม่ใช่ยอดที่ตกลงไว้ — คนที่ยังจ่ายเงินประกันไม่ครบ
   // ต้องคืนได้ไม่เกินที่จ่ายมา (นับจากใบเสร็จ ดู getDepositStatus)
   const deposit = getDepositStatus(db, contractId)
-  const refundableDepositCents = verdict.isRefundable ? deposit.receivedCents : 0
 
   // บิลที่ยังค้างของสัญญานี้ — ยกเลิกไปแล้วไม่นับ (listInvoices กรองด้วยสถานะให้แล้ว)
   const outstandingInvoices = listInvoices(db, contract.apartment_id, { settlement: 'outstanding' })
@@ -186,7 +185,11 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
   const outstandingTotalCents = outstandingInvoices.reduce((sum, i) => sum + i.outstandingCents, 0)
 
   const items = normalizeAdjustments(adjustments)
-  const adjustmentsTotalCents = items.reduce((sum, i) => sum + i.amountCents, 0)
+  const money = summariseMoney({
+    depositReceivedCents: deposit.receivedCents,
+    items,
+    isRefundable: verdict.isRefundable
+  })
 
   // 🔴 **ต้องเคลียร์บิลค้างให้หมดก่อนย้ายออก** (เจ้าของหอยืนยัน 2026-08-11)
   //
@@ -197,13 +200,20 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
   //
   // เปิดทางข้ามไว้สำหรับผู้เช่าที่หนีไปเฉยๆ (ดู completeTermination) ไม่งั้นห้องจะติดอยู่กับ
   // หนี้ที่ไม่มีวันได้คืนตลอดไป และเจ้าของหอปล่อยห้องใหม่ไม่ได้
+  //
+  // **บิลค้างไม่เข้าสูตรยอดสุทธิ** — เงินประกันไม่ใช่ของสำหรับจ่ายบิล (กติกาข้อเดียวกับที่ทำให้
+  // เงินประกันที่ริบเอาไปหักหนี้ไม่ได้) ใบสรุปแสดงเป็นบรรทัด "ยังค้างชำระ" แยกต่างหาก
   const hasOutstanding = outstandingTotalCents > 0
-  const netRefundCents = refundableDepositCents - outstandingTotalCents - adjustmentsTotalCents
 
   return {
     contractId,
     roomNumber: contract.room_number,
     apartmentId: contract.apartment_id,
+    // ใบสรุปที่พิมพ์ให้ผู้เช่าต้องมีหัวเอกสารและชื่อเจ้าของเรื่อง — พิมพ์ได้ตั้งแต่ก่อนกดยืนยัน
+    // (ผู้ใช้สั่ง 2026-08-11: ต้องยื่นให้ผู้เช่าก่อนเขาออกจากหอ)
+    apartment: contract.apartment,
+    tenantName: contract.tenant_name ?? null,
+    termMonths: contract.term_months,
     startDate: contract.start_date,
     chainStartDate: chainStart,
     // มีสัญญาก่อนหน้าในสาย = ต่อสัญญามา หน้าจอต้องบอก ไม่งั้นตัวเลข "อยู่มาแล้ว 14 เดือน"
@@ -224,15 +234,66 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
     forfeitReasonLabel: verdict.forfeitReason
       ? FORFEIT_REASON_LABELS[verdict.forfeitReason]
       : null,
-    refundableDepositCents,
     outstandingInvoices,
     outstandingTotalCents,
     // มีบิลค้าง = ย้ายออกไม่ได้จนกว่าจะเคลียร์ หรือกดข้ามพร้อมเหตุผล
     hasOutstanding,
     items,
-    adjustmentsTotalCents,
-    // ติดลบ = ผู้เช่ายังต้องจ่ายเพิ่ม ไม่ใช่ได้เงินคืน
-    netRefundCents
+    ...money
+  }
+}
+
+// ------------------------------------------------------------------
+// สูตรเงินตอนย้ายออก
+// ------------------------------------------------------------------
+// **เงินประกันมีไว้รองรับความเสียหายของห้อง ไม่ได้มีไว้จ่ายค่าน้ำค่าไฟค่าเช่า**
+// (เจ้าของหอยืนยันหลักข้อนี้ 2026-08-11) สามแท็บของ "รายการเพิ่มเติม" จึงมีความหมาย
+// ทางบัญชีคนละอย่าง ไม่ใช่แค่ป้ายจัดกลุ่ม:
+//
+//   ค่าบริการ/ซ่อม  = ความเสียหาย  → **หักจากเงินประกัน** เป็นหน้าที่ของมันโดยตรง
+//   ค่ามิเตอร์       = ค่าน้ำ-ไฟงวดสุดท้าย → **เก็บแยก ไม่แตะเงินประกัน** (เป็นบิล)
+//   ส่วนลด/คืนเงิน  = เงินที่หอต้องคืน → **คืนเสมอ แม้เงินประกันถูกริบ** (คนละก้อน)
+//
+// 🔴 **การริบ = "ส่วนที่เหลือหลังหักค่าเสียหายไม่ได้คืน" ไม่ใช่ "เงินประกันหายไปทั้งก้อน"**
+// ของเดิมตั้งเงินประกันที่คืนได้เป็น 0 ทันทีเมื่อริบ แล้วเอาค่าเสียหายไปลบจากศูนย์ —
+// ผู้เช่าจึงเสียเงินประกัน 5,000 แล้วยังถูกเรียกเก็บค่าลูกบิดอีก 800 ทั้งที่เงิน 5,000 ก้อนนั้น
+// มีไว้รองรับความเสียหายตั้งแต่แรก (ผู้ใช้ทักท้วง 2026-08-11 — จ่ายสองต่อ)
+//
+// ตัวเดียวกันนี้ใช้ทั้งตอนพรีวิวและตอนอ่านบันทึกที่เก็บไว้แล้ว ตัวเลขบนใบสรุปที่ยื่นให้ผู้เช่า
+// ก่อนย้ายออกจึงตรงกับที่บันทึกไว้เสมอ (หลักเดียวกับ buildInvoiceItems ของใบแจ้งหนี้)
+export function summariseMoney({ depositReceivedCents, items, isRefundable }) {
+  const sumOf = (type) =>
+    items.filter((i) => i.itemType === type).reduce((sum, i) => sum + Math.abs(i.amountCents), 0)
+
+  const damageTotalCents = sumOf('service')
+  const meterTotalCents = sumOf('meter')
+  const refundItemsTotalCents = sumOf('discount_refund')
+
+  // ค่าเสียหายกินเงินประกันก่อนเสมอ — ทั้งกรณีริบและไม่ริบ
+  const depositAfterDamageCents = Math.max(0, depositReceivedCents - damageTotalCents)
+  // ค่าเสียหายเกินเงินประกัน ส่วนที่เกินคือเงินที่ผู้เช่าต้องควักเพิ่ม
+  const excessDamageCents = Math.max(0, damageTotalCents - depositReceivedCents)
+
+  const forfeitedCents = isRefundable ? 0 : depositAfterDamageCents
+  const depositRefundCents = isRefundable ? depositAfterDamageCents : 0
+
+  const tenantOwesCents = excessDamageCents + meterTotalCents
+  const buildingReturnsCents = depositRefundCents + refundItemsTotalCents
+
+  return {
+    damageTotalCents,
+    meterTotalCents,
+    refundItemsTotalCents,
+    depositAfterDamageCents,
+    excessDamageCents,
+    forfeitedCents,
+    depositRefundCents,
+    tenantOwesCents,
+    buildingReturnsCents,
+    // ยอดรวมของรายการทั้งหมดตามเครื่องหมายที่เก็บในฐานข้อมูล (ใช้เก็บลงคอลัมน์เดิม)
+    adjustmentsTotalCents: items.reduce((sum, i) => sum + i.amountCents, 0),
+    // บวก = หอคืนให้ผู้เช่า · ลบ = ผู้เช่าจ่ายเพิ่มให้หอ
+    netRefundCents: buildingReturnsCents - tenantOwesCents
   }
 }
 
@@ -315,9 +376,13 @@ export function completeTermination(
   }
 
   const isRefundable = isOverride ? Boolean(overrideRefundable) : sheet.isDepositRefundable
-  const refundableDepositCents = isRefundable ? sheet.depositReceivedCents : 0
-  const netRefundCents =
-    refundableDepositCents - sheet.outstandingTotalCents - sheet.adjustmentsTotalCents
+  // คิดใหม่ด้วยตัวคำนวณตัวเดียวกับพรีวิว — ต่างกันแค่ผลตัดสินที่เจ้าของอาจกดข้าม
+  const money = summariseMoney({
+    depositReceivedCents: sheet.depositReceivedCents,
+    items: sheet.items,
+    isRefundable
+  })
+  const netRefundCents = money.netRefundCents
 
   const now = new Date().toISOString()
   const run = db.transaction(() => {
@@ -387,7 +452,7 @@ export function completeTermination(
         moveOutDate: sheet.moveOutDate,
         depositSnapshot: sheet.depositReceivedCents,
         unpaid: sheet.outstandingTotalCents,
-        adjustments: sheet.adjustmentsTotalCents,
+        adjustments: money.adjustmentsTotalCents,
         netRefund: netRefundCents,
         now,
         isNoticeGiven: sheet.isNoticeGiven ? 1 : 0,
@@ -395,7 +460,8 @@ export function completeTermination(
         monthsStayed: sheet.monthsStayed,
         isRefundable: isRefundable ? 1 : 0,
         forfeitReason: isRefundable ? null : (sheet.forfeitReason ?? 'policy_never'),
-        refundable: refundableDepositCents,
+        // เงินประกันส่วนที่คืนได้จริง = หลังหักค่าเสียหายแล้ว ไม่ใช่ยอดเต็มที่รับมา
+        refundable: money.depositRefundCents,
         isOverride: isOverride ? 1 : 0,
         // เหตุผลสองอย่างอยู่คอลัมน์เดียวกัน (004 มีช่องเดียว) ต่อกันเมื่อมีทั้งคู่ —
         // ทั้งสองอย่างคือ "ทำไมถึงตัดสินแบบนี้" เหมือนกัน และการเพิ่มคอลัมน์ที่สอง
@@ -519,6 +585,14 @@ export function getTerminationByContract(db, contractId) {
   const netRefundCents = row.net_refund_amount_cents
   const unpaidBalanceCents = netRefundCents < 0 ? Math.max(0, -netRefundCents - collectedCents) : 0
 
+  // แจกแจงเงินด้วยตัวคำนวณตัวเดียวกับตอนพรีวิว — ใบสรุปที่ยื่นให้ผู้เช่าก่อนย้ายออก
+  // กับใบที่เปิดดูย้อนหลังจึงแสดงตัวเลขชุดเดียวกันเสมอ
+  const money = summariseMoney({
+    depositReceivedCents: row.deposit_snapshot_cents,
+    items,
+    isRefundable: row.is_deposit_refundable === 1
+  })
+
   return {
     terminationId: row.termination_id,
     contractId: row.contract_id,
@@ -540,9 +614,10 @@ export function getTerminationByContract(db, contractId) {
     isDepositRefundable: row.is_deposit_refundable === 1,
     forfeitReason: row.forfeit_reason,
     forfeitReasonLabel: row.forfeit_reason ? FORFEIT_REASON_LABELS[row.forfeit_reason] : null,
-    refundableDepositCents: row.refundable_deposit_cents,
     outstandingTotalCents: row.unpaid_invoices_total_cents,
-    adjustmentsTotalCents: row.additional_adjustments_total_cents,
+    ...money,
+    // ยอดที่บันทึกไว้ตอนยืนยันชนะเสมอ — ตัวคำนวณข้างบนไว้แจกแจง ไม่ได้ไว้เขียนประวัติใหม่
+    // (ถ้าวันหนึ่งสูตรเปลี่ยน ใบเก่าต้องยังแสดงยอดที่ตกลงกันไว้ในวันนั้น)
     netRefundCents,
     // > 0 = เก็บเงินส่วนต่างยังไม่ได้ ยังต้องตามเก็บ
     unpaidBalanceCents,
@@ -559,15 +634,31 @@ export function getTerminationByContract(db, contractId) {
 function requireActiveContract(db, contractId) {
   const row = db
     .prepare(
-      `SELECT c.*, r.room_number, f.apartment_id
+      // ข้อมูลหอกับชื่อผู้เช่าติดมาด้วย เพราะใบสรุปต้องพิมพ์ได้ตั้งแต่ก่อนกดยืนยัน
+      `SELECT c.*, r.room_number, f.apartment_id,
+              a.name_th AS apartment_name, a.address_th AS apartment_address,
+              a.phone AS apartment_phone,
+              (SELECT tn.first_name || ' ' || tn.last_name
+                 FROM contract_tenants ct
+                 JOIN tenants tn ON tn.tenant_id = ct.tenant_id
+                WHERE ct.contract_id = c.contract_id
+                ORDER BY ct.is_primary DESC, tn.tenant_id
+                LIMIT 1) AS tenant_name
          FROM contracts c
-         JOIN rooms r  ON r.room_id = c.room_id
-         JOIN floors f ON f.floor_id = r.floor_id
+         JOIN rooms r      ON r.room_id = c.room_id
+         JOIN floors f     ON f.floor_id = r.floor_id
+         JOIN apartments a ON a.apartment_id = f.apartment_id
         WHERE c.contract_id = ?`
     )
     .get(contractId)
   if (!row) throw new Error('ไม่พบสัญญา')
   if (row.status !== 'active') throw new Error('สัญญานี้ถูกยกเลิกไปแล้ว')
+
+  row.apartment = {
+    name: row.apartment_name,
+    address: row.apartment_address,
+    phone: row.apartment_phone
+  }
   return row
 }
 

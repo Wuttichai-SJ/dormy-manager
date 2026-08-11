@@ -14,29 +14,41 @@ export default function MoveOutDocument({ termination, signedBy }) {
   const t = termination
   const apartment = t.apartment ?? {}
 
-  // แถวบนสุดของตารางเงิน — เงินประกันที่รับมาจริง แล้วไล่หักลงมา
-  const rows = [
-    {
-      label: t.isDepositRefundable
-        ? 'เงินประกันที่คืนได้'
-        : `เงินประกัน (ริบทั้งหมด — ${t.forfeitReasonLabel})`,
-      amount: t.refundableDepositCents,
-      strong: true
-    }
-  ]
-
-  if (t.outstandingTotalCents > 0) {
-    rows.push({ label: 'หัก ใบแจ้งหนี้ค้างชำระ', amount: -t.outstandingTotalCents })
-  }
-
+  // **กลุ่มที่ 1 — เงินประกันกับความเสียหาย** เงินประกันมีไว้รองรับความเสียหายของห้อง
+  // ค่าซ่อมจึงหักจากก้อนนี้เสมอ แล้วการริบมีผลกับ "ส่วนที่เหลือ" ไม่ใช่กับทั้งก้อน
+  //
   // แจกแจงทีละบรรทัด ไม่ใช่ยอดรวมก้อนเดียว — "หักไป 800 บาท" ที่อธิบายไม่ได้
   // คือคำตอบที่ผู้เช่าไม่ยอมรับ
-  for (const item of t.items) {
-    rows.push({
-      label: `${item.amountCents > 0 ? 'หัก ' : 'คืน '}${item.description} (${item.itemTypeLabel})`,
-      amount: -item.amountCents
+  const depositRows = [{ label: 'เงินประกันที่รับไว้', amount: t.depositSnapshotCents }]
+
+  for (const item of t.items.filter((i) => i.itemType === 'service')) {
+    depositRows.push({ label: `หัก ${item.description}`, amount: -Math.abs(item.amountCents) })
+  }
+
+  if (t.damageTotalCents > 0) {
+    depositRows.push({
+      label: t.excessDamageCents > 0 ? 'ค่าเสียหายเกินเงินประกัน' : 'คงเหลือ',
+      amount: t.excessDamageCents > 0 ? -t.excessDamageCents : t.depositAfterDamageCents,
+      subtotal: true
     })
   }
+
+  if (t.forfeitedCents > 0) {
+    depositRows.push({
+      label: `ริบเงินประกัน — ${t.forfeitReasonLabel}`,
+      amount: -t.forfeitedCents
+    })
+  }
+
+  // **กลุ่มที่ 2 — เงินที่ต้องชำระแยก** ไม่แตะเงินประกัน เพราะไม่ใช่ความเสียหาย
+  const chargeRows = t.items
+    .filter((i) => i.itemType === 'meter')
+    .map((item) => ({ label: item.description, amount: Math.abs(item.amountCents) }))
+
+  // **กลุ่มที่ 3 — เงินที่หอต้องคืน** คนละก้อนกับเงินประกัน จึงคืนแม้เงินประกันถูกริบ
+  const returnRows = t.items
+    .filter((i) => i.itemType === 'discount_refund')
+    .map((item) => ({ label: item.description, amount: Math.abs(item.amountCents) }))
 
   return (
     <article className="move-out-doc">
@@ -92,36 +104,48 @@ export default function MoveOutDocument({ termination, signedBy }) {
         </div>
       </dl>
 
-      <table className="data-table invoice-items">
-        <thead>
-          <tr>
-            <th>รายการ</th>
-            <th className="align-right">จำนวนเงิน</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={`${row.label}-${index}`}>
-              <td>{row.label}</td>
-              <td className="align-right">
-                <span className={row.amount < 0 ? 'negative' : undefined}>
-                  {formatBaht(row.amount)}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <MoneyTable title="เงินประกันและค่าเสียหายห้อง" rows={depositRows} />
+
+      {chargeRows.length > 0 && (
+        <MoneyTable
+          title="ค่าใช้จ่ายที่ต้องชำระแยก (ไม่หักจากเงินประกัน)"
+          rows={chargeRows}
+        />
+      )}
+
+      {returnRows.length > 0 && <MoneyTable title="เงินที่หอพักคืนให้" rows={returnRows} />}
+
+      {/* บิลค้างไม่เข้าสูตรสุทธิ — เงินประกันไม่ใช่ของสำหรับจ่ายบิล แต่ต้องเห็นบนกระดาษ
+          ว่ายังค้างอยู่ ไม่ใช่หายไปเงียบๆ */}
+      {t.outstandingTotalCents > 0 && (
+        <p className="move-out-doc-unpaid">
+          <strong>ใบแจ้งหนี้ค้างชำระ {formatBaht(t.outstandingTotalCents)} บาท</strong> —
+          ยังต้องชำระ ไม่ได้หักจากเงินประกัน
+        </p>
+      )}
 
       <dl className="invoice-totals">
+        {t.tenantOwesCents > 0 && (
+          <div>
+            <dt>รวมที่ผู้เช่าต้องชำระ</dt>
+            <dd>{formatBaht(t.tenantOwesCents)}</dd>
+          </div>
+        )}
+        {t.buildingReturnsCents > 0 && (
+          <div>
+            <dt>รวมที่หอพักคืนให้</dt>
+            <dd>{formatBaht(t.buildingReturnsCents)}</dd>
+          </div>
+        )}
         <div className="invoice-total-row">
           <dt>{t.netRefundCents >= 0 ? 'คืนให้ผู้เช่า' : 'ผู้เช่าต้องชำระเพิ่ม'}</dt>
           <dd>{formatBaht(Math.abs(t.netRefundCents))}</dd>
         </div>
       </dl>
 
-      {/* ใบเสร็จที่ออกจริงในวันนั้น — เส้นทางเงินต้องตามได้จากกระดาษใบนี้ไปถึงใบเสร็จ */}
-      {t.receipts.length > 0 && (
+      {/* ใบเสร็จที่ออกจริงในวันนั้น — เส้นทางเงินต้องตามได้จากกระดาษใบนี้ไปถึงใบเสร็จ
+          ใบตัวอย่างก่อนยืนยันยังไม่มีใบเสร็จ ตารางนี้จึงหายไปเอง */}
+      {(t.receipts ?? []).length > 0 && (
         <table className="data-table invoice-items move-out-doc-receipts">
           <thead>
             <tr>
@@ -154,6 +178,10 @@ export default function MoveOutDocument({ termination, signedBy }) {
         </p>
       )}
 
+      {/* ยังไม่ได้กดยืนยัน = ใบนี้เป็นตัวอย่างที่ยื่นให้ผู้เช่าดูก่อน ต้องบอกไว้บนกระดาษ
+          ไม่งั้นสองใบที่หน้าตาเหมือนกันจะแยกไม่ออกว่าใบไหนเป็นฉบับจริง */}
+      {t.isDraft && <p className="move-out-doc-note">** เอกสารตัวอย่าง ยังไม่ได้บันทึกการย้ายออก **</p>}
+
       {t.isManualOverride && t.overrideReason && (
         <p className="move-out-doc-note">หมายเหตุ: {t.overrideReason}</p>
       )}
@@ -162,5 +190,29 @@ export default function MoveOutDocument({ termination, signedBy }) {
         <BillSignature label="ผู้รับเงิน / ผู้คืนเงิน" name={signedBy} />
       </div>
     </article>
+  )
+}
+
+// ตารางเงินหนึ่งกลุ่ม — สามกลุ่มบนเอกสารนี้มีความหมายทางบัญชีคนละอย่าง จึงต้องแยกตาราง
+// ไม่ใช่ไล่เป็นบรรทัดต่อกันจนอ่านไม่ออกว่าอะไรหักจากอะไร
+function MoneyTable({ title, rows }) {
+  return (
+    <>
+      <h3 className="move-out-doc-group">{title}</h3>
+      <table className="data-table invoice-items">
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`${row.label}-${index}`} className={row.subtotal ? 'move-out-doc-sub' : undefined}>
+              <td>{row.label}</td>
+              <td className="align-right">
+                <span className={row.amount < 0 ? 'negative' : undefined}>
+                  {formatBaht(row.amount)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   )
 }

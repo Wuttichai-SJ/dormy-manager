@@ -50,6 +50,10 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
   // แล้วบอกผู้เช่าตรงนั้น ผู้เช่าจ่ายก่อนออกจากหอ — เก็บไม่ได้เป็นกรณียกเว้น
   const [collectShortfall, setCollectShortfall] = useState(true)
 
+  // พิมพ์ใบสรุปตัวอย่างก่อนกดยืนยัน — ผู้ใช้สั่ง 2026-08-11: ต้องยื่นให้ผู้เช่าดูก่อนเขา
+  // ออกจากหอ ไม่ใช่พิมพ์ได้หลังปิดสัญญาไปแล้วซึ่งผู้เช่าเดินไปแล้ว
+  const [previewing, setPreviewing] = useState(false)
+
   // ดึงใหม่ทุกครั้งที่วันที่ออกหรือรายการเปลี่ยน — ทั้งผลการตัดสินและยอดสุทธิขยับตามวันที่
   // (สูตรอยู่ฝั่ง main ที่เดียว หน้าจอไม่คำนวณเองเด็ดขาด)
   const load = useCallback(async () => {
@@ -89,6 +93,24 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
 
   if (result) {
     return <MoveOutResult result={result} room={room} onDone={onDone} signedBy={signedBy} />
+  }
+
+  // ระหว่างพิมพ์ตัวอย่าง หน้าจอแสดงเฉพาะตัวเอกสาร เพราะ printToPDF จับภาพหน้าที่แสดงอยู่
+  // (วิธีเดียวกับหน้ารายงานใบเสร็จและการพิมพ์ใบแจ้งหนี้ทั้งหอ)
+  if (previewing && sheet) {
+    return (
+      <>
+        <MoveOutDocument termination={{ ...sheet, isDraft: true }} signedBy={signedBy} />
+        <PrintDialog
+          title="พิมพ์ใบสรุปการย้ายออก (ตัวอย่าง)"
+          onClose={() => setPreviewing(false)}
+          onPrinted={() => {
+            setPreviewing(false)
+            showToast('ส่งเอกสารเข้าเครื่องพิมพ์แล้ว')
+          }}
+        />
+      </>
+    )
   }
 
   const needsReason = override !== null && sheet && override !== sheet.isDepositRefundable
@@ -213,8 +235,15 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                 </strong>
               )}
             </p>
+            {/* สูตรเขียนไว้ตรงหน้าคนกด — เงินประกันมีไว้รองรับความเสียหาย ค่าซ่อมจึงหักจาก
+                ก้อนนี้เสมอ ส่วนค่ามิเตอร์กับบิลเป็นคนละเรื่อง ไม่แตะเงินประกัน */}
             <p className="field-hint move-out-formula">
-              คำนวณจาก เงินประกันที่คืนได้ − ยอดรวมใบแจ้งหนี้ค้างชำระ − รายการเงินเพิ่มเติม
+              เงินประกัน {formatBaht(sheet.depositReceivedCents)} − ค่าเสียหาย{' '}
+              {formatBaht(sheet.damageTotalCents)}
+              {sheet.forfeitedCents > 0 && ` − ริบ ${formatBaht(sheet.forfeitedCents)}`}
+              {sheet.meterTotalCents > 0 && ` − ค่ามิเตอร์ ${formatBaht(sheet.meterTotalCents)}`}
+              {sheet.refundItemsTotalCents > 0 &&
+                ` + คืนให้ผู้เช่า ${formatBaht(sheet.refundItemsTotalCents)}`}
             </p>
 
             {/* 🔴 ยอดติดลบ = **เงินไหลเข้าหอ** ไม่ใช่ "ไม่มีอะไรเกิดขึ้น" — ต้องออกใบเสร็จให้
@@ -266,6 +295,17 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                   </select>
                 </div>
               )}
+              {/* ยื่นใบสรุปให้ผู้เช่าดูก่อนกดยืนยัน — หลังยืนยันแล้วผู้เช่าเดินไปแล้ว
+                  และการทักท้วงตัวเลขหลังปิดสัญญาไปแล้วแก้อะไรไม่ได้ */}
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setPreviewing(true)}
+              >
+                <Icon name="printer" />
+                <span>พิมพ์ใบสรุปให้ผู้เช่า</span>
+              </button>
+
               <button
                 type="button"
                 className="btn btn-danger"

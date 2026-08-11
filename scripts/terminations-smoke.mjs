@@ -240,7 +240,7 @@ check('อยู่ครบ 6 เดือน แจ้งล่วงหน้
   assert(sheet.monthsStayed === 6, `อยู่ ${sheet.monthsStayed} เดือน`)
   assert(sheet.noticeDaysGiven === 20, `แจ้ง ${sheet.noticeDaysGiven} วัน`)
   assert(sheet.isDepositRefundable === true, 'ต้องคืน')
-  assert(sheet.refundableDepositCents === 500000, `ได้ ${sheet.refundableDepositCents}`)
+  assert(sheet.depositRefundCents === 500000, `ได้ ${sheet.depositRefundCents}`)
   assert(sheet.netRefundCents === 500000, `สุทธิได้ ${sheet.netRefundCents}`)
 })
 
@@ -345,16 +345,20 @@ check('ออกก่อนครบสัญญา 12 เดือน = ริ
   assert(sheet.monthsStayed === 3, `อยู่ ${sheet.monthsStayed} เดือน`)
   assert(sheet.isDepositRefundable === false, 'ต้องริบ')
   assert(sheet.forfeitReason === 'early_move_out', `ได้ ${sheet.forfeitReason}`)
-  assert(sheet.refundableDepositCents === 0, `ได้ ${sheet.refundableDepositCents}`)
+  assert(sheet.depositRefundCents === 0, `ได้ ${sheet.depositRefundCents}`)
+  // ไม่มีค่าเสียหาย เงินประกันทั้งก้อนจึงถูกริบ
+  assert(sheet.forfeitedCents === 500000, `ริบได้ ${sheet.forfeitedCents}`)
 })
 
-check('เงินที่ถูกริบเอาไปหักหนี้ไม่ได้ ยอดสุทธิจึงติดลบเท่าที่ยังค้าง', () => {
+// **บิลค้างไม่เข้าสูตรยอดสุทธิ** — เงินประกันไม่ใช่ของสำหรับจ่ายบิล (กติกาเดียวกับที่ทำให้
+// เงินประกันที่ริบเอาไปหักหนี้ไม่ได้) บิลเป็นหนี้แยกที่ต้องเคลียร์ก่อนอยู่แล้ว
+check('บิลค้างไม่ถูกเอามาลบในยอดสุทธิ แต่ยังรู้ว่าค้างอยู่', () => {
   const sheet = terminations.getTerminationSheet(db, forfeit.contract.contractId, {
     moveOutDate: '2026-06-01'
   })
   assert(sheet.outstandingTotalCents === 500000, `ค้าง ${sheet.outstandingTotalCents}`)
   assert(sheet.hasOutstanding === true, 'ต้องรู้ว่ายังมีบิลค้าง')
-  assert(sheet.netRefundCents === -500000, `สุทธิได้ ${sheet.netRefundCents} ควรติดลบ 5,000`)
+  assert(sheet.netRefundCents === 0, `สุทธิได้ ${sheet.netRefundCents} — บิลไม่ควรเข้าสูตร`)
 })
 
 // -----------------------------------------------------
@@ -464,7 +468,8 @@ group('รายการเก็บเงิน/คืนเงินเพิ
 
 const adjusted = makeContract({ startDate: '2026-01-01', termMonths: 6 })
 
-check('ค่ามิเตอร์งวดสุดท้ายหักออกจากเงินคืนได้ โดยไม่ต้องออกบิลใบใหม่', () => {
+// สามแท็บมีความหมายทางบัญชีคนละอย่าง ไม่ใช่แค่ป้ายจัดกลุ่ม (เจ้าของหอยืนยัน 2026-08-11)
+check('ค่าเสียหายหักจากเงินประกัน · ค่ามิเตอร์เก็บแยก ไม่แตะเงินประกัน', () => {
   terminations.setMoveOutNotice(db, adjusted.contract.contractId, '2026-06-10')
   const sheet = terminations.getTerminationSheet(db, adjusted.contract.contractId, {
     moveOutDate: '2026-07-01',
@@ -473,7 +478,11 @@ check('ค่ามิเตอร์งวดสุดท้ายหักอ�
       { itemType: 'service', description: 'ค่า keycard หาย', amount: '100' }
     ]
   })
-  assert(sheet.adjustmentsTotalCents === 45000, `ได้ ${sheet.adjustmentsTotalCents}`)
+  assert(sheet.damageTotalCents === 10000, `ค่าเสียหายได้ ${sheet.damageTotalCents}`)
+  assert(sheet.meterTotalCents === 35000, `ค่ามิเตอร์ได้ ${sheet.meterTotalCents}`)
+  // เงินประกัน 5,000 − ค่าเสียหาย 100 = คืน 4,900 · ค่ามิเตอร์ 350 เก็บแยก
+  assert(sheet.depositRefundCents === 490000, `เงินประกันคืนได้ ${sheet.depositRefundCents}`)
+  assert(sheet.tenantOwesCents === 35000, `ผู้เช่าต้องจ่าย ${sheet.tenantOwesCents}`)
   assert(sheet.netRefundCents === 455000, `สุทธิได้ ${sheet.netRefundCents}`)
 })
 
@@ -485,6 +494,52 @@ check('ส่วนลด/คืนเงินกรอกเป็นบวก
   })
   assert(sheet.items[0].amountCents === -20000, `ได้ ${sheet.items[0].amountCents}`)
   assert(sheet.netRefundCents === 520000, `สุทธิได้ ${sheet.netRefundCents}`)
+})
+
+// 🔴 หัวใจของรอบนี้ (ผู้ใช้ทักท้วง 2026-08-11): เงินประกันมีไว้รองรับความเสียหาย
+// ถ้าริบไปแล้วยังเรียกเก็บค่าซ่อมอีก ผู้เช่าจ่ายสองต่อจากเงินก้อนเดียวกัน
+check('ริบเงินประกันแล้ว ค่าเสียหายต้องหักจากเงินที่ริบ ไม่ใช่เรียกเก็บเพิ่ม', () => {
+  const forfeited = makeContract({ startDate: '2026-03-01', termMonths: 12 })
+  terminations.setMoveOutNotice(db, forfeited.contract.contractId, '2026-05-01')
+  const sheet = terminations.getTerminationSheet(db, forfeited.contract.contractId, {
+    moveOutDate: '2026-06-01',
+    adjustments: [
+      { itemType: 'service', description: 'ค่าเปลี่ยนลูกบิดประตู', amount: '450' },
+      { itemType: 'service', description: 'ค่าเปลี่ยนยางขอบประตู', amount: '350' }
+    ]
+  })
+
+  assert(sheet.isDepositRefundable === false, 'ออกก่อนครบ 12 เดือน ต้องริบ')
+  assert(sheet.damageTotalCents === 80000, `ค่าเสียหายได้ ${sheet.damageTotalCents}`)
+  // 5,000 − 800 = 4,200 คือส่วนที่ถูกริบ · ผู้เช่าไม่ต้องจ่ายเพิ่มอีกบาทเดียว
+  assert(sheet.depositAfterDamageCents === 420000, `คงเหลือได้ ${sheet.depositAfterDamageCents}`)
+  assert(sheet.forfeitedCents === 420000, `ริบได้ ${sheet.forfeitedCents}`)
+  assert(sheet.excessDamageCents === 0, `ส่วนเกินได้ ${sheet.excessDamageCents}`)
+  assert(sheet.netRefundCents === 0, `สุทธิได้ ${sheet.netRefundCents} — ไม่ควรมีใครจ่ายใคร`)
+})
+
+check('ค่าเสียหายเกินเงินประกัน ส่วนเกินคือเงินที่ผู้เช่าต้องจ่ายเพิ่ม', () => {
+  const wrecked = makeContract({ startDate: '2026-01-01', termMonths: 6 })
+  terminations.setMoveOutNotice(db, wrecked.contract.contractId, '2026-06-10')
+  const sheet = terminations.getTerminationSheet(db, wrecked.contract.contractId, {
+    moveOutDate: '2026-07-01',
+    adjustments: [{ itemType: 'service', description: 'ค่าซ่อมห้องทั้งห้อง', amount: '6000' }]
+  })
+  assert(sheet.depositAfterDamageCents === 0, `คงเหลือได้ ${sheet.depositAfterDamageCents}`)
+  assert(sheet.excessDamageCents === 100000, `ส่วนเกินได้ ${sheet.excessDamageCents}`)
+  assert(sheet.netRefundCents === -100000, `สุทธิได้ ${sheet.netRefundCents}`)
+})
+
+// เงินคนละก้อนกับเงินประกัน จึงไม่ถูกริบไปด้วย (จรรยาบรรณ — ผู้ใช้ยืนยัน)
+check('ส่วนลด/คืนเงินยังได้คืน แม้เงินประกันถูกริบ', () => {
+  const owed = makeContract({ startDate: '2026-03-01', termMonths: 12 })
+  const sheet = terminations.getTerminationSheet(db, owed.contract.contractId, {
+    moveOutDate: '2026-06-01',
+    adjustments: [{ itemType: 'discount_refund', description: 'คืนค่าบริการที่จ่ายเกิน', amount: '200' }]
+  })
+  assert(sheet.isDepositRefundable === false, 'ต้องริบเงินประกัน')
+  assert(sheet.depositRefundCents === 0, 'เงินประกันไม่คืน')
+  assert(sheet.netRefundCents === 20000, `สุทธิได้ ${sheet.netRefundCents} — ต้องคืน 200`)
 })
 
 check('รายการที่ไม่มีชื่อ / ยอด 0 / ประเภทไม่รู้จัก ต้องเตือน', () => {
@@ -529,16 +584,15 @@ check('เก็บเงินส่วนต่างแล้ว ต้อง
   terminations.setMoveOutNotice(db, shortfall.contract.contractId, '2026-06-10')
   const result = terminations.completeTermination(db, shortfall.contract.contractId, {
     moveOutDate: '2026-07-01',
-    // ริบเงินประกัน (กดข้าม) แล้วยังเก็บค่าซ่อมเพิ่ม → สุทธิติดลบ
-    overrideRefundable: false,
-    overrideReason: 'ทดสอบกรณีเก็บเงินเพิ่ม',
+    // ค่าซ่อม 5,800 เกินเงินประกัน 5,000 → ส่วนเกิน 800 คือเงินที่ผู้เช่าต้องควักเพิ่ม
     adjustments: [
-      { itemType: 'service', description: 'ค่าเปลี่ยนลูกบิดประตู', amount: '450' },
+      { itemType: 'service', description: 'ค่าเปลี่ยนประตูทั้งบาน', amount: '5450' },
       { itemType: 'service', description: 'ค่าเปลี่ยนยางขอบประตู', amount: '350' }
     ],
     createdBy: staff.user_id
   })
 
+  assert(result.excessDamageCents === 80000, `ส่วนเกินได้ ${result.excessDamageCents}`)
   assert(result.netRefundCents === -80000, `สุทธิได้ ${result.netRefundCents}`)
   assert(result.shortfallReceipt !== null, 'ต้องออกใบเสร็จรับเงินส่วนต่าง')
   assert(result.shortfallReceipt.amountCents === 80000, `ได้ ${result.shortfallReceipt.amountCents}`)
@@ -555,18 +609,20 @@ check('เก็บเงินส่วนต่างแล้ว ต้อง
   )
 })
 
+// ผู้เช่าที่ริบเงินประกันแล้วยังมีค่ามิเตอร์งวดสุดท้ายค้าง — ค่ามิเตอร์เก็บแยก
+// ไม่ถูกหักจากเงินที่ริบ จึงยังเป็นเงินที่ต้องเก็บจากผู้เช่า
 check('ยังเก็บเงินไม่ได้ ไม่ออกใบเสร็จ แล้วยอดค้างขึ้นในใบสรุป', () => {
-  const unpaid = makeContract({ startDate: '2026-01-01', termMonths: 6 })
-  terminations.setMoveOutNotice(db, unpaid.contract.contractId, '2026-06-10')
+  const unpaid = makeContract({ startDate: '2026-03-01', termMonths: 12 })
   const result = terminations.completeTermination(db, unpaid.contract.contractId, {
-    moveOutDate: '2026-07-01',
-    overrideRefundable: false,
-    overrideReason: 'ทดสอบกรณีเก็บเงินไม่ได้',
-    adjustments: [{ itemType: 'service', description: 'ค่าซ่อมผนัง', amount: '1200' }],
+    moveOutDate: '2026-06-01',
+    adjustments: [{ itemType: 'meter', description: 'ค่าน้ำ-ค่าไฟงวดสุดท้าย', amount: '1200' }],
     collectShortfall: false,
     createdBy: staff.user_id
   })
 
+  assert(result.isDepositRefundable === false, 'ออกก่อนครบต้องริบ')
+  assert(result.meterTotalCents === 120000, `ค่ามิเตอร์ได้ ${result.meterTotalCents}`)
+  assert(result.netRefundCents === -120000, `สุทธิได้ ${result.netRefundCents}`)
   assert(result.shortfallReceipt === null, 'ต้องไม่ออกใบเสร็จ')
   assert(result.unpaidBalanceCents === 120000, `ยังค้าง ${result.unpaidBalanceCents}`)
 })
