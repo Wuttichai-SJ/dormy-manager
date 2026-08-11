@@ -1055,7 +1055,7 @@ check('แท็บ "ค้างชำระ" รวมบิลที่จ่
 
 // ยอดค้างของบิลที่ยกเลิกคำนวณออกมาเป็นบวกได้ (ยอดรวมยังอยู่ ไม่มีใครจ่าย)
 // แต่ไม่ใช่หนี้จริง จึงต้องกรองด้วยสถานะ ไม่ใช่ "ยอดค้าง > 0"
-check('บิลที่ยกเลิกไม่เข้าทั้งสองแท็บ', () => {
+check('บิลที่ยกเลิกไม่เข้าแท็บค้างชำระและชำระแล้ว', () => {
   const cancelled = invoices.listInvoices(db, apartmentId, { status: 'cancelled' })
   assert(cancelled.length > 0, 'ต้องมีบิลที่ยกเลิกอยู่ในหอนี้ ไม่งั้นเทสต์นี้ไม่ได้ทดสอบอะไร')
 
@@ -1068,11 +1068,27 @@ check('บิลที่ยกเลิกไม่เข้าทั้งส�
   }
 })
 
+// แท็บของตัวเอง (ผู้ใช้ขอ 2026-08-11) — เดิมบิลที่ยกเลิกต้องไปหาเอาใน "ทั้งหมด"
+// ปนกับบิลที่ยังต้องตามเก็บเงิน ทั้งที่เป็นที่เดียวที่ปุ่มลบถาวรโผล่
+check('แท็บ "ยกเลิกแล้ว" คืนเฉพาะบิลที่ยกเลิก และครบทุกใบ', () => {
+  const tab = invoices.listInvoices(db, apartmentId, { settlement: 'cancelled' })
+  const byStatus = invoices.listInvoices(db, apartmentId, { status: 'cancelled' })
+
+  assert(tab.length === byStatus.length, `แท็บได้ ${tab.length} ใบ แต่มีจริง ${byStatus.length} ใบ`)
+  assert(
+    tab.every((i) => i.status === 'cancelled'),
+    'มีบิลที่ยังไม่ถูกยกเลิกหลุดเข้ามาในแท็บ'
+  )
+})
+
+// **"ทั้งหมด" ต้องยังหมายถึงทั้งหมดจริงๆ** ต่อให้บิลที่ยกเลิกมีแท็บของตัวเองแล้ว —
+// แท็บใหม่เป็นทางลัดไปหาเฉพาะกลุ่ม ไม่ได้ย้ายมันออกจาก "ทั้งหมด"
+// (ป้ายที่เขียนว่าทั้งหมดแล้วซ่อนของบางอย่างไว้ คือป้ายที่โกหก)
 check('ไม่ระบุแท็บ = ได้ทั้งหมด รวมใบที่ยกเลิก', () => {
   const all = invoices.listInvoices(db, apartmentId)
   const outstanding = invoices.listInvoices(db, apartmentId, { settlement: 'outstanding' })
   const paid = invoices.listInvoices(db, apartmentId, { settlement: 'paid' })
-  const cancelled = invoices.listInvoices(db, apartmentId, { status: 'cancelled' })
+  const cancelled = invoices.listInvoices(db, apartmentId, { settlement: 'cancelled' })
   assert(
     all.length === outstanding.length + paid.length + cancelled.length,
     `ทั้งหมด ${all.length} ≠ ค้าง ${outstanding.length} + จ่ายครบ ${paid.length} + ยกเลิก ${cancelled.length}`
