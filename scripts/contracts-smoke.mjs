@@ -147,6 +147,33 @@ check('เลขมิเตอร์ติดลบไม่ได้', () => {
   assert(errors.some((e) => e.includes('เลขมิเตอร์ค่าน้ำ')), errors.join(', '))
 })
 
+// `Number('')` เป็น 0 ซึ่งเป็นเลขมิเตอร์ที่อ่านได้จริง ช่องที่ลืมกรอกจึงเคยผ่านเข้าไปเงียบๆ
+// เป็น 0 ทั้งที่ป้ายเขียนว่า "* จำเป็น" — และเลขนี้เป็นเลขตั้งต้นของบิลใบแรก
+// ห้องที่หน้าปัดเดินอยู่ที่ 8,000 จะกลายเป็นใช้ไป 8,000 หน่วยในบิลแรกของผู้เช่าใหม่
+check('เลขมิเตอร์ที่เว้นว่างไว้ต้องไม่ผ่านเป็น 0 เงียบๆ', () => {
+  for (const key of ['waterMeterStart', 'electricMeterStart']) {
+    const errors = contracts.validateContractInput({
+      ...BASE,
+      [key]: '',
+      tenants: [somchai.tenantId]
+    })
+    assert(
+      errors.some((e) => e.includes('กรุณากรอกเลขมิเตอร์')),
+      `${key}: ${errors.join(', ') || 'ไม่มี error เลย'}`
+    )
+  }
+})
+
+check('กรอกศูนย์มาจริงๆ ยังผ่านได้ (มิเตอร์ลูกใหม่เริ่มที่ 0)', () => {
+  const errors = contracts.validateContractInput({
+    ...BASE,
+    waterMeterStart: '0',
+    electricMeterStart: 0,
+    tenants: [somchai.tenantId]
+  })
+  assert(!errors.some((e) => e.includes('เลขมิเตอร์')), errors.join(', '))
+})
+
 // -----------------------------------------------------
 group('สร้างสัญญา')
 

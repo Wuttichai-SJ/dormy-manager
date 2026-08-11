@@ -576,5 +576,125 @@ check('ส่งจำนวนหลักมาเองจากหน้า�
 })
 
 // -----------------------------------------------------
+// 🔴 บั๊กที่เจอ 2026-08-10 ตอนตอบคำถาม แก้ 2026-08-11:
+// ห้องที่เคยมีใบจดมิเตอร์มาก่อน จะเมินเลขมิเตอร์วันเข้าพักในสัญญาเสมอ (`lastReading ??
+// contractStart`) ผู้เช่าใหม่ที่ย้ายเข้าห้องมือสองจึงโดนคิดหน่วยที่ผู้เช่าคนก่อนใช้ค้างไว้
+// รวมถึงหน่วยที่หอใช้เองระหว่างทำความสะอาด/ซ่อมห้อง
+group('เปลี่ยนผู้เช่ากลางคัน — โซ่มิเตอร์ต้องเริ่มใหม่')
+
+const turnoverFloors = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+const turnoverRoom = turnoverFloors[turnoverFloors.length - 1].rooms[0]
+
+// ผู้เช่าคนเก่าอยู่มาแล้ว ปิดรอบล่าสุดไว้ที่ 500
+const oldBatch = meter.createBatch(db, apartmentId, '2028-01-31')
+meter.saveBatchReadings(db, oldBatch.batchId, 'water', [
+  { roomId: turnoverRoom.roomId, roomNumber: turnoverRoom.roomNumber, currentReading: 500 }
+])
+
+const newTenant = tenants.insertTenant(db, {
+  firstName: 'ผู้เช่าคนใหม่',
+  lastName: 'ทดสอบ',
+  phone: '0844444444'
+})
+
+// คนใหม่ย้ายเข้า 10 ก.พ. — วันนั้นหน้าปัดอยู่ที่ 520 (หอใช้ไป 20 หน่วยตอนล้างห้อง)
+contracts.createContract(db, {
+  roomId: turnoverRoom.roomId,
+  rentType: 'monthly',
+  startDate: '2028-02-10',
+  rentAmount: '5000',
+  deposit: '5000',
+  depositPaymentMethod: 'cash',
+  bookingFee: '0',
+  waterMeterStart: 520,
+  electricMeterStart: 8000,
+  tenants: [newTenant.tenantId],
+  createdBy: staff.user_id
+})
+
+const afterMoveIn = meter.createBatch(db, apartmentId, '2028-02-29')
+
+check('ผู้เช่าใหม่เริ่มนับจากเลขในสัญญา ไม่ใช่เลขปิดของผู้เช่าคนก่อน', () => {
+  const sheet = meter.getBatchSheet(db, afterMoveIn.batchId, 'water')
+  const row = sheet.rooms.find((r) => r.roomId === turnoverRoom.roomId)
+  assert(row.previousReading === 520, `ได้ ${row.previousReading} ควรเป็น 520 ไม่ใช่ 500`)
+  assert(row.previousSource === 'contract', `ได้ ${row.previousSource}`)
+  assert(row.supersededReading === 500, `เลขที่ถูกข้ามได้ ${row.supersededReading}`)
+})
+
+// ต้องประกาศออกมา ไม่ใช่เปลี่ยนตัวเลขให้เงียบๆ — ถ้าเลขในสัญญากรอกผิด บิลใบแรก
+// ของผู้เช่าใหม่จะพุ่งโดยไม่มีอะไรบอก
+check('ใบจดบอกออกมาว่าห้องไหนถูกตัดโซ่ เพราะเปลี่ยนผู้เช่า', () => {
+  const sheet = meter.getBatchSheet(db, afterMoveIn.batchId, 'water')
+  const warned = sheet.newTenantRooms.find((r) => r.roomNumber === turnoverRoom.roomNumber)
+  assert(warned !== undefined, 'ต้องมีห้องนี้อยู่ในรายการเตือน')
+  assert(warned.previousReading === 520, `ได้ ${warned.previousReading}`)
+  assert(warned.supersededReading === 500, `ได้ ${warned.supersededReading}`)
+  assert(warned.contractStartDate === '2028-02-10', `ได้ ${warned.contractStartDate}`)
+})
+
+check('ฝั่งไฟก็ต้องเริ่มใหม่เหมือนกัน', () => {
+  const sheet = meter.getBatchSheet(db, afterMoveIn.batchId, 'electric')
+  const row = sheet.rooms.find((r) => r.roomId === turnoverRoom.roomId)
+  assert(row.previousReading === 8000, `ได้ ${row.previousReading} ควรเป็น 8000`)
+})
+
+check('หน่วยที่คิดจริงตอนบันทึก ใช้เลขของสัญญาด้วย ไม่ใช่แค่ที่แสดงบนจอ', () => {
+  const saved = meter.saveBatchReadings(db, afterMoveIn.batchId, 'water', [
+    { roomId: turnoverRoom.roomId, roomNumber: turnoverRoom.roomNumber, currentReading: 560 }
+  ])
+  const row = saved.rooms.find((r) => r.roomId === turnoverRoom.roomId)
+  assert(row.unitsUsed === 40, `ได้ ${row.unitsUsed} ควรเป็น 40 (560−520) ไม่ใช่ 60`)
+})
+
+// เริ่มใหม่ครั้งเดียวตอนย้ายเข้า รอบต่อๆ ไปเดินโซ่ตามปกติ ไม่ใช่ดึงเลขสัญญามาทุกเดือน
+check('รอบถัดไปเดินต่อจากเลขที่จดหลังผู้เช่าใหม่เข้าอยู่แล้ว', () => {
+  const later = meter.createBatch(db, apartmentId, '2028-03-31')
+  const sheet = meter.getBatchSheet(db, later.batchId, 'water')
+  const row = sheet.rooms.find((r) => r.roomId === turnoverRoom.roomId)
+  assert(row.previousReading === 560, `ได้ ${row.previousReading} ควรเป็น 560`)
+  assert(row.previousSource === 'batch', `ได้ ${row.previousSource}`)
+  assert(row.supersededReading === null, 'ไม่ควรเตือนซ้ำในรอบที่โซ่เดินปกติแล้ว')
+  assert(sheet.newTenantRooms.length === 0, 'ไม่ควรมีห้องไหนอยู่ในรายการเตือนแล้ว')
+})
+
+// จดในวันที่ย้ายเข้าพอดี = เลขนั้นเป็นของผู้เช่าคนใหม่แล้ว จึงเดินโซ่ต่อได้ ไม่ต้องรีเซ็ต
+check('ใบจดที่ลงวันเดียวกับวันเข้าพัก ถือเป็นเลขของผู้เช่าคนใหม่', () => {
+  const sameDayFloors = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+  const sameDayRoom = sameDayFloors[sameDayFloors.length - 1].rooms[0]
+
+  const onMoveIn = meter.createBatch(db, apartmentId, '2028-06-15')
+  meter.saveBatchReadings(db, onMoveIn.batchId, 'water', [
+    { roomId: sameDayRoom.roomId, roomNumber: sameDayRoom.roomNumber, currentReading: 300 }
+  ])
+
+  const person = tenants.insertTenant(db, {
+    firstName: 'เข้าวันเดียวกัน',
+    lastName: 'ทดสอบ',
+    phone: '0833333333'
+  })
+  contracts.createContract(db, {
+    roomId: sameDayRoom.roomId,
+    rentType: 'monthly',
+    startDate: '2028-06-15',
+    rentAmount: '5000',
+    deposit: '5000',
+    depositPaymentMethod: 'cash',
+    bookingFee: '0',
+    waterMeterStart: 300,
+    electricMeterStart: 0,
+    tenants: [person.tenantId],
+    createdBy: staff.user_id
+  })
+
+  const next = meter.createBatch(db, apartmentId, '2028-07-31')
+  const row = meter
+    .getBatchSheet(db, next.batchId, 'water')
+    .rooms.find((r) => r.roomId === sameDayRoom.roomId)
+  assert(row.previousReading === 300, `ได้ ${row.previousReading}`)
+  assert(row.previousSource === 'batch', `ได้ ${row.previousSource} — ไม่ควรถือว่าโซ่ขาด`)
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลจดมิเตอร์ทำงานครบทุกเส้นทาง')

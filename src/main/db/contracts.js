@@ -104,11 +104,21 @@ export function validateContractInput(input) {
   }
 
   // เลขมิเตอร์เป็นค่าที่อ่านจากหน้าปัด ไม่ใช่เงิน จึงเป็นทศนิยมธรรมดา ไม่ใช่สตางค์
+  //
+  // **ต้องกันช่องว่างให้ตายตัว** — `Number('')` เป็น 0 ซึ่งเป็นเลขมิเตอร์ที่อ่านได้จริง
+  // ช่องที่ลืมกรอกจึงเคยผ่านเข้าไปเป็น 0 อย่างเงียบๆ ทั้งที่ป้ายเขียนว่า "* จำเป็น"
+  // และเลขนี้เป็นเลขตั้งต้นของบิลแรก ห้องที่มิเตอร์เดินอยู่ที่ 8,000 จะกลายเป็นใช้ไป
+  // 8,000 หน่วยในบิลใบแรกของผู้เช่าใหม่
   for (const [key, label] of [
     ['waterMeterStart', 'เลขมิเตอร์ค่าน้ำ'],
     ['electricMeterStart', 'เลขมิเตอร์ค่าไฟ']
   ]) {
-    const value = Number(input[key])
+    const raw = input[key]
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+      errors.push(`กรุณากรอก${label}วันเข้าพัก (อ่านจากหน้าปัดจริง ถ้าเป็นศูนย์ให้พิมพ์ 0)`)
+      continue
+    }
+    const value = Number(raw)
     if (!Number.isFinite(value) || value < 0) errors.push(`${label}ต้องเป็นตัวเลขไม่ติดลบ`)
   }
 

@@ -274,8 +274,9 @@ function MeterSheet({ batchId, side, onBack }) {
           จด{meta.label} — รอบวันที่ {sheet ? formatDate(sheet.readingDate) : '...'}
         </strong>
         <p>
-          “จดครั้งก่อน” คือเลขปิดของรอบที่แล้ว (หรือเลขมิเตอร์วันเข้าพักในสัญญา ถ้ายังไม่เคยจด)
-          ระบบกำหนดให้เอง แก้ไม่ได้ · ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก ·{' '}
+          “จดครั้งก่อน” คือเลขปิดของรอบที่แล้ว — เว้นแต่ห้องที่<strong>เพิ่งเปลี่ยนผู้เช่า</strong>{' '}
+          ซึ่งจะเริ่มนับใหม่จากเลขมิเตอร์วันเข้าพักในสัญญา ระบบกำหนดให้เอง แก้ไม่ได้ ·
+          ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก ·{' '}
           <strong>กด Enter เพื่อลงไปกรอกห้องถัดไป</strong>
         </p>
         <p>
@@ -300,6 +301,26 @@ function MeterSheet({ batchId, side, onBack }) {
           <Alert kind="warn">
             ห้อง {sheet.hiddenRooms.join(', ')} มีผู้เช่าอยู่แต่ถูกปิดใช้งานไว้
             จึงไม่อยู่ในใบจดมิเตอร์นี้ — ถ้ายังใช้งานห้องอยู่ ให้เปิดใช้งานที่ ตั้งค่า → ผังห้อง
+          </Alert>
+        )}
+
+        {/* ห้องที่เปลี่ยนผู้เช่าหลังรอบจดล่าสุด — โซ่มิเตอร์ถูกตัดแล้วเริ่มใหม่ที่เลขในสัญญา
+            ต้องประกาศออกมา ไม่ใช่เปลี่ยนตัวเลขให้เงียบๆ เพราะถ้าเลขในสัญญากรอกผิด
+            (หรือลืมกรอกจนเป็น 0) บิลใบแรกของผู้เช่าใหม่จะพุ่งโดยไม่มีอะไรบอก */}
+        {sheet?.newTenantRooms?.length > 0 && (
+          <Alert kind="warn">
+            <strong>ห้องที่เปลี่ยนผู้เช่า — เริ่มนับเลขใหม่</strong>
+            <ul className="meter-new-tenant-list">
+              {sheet.newTenantRooms.map((r) => (
+                <li key={r.roomNumber}>
+                  ห้อง {r.roomNumber}: เข้าพัก {formatDate(r.contractStartDate)} · เริ่มนับจาก{' '}
+                  <strong>{r.previousReading}</strong> (เลขมิเตอร์วันเข้าพักในสัญญา) แทนเลขปิด
+                  รอบก่อน {r.supersededReading} ซึ่งเป็นของผู้เช่าคนก่อน
+                </li>
+              ))}
+            </ul>
+            หน่วยที่ผู้เช่าคนก่อนใช้ค้างไว้จะไม่ถูกคิดกับคนใหม่ — ถ้าเลขตั้งต้นไม่ตรงกับหน้าปัดจริง
+            ให้แก้ที่สัญญาของห้องนั้นก่อนบันทึก
           </Alert>
         )}
 
@@ -344,8 +365,20 @@ function MeterSheet({ batchId, side, onBack }) {
                         </span>
                       </td>
                       {/* อ่านอย่างเดียว — เลขปิดของรอบก่อนคือเลขเปิดของรอบนี้ ไม่ใช่ตัวเลข
-                          ที่กรอกทับได้ แก้ได้เมื่อไหร่โซ่มิเตอร์ก็ขาดได้เมื่อนั้น */}
-                      <td className="align-right meter-previous">{row.previousReading}</td>
+                          ที่กรอกทับได้ แก้ได้เมื่อไหร่โซ่มิเตอร์ก็ขาดได้เมื่อนั้น
+                          ป้าย "ผู้เช่าใหม่" ขึ้นเฉพาะแถวที่โซ่ถูกตัดจริง (มีเลขรอบก่อนถูกข้าม) */}
+                      <td className="align-right meter-previous">
+                        {row.previousReading}
+                        {row.supersededReading !== null &&
+                          row.supersededReading !== undefined && (
+                            <span
+                              className="meter-new-tenant-tag"
+                              title={`ผู้เช่าใหม่เข้าพัก ${formatDate(row.contractStartDate)} — เลขปิดรอบก่อนของผู้เช่าคนเดิมคือ ${row.supersededReading}`}
+                            >
+                              ผู้เช่าใหม่
+                            </span>
+                          )}
+                      </td>
                       <td className="align-right">
                         <input
                           className="meter-input"

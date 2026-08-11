@@ -258,12 +258,25 @@ export function deleteBatch(db, batchId) {
 // ------------------------------------------------------------------
 // หน้ากรอกเลขมิเตอร์ของฝั่งหนึ่ง
 // ------------------------------------------------------------------
-// คืนทุกห้องที่เปิดใช้งานของหอ พร้อมเลข "จดครั้งก่อน" ที่ระบบหาให้ ตามลำดับ:
-//   1) เลขปัจจุบันของใบจดก่อนหน้าใบนี้ (ไล่ตามวันที่)
-//   2) เลขมิเตอร์วันเข้าพักที่บันทึกไว้ในสัญญาที่ยังใช้งานอยู่
-//   3) 0 — ห้องว่างที่ไม่เคยมีสัญญาและไม่เคยจด
+// คืนทุกห้องที่เปิดใช้งานของหอ พร้อมเลข "จดครั้งก่อน" ที่ระบบหาให้
 //
-// ต้องมีข้อ 2 ไม่งั้นบิลเดือนแรกของผู้เช่าใหม่จะคิดหน่วยตั้งแต่เลขที่ผู้เช่าคนก่อนทิ้งไว้
+// **โซ่ของมิเตอร์ขาดตอนที่ผู้เช่าเปลี่ยนคน** — เลขที่ผู้เช่าคนก่อนทิ้งไว้ไม่ใช่เลขตั้งต้น
+// ของคนใหม่ ระหว่างคนเก่าย้ายออกกับคนใหม่ย้ายเข้า มิเตอร์ยังเดินได้ (ทำความสะอาด ซ่อมห้อง)
+// และหน่วยช่วงนั้นเป็นของหอ ไม่ใช่ของผู้เช่ารายใหม่
+//
+// กติกา:
+//   1) มีสัญญาที่ยังใช้งานอยู่ และสัญญาเริ่ม **หลัง** รอบจดล่าสุด
+//      → ใช้ "เลขมิเตอร์วันเข้าพัก" ของสัญญานั้น (โซ่เริ่มใหม่ที่นี่)
+//   2) นอกนั้นใช้เลขปัจจุบันของใบจดก่อนหน้าใบนี้ (โซ่เดินต่อตามปกติ)
+//   3) ไม่เคยจดและไม่มีสัญญา → 0
+//
+// 🔴 ของเดิมเป็น `lastReading ?? contractStart` ซึ่งแปลว่า **ห้องที่เคยมีใบจดมิเตอร์มาก่อน
+// จะเมินเลขในสัญญาเสมอ** ผู้เช่าใหม่ที่ย้ายเข้าห้องมือสองจึงโดนคิดหน่วยที่คนก่อนใช้ค้างไว้
+// (ไม่เคยเจอตอนทดสอบเพราะหอที่กรอกจริงยังไม่มีห้องไหนหมุนเวียนผู้เช่า)
+//
+// เลขในสัญญาที่ผิด (เช่นลืมกรอกจนเป็น 0) จะทำให้บิลใบแรกพุ่ง จึงไม่เดาแทนผู้ใช้แต่
+// **ประกาศออกมาให้เห็น** ผ่าน `previousSource` / `supersededReading` / `newTenantRooms`
+// แล้วให้หน้าจอขึ้นป้ายบอกว่าแถวนี้เริ่มนับใหม่จากเลขอะไร
 export function getBatchSheet(db, batchId, side) {
   const cols = columnsFor(side)
   const batch = getBatchById(db, batchId)
@@ -291,11 +304,28 @@ export function getBatchSheet(db, batchId, side) {
                        OR (pb.reading_date = @readingDate AND pb.batch_id < @batchId))
                 ORDER BY pb.reading_date DESC, pb.batch_id DESC
                 LIMIT 1) AS lastReading,
+              -- วันที่ของรอบที่ให้เลขข้างบนมา — ต้องรู้เพื่อเทียบกับวันเริ่มสัญญา
+              -- (เงื่อนไขเดียวกันเป๊ะกับซับคิวรีข้างบน ถ้าแก้ต้องแก้ทั้งคู่)
+              (SELECT pb.reading_date
+                 FROM meter_readings pr
+                 JOIN meter_batches pb ON pb.batch_id = pr.meter_batch_id
+                WHERE pr.room_id = r.room_id
+                  AND pb.apartment_id = @apartmentId
+                  AND pr.${cols.current} IS NOT NULL
+                  AND (pb.reading_date < @readingDate
+                       OR (pb.reading_date = @readingDate AND pb.batch_id < @batchId))
+                ORDER BY pb.reading_date DESC, pb.batch_id DESC
+                LIMIT 1) AS lastReadingDate,
               (SELECT c.${cols.contractStart}
                  FROM contracts c
                 WHERE c.room_id = r.room_id AND c.status = 'active'
                 ORDER BY c.start_date DESC, c.contract_id DESC
-                LIMIT 1) AS contractStart
+                LIMIT 1) AS contractStart,
+              (SELECT c.start_date
+                 FROM contracts c
+                WHERE c.room_id = r.room_id AND c.status = 'active'
+                ORDER BY c.start_date DESC, c.contract_id DESC
+                LIMIT 1) AS contractStartDate
          FROM rooms r
          JOIN floors f ON f.floor_id = r.floor_id
          LEFT JOIN meter_readings saved
@@ -324,37 +354,69 @@ export function getBatchSheet(db, batchId, side) {
     .all(batch.apartmentId)
     .map((row) => row.room_number)
 
+  // ห้องที่โซ่ถูกตัดเพราะเปลี่ยนผู้เช่า — หน้าจอเอาไปขึ้นแถบเตือนรวมด้านบน
+  // เลขตั้งต้นที่ผิดจะทำให้บิลใบแรกของผู้เช่าใหม่พุ่ง ต้องให้เจ้าของหอเหลือบเห็นก่อนกดบันทึก
+  const newTenantRooms = []
+
+  const sheetRooms = rows.map((row) => {
+    const lastReading = row.lastReading === null ? null : Number(row.lastReading)
+    const contractMeterStart = row.contractStart === null ? null : Number(row.contractStart)
+
+    // สัญญาเริ่มหลังรอบจดล่าสุด = ผู้เช่ารายนี้เพิ่งเข้ามาหลังเลขนั้นถูกจด
+    // เท่ากับ = จดในวันที่ย้ายเข้าพอดี ถือว่าเป็นเลขของคนใหม่แล้ว จึงเดินโซ่ต่อได้
+    const startsFromContract =
+      contractMeterStart !== null &&
+      (lastReading === null ||
+        (Boolean(row.contractStartDate) && row.lastReadingDate < row.contractStartDate))
+
+    const derived = startsFromContract ? contractMeterStart : (lastReading ?? 0)
+    const previousSource = startsFromContract ? 'contract' : lastReading === null ? 'none' : 'batch'
+    // เลขปิดของผู้เช่าคนก่อนที่ถูกข้ามไป — มีเฉพาะตอนที่โซ่ถูกตัดจริง
+    const supersededReading = startsFromContract ? lastReading : null
+
+    if (supersededReading !== null) {
+      newTenantRooms.push({
+        roomNumber: row.room_number,
+        contractStartDate: row.contractStartDate,
+        previousReading: derived,
+        supersededReading
+      })
+    }
+
+    return {
+      roomId: row.room_id,
+      roomNumber: row.room_number,
+      floorName: row.floor_name,
+      status: row.status,
+      // แถวที่บันทึกไปแล้วแสดงเลขที่บันทึกไว้จริง เพราะจำนวนหน่วยที่คิดไปแล้วมาจากเลขนั้น
+      // ถ้าแสดงเลขที่ไล่หาใหม่ ตัวเลขบนจอจะไม่ตรงกับหน่วยที่อยู่ข้างๆ
+      previousReading: Number(row.savedPrevious ?? derived),
+      // เลขที่ระบบไล่หาให้ — ตอนบันทึกใช้ตัวนี้เสมอ ไม่ใช้ค่าที่หน้าจอส่งมา
+      derivedPreviousReading: derived,
+      // 'batch' = เดินต่อจากรอบก่อน · 'contract' = เริ่มใหม่ที่เลขวันเข้าพัก · 'none' = ไม่เคยมีอะไรเลย
+      previousSource,
+      contractStartDate: row.contractStartDate ?? null,
+      supersededReading,
+      currentReading: row.savedCurrent === null ? null : Number(row.savedCurrent),
+      unitsUsed: row.savedUnits === null ? null : Number(row.savedUnits),
+      isOverCycle: row.savedOverCycle === 1,
+      isMeterReplaced: row.savedReplaced === 1,
+      removedReading: row.savedRemoved === null ? null : Number(row.savedRemoved),
+      newStartReading: row.savedNewStart === null ? null : Number(row.savedNewStart),
+      isSaved: row.savedCurrent !== null
+    }
+  })
+
   return {
     batchId: batch.batchId,
     readingDate: batch.readingDate,
     side,
     hiddenRooms,
+    newTenantRooms,
     // หน้าจอต้องใช้ตัวเลขเดียวกับที่ฝั่ง main ใช้คำนวณ ไม่งั้นตัวเลขหน่วยที่ขึ้นระหว่างพิมพ์
     // จะไม่ตรงกับที่บันทึกจริง
     meterDigits: normalizeMeterDigits(getMeterDigits(db, batch.apartmentId)),
-    rooms: rows.map((row) => {
-      // เลขครั้งก่อนที่ระบบไล่หาให้ — เลขปิดของรอบก่อนหน้า แล้วค่อยลงไปที่เลขมิเตอร์
-      // วันเข้าพักในสัญญา สุดท้ายคือ 0
-      const derived = Number(row.lastReading ?? row.contractStart ?? 0)
-      return {
-        roomId: row.room_id,
-        roomNumber: row.room_number,
-        floorName: row.floor_name,
-        status: row.status,
-        // แถวที่บันทึกไปแล้วแสดงเลขที่บันทึกไว้จริง เพราะจำนวนหน่วยที่คิดไปแล้วมาจากเลขนั้น
-        // ถ้าแสดงเลขที่ไล่หาใหม่ ตัวเลขบนจอจะไม่ตรงกับหน่วยที่อยู่ข้างๆ
-        previousReading: Number(row.savedPrevious ?? derived),
-        // เลขที่ระบบไล่หาให้ — ตอนบันทึกใช้ตัวนี้เสมอ ไม่ใช้ค่าที่หน้าจอส่งมา
-        derivedPreviousReading: derived,
-        currentReading: row.savedCurrent === null ? null : Number(row.savedCurrent),
-        unitsUsed: row.savedUnits === null ? null : Number(row.savedUnits),
-        isOverCycle: row.savedOverCycle === 1,
-        isMeterReplaced: row.savedReplaced === 1,
-        removedReading: row.savedRemoved === null ? null : Number(row.savedRemoved),
-        newStartReading: row.savedNewStart === null ? null : Number(row.savedNewStart),
-        isSaved: row.savedCurrent !== null
-      }
-    })
+    rooms: sheetRooms
   }
 }
 
