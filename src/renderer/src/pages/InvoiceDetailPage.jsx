@@ -13,6 +13,7 @@ import {
   removeInvoiceItem
 } from '../services/invoiceService.js'
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
+import CancelReceiptDialog from '../components/CancelReceiptDialog.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
 import BillDocument, { BillSignature } from '../components/BillDocument.jsx'
 import { revealPdf, savePdf } from '../services/printService.js'
@@ -30,6 +31,8 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // ใบเสร็จที่กำลังจะยกเลิก (null = ไม่ได้เปิดหน้าต่าง)
+  const [cancellingReceipt, setCancellingReceipt] = useState(null)
 
   const load = useCallback(async () => {
     const [inv, pays] = await Promise.all([
@@ -113,9 +116,25 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
             />
           )}
 
-          <PaymentHistory payments={payments} />
+          <PaymentHistory payments={payments} onCancelReceipt={setCancellingReceipt} />
         </aside>
       </div>
+
+      {cancellingReceipt && (
+        <CancelReceiptDialog
+          receipt={cancellingReceipt}
+          onClose={() => setCancellingReceipt(null)}
+          onCancelled={(result) => {
+            setCancellingReceipt(null)
+            showToast(
+              `ยกเลิกใบเสร็จ ${result.payment.receiptNumber} แล้ว` +
+                (result.lateFeeItemsRemoved > 0 ? ' และถอดรายการค่าปรับออกจากบิลแล้ว' : '')
+            )
+            load()
+          }}
+          onError={setError}
+        />
+      )}
     </>
   )
 }
@@ -645,7 +664,9 @@ function PaymentCard({ invoice, onDone, onError }) {
   )
 }
 
-function PaymentHistory({ payments }) {
+// ใบที่ยกเลิกแล้วยังอยู่ในรายการ ไม่ได้หายไป — เจ้าของหอที่ถือกระดาษใบนั้นอยู่ในมือ
+// ต้องหาเจอว่าเลขที่นี้เป็นอะไรและถูกยกเลิกเพราะอะไร
+function PaymentHistory({ payments, onCancelReceipt }) {
   return (
     <section className="panel">
       <h2 className="panel-title">รายการรับเงิน</h2>
@@ -655,7 +676,12 @@ function PaymentHistory({ payments }) {
       ) : (
         <ul className="receipt-list">
           {payments.map((p) => (
-            <li key={p.paymentId} className={p.isRefund ? 'receipt refund' : 'receipt'}>
+            <li
+              key={p.paymentId}
+              className={
+                'receipt' + (p.isRefund ? ' refund' : '') + (p.isCancelled ? ' cancelled' : '')
+              }
+            >
               <div className="receipt-head">
                 <strong>{p.receiptNumber}</strong>
                 <span className={p.isRefund ? 'negative' : undefined}>
@@ -666,6 +692,25 @@ function PaymentHistory({ payments }) {
                 {formatDate(p.paymentDate)} · {p.paymentMethodLabel} · {p.createdByName ?? '-'}
               </p>
               {p.remark && <p className="receipt-remark">{p.remark}</p>}
+
+              {p.isCancelled ? (
+                <p className="receipt-cancelled-note">
+                  <strong>ยกเลิกแล้ว</strong> — {p.cancelReason}
+                  <span className="muted">
+                    {' '}
+                    ({p.cancelledByName ?? '-'} · {formatDate(String(p.cancelledAt).slice(0, 10))})
+                  </span>
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="link-btn link-danger"
+                  onClick={() => onCancelReceipt(p)}
+                >
+                  <Icon name="close" />
+                  <span>ยกเลิกใบเสร็จ</span>
+                </button>
+              )}
             </li>
           ))}
         </ul>

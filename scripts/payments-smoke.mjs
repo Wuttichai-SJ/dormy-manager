@@ -939,5 +939,272 @@ check('ประเภทเงินที่ไม่รู้จักต้�
 })
 
 // -----------------------------------------------------
+// ยกเลิกใบเสร็จ — ช่องโหว่ที่อุด: คีย์เงินผิดแล้วเดิมแก้ไม่ได้เลย
+// **กลุ่มนี้ต้องอยู่ท้ายสุด** เพราะการยกเลิกทำให้ยอดรวมของหอเปลี่ยน
+// ข้อทดสอบก่อนหน้าที่นับ receiptCount/totalAmountCents ทั้งหอจะพังถ้าย้ายขึ้นไปข้างบน
+group('ยกเลิกใบเสร็จ')
+
+const cancelFloors = rooms.addFloor(db, apartmentId, { roomCount: 1 })
+const cancelRoom = cancelFloors[cancelFloors.length - 1].rooms[0]
+rooms.setRoomRates(db, [cancelRoom.roomId], { monthlyRent: '4000' })
+
+const cancelTenant = tenants.insertTenant(db, {
+  firstName: 'คีย์ผิด',
+  lastName: 'ทดสอบ',
+  phone: '0855555555'
+})
+const cancelContract = contracts.createContract(db, {
+  roomId: cancelRoom.roomId,
+  rentType: 'monthly',
+  startDate: '2028-01-01',
+  rentAmount: '4000',
+  deposit: '4000',
+  depositPaymentMethod: 'cash',
+  bookingFee: '0',
+  waterMeterStart: 0,
+  electricMeterStart: 0,
+  tenants: [cancelTenant.tenantId],
+  createdBy: staff.user_id
+})
+
+const cancelBatch = meter.createBatch(db, apartmentId, '2028-02-01')
+const febInvoice = invoices.createMonthlyInvoice(db, {
+  contractId: cancelContract.contractId,
+  billingMonth: '2028-02',
+  meterBatchId: cancelBatch.batchId,
+  issueDate: '2028-02-01'
+})
+
+const wrongReceipt = payments.recordInvoicePayment(db, {
+  ...BASE,
+  invoiceId: febInvoice.invoiceId,
+  paymentDate: '2028-02-03',
+  amount: '1500',
+  remark: 'กรอกยอดผิด'
+})
+
+check('เหตุผลบังคับกรอก ยกเลิกโดยไม่บอกเหตุผลไม่ได้', () => {
+  throws(
+    () =>
+      payments.cancelPayment(db, wrongReceipt.paymentId, {
+        reason: '   ',
+        cancelledBy: staff.user_id
+      }),
+    'เหตุผล',
+    'ต้องบังคับเหตุผลเหมือนตอนลบใบแจ้งหนี้'
+  )
+})
+
+// ผู้ยกเลิกมาจากเซสชันฝั่ง main เหมือนผู้รับเงิน ไม่งั้นบันทึกการยกเลิกก็เชื่อไม่ได้
+check('ไม่รู้ว่าใครยกเลิกก็ยกเลิกไม่ได้', () => {
+  throws(
+    () => payments.cancelPayment(db, wrongReceipt.paymentId, { reason: 'คีย์ผิด' }),
+    'ผู้ยกเลิก',
+    'ต้องรู้ว่าใครเป็นคนยกเลิก'
+  )
+})
+
+check('ใบเสร็จที่ไม่มีอยู่จริงต้องเตือน', () => {
+  throws(
+    () => payments.cancelPayment(db, 999999, { reason: 'x', cancelledBy: staff.user_id }),
+    'ไม่พบใบเสร็จ',
+    'ต้องเตือน'
+  )
+})
+
+check('ยกเลิกแล้วยอดค้างของบิลกลับมาเท่าเดิม และสถานะกลับเป็นค้างชำระ', () => {
+  const before = invoices.getInvoiceById(db, febInvoice.invoiceId)
+  assert(before.status === 'partial_paid', `ก่อนยกเลิกได้ ${before.status}`)
+
+  const result = payments.cancelPayment(db, wrongReceipt.paymentId, {
+    reason: 'คีย์ยอดผิด',
+    cancelledBy: staff.user_id
+  })
+  assert(result.payment.isCancelled === true, 'ใบเสร็จต้องถูกทำเครื่องหมายว่ายกเลิก')
+  assert(result.payment.cancelReason === 'คีย์ยอดผิด', `ได้ ${result.payment.cancelReason}`)
+  assert(result.payment.cancelledByName === 'ผู้จัดการหอ', `ได้ ${result.payment.cancelledByName}`)
+
+  const after = invoices.getInvoiceById(db, febInvoice.invoiceId)
+  assert(after.paidAmountCents === 0, `ยังนับว่ารับมา ${after.paidAmountCents}`)
+  assert(after.outstandingCents === 400000, `ยอดค้างได้ ${after.outstandingCents}`)
+  assert(after.status === 'unpaid', `สถานะได้ ${after.status}`)
+})
+
+check('ยกเลิกซ้ำไม่ได้', () => {
+  throws(
+    () =>
+      payments.cancelPayment(db, wrongReceipt.paymentId, {
+        reason: 'ยกเลิกอีกรอบ',
+        cancelledBy: staff.user_id
+      }),
+    'ยกเลิกไปแล้ว',
+    'ต้องกันการยกเลิกซ้ำ'
+  )
+})
+
+// แถวไม่ถูกลบ — เจ้าของหอที่ถือกระดาษใบนั้นอยู่ในมือต้องหาเจอว่าเลขที่นี้คืออะไร
+check('ใบที่ยกเลิกยังอยู่ในรายการใต้บิล ไม่ได้หายไป', () => {
+  const list = payments.listPaymentsForInvoice(db, febInvoice.invoiceId)
+  const found = list.find((p) => p.paymentId === wrongReceipt.paymentId)
+  assert(found !== undefined, 'ใบที่ยกเลิกต้องยังอยู่ในรายการ')
+  assert(found.isCancelled === true, 'ต้องติดธงยกเลิกไว้')
+  assert(Boolean(found.cancelledAt), 'ต้องบันทึกเวลาที่ยกเลิก')
+})
+
+check('รายการอื่นในรายการบิลไม่ถูกยกเลิกตามไปด้วย', () => {
+  const list = payments.listPaymentsForInvoice(db, invoice.invoiceId)
+  assert(
+    list.every((p) => !p.isCancelled),
+    'บิลใบอื่นไม่ควรมีใบเสร็จที่ถูกยกเลิก'
+  )
+})
+
+check('ยกเลิกแล้วรับเงินใหม่เต็มยอดได้ (เพดานยอดค้างคิดใหม่แล้ว)', () => {
+  const redo = payments.recordInvoicePayment(db, {
+    ...BASE,
+    invoiceId: febInvoice.invoiceId,
+    paymentDate: '2028-02-04',
+    amount: '4000'
+  })
+  assert(redo.receiptNumber !== wrongReceipt.receiptNumber, 'ต้องได้เลขใบเสร็จใบใหม่')
+  assert(
+    invoices.getInvoiceById(db, febInvoice.invoiceId).status === 'paid',
+    'บิลต้องกลับเป็นชำระแล้ว'
+  )
+})
+
+check('เลขที่ใบเสร็จที่ยกเลิกไม่ถูกนำไปใช้ซ้ำ', () => {
+  const all = payments.listReceipts(db, apartmentId).receipts.map((r) => r.receiptNumber)
+  assert(new Set(all).size === all.length, 'มีเลขใบเสร็จซ้ำกันหลังการยกเลิก')
+})
+
+check('รายงานยังแสดงใบที่ยกเลิก แต่ไม่นับเข้ายอดและจำนวนใบ', () => {
+  const report = payments.listReceipts(db, apartmentId, {
+    dateFrom: '2028-02-01',
+    dateTo: '2028-02-28'
+  })
+  assert(report.receipts.length === 2, `ในตารางได้ ${report.receipts.length} แถว`)
+  assert(report.receiptCount === 1, `นับเป็นใบเสร็จ ${report.receiptCount} ใบ`)
+  assert(report.cancelledCount === 1, `นับใบที่ยกเลิกได้ ${report.cancelledCount}`)
+  // 4,000 ของใบใหม่เท่านั้น ใบที่ยกเลิก 1,500 ต้องไม่ถูกบวก
+  assert(report.totalAmountCents === 400000, `ยอดรวมได้ ${report.totalAmountCents}`)
+})
+
+// -----------------------------------------------------
+// ค่าปรับเข้าบิลตอนรับเงินเท่านั้น ถ้าใบเสร็จทุกใบถูกยกเลิก ค่าปรับต้องออกไปด้วย
+// ไม่งั้นบิลจะค้างหนี้ที่งอกมาจากการรับเงินที่ถูกลบล้างไปแล้ว
+const aprInvoice = invoices.createMonthlyInvoice(db, {
+  contractId: cancelContract.contractId,
+  billingMonth: '2028-04',
+  meterBatchId: cancelBatch.batchId,
+  issueDate: '2028-04-01'
+})
+
+// ครบกำหนด 05/04/2028 · จ่าย 20/04 = เกิน 15 วัน × 10 บาท = 150
+const feePayment = payments.recordInvoicePayment(db, {
+  ...BASE,
+  invoiceId: aprInvoice.invoiceId,
+  paymentDate: '2028-04-20',
+  lateFee: '150',
+  amount: '1000'
+})
+const secondPayment = payments.recordInvoicePayment(db, {
+  ...BASE,
+  invoiceId: aprInvoice.invoiceId,
+  paymentDate: '2028-04-21',
+  amount: '1000'
+})
+
+check('ตั้งต้น: บิลมีค่าปรับ 150 และรับเงินมาแล้วสองงวด', () => {
+  const inv = invoices.getInvoiceById(db, aprInvoice.invoiceId)
+  assert(inv.totalAmountCents === 415000, `ยอดรวมได้ ${inv.totalAmountCents}`)
+  assert(inv.paidAmountCents === 200000, `รับมาแล้ว ${inv.paidAmountCents}`)
+})
+
+check('ยังเหลือใบเสร็จที่ใช้ได้ ค่าปรับต้องไม่ถูกถอดออก', () => {
+  const result = payments.cancelPayment(db, secondPayment.paymentId, {
+    reason: 'รับเงินซ้ำ',
+    cancelledBy: staff.user_id
+  })
+  assert(result.lateFeeItemsRemoved === 0, `ถอดไป ${result.lateFeeItemsRemoved} รายการ`)
+
+  const inv = invoices.getInvoiceById(db, aprInvoice.invoiceId)
+  assert(inv.totalAmountCents === 415000, `ยอดรวมได้ ${inv.totalAmountCents}`)
+  assert(inv.paidAmountCents === 100000, `รับมาแล้ว ${inv.paidAmountCents}`)
+})
+
+check('ยกเลิกใบสุดท้ายแล้วค่าปรับถูกถอดออกจากบิลด้วย', () => {
+  const result = payments.cancelPayment(db, feePayment.paymentId, {
+    reason: 'ยกเลิกทั้งชุด รับเงินผิดห้อง',
+    cancelledBy: staff.user_id
+  })
+  assert(result.lateFeeItemsRemoved === 1, `ถอดไป ${result.lateFeeItemsRemoved} รายการ`)
+
+  const inv = invoices.getInvoiceById(db, aprInvoice.invoiceId)
+  assert(
+    inv.items.every((i) => i.itemType !== 'late_fee'),
+    'ยังมีรายการค่าปรับค้างอยู่บนบิล'
+  )
+  assert(inv.totalAmountCents === 400000, `ยอดรวมได้ ${inv.totalAmountCents}`)
+  assert(inv.status === 'unpaid', `สถานะได้ ${inv.status}`)
+})
+
+// ค่าปรับที่ถูกถอดออกต้องกลับมาคิดใหม่ตามวันที่รับเงินจริงในรอบหน้า ไม่ใช่ค้างว่าเก็บไปแล้ว
+check('รอบหน้าค่าปรับถูกคิดใหม่ตั้งแต่ต้น ไม่ค้างว่าเคยเก็บไปแล้ว', () => {
+  const rule = invoices.getLateFeeForInvoice(db, aprInvoice.invoiceId, '2028-04-20')
+  assert(rule.alreadyChargedCents === 0, `ยังนับว่าเคยเก็บ ${rule.alreadyChargedCents}`)
+  assert(rule.suggestedCents === 15000, `เสนอเก็บ ${rule.suggestedCents}`)
+})
+
+// -----------------------------------------------------
+// ใบเสร็จของสัญญาก็ยกเลิกได้ — เงินประกันที่คีย์ผิดต้องกลับไปเป็นยอดค้างตามเดิม
+check('ยกเลิกใบเสร็จเงินประกัน ยอดค้างเงินประกันกลับมา', () => {
+  const target = payments
+    .listReceipts(db, apartmentId, { dateFrom: '2026-05-25', dateTo: '2026-05-25' })
+    .receipts.find((r) => r.purpose === 'deposit' && r.amountCents === 200000)
+  assert(target !== undefined, 'ต้องหาใบเสร็จเงินประกันก้อนที่สองเจอ')
+
+  payments.cancelPayment(db, target.paymentId, {
+    reason: 'ผู้เช่ายังไม่ได้โอนจริง',
+    cancelledBy: staff.user_id
+  })
+
+  const status = payments.getDepositStatus(db, depositContract.contractId)
+  assert(status.receivedCents === 200000, `รับแล้ว ${status.receivedCents}`)
+  assert(status.outstandingCents === 200000, `ค้าง ${status.outstandingCents}`)
+  assert(status.isSettled === false, 'ต้องกลับไปเป็นเก็บไม่ครบ')
+
+  // ป้ายเตือนในรายการห้องอ่านจากคิวรีคนละตัว ต้องตรงกันด้วย
+  const room = contracts
+    .listRoomsForApartment(db, apartmentId)
+    .find((r) => r.roomId === depositRoom.roomId)
+  assert(room.depositOutstandingCents === 200000, `ป้ายในตารางขึ้น ${room.depositOutstandingCents}`)
+})
+
+// ยอดบิลค้างในรายการห้องเป็นคิวรีคนละตัวกับ getInvoiceById — อุดจุดเดียวไม่พอ
+check('ยอดบิลค้างในรายการห้องนับใบที่ยกเลิกออกด้วย', () => {
+  const room = contracts
+    .listRoomsForApartment(db, apartmentId)
+    .find((r) => r.roomId === cancelRoom.roomId)
+  // ก.พ. จ่ายครบแล้ว · เม.ย. ค้างเต็ม 4,000 หลังยกเลิกใบเสร็จทั้งสองใบ
+  assert(room.invoiceOutstandingCents === 400000, `ได้ ${room.invoiceOutstandingCents}`)
+})
+
+// บิลที่เคยออกใบเสร็จจะลบทิ้งไม่ได้ตลอดไป ต่อให้ใบเสร็จถูกยกเลิกจนยอดเป็น 0 แล้ว
+// เพราะเลขที่ใบเสร็จนั้นยื่นให้ผู้เช่าไปแล้ว และแถวใบเสร็จยังอ้าง invoice_id อยู่
+check('บิลที่เคยออกใบเสร็จลบไม่ได้ แม้ใบเสร็จถูกยกเลิกหมดแล้ว', () => {
+  invoices.cancelInvoice(db, aprInvoice.invoiceId)
+  throws(
+    () =>
+      invoices.deleteInvoice(db, aprInvoice.invoiceId, {
+        reason: 'ลองลบ',
+        deletedBy: staff.user_id
+      }),
+    'เคยออกใบเสร็จ',
+    'ต้องกันการลบบิลที่มีใบเสร็จอ้างอยู่'
+  )
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลรับชำระเงินทำงานครบทุกเส้นทาง')

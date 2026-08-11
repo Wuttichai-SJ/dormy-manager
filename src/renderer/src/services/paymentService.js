@@ -44,6 +44,12 @@ export function listBillingMonths(apartmentId) {
 // **ไม่มีการคืนเงินค่าบิล** — หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลให้ผู้เช่า
 // (ผู้ใช้ตัดสินใจ 2026-08-08) ส่วนการคืนเงินประกันตอนย้ายออกใช้ receiveContractPayment
 // พร้อม isRefund ซึ่งผูกกับสัญญา ไม่ใช่กับบิล
+//
+// ยกเลิกใบเสร็จที่คีย์ผิด — เหตุผลบังคับกรอก แถวไม่ถูกลบ เลขที่จึงยังตามได้
+// คืน { payment, lateFeeItemsRemoved } · ไม่ต้องส่งผู้ยกเลิกไปเอง ฝั่ง main อ่านจากเซสชัน
+export function cancelPayment(paymentId, reason) {
+  return invoke('payment:cancel', { paymentId, reason })
+}
 
 // ใบเสร็จเงินประกัน/เงินล่วงหน้าของสัญญา — ไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
 // purpose = 'deposit' (ค่าตั้งต้น) | 'advance' | 'other'

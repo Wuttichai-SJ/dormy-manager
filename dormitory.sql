@@ -720,6 +720,12 @@ CREATE TABLE IF NOT EXISTS `mydb`.`payments` (
   `created_by` INT NOT NULL,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
+  -- เพิ่มใน 023: ยกเลิกใบเสร็จที่คีย์ผิด — **ยกเลิก ไม่ใช่ลบ และไม่ใช่คืนเงิน**
+  -- แถวยังอยู่ เลขที่ใบเสร็จจึงยังตามได้และไม่ถูกใช้ซ้ำ ส่วนยอดไม่ถูกนับที่ไหนเลย
+  -- **ทุกคิวรีที่ SUM(amount_cents) ต้องมี `cancelled_at IS NULL` เสมอ**
+  `cancelled_at` TIMESTAMP NULL,
+  `cancel_reason` TEXT NULL,
+  `cancelled_by` INT NULL,
   PRIMARY KEY (`payment_id`),
   -- ใบเสร็จหนึ่งใบอ้างอิงต้นทางได้ทางเดียวเท่านั้น ไม่ใช่ทั้งคู่ และไม่ใช่ไม่มีเลย
   CHECK ((`invoice_id` IS NOT NULL) <> (`contract_id` IS NOT NULL)),
@@ -741,6 +747,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`payments` (
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_payments_users1`
     FOREIGN KEY (`created_by`)
+    REFERENCES `mydb`.`users` (`user_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_payments_users2`
+    FOREIGN KEY (`cancelled_by`)
     REFERENCES `mydb`.`users` (`user_id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)

@@ -160,6 +160,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
          c.deposit_amount_cents - COALESCE((
            SELECT SUM(p.amount_cents) FROM payments p
             WHERE p.contract_id = c.contract_id AND p.purpose = 'deposit'
+              AND p.cancelled_at IS NULL
          ), 0) AS deposit_outstanding,
          -- การจองที่ยังกันห้องอยู่ (pending/confirmed) — **ไม่ได้เก็บเป็นสถานะห้อง**
          -- ดูเหตุผลที่ toPublicRoomRow ด้านล่าง
@@ -168,7 +169,8 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
          -- ยอดค้างชำระของสัญญาที่ยังใช้งานอยู่ (ไม่นับบิลที่ยกเลิก)
          COALESCE((
            SELECT SUM(i.total_amount_cents) - COALESCE((
-             SELECT SUM(p.amount_cents) FROM payments p WHERE p.invoice_id = i.invoice_id
+             SELECT SUM(p.amount_cents) FROM payments p
+              WHERE p.invoice_id = i.invoice_id AND p.cancelled_at IS NULL
            ), 0)
              FROM invoices i
             WHERE i.contract_id = c.contract_id AND i.status IN ('unpaid', 'partial_paid')

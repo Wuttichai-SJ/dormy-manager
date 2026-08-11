@@ -17,7 +17,8 @@ import {
   getLateFeeForInvoice,
   listInvoices,
   nextDocumentNumber,
-  refreshInvoiceStatus
+  refreshInvoiceStatus,
+  removeLateFeeItems
 } from './invoices.js'
 
 export const PAYMENT_METHODS = ['cash', 'transfer', 'other']
@@ -39,10 +40,9 @@ export const PAYMENT_PURPOSE_LABELS = {
   other: 'อื่นๆ'
 }
 
-// **ไม่มีฟังก์ชันลบใบเสร็จโดยตั้งใจ**
-// ใบเสร็จที่หายไปเฉยๆ ทำให้ยอดรับเงินย้อนหลังกระทบไม่ได้ และเลขใบเสร็จที่ออกให้ผู้เช่า
-// ไปแล้วจะชี้ไปที่ความว่างเปล่า การแก้ที่รับเงินผิดทำโดย "คืนเงิน" ซึ่งเป็นใบเสร็จยอดติดลบ
-// อีกใบหนึ่ง — ตรงกับที่ต้นแบบแสดง -1,000.00 ในรายงานใบเสร็จ
+// **ไม่มีฟังก์ชันลบใบเสร็จโดยตั้งใจ** — ใบเสร็จที่หายไปเฉยๆ ทำให้ยอดรับเงินย้อนหลัง
+// ตรวจสอบไม่ได้ และเลขใบเสร็จที่ออกให้ผู้เช่าไปแล้วจะชี้ไปที่ความว่างเปล่า
+// การแก้ที่รับเงินผิดทำโดย `cancelPayment` ด้านล่าง (แถวยังอยู่ แต่ไม่ถูกนับ)
 
 // ------------------------------------------------------------------
 // ตรวจข้อมูลก่อนเขียน
@@ -184,15 +184,61 @@ export function getMultiPaymentSheet(db, apartmentId, { billingMonth, paymentDat
   }))
 }
 
-// **ไม่มีการคืนเงินค่าบิล โดยตั้งใจ** (ผู้ใช้ตัดสินใจ 2026-08-08)
-// หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลที่รับมาแล้วให้ผู้เช่า
+// ------------------------------------------------------------------
+// ยกเลิกใบเสร็จ
+// ------------------------------------------------------------------
+// **ไม่มีการคืนเงินค่าบิล โดยตั้งใจ** (ผู้ใช้ตัดสินใจ 2026-08-08) หอพักไม่มีสถานการณ์
+// ที่ต้องคืนเงินค่าบิลที่รับมาแล้วให้ผู้เช่า — ทางแก้ที่คีย์เงินผิดคือ "ยกเลิกใบเสร็จ" ใบนี้
 //
-// ผลที่ตามมาที่ต้องรู้: ใบเสร็จลบไม่ได้ และตอนนี้ก็คืนไม่ได้ด้วย ถ้าพนักงานคีย์ยอดผิด
-// จึงยังไม่มีทางแก้ในระบบ — ถ้าวันหนึ่งต้องมี ให้ทำเป็น "ยกเลิกใบเสร็จ" ที่อ้างใบเดิม
-// ไม่ใช่คืนเงินยอดอิสระ เพราะสองอย่างนี้คนละความหมายกันในบัญชี
+// **ยกเลิก ≠ คืนเงิน** คืนเงินแปลว่ารับมาจริงแล้วจ่ายกลับ (เงินสองก้อนเดินเข้าออกจริง)
+// ส่วนยกเลิกแปลว่าใบนี้ออกผิด เงินก้อนนั้นไม่เคยเข้ามา ซึ่งเป็นความจริงของกรณีคีย์ผิด
+// ถ้าใช้การคืนเงินแทน รายงานจะมีเงินเข้าและเงินออกที่ไม่เคยเกิดขึ้นจริงคาอยู่ตลอดไป
+//
+// **แถวไม่ถูกลบ** เลขที่ใบเสร็จจึงยังตามได้ว่ามีอยู่จริงและถูกยกเลิกเพราะอะไร
+// (เจ้าของหออาจยื่นกระดาษให้ผู้เช่าไปแล้วก่อนจะรู้ว่าคีย์ผิด)
 //
 // การคืนเงินประกันตอนย้ายออกไม่เกี่ยวกับตรงนี้ — ใช้ recordContractPayment(isRefund)
-// ซึ่งผูกกับสัญญา ไม่ใช่กับบิล
+// ซึ่งผูกกับสัญญา ไม่ใช่กับบิล และเป็นเงินที่จ่ายกลับจริง
+export function cancelPayment(db, paymentId, { reason, cancelledBy }) {
+  const row = db
+    .prepare('SELECT payment_id, invoice_id, cancelled_at FROM payments WHERE payment_id = ?')
+    .get(paymentId)
+  if (!row) throw new Error('ไม่พบใบเสร็จที่ต้องการยกเลิก')
+  if (row.cancelled_at) throw new Error('ใบเสร็จนี้ถูกยกเลิกไปแล้ว')
+
+  const note = String(reason ?? '').trim()
+  if (!note) throw new Error('กรุณาระบุเหตุผลในการยกเลิกใบเสร็จ')
+  if (!cancelledBy) throw new Error('ไม่ทราบผู้ยกเลิก กรุณาเข้าสู่ระบบใหม่')
+
+  const now = new Date().toISOString()
+  const run = db.transaction(() => {
+    db.prepare(
+      `UPDATE payments SET cancelled_at = @now, cancel_reason = @reason, cancelled_by = @by
+        WHERE payment_id = @paymentId`
+    ).run({ now, reason: note, by: cancelledBy, paymentId })
+
+    if (!row.invoice_id) return 0
+
+    // ถ้าไม่เหลือใบเสร็จที่ยังใช้ได้เลย ค่าปรับที่เคยเข้าบิลตอนรับเงินต้องออกไปด้วย
+    // ไม่งั้นบิลจะค้างหนี้ก้อนที่งอกมาจากการรับเงินที่ถูกลบล้างไปแล้ว
+    const remaining = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM payments
+          WHERE invoice_id = ? AND cancelled_at IS NULL`
+      )
+      .get(row.invoice_id).n
+    const removed = remaining === 0 ? removeLateFeeItems(db, row.invoice_id, now) : 0
+
+    // ยอดที่รับมาเพิ่งเปลี่ยน สถานะบิลจึงต้องคิดใหม่ — จ่ายครบแล้วยกเลิกใบเสร็จทิ้ง
+    // บิลต้องกลับไปเป็นค้างชำระเอง ไม่ต้องมีตรรกะย้อนกลับแยกต่างหาก
+    // (removeLateFeeItems คิดสถานะให้แล้วรอบหนึ่ง แต่เรียกซ้ำไม่มีผลข้างเคียง)
+    refreshInvoiceStatus(db, row.invoice_id, now)
+    return removed
+  })
+
+  const lateFeeItemsRemoved = run()
+  return { payment: getPaymentById(db, paymentId), lateFeeItemsRemoved }
+}
 
 // ------------------------------------------------------------------
 // ใบเสร็จของสัญญา (เงินประกัน / เงินล่วงหน้า / เงินจอง)
@@ -258,7 +304,8 @@ export function getDepositStatus(db, contractId) {
   const received = db
     .prepare(
       `SELECT COALESCE(SUM(amount_cents), 0) AS total
-         FROM payments WHERE contract_id = ? AND purpose = 'deposit'`
+         FROM payments
+        WHERE contract_id = ? AND purpose = 'deposit' AND cancelled_at IS NULL`
     )
     .get(contractId).total
 
@@ -335,7 +382,8 @@ function loadInvoiceForPayment(db, invoiceId) {
     .prepare(
       `SELECT i.invoice_id, i.status, i.total_amount_cents, f.apartment_id,
               COALESCE((SELECT SUM(p.amount_cents) FROM payments p
-                         WHERE p.invoice_id = i.invoice_id), 0) AS paid
+                         WHERE p.invoice_id = i.invoice_id
+                           AND p.cancelled_at IS NULL), 0) AS paid
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
@@ -360,12 +408,14 @@ function loadInvoiceForPayment(db, invoiceId) {
 export function getPaymentById(db, paymentId) {
   const row = db
     .prepare(
-      `SELECT p.*, i.invoice_number, r.room_number, u.full_name AS created_by_name
+      `SELECT p.*, i.invoice_number, r.room_number, u.full_name AS created_by_name,
+              cu.full_name AS cancelled_by_name
          FROM payments p
          LEFT JOIN invoices i  ON i.invoice_id = p.invoice_id
          LEFT JOIN contracts c ON c.contract_id = COALESCE(p.contract_id, i.contract_id)
          LEFT JOIN rooms r     ON r.room_id = c.room_id
          LEFT JOIN users u     ON u.user_id = p.created_by
+         LEFT JOIN users cu    ON cu.user_id = p.cancelled_by
         WHERE p.payment_id = ?`
     )
     .get(paymentId)
@@ -376,12 +426,14 @@ export function getPaymentById(db, paymentId) {
 export function listPaymentsForInvoice(db, invoiceId) {
   return db
     .prepare(
-      `SELECT p.*, i.invoice_number, r.room_number, u.full_name AS created_by_name
+      `SELECT p.*, i.invoice_number, r.room_number, u.full_name AS created_by_name,
+              cu.full_name AS cancelled_by_name
          FROM payments p
          JOIN invoices i  ON i.invoice_id = p.invoice_id
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
-         LEFT JOIN users u ON u.user_id = p.created_by
+         LEFT JOIN users u  ON u.user_id = p.created_by
+         LEFT JOIN users cu ON cu.user_id = p.cancelled_by
         WHERE p.invoice_id = ?
         ORDER BY p.payment_date, p.payment_id`
     )
@@ -400,6 +452,7 @@ export function listReceipts(db, apartmentId, { dateFrom, dateTo } = {}) {
   const rows = db
     .prepare(
       `SELECT p.*, i.invoice_number, r.room_number, u.full_name AS created_by_name,
+              cu.full_name AS cancelled_by_name,
               a.name_th AS apartment_name, a.address_th AS apartment_address,
               a.phone AS apartment_phone,
               -- ชื่อผู้เช่าหลักของสัญญา — ใบเสร็จที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น
@@ -415,18 +468,23 @@ export function listReceipts(db, apartmentId, { dateFrom, dateTo } = {}) {
          JOIN rooms r     ON r.room_id = c.room_id
          JOIN floors f    ON f.floor_id = r.floor_id
          JOIN apartments a ON a.apartment_id = f.apartment_id
-         LEFT JOIN users u ON u.user_id = p.created_by
+         LEFT JOIN users u  ON u.user_id = p.created_by
+         LEFT JOIN users cu ON cu.user_id = p.cancelled_by
         WHERE ${where.join(' AND ')}
         ORDER BY p.payment_date DESC, p.payment_id DESC`
     )
     .all({ apartmentId, dateFrom: dateFrom || null, dateTo: dateTo || null })
     .map(toPublicPayment)
 
+  // ใบที่ยกเลิกยังอยู่ในรายการ (เลขที่ที่หายไปจากตารางคือเลขที่ตามไม่ได้) แต่ไม่นับเข้ายอด
+  const active = rows.filter((row) => !row.isCancelled)
+
   return {
     receipts: rows,
-    receiptCount: rows.length,
+    receiptCount: active.length,
+    cancelledCount: rows.length - active.length,
     // ยอดรวมนับใบคืนเงินเป็นลบไปด้วย จึงเป็น "เงินที่เข้าหอจริง" ไม่ใช่ผลบวกของใบที่ออก
-    totalAmountCents: rows.reduce((sum, row) => sum + row.amountCents, 0)
+    totalAmountCents: active.reduce((sum, row) => sum + row.amountCents, 0)
   }
 }
 
@@ -448,6 +506,11 @@ function toPublicPayment(row) {
     sourceType: row.invoice_id ? 'invoice' : 'contract',
     sourceLabel: row.invoice_id ? `ใบแจ้งหนี้ #${row.invoice_number}` : 'สัญญา',
     isRefund: row.amount_cents < 0,
+    // ใบที่ถูกยกเลิก — ยังอยู่ในรายการให้เห็น แต่ไม่ถูกนับเป็นเงินที่รับมาที่ไหนเลย
+    isCancelled: Boolean(row.cancelled_at),
+    cancelledAt: row.cancelled_at ?? null,
+    cancelReason: row.cancel_reason ?? null,
+    cancelledByName: row.cancelled_by_name ?? null,
     createdBy: row.created_by,
     createdByName: row.created_by_name,
     createdAt: row.created_at,

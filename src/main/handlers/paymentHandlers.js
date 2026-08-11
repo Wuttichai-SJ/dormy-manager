@@ -9,6 +9,7 @@ import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import { requireSessionUserId } from './authHandlers.js'
 import {
+  cancelPayment,
   getMultiPaymentSheet,
   listPaymentsForInvoice,
   listReceipts,
@@ -70,6 +71,23 @@ export function registerPaymentHandlers() {
 
   // ไม่มีช่องคืนเงินค่าบิล — ดู db/payments.js ว่าทำไม
   // การคืนเงินประกันตอนย้ายออกใช้ payment:receiveForContract พร้อม isRefund
+  //
+  // ยกเลิกใบเสร็จที่คีย์ผิด — เหตุผลบังคับกรอก และ **ผู้ยกเลิกมาจากเซสชันเสมอ**
+  // เหมือนผู้รับเงิน ไม่งั้นบันทึกการยกเลิกก็เชื่อไม่ได้เหมือนกัน
+  handle('payment:cancel', ({ paymentId, reason }) => {
+    const result = cancelPayment(getDatabase(), paymentId, {
+      reason,
+      cancelledBy: requireSessionUserId()
+    })
+    logInfo(
+      `ยกเลิกใบเสร็จ ${result.payment.receiptNumber} ` +
+        `ห้อง ${result.payment.roomNumber ?? '-'}: ${result.payment.cancelReason}` +
+        (result.lateFeeItemsRemoved > 0
+          ? ` (ถอดรายการค่าปรับออกจากบิล ${result.lateFeeItemsRemoved} รายการ)`
+          : '')
+    )
+    return result
+  })
 
   // ใบเสร็จเงินประกัน/เงินล่วงหน้าของสัญญา — ไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
   handle(

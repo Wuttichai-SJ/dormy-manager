@@ -600,8 +600,13 @@ export function getInvoiceById(db, invoiceId) {
 
   // ยอดที่ชำระมาแล้วคำนวณสดจากใบเสร็จเสมอ ไม่เก็บเป็นคอลัมน์
   // ความจริงเดียวกันสองที่จะไม่ตรงกันวันใดวันหนึ่ง และตัวที่ถูกคือผลรวมของใบเสร็จ
+  //
+  // ใบเสร็จที่ยกเลิกแล้วไม่นับ (migration 023) — "ยกเลิก" แปลว่าเงินก้อนนั้นไม่เคยเข้า
   const paidCents = db
-    .prepare('SELECT COALESCE(SUM(amount_cents), 0) AS paid FROM payments WHERE invoice_id = ?')
+    .prepare(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS paid
+         FROM payments WHERE invoice_id = ? AND cancelled_at IS NULL`
+    )
     .get(invoiceId).paid
 
   return {
@@ -702,7 +707,8 @@ export function listInvoices(
       `SELECT i.invoice_id, i.invoice_number, i.issue_date, i.due_date, i.status,
               i.total_amount_cents, i.billing_month, r.room_number,
               COALESCE((SELECT SUM(p.amount_cents) FROM payments p
-                         WHERE p.invoice_id = i.invoice_id), 0) AS paid
+                         WHERE p.invoice_id = i.invoice_id
+                           AND p.cancelled_at IS NULL), 0) AS paid
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
@@ -830,7 +836,8 @@ export function refreshInvoiceStatus(db, invoiceId, now) {
     .prepare(
       `SELECT i.total_amount_cents AS total, i.status,
               COALESCE((SELECT SUM(p.amount_cents) FROM payments p
-                         WHERE p.invoice_id = i.invoice_id), 0) AS paid
+                         WHERE p.invoice_id = i.invoice_id
+                           AND p.cancelled_at IS NULL), 0) AS paid
          FROM invoices i WHERE i.invoice_id = ?`
     )
     .get(invoiceId)
@@ -1038,6 +1045,25 @@ export function addLateFeeItem(db, invoiceId, { amountCents, overdueDays }) {
   run()
 }
 
+// ถอดรายการค่าปรับออกจากบิล — ใช้ตอนยกเลิกใบเสร็จใบสุดท้ายของบิล (ดู cancelPayment)
+//
+// ค่าปรับเข้าบิลตอน "รับเงิน" เท่านั้น (ดู addLateFeeItem) รายการค่าปรับจึงมีอยู่ได้
+// เพราะเคยมีเงินเข้าเสมอ ถ้าใบเสร็จทุกใบของบิลถูกยกเลิกไปหมดแล้ว ค่าปรับที่ค้างอยู่
+// จะกลายเป็นหนี้ที่งอกมาจากเหตุการณ์ที่ถูกลบล้างไปแล้ว
+//
+// ไม่ได้ผูกรายการค่าปรับกับใบเสร็จใบไหนเป็นรายตัว เพราะค่าปรับคิดเป็นยอดสะสมของทั้งบิล
+// (getLateFeeForInvoice หัก alreadyChargedCents ออกให้) การจับคู่รายตัวจึงไม่มีความหมาย
+// — เงื่อนไขจึงเป็น "ไม่เหลือใบเสร็จที่ยังใช้ได้เลย" ไม่ใช่ "ใบนี้เคยเก็บค่าปรับเท่าไหร่"
+//
+// รอบหน้าที่รับเงินจริง ค่าปรับจะถูกคิดใหม่ตามวันที่รับเงินจริงเอง
+export function removeLateFeeItems(db, invoiceId, now) {
+  const result = db
+    .prepare("DELETE FROM invoice_items WHERE invoice_id = ? AND item_type = 'late_fee'")
+    .run(invoiceId)
+  if (result.changes > 0) recalculateTotals(db, invoiceId, now)
+  return result.changes
+}
+
 // ------------------------------------------------------------------
 // ลบบิลที่ยกเลิกแล้วออกจากระบบ
 // ------------------------------------------------------------------
@@ -1060,11 +1086,18 @@ export function deleteInvoice(db, invoiceId, { reason, deletedBy }) {
 
   // ใบที่ยกเลิกแล้วไม่ควรมีใบเสร็จผูกอยู่ (cancelInvoice กันไว้) แต่ตรวจซ้ำก่อนลบจริง
   // เพราะการลบเป็นทางเดียว ถ้าหลุดไปได้ใบเสร็จจะชี้ไปที่บิลที่ไม่มีอยู่
+  //
+  // **นับใบเสร็จที่ยกเลิกแล้วด้วย** — บิลที่เคยออกใบเสร็จจะลบไม่ได้ตลอดไป ต่อให้ใบเสร็จ
+  // ทุกใบถูกยกเลิกจนยอดรับเป็น 0 แล้วก็ตาม เพราะเลขที่ใบเสร็จนั้นยื่นให้ผู้เช่าไปแล้ว
+  // และแถวใบเสร็จอ้าง invoice_id อยู่ (ลบบิลทิ้ง = FK พัง หรือใบเสร็จชี้ไปที่ความว่างเปล่า)
   const payments = db
     .prepare('SELECT COUNT(*) AS n FROM payments WHERE invoice_id = ?')
     .get(invoiceId).n
   if (payments > 0) {
-    throw new Error('ลบไม่ได้ เพราะใบแจ้งหนี้นี้มีรายการรับเงินอยู่')
+    throw new Error(
+      'ลบไม่ได้ เพราะเคยออกใบเสร็จให้ใบแจ้งหนี้นี้แล้ว (นับใบที่ยกเลิกแล้วด้วย) ' +
+        'ใบแจ้งหนี้จะค้างไว้เป็นสถานะยกเลิกแทน'
+    )
   }
 
   const now = new Date().toISOString()

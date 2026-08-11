@@ -4035,6 +4035,43 @@ body {
   background: var(--err-weak);
 }
 
+/* ใบเสร็จที่ถูกยกเลิก — ยังอยู่ในรายการ (เลขที่ต้องตามได้) แต่ต้องอ่านออกทันทีว่า
+   ไม่ใช่เงินที่รับมาจริง จึงจางลงและขีดฆ่าเฉพาะ "เลขที่กับยอด" ไม่ขีดทั้งการ์ด
+   เพราะเหตุผลที่ยกเลิกเป็นบรรทัดที่ต้องอ่านออก */
+.receipt.cancelled {
+  border-left: 3px solid var(--text-muted);
+  opacity: 0.75;
+}
+
+.receipt.cancelled .receipt-head {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.receipt-cancelled-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* แถวที่ยกเลิกในรายงาน — จางกว่าแถวปกติ และตัวเลขถูกขีดฆ่าไว้ เพราะยอดในคอลัมน์นี้
+   ไม่ได้ถูกนับรวมในการ์ดสรุปด้านบน ถ้าไม่ทำเครื่องหมายไว้ คนบวกเลขในตารางเองจะได้
+   ยอดที่ไม่ตรงกับการ์ดแล้วนึกว่าระบบคำนวณผิด */
+.receipt-row-cancelled {
+  color: var(--text-muted);
+}
+
+.receipt-row-cancelled td:nth-child(3),
+.receipt-row-cancelled td:nth-child(7) {
+  text-decoration: line-through;
+}
+
+.receipt-cancelled-tag {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .receipt-check {
   width: 34px;
 }
