@@ -475,7 +475,10 @@ check('บิลที่ยกเลิกแล้วรับชำระไ�
     meterBatchId: batch.batchId,
     issueDate: '2026-08-31'
   })
-  invoices.cancelInvoice(db, other.invoiceId)
+  invoices.cancelInvoice(db, other.invoiceId, {
+    reason: 'ทดสอบว่ารับเงินเข้าบิลที่ยกเลิกไม่ได้',
+    cancelledBy: staff.user_id
+  })
   throws(
     () =>
       payments.recordInvoicePayment(db, { ...BASE, invoiceId: other.invoiceId, amount: '100' }),
@@ -1193,7 +1196,10 @@ check('ยอดบิลค้างในรายการห้องนั�
 // บิลที่เคยออกใบเสร็จจะลบทิ้งไม่ได้ตลอดไป ต่อให้ใบเสร็จถูกยกเลิกจนยอดเป็น 0 แล้ว
 // เพราะเลขที่ใบเสร็จนั้นยื่นให้ผู้เช่าไปแล้ว และแถวใบเสร็จยังอ้าง invoice_id อยู่
 check('บิลที่เคยออกใบเสร็จลบไม่ได้ แม้ใบเสร็จถูกยกเลิกหมดแล้ว', () => {
-  invoices.cancelInvoice(db, aprInvoice.invoiceId)
+  invoices.cancelInvoice(db, aprInvoice.invoiceId, {
+    reason: 'ยกเลิกใบเสร็จหมดแล้ว ยกเลิกบิลตาม',
+    cancelledBy: staff.user_id
+  })
   throws(
     () =>
       invoices.deleteInvoice(db, aprInvoice.invoiceId, {

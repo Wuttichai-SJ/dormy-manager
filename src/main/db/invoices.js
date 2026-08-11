@@ -541,12 +541,14 @@ export function getInvoiceById(db, invoiceId) {
       `SELECT i.*, r.room_number, a.apartment_id, a.name_th AS apartment_name,
               a.address_th AS apartment_address, a.phone AS apartment_phone,
               a.qr_code_image_id, a.is_vat_enabled, a.payment_instructions, a.invoice_note,
-              a.show_tenant_info_in_invoice
+              a.show_tenant_info_in_invoice,
+              cu.full_name AS cancelled_by_name
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
          JOIN floors f    ON f.floor_id = r.floor_id
          JOIN apartments a ON a.apartment_id = f.apartment_id
+         LEFT JOIN users cu ON cu.user_id = i.cancelled_by
         WHERE i.invoice_id = ?`
     )
     .get(invoiceId)
@@ -632,6 +634,10 @@ export function getInvoiceById(db, invoiceId) {
     outstandingCents: row.total_amount_cents - paidCents,
     note: row.note,
     cancelledAt: row.cancelled_at,
+    // บิลที่ยกเลิกก่อน migration 024 ไม่มีเหตุผลเก็บไว้ — คืน null ตรงๆ ให้หน้าจอบอกได้ว่า
+    // "ไม่ได้บันทึกเหตุผลไว้" ไม่ใช่แสดงช่องว่างจนดูเหมือนคนกดยกเลิกลืมกรอก
+    cancelReason: row.cancel_reason ?? null,
+    cancelledByName: row.cancelled_by_name ?? null,
     roomNumber: row.room_number,
     apartment: {
       apartmentId: row.apartment_id,
@@ -918,21 +924,31 @@ function requireOpenInvoice(db, invoiceId) {
 // ------------------------------------------------------------------
 // ไม่ลบทิ้ง — ทำเครื่องหมายยกเลิกไว้ เอกสารการเงินที่หายไปเฉยๆ ตรวจสอบย้อนหลังไม่ได้
 // และ partial unique index ยอมให้ออกบิลเดือนเดิมใหม่ได้หลังใบเก่าถูกยกเลิก
-export function cancelInvoice(db, invoiceId) {
+//
+// **เหตุผลบังคับกรอก** (ผู้ใช้สั่ง 2026-08-11 · migration 024) — กดยกเลิกแล้วยอดหนี้
+// ของห้องนั้นหายไปจากรายการค้างชำระทันที ปีหน้ามีคนถามว่าทำไมห้อง 203 ไม่มีบิลเดือน
+// มีนาคม แล้วต้องตอบได้ · ตรงกับที่ลบใบแจ้งหนี้และยกเลิกใบเสร็จบังคับไว้อยู่แล้ว
+export function cancelInvoice(db, invoiceId, { reason, cancelledBy } = {}) {
   const invoice = getInvoiceById(db, invoiceId)
   if (!invoice) throw new Error('ไม่พบใบแจ้งหนี้')
   if (invoice.status === 'cancelled') throw new Error('ใบแจ้งหนี้นี้ถูกยกเลิกไปแล้ว')
   if (invoice.paidAmountCents !== 0) {
     throw new Error(
-      'ยกเลิกไม่ได้ เพราะใบแจ้งหนี้นี้มีการรับชำระเงินแล้ว กรุณาคืนเงินให้ครบก่อน'
+      'ยกเลิกไม่ได้ เพราะใบแจ้งหนี้นี้มีการรับชำระเงินแล้ว กรุณายกเลิกใบเสร็จให้ครบก่อน'
     )
   }
 
+  const note = String(reason ?? '').trim()
+  if (!note) throw new Error('กรุณาระบุเหตุผลในการยกเลิกใบแจ้งหนี้')
+  if (!cancelledBy) throw new Error('ไม่ทราบผู้ยกเลิก กรุณาเข้าสู่ระบบใหม่')
+
   const now = new Date().toISOString()
   db.prepare(
-    `UPDATE invoices SET status = 'cancelled', cancelled_at = ?, updated_at = ?
-      WHERE invoice_id = ?`
-  ).run(now, now, invoiceId)
+    `UPDATE invoices
+        SET status = 'cancelled', cancelled_at = @now, cancel_reason = @reason,
+            cancelled_by = @by, updated_at = @now
+      WHERE invoice_id = @invoiceId`
+  ).run({ now, reason: note, by: cancelledBy, invoiceId })
 
   return getInvoiceById(db, invoiceId)
 }

@@ -628,14 +628,47 @@ check('ชนิดรายการที่ไม่รู้จักไม�
 // -----------------------------------------------------
 group('ยกเลิกบิล')
 
-check('ยกเลิกแล้วสถานะเปลี่ยนและจำเวลาไว้', () => {
-  const cancelled = invoices.cancelInvoice(db, invoice1.invoiceId)
+// เหตุผลบังคับกรอก (ผู้ใช้สั่ง 2026-08-11) เหมือนที่ลบใบแจ้งหนี้และยกเลิกใบเสร็จบังคับไว้
+// — ยกเลิกบิลทำให้ยอดหนี้ของห้องนั้นหายไปจากรายการค้างชำระ หนักพอกันกับการลบ
+check('ยกเลิกโดยไม่บอกเหตุผลไม่ได้', () => {
+  throws(
+    () => invoices.cancelInvoice(db, invoice1.invoiceId, { reason: '  ', cancelledBy: staffUser.user_id }),
+    'เหตุผล',
+    'ต้องบังคับเหตุผล'
+  )
+  // ไม่ส่งอะไรมาเลย (ผู้เรียกแบบเก่า) ก็ต้องไม่ผ่าน ไม่ใช่ยกเลิกได้เงียบๆ
+  throws(() => invoices.cancelInvoice(db, invoice1.invoiceId), 'เหตุผล', 'ต้องบังคับเหตุผล')
+})
+
+check('ไม่รู้ว่าใครยกเลิกก็ยกเลิกไม่ได้', () => {
+  throws(
+    () => invoices.cancelInvoice(db, invoice1.invoiceId, { reason: 'ออกผิดห้อง' }),
+    'ผู้ยกเลิก',
+    'ต้องรู้ว่าใครเป็นคนยกเลิก'
+  )
+})
+
+check('ยกเลิกแล้วสถานะเปลี่ยน และจำเวลา/เหตุผล/ผู้ยกเลิกไว้', () => {
+  const cancelled = invoices.cancelInvoice(db, invoice1.invoiceId, {
+    reason: 'ออกบิลผิดห้อง',
+    cancelledBy: staffUser.user_id
+  })
   assert(cancelled.status === 'cancelled', `ได้ ${cancelled.status}`)
   assert(cancelled.cancelledAt !== null, 'ต้องบันทึกเวลายกเลิก')
+  assert(cancelled.cancelReason === 'ออกบิลผิดห้อง', `ได้ ${cancelled.cancelReason}`)
+  assert(cancelled.cancelledByName === staffUser.full_name, `ได้ ${cancelled.cancelledByName}`)
 })
 
 check('ยกเลิกซ้ำไม่ได้', () => {
-  throws(() => invoices.cancelInvoice(db, invoice1.invoiceId), 'ยกเลิกไปแล้ว', 'ต้องเตือน')
+  throws(
+    () =>
+      invoices.cancelInvoice(db, invoice1.invoiceId, {
+        reason: 'ยกเลิกอีกรอบ',
+        cancelledBy: staffUser.user_id
+      }),
+    'ยกเลิกไปแล้ว',
+    'ต้องเตือน'
+  )
 })
 
 check('แก้ไขบิลที่ยกเลิกแล้วไม่ได้', () => {
@@ -822,7 +855,10 @@ check('เลขที่ของใบที่ถูกลบไม่ถู�
     reissued.invoiceNumber !== invoice1.invoiceNumber,
     `ใช้เลขซ้ำกับใบที่ลบไปแล้ว: ${reissued.invoiceNumber}`
   )
-  invoices.cancelInvoice(db, reissued.invoiceId)
+  invoices.cancelInvoice(db, reissued.invoiceId, {
+    reason: 'เตรียมใบนี้ไว้ทดสอบการลบต่อ',
+    cancelledBy: staffUser.user_id
+  })
 })
 
 check('ลบใบที่ไม่มีอยู่ต้องแจ้งเตือน', () => {

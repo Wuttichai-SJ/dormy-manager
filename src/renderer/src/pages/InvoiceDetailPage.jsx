@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import DateField from '../components/DateField.jsx'
+import Modal from '../components/Modal.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { PAYMENT_METHODS, VAT_RATE } from '../constants.js'
 import { centsToInput, formatBaht } from '../format.js'
@@ -32,6 +33,8 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
   const [error, setError] = useState('')
   // ใบเสร็จที่กำลังจะยกเลิก (null = ไม่ได้เปิดหน้าต่าง)
   const [cancellingReceipt, setCancellingReceipt] = useState(null)
+  // เปิดหน้าต่างกรอกเหตุผลยกเลิกบิลอยู่หรือไม่
+  const [cancellingInvoice, setCancellingInvoice] = useState(false)
 
   const load = useCallback(async () => {
     const [inv, pays] = await Promise.all([
@@ -80,13 +83,7 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
               showToast('ลบรายการแล้ว')
               load()
             }}
-            onCancel={async () => {
-              setError('')
-              const res = await cancelInvoice(invoice.invoiceId)
-              if (!res.success) return setError(res.error)
-              showToast(`ยกเลิกบิล ${invoice.invoiceNumber} แล้ว`)
-              load()
-            }}
+            onCancel={() => setCancellingInvoice(true)}
           />
 
           {!closed && (
@@ -118,6 +115,19 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
           <PaymentHistory payments={payments} onCancelReceipt={setCancellingReceipt} />
         </aside>
       </div>
+
+      {cancellingInvoice && (
+        <CancelInvoiceDialog
+          invoice={invoice}
+          onClose={() => setCancellingInvoice(false)}
+          onCancelled={() => {
+            setCancellingInvoice(false)
+            showToast(`ยกเลิกบิล ${invoice.invoiceNumber} แล้ว`)
+            load()
+          }}
+          onError={setError}
+        />
+      )}
 
       {cancellingReceipt && (
         <CancelReceiptDialog
@@ -153,7 +163,6 @@ function BackLink({ onBack }) {
 // ตัวเอกสาร
 // ------------------------------------------------------------------
 function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy }) {
-  const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [busy, setBusy] = useState(false)
   const closed = invoice.status === 'cancelled'
 
@@ -180,60 +189,39 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
     <section className="panel invoice-doc">
       <div className="invoice-doc-tools">
         {!closed && (
-          <button
-            type="button"
-            className="link-btn link-danger"
-            onClick={() => setConfirmingCancel(true)}
-          >
+          <button type="button" className="link-btn link-danger" onClick={onCancel}>
             <Icon name="trash" />
             <span>ยกเลิกบิล</span>
           </button>
         )}
 
         {/* ปุ่มพิมพ์/บันทึก PDF อยู่ขวาตามต้นแบบ — และถูกซ่อนตอนพิมพ์ด้วย @media print
-            ไม่งั้นตัวปุ่มจะติดไปบนกระดาษด้วย */}
-        <div className="invoice-doc-actions">
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={() => setPrinting(true)}
-            disabled={busy}
-          >
-            <Icon name="printer" />
-            <span>พิมพ์</span>
-          </button>
-          <button type="button" className="btn btn-sm" onClick={onSavePdf} disabled={busy}>
-            <Icon name="download" />
-            <span>{busy ? 'กำลังบันทึก...' : 'บันทึก PDF'}</span>
-          </button>
-        </div>
-      </div>
+            ไม่งั้นตัวปุ่มจะติดไปบนกระดาษด้วย
 
-      {confirmingCancel && (
-        <Alert kind="warn">
-          ยกเลิกบิล {invoice.invoiceNumber} ใช่ไหม? บิลจะยังอยู่ในระบบแต่ถูกทำเครื่องหมายว่ายกเลิก
-          และออกบิลของเดือนนี้ใหม่ได้
-          <div className="invoice-confirm-actions">
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setConfirmingCancel(false)
-                onCancel()
-              }}
-            >
-              ยืนยันยกเลิกบิล
-            </button>
+            **บิลที่ยกเลิกแล้วพิมพ์ไม่ได้** เอกสารที่เป็นโมฆะแล้วต้องไม่ไปถึงมือผู้เช่า
+            (ปุ่ม "พิมพ์ใบแจ้งหนี้ทุกห้อง" กันไว้อยู่แล้ว ทางนี้เคยเป็นช่องที่เปิดค้างอยู่) */}
+        {!closed && (
+          <div className="invoice-doc-actions">
             <button
               type="button"
               className="btn btn-outline btn-sm"
-              onClick={() => setConfirmingCancel(false)}
+              onClick={() => setPrinting(true)}
+              disabled={busy}
             >
-              ไม่ใช่
+              <Icon name="printer" />
+              <span>พิมพ์</span>
+            </button>
+            <button type="button" className="btn btn-sm" onClick={onSavePdf} disabled={busy}>
+              <Icon name="download" />
+              <span>{busy ? 'กำลังบันทึก...' : 'บันทึก PDF'}</span>
             </button>
           </div>
-        </Alert>
-      )}
+        )}
+      </div>
+
+      {/* เหตุผลที่ยกเลิกอยู่เหนือตัวเอกสาร ไม่ใช่ในตัวเอกสาร — มันเป็นบันทึกภายในของหอ
+          ไม่ใช่ข้อความที่ควรติดไปบนกระดาษถ้าวันหนึ่งมีการพิมพ์ใบนี้ออกมา */}
+      {closed && <CancelledNotice invoice={invoice} />}
 
       {/* ตัวเอกสารมาจาก InvoiceBill ตัวเดียวกับที่ปุ่ม "พิมพ์ใบแจ้งหนี้ทุกห้อง" ใช้
           เปิดทีละใบกับพิมพ์ทั้งหอจึงได้กระดาษหน้าตาเดียวกันเสมอ */}
@@ -254,6 +242,105 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         />
       )}
     </section>
+  )
+}
+
+// แถบบอกว่าบิลใบนี้ถูกยกเลิก พร้อมเหตุผล/ผู้ยกเลิก/วันที่ (ผู้ใช้สั่ง 2026-08-11)
+//
+// เปิดบิลที่ยกเลิกแล้วเจอแค่ป้ายสถานะ ตอบไม่ได้ว่าเกิดอะไรขึ้น — คนที่เปิดดูส่วนใหญ่
+// เปิดมาเพราะสงสัยว่าทำไมห้องนี้ไม่มีบิลของเดือนนั้น คำตอบต้องอยู่ตรงหน้าเลย
+function CancelledNotice({ invoice }) {
+  return (
+    <Alert kind="warn">
+      <strong>ใบแจ้งหนี้นี้ถูกยกเลิกแล้ว</strong> — พิมพ์ไม่ได้ แก้ไขไม่ได้ รับชำระไม่ได้
+      และออกบิลของเดือนนี้ใหม่ได้
+      <dl className="invoice-cancel-info">
+        <div>
+          <dt>เหตุผล</dt>
+          {/* บิลที่ยกเลิกก่อนที่ระบบจะบังคับกรอกไม่มีเหตุผลเก็บไว้ — บอกตรงๆ ว่าไม่มี
+              ไม่ใช่ปล่อยช่องว่างจนดูเหมือนคนกดยกเลิกลืมกรอก */}
+          <dd>
+            {invoice.cancelReason ?? (
+              <span className="muted">ไม่ได้บันทึกไว้ (ยกเลิกก่อนที่ระบบจะบังคับกรอกเหตุผล)</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>ยกเลิกโดย</dt>
+          <dd>{invoice.cancelledByName ?? <span className="muted">ไม่ทราบ</span>}</dd>
+        </div>
+        <div>
+          <dt>เมื่อ</dt>
+          <dd>{formatDate(String(invoice.cancelledAt ?? '').slice(0, 10))}</dd>
+        </div>
+      </dl>
+    </Alert>
+  )
+}
+
+// หน้าต่างยกเลิกบิล — เหตุผลบังคับกรอก แบบเดียวกับลบใบแจ้งหนี้และยกเลิกใบเสร็จ
+//
+// ของเดิมเป็นแค่กล่องถาม "ใช่ไหม?" ที่กดผ่านได้ทันที ทั้งที่การยกเลิกบิลทำให้ยอดหนี้
+// ของห้องนั้นหายไปจากรายการค้างชำระ — หนักพอกันกับการลบ ซึ่งบังคับเหตุผลมาตั้งแต่แรก
+function CancelInvoiceDialog({ invoice, onClose, onCancelled, onError }) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const ready = reason.trim().length > 0
+
+  async function submit() {
+    if (!ready) return
+    onError('')
+    setBusy(true)
+    const res = await cancelInvoice(invoice.invoiceId, reason)
+    setBusy(false)
+    if (!res.success) return onError(res.error)
+    onCancelled()
+  }
+
+  return (
+    <Modal
+      title={`ยกเลิกใบแจ้งหนี้ ${invoice.invoiceNumber}`}
+      icon="trash"
+      submitLabel="ยืนยันยกเลิกบิล"
+      busy={busy || !ready}
+      onClose={onClose}
+      onSubmit={submit}
+    >
+      <Alert kind="warn">
+        บิลจะยังอยู่ในระบบแต่ถูกทำเครื่องหมายว่ายกเลิก — <strong>พิมพ์ไม่ได้ รับชำระไม่ได้</strong>{' '}
+        และหายไปจากรายการค้างชำระ · ออกบิลของเดือนนี้ใหม่ได้ โดยจะได้เลขที่ใบใหม่
+        ไม่ใช่เลขเดิม
+      </Alert>
+
+      <dl className="invoice-totals delete-summary">
+        <div>
+          <dt>ห้อง</dt>
+          <dd>{invoice.roomNumber}</dd>
+        </div>
+        <div>
+          <dt>ยอดรวม</dt>
+          <dd>{formatBaht(invoice.totalAmountCents)}</dd>
+        </div>
+        <div>
+          <dt>ค้างชำระ</dt>
+          <dd>{formatBaht(Math.max(invoice.outstandingCents, 0))}</dd>
+        </div>
+      </dl>
+
+      <div className="field field-required">
+        <label htmlFor="cancelInvoiceReason">
+          เหตุผลในการยกเลิก <span className="required">* จำเป็น</span>
+        </label>
+        <textarea
+          id="cancelInvoiceReason"
+          rows={3}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="เช่น ออกบิลผิดห้อง / จดมิเตอร์ผิด / ผู้เช่าย้ายออกก่อนออกบิล"
+        />
+        {!ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะยกเลิกได้</p>}
+      </div>
+    </Modal>
   )
 }
 

@@ -3950,12 +3950,6 @@ body {
   white-space: pre-line;
 }
 
-.invoice-confirm-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-
 .invoice-tab-hint {
   margin-top: 0;
   margin-bottom: 12px;
@@ -4099,6 +4093,28 @@ body {
   display: flex;
   gap: 14px;
   padding-bottom: 9px;
+}
+
+/* เหตุผล/ผู้ยกเลิก/วันที่ ในแถบเตือนของบิลที่ถูกยกเลิก — หัวข้อซ้ายค่าขวาแบบรายการสั้นๆ
+   ไม่ใช้ .invoice-totals เพราะนั่นเป็นตัวเลขเงินชิดขวา ส่วนนี่เป็นข้อความยาวได้ */
+.invoice-cancel-info {
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  font-size: 13px;
+}
+
+.invoice-cancel-info > div {
+  display: contents;
+}
+
+.invoice-cancel-info dt {
+  font-weight: 600;
+}
+
+.invoice-cancel-info dd {
+  margin: 0;
 }
 
 /* ชุดใบแจ้งหนี้ที่กำลังจะพิมพ์ทีเดียวทั้งหอ — **ใบละหนึ่งแผ่นเต็ม A4 แนวตั้ง**

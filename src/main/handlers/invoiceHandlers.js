@@ -92,9 +92,14 @@ export function registerInvoiceHandlers() {
     return invoice
   })
 
-  handle('invoice:cancel', ({ invoiceId }) => {
-    const invoice = cancelInvoice(getDatabase(), invoiceId)
-    logInfo(`ยกเลิกบิล ${invoice.invoiceNumber}`)
+  // เหตุผลบังคับกรอก และ **ผู้ยกเลิกมาจากเซสชันฝั่ง main เสมอ** เหมือนผู้ลบและผู้รับเงิน
+  // ไม่งั้นเปิด DevTools แล้วยกเลิกบิลในนามคนอื่นได้ บันทึกก็เชื่อไม่ได้ทั้งชุด
+  handle('invoice:cancel', ({ invoiceId, reason }) => {
+    const invoice = cancelInvoice(getDatabase(), invoiceId, {
+      reason,
+      cancelledBy: requireSessionUserId()
+    })
+    logInfo(`ยกเลิกบิล ${invoice.invoiceNumber} — เหตุผล: ${invoice.cancelReason}`)
     return invoice
   })
 

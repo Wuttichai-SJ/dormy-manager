@@ -653,6 +653,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`invoices` (
   `updated_at` TIMESTAMP NULL,
   -- เพิ่มใน 012: บิลที่ถูกยกเลิกต้องรู้ว่ายกเลิกเมื่อไหร่
   `cancelled_at` TIMESTAMP NULL,
+  -- เพิ่มใน 024: และต้องรู้ว่า "ทำไม" กับ "ใคร" ด้วย — ยกเลิกบิลทำให้ยอดหนี้ของห้องนั้น
+  -- หายไปจากรายการค้างชำระ ปีหน้ามีคนถามว่าทำไมห้องนี้ไม่มีบิลเดือนนั้น แล้วต้องตอบได้
+  -- **บิลที่ยกเลิกก่อน 024 เป็น NULL** ไม่เดาเหตุผลย้อนหลัง หน้าจอบอกตรงๆ ว่าไม่ได้บันทึกไว้
+  `cancel_reason` TEXT NULL,
+  `cancelled_by` INT NULL,
   PRIMARY KEY (`invoice_id`),
   -- 012: เลขที่ใบแจ้งหนี้ห้ามซ้ำ และหนึ่งสัญญาออกบิลรายเดือนได้เดือนละใบ (ที่ยังไม่ยกเลิก)
   -- 021: ดูคำอธิบายที่ room_bookings — เลขที่ไม่ซ้ำ "รายหอ" ไม่ใช่ทั้งฐานข้อมูล
@@ -662,6 +667,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`invoices` (
   CONSTRAINT `fk_invoices_contracts1`
     FOREIGN KEY (`contract_id`)
     REFERENCES `mydb`.`contracts` (`contract_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_invoices_users1`
+    FOREIGN KEY (`cancelled_by`)
+    REFERENCES `mydb`.`users` (`user_id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;

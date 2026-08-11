@@ -50,8 +50,10 @@ export function removeInvoiceItem(invoiceId, invoiceItemId) {
   return invoke('invoice:removeItem', { invoiceId, invoiceItemId })
 }
 
-export function cancelInvoice(invoiceId) {
-  return invoke('invoice:cancel', { invoiceId })
+// ยกเลิกบิล — เหตุผลบังคับกรอก และถูกเก็บไว้กับตัวบิลเอง (แสดงบนหน้ารายละเอียด)
+// ไม่ต้องส่งผู้ยกเลิกไปเอง ฝั่ง main อ่านจากเซสชันที่ล็อกอินอยู่
+export function cancelInvoice(invoiceId, reason) {
+  return invoke('invoice:cancel', { invoiceId, reason })
 }
 
 // ลบถาวร — ได้เฉพาะใบที่ยกเลิกแล้ว และต้องมีเหตุผลเสมอ (เหตุผลถูกเก็บไว้ในประวัติการลบ)
