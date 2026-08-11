@@ -144,9 +144,12 @@ export default function ReceiptsPage({ apartment }) {
           ))}
         </div>
 
+        {/* ใบเสร็จเป็น A5 แนวนอน **สองใบต่อกระดาษหนึ่งแผ่น** จำนวนหน้าที่เอกสารควรมี
+            จึงเป็นครึ่งหนึ่งของจำนวนใบ ไม่ใช่เท่ากัน — ถ้าส่งจำนวนใบไปตรงๆ ตัวย่อ
+            ฝั่ง main จะคิดว่ายังไม่ล้น ทั้งที่ล้นไปแผ่นละใบแล้ว */}
         <PrintDialog
-          title={`พิมพ์ใบเสร็จ ${chosen.length} ใบ`}
-          maxPages={chosen.length}
+          title={`พิมพ์ใบเสร็จ ${chosen.length} ใบ (${Math.ceil(chosen.length / 2)} แผ่น)`}
+          maxPages={Math.ceil(chosen.length / 2)}
           onClose={() => setPrinting(false)}
           onPrinted={() => {
             setPrinting(false)

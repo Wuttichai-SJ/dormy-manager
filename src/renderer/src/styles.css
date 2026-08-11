@@ -4113,18 +4113,132 @@ body {
   border-top: 1px solid var(--border);
 }
 
+/* -----------------------------------------------------
+   ใบเสร็จตอนพิมพ์ = A5 แนวนอน สองใบต่อกระดาษ A4 หนึ่งแผ่น
+   -----------------------------------------------------
+   ผู้ใช้เลือกแบบนี้ 2026-08-11 เพราะเป็นรูปแบบที่ทั้งเจ้าของหอและผู้เช่าคุ้นตาจาก
+   เล่มใบเสร็จ และ **ไม่ต้องหาซื้อกระดาษ A5 มาใช้** — A4 ตั้งผ่าครึ่งตามแนวนอน
+   ได้ A5 แนวนอนพอดีสองใบ ตัดตามรอยประแล้วยื่นให้ผู้เช่าได้เลย
+
+   ผลพลอยได้ที่สำคัญ: **ขนาดกระดาษไม่เปลี่ยน** `@page` กับ PAGE ใน printHandlers.js
+   จึงยังเป็น A4 ตั้ง ขอบ 12 มม. เหมือนเดิมทั้งคู่ ไม่ต้องมีชุดกระดาษที่สองให้หลุดกัน
+
+   เลข 136.5 มม. มาจาก: กระดาษสูง 297 หาร 2 = 148.5 คือจุดที่ต้องตัด
+   ลบขอบบน 12 มม. เหลือ 136.5 นับจากขอบบนของพื้นที่พิมพ์ · ใบล่างสูงเท่ากันพอดี
+   (273 − 136.5 = 136.5) รอยตัดจึงอยู่กลางแผ่นจริงๆ ไม่ใช่แค่ประมาณ
+
+   **ใบแจ้งหนี้ไม่เกี่ยวกับบล็อกนี้เลย** ยังเป็น A4 เต็มแผ่นแนวตั้งเหมือนเดิม
+   (ผู้ใช้ยืนยันรูปแบบไว้แล้ว 2026-08-08 ว่าตรงตามที่ต้องการ) */
 @media print {
-  /* ขึ้นหน้าใหม่ทุกใบ ยกเว้นใบสุดท้าย ไม่งั้นจะได้กระดาษเปล่าท้ายชุด */
   .receipt-doc {
+    height: 136.5mm;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    /* ใบเดียวต้องไม่ถูกหั่นคาบเกี่ยวสองแผ่น — ครึ่งบนอยู่หน้าหนึ่ง ครึ่งล่างอยู่อีกหน้า
+       คือใบเสร็จที่ใช้ไม่ได้ทั้งสองใบ */
+    break-inside: avoid;
+    /* ดันช่องลงชื่อไปชิดรอยตัด แทนที่จะลอยค้างกลางใบแล้วเหลือที่ว่างยาวใต้มัน */
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* `margin-top: auto` คือตัวที่ดันลงไปชิดรอยตัด ระยะห่างขั้นต่ำจึงต้องเป็น padding
+     ไม่ใช่ margin ไม่งั้นสองค่านี้จะทับกันเองแล้วการดันหายไป */
+  .receipt-doc > .invoice-payment-info {
+    margin-top: auto;
+    padding-top: 10px;
+  }
+
+  /* ตารางกลายเป็น flex item ตามพ่อ — บังคับความกว้างไว้ ไม่ให้หดตามเนื้อหา */
+  .receipt-doc .invoice-items {
+    width: 100%;
+  }
+
+  /* ขึ้นแผ่นใหม่ทุกๆ สองใบ — ใบสุดท้ายไม่ต้องขึ้น ไม่งั้นได้กระดาษเปล่าท้ายชุด */
+  .receipt-doc:nth-child(2n):not(:last-child) {
     break-after: page;
   }
 
-  .receipt-doc:last-child {
-    break-after: auto;
+  /* รอยตัดอยู่บนหัวของใบล่างเสมอ (ใบที่ 2, 4, 6...) ซึ่งคือกึ่งกลางแผ่นพอดี
+     ใบบนไม่ต้องมีเส้น เพราะขอบกระดาษเป็นตัวบอกอยู่แล้ว */
+  .receipt-doc:nth-child(2n) {
+    border-top: 1px dashed #999;
+    padding-top: 6mm;
+  }
+
+  .receipt-doc:nth-child(2n)::before {
+    content: '✂ ตัดตามรอยประ';
+    display: block;
+    margin-top: -5mm;
+    margin-bottom: 2mm;
+    font-size: 8px;
+    color: #999;
   }
 
   .receipt-doc + .receipt-doc {
     margin-top: 0;
+  }
+
+  /* -----------------------------------------------------
+     บีบเนื้อหาใบเสร็จให้ลงครึ่งแผ่น
+     -----------------------------------------------------
+     ครึ่งแผ่นเหลือความสูงไม่ถึงครึ่งของที่ใบแจ้งหนี้เคยมี ถ้าปล่อยให้ตัวย่ออัตโนมัติ
+     ฝั่ง main จัดการเอง มันจะย่อลงไปถึง 50% ซึ่งอ่านไม่ออกบนกระดาษ
+     บีบระยะที่นี่ให้พอดีก่อน ตัวย่อจะได้เหลือไว้เป็นตาข่ายสำหรับบิลที่รายการเยอะจริงๆ
+
+     ทุกกฎในบล็อกนี้เจาะจง `.receipt-doc` — ใบแจ้งหนี้ต้องไม่ขยับตาม */
+  .receipt-doc .invoice-doc-title {
+    margin-bottom: 6px;
+    font-size: 15px;
+  }
+
+  .receipt-doc .invoice-doc-head {
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+
+  .receipt-doc .invoice-doc-head p {
+    margin: 1px 0;
+  }
+
+  .receipt-doc .invoice-doc-meta > div {
+    padding: 1px 0;
+  }
+
+  .receipt-doc .invoice-tenant {
+    margin-bottom: 8px;
+    padding: 5px 0;
+    font-size: 11px;
+  }
+
+  .receipt-doc .invoice-items th,
+  .receipt-doc .invoice-items td {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    font-size: 11px;
+  }
+
+  .receipt-doc .invoice-totals {
+    font-size: 11px;
+  }
+
+  .receipt-doc .invoice-totals > div {
+    padding: 2px 0;
+  }
+
+  .receipt-doc .invoice-total-row {
+    padding-top: 5px !important;
+    font-size: 13px;
+  }
+
+  .receipt-doc .receipt-received {
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+
+  .receipt-doc .invoice-signature {
+    padding-top: 14px;
   }
 }
 
