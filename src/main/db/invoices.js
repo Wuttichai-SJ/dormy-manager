@@ -713,7 +713,7 @@ export function listInvoices(
 
   return db
     .prepare(
-      `SELECT i.invoice_id, i.invoice_number, i.issue_date, i.due_date, i.status,
+      `SELECT i.invoice_id, i.contract_id, i.invoice_number, i.issue_date, i.due_date, i.status,
               i.total_amount_cents, i.billing_month, r.room_number,
               COALESCE((SELECT SUM(p.amount_cents) FROM payments p
                          WHERE p.invoice_id = i.invoice_id
@@ -736,6 +736,8 @@ export function listInvoices(
     })
     .map((row) => ({
       invoiceId: row.invoice_id,
+      // ต้องมี — ขั้นตอนย้ายออกกรองบิลค้างของ "สัญญาใบนี้" ออกจากบิลค้างทั้งหอ
+      contractId: row.contract_id,
       invoiceNumber: row.invoice_number,
       issueDate: row.issue_date,
       dueDate: row.due_date,

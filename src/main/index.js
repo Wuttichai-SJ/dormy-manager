@@ -15,6 +15,7 @@ import { registerBackupHandlers } from './handlers/backupHandlers.js'
 import { registerMeterHandlers } from './handlers/meterHandlers.js'
 import { registerInvoiceHandlers } from './handlers/invoiceHandlers.js'
 import { registerPaymentHandlers } from './handlers/paymentHandlers.js'
+import { registerTerminationHandlers } from './handlers/terminationHandlers.js'
 import { registerPrintHandlers } from './handlers/printHandlers.js'
 import { registerImageHandlers } from './handlers/imageHandlers.js'
 import { registerExportHandlers } from './handlers/exportHandlers.js'
@@ -126,6 +127,7 @@ app.whenReady().then(() => {
   registerMeterHandlers()
   registerInvoiceHandlers()
   registerPaymentHandlers()
+  registerTerminationHandlers()
   registerPrintHandlers()
   registerImageHandlers()
   registerExportHandlers()

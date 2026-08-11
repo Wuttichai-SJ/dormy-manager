@@ -21,13 +21,22 @@ import {
   removeLateFeeItems
 } from './invoices.js'
 
+// ช่องทางที่ "คนเลือกได้" ตอนรับเงิน
 export const PAYMENT_METHODS = ['cash', 'transfer', 'other']
 
+// `deposit` ไม่อยู่ในรายการข้างบนโดยตั้งใจ — เป็นช่องทางที่ระบบสร้างเองตอนหักหนี้
+// จากเงินประกันในขั้นตอนย้ายออก ไม่ใช่ตัวเลือกให้กดตอนรับเงินหน้าเคาน์เตอร์
 export const PAYMENT_METHOD_LABELS = {
   cash: 'เงินสด',
   transfer: 'เงินโอน',
-  other: 'อื่นๆ'
+  other: 'อื่นๆ',
+  deposit: 'หักจากเงินประกัน'
 }
+
+// 🔴 **เงินก้อนนี้ไม่ได้เพิ่งเข้าหอ** มันเข้ามาตั้งแต่วันทำสัญญาแล้วในฐานะเงินประกัน
+// การหักหนี้ตอนย้ายออกคือการย้ายกระเป๋า ไม่ใช่รายรับใหม่ — ถ้านับรวมในยอดรายงาน
+// เงินประกัน 5,000 ก้อนเดียวจะถูกนับเป็นรายรับสองรอบ (ตอนรับเข้า + ตอนเอาไปปิดบิล)
+export const INTERNAL_PAYMENT_METHODS = ['deposit']
 
 // เงินก้อนนี้เป็นค่าอะไร (migration 022) — ต้องรู้เพื่อคิดว่า "เงินประกันรับมาครบหรือยัง"
 // เพราะใบเสร็จที่ผูกกับสัญญามีทั้งเงินประกัน ค่าเช่าล่วงหน้า และเงินประกันที่คืนตอนย้ายออก
@@ -478,13 +487,19 @@ export function listReceipts(db, apartmentId, { dateFrom, dateTo } = {}) {
 
   // ใบที่ยกเลิกยังอยู่ในรายการ (เลขที่ที่หายไปจากตารางคือเลขที่ตามไม่ได้) แต่ไม่นับเข้ายอด
   const active = rows.filter((row) => !row.isCancelled)
+  // ใบที่หักจากเงินประกันตอนย้ายออกก็ไม่นับ — เป็นการย้ายกระเป๋า ไม่ใช่เงินที่เพิ่งเข้าหอ
+  const cash = active.filter((row) => !row.isInternalTransfer)
 
   return {
     receipts: rows,
     receiptCount: active.length,
     cancelledCount: rows.length - active.length,
+    // ยอดที่หักจากเงินประกันไปปิดบิล — แยกให้เห็น ไม่ใช่ซ่อนหายไปเฉยๆ
+    internalTransferCents: active
+      .filter((row) => row.isInternalTransfer)
+      .reduce((sum, row) => sum + row.amountCents, 0),
     // ยอดรวมนับใบคืนเงินเป็นลบไปด้วย จึงเป็น "เงินที่เข้าหอจริง" ไม่ใช่ผลบวกของใบที่ออก
-    totalAmountCents: active.reduce((sum, row) => sum + row.amountCents, 0)
+    totalAmountCents: cash.reduce((sum, row) => sum + row.amountCents, 0)
   }
 }
 
@@ -506,6 +521,9 @@ function toPublicPayment(row) {
     sourceType: row.invoice_id ? 'invoice' : 'contract',
     sourceLabel: row.invoice_id ? `ใบแจ้งหนี้ #${row.invoice_number}` : 'สัญญา',
     isRefund: row.amount_cents < 0,
+    // หักจากเงินประกันตอนย้ายออก — เป็นใบเสร็จจริงที่ปิดหนี้บิลได้จริง แต่ไม่ใช่เงินสด
+    // ที่เพิ่งเข้าหอ รายงานจึงแยกออกจากยอดรับเงินสุทธิ
+    isInternalTransfer: INTERNAL_PAYMENT_METHODS.includes(row.payment_method),
     // ใบที่ถูกยกเลิก — ยังอยู่ในรายการให้เห็น แต่ไม่ถูกนับเป็นเงินที่รับมาที่ไหนเลย
     isCancelled: Boolean(row.cancelled_at),
     cancelledAt: row.cancelled_at ?? null,
