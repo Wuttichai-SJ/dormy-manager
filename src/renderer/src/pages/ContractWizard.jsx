@@ -37,6 +37,10 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
     ),
     deposit: '',
     depositPaymentMethod: 'cash',
+    // **ระยะสัญญาคือตัวที่กฎเงินประกันใช้ตัดสินว่า "ออกก่อนครบหรือยัง"** (ดู 004 + 026)
+    // เจ้าของหอยืนยัน 2026-08-11 ว่าหอทำสัญญา 12 เดือน จึงตั้งเป็นค่าตั้งต้น
+    // เดิมไม่มีช่องนี้เลย สัญญาทุกใบจึงได้ NULL แล้วเงื่อนไข "ออกก่อนครบ" ไม่เคยทำงาน
+    termMonths: rentType === 'daily' ? '' : '12',
     // เว้นว่าง = เก็บส่วนที่เหลือครบวันนี้ (กรณีปกติ) — ฝั่ง main คิดยอดให้เอง
     // กรอกเมื่อวันนี้เก็บได้ไม่ครบ ส่วนที่ขาดจะไปขึ้นเป็นยอดค้างบนหน้าห้อง
     depositReceived: '',
@@ -165,6 +169,28 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                   <span className="input-suffix">บาท/{rentType === 'monthly' ? 'เดือน' : 'วัน'}</span>
                 </div>
               </div>
+
+              {/* ระยะสัญญามีเฉพาะรายเดือน — สัญญารายวันไม่มีคำว่า "อยู่ครบสัญญา"
+                  และเงินประกันของมันไม่ได้ผูกกับเงื่อนไขนี้ */}
+              {rentType === 'monthly' && (
+                <div className="field">
+                  <label htmlFor="termMonths">ระยะสัญญา</label>
+                  <select
+                    id="termMonths"
+                    value={form.termMonths}
+                    onChange={(e) => set('termMonths', e.target.value)}
+                  >
+                    <option value="12">12 เดือน (1 ปี)</option>
+                    <option value="6">6 เดือน</option>
+                    <option value="">ไม่กำหนดระยะ</option>
+                  </select>
+                  {/* ตัวเลขนี้เป็นตัวตัดสินเงินประกันตอนย้ายออก ไม่ใช่ข้อมูลประดับ
+                      ต้องบอกให้คนกรอกรู้ ไม่งั้นจะถูกข้ามไปเพราะดูเหมือนไม่สำคัญ */}
+                  <p className="field-hint">
+                    ใช้ตัดสินว่าออกก่อนครบสัญญาหรือไม่ — ออกก่อนครบ = ริบเงินประกัน
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="field-row">

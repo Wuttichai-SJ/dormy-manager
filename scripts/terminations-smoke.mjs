@@ -61,8 +61,9 @@ function makeTenant() {
   })
 }
 
-// สัญญามาตรฐาน: 6 เดือน เงินประกัน 5,000 เก็บครบวันทำสัญญา แจ้งล่วงหน้า 15 วัน
-function makeContract({ startDate = '2026-01-15', termMonths = 6, deposit = '5000', rent = '5000' } = {}) {
+// เงินประกัน 5,000 เก็บครบวันทำสัญญา แจ้งล่วงหน้า 15 วัน (ค่าตั้งต้นของ 004)
+// ระยะสัญญาจริงของหอคือ 12 เดือน — เทสต์บางข้อใช้ 6 เพื่อให้เดินถึงจุด "อยู่ครบ" ได้เร็ว
+function makeContract({ startDate = '2026-01-15', termMonths = 12, deposit = '5000', rent = '5000' } = {}) {
   const room = makeRoom(rent)
   const person = makeTenant()
   const contract = contracts.createContract(db, {
@@ -200,7 +201,7 @@ check('นโยบาย always / never ชนะทุกเงื่อนไ
 // -----------------------------------------------------
 group('แจ้งย้ายออก')
 
-const notice = makeContract()
+const notice = makeContract({ termMonths: 6 })
 
 check('บันทึกวันที่แจ้งย้ายออกได้ และล้างกลับได้', () => {
   terminations.setMoveOutNotice(db, notice.contract.contractId, '2026-07-01')
@@ -229,7 +230,7 @@ check('แจ้งก่อนวันเริ่มสัญญาไม่�
 // -----------------------------------------------------
 group('ย้ายออกแบบคืนเงินเต็ม')
 
-const clean = makeContract()
+const clean = makeContract({ termMonths: 6 })
 
 check('อยู่ครบ 6 เดือน แจ้งล่วงหน้า 20 วัน = คืนเต็ม 5,000', () => {
   terminations.setMoveOutNotice(db, clean.contract.contractId, '2026-06-25')
@@ -335,6 +336,7 @@ const forfeitInvoice = invoices.createMonthlyInvoice(db, {
   issueDate: '2026-05-01'
 })
 
+// เจ้าของหอยืนยัน 2026-08-11: หอทำสัญญา 12 เดือน — ตัวเลขนี้คือเกณฑ์จริงที่ใช้ตัดสิน
 check('ออกก่อนครบสัญญา 12 เดือน = ริบ และเงินคืนเป็น 0', () => {
   terminations.setMoveOutNotice(db, forfeit.contract.contractId, '2026-05-01')
   const sheet = terminations.getTerminationSheet(db, forfeit.contract.contractId, {
@@ -351,25 +353,59 @@ check('เงินที่ถูกริบเอาไปหักหนี�
     moveOutDate: '2026-06-01'
   })
   assert(sheet.outstandingTotalCents === 500000, `ค้าง ${sheet.outstandingTotalCents}`)
-  assert(sheet.settledFromDepositCents === 0, `หักไปแล้ว ${sheet.settledFromDepositCents} ต้องเป็น 0`)
+  assert(sheet.hasOutstanding === true, 'ต้องรู้ว่ายังมีบิลค้าง')
   assert(sheet.netRefundCents === -500000, `สุทธิได้ ${sheet.netRefundCents} ควรติดลบ 5,000`)
 })
 
-check('ยืนยันแล้วบิลยังค้างอยู่เหมือนเดิม และไม่มีใบเสร็จคืนเงิน', () => {
+// -----------------------------------------------------
+// 🔴 กติกาที่เจ้าของหอยืนยัน 2026-08-11: ต้องเคลียร์บิลค้างให้หมดก่อนย้ายออก
+// ระบบไม่หักจากเงินประกันให้เอง — ถ้าจะหักจริงต้องไปกดรับเงินที่บิลใบนั้นก่อน
+group('ต้องเคลียร์บิลค้างก่อนย้ายออก')
+
+check('มีบิลค้างอยู่ ย้ายออกไม่ได้ และบอกยอดที่ค้าง', () => {
+  throws(
+    () =>
+      terminations.completeTermination(db, forfeit.contract.contractId, {
+        moveOutDate: '2026-06-01',
+        createdBy: staff.user_id
+      }),
+    'ต้องเคลียร์ให้ครบก่อนย้ายออก',
+    'ต้องบล็อกไว้'
+  )
+})
+
+check('กดข้ามได้แต่ต้องมีเหตุผล', () => {
+  throws(
+    () =>
+      terminations.completeTermination(db, forfeit.contract.contractId, {
+        moveOutDate: '2026-06-01',
+        allowOutstanding: true,
+        createdBy: staff.user_id
+      }),
+    'เหตุผล',
+    'ต้องบังคับเหตุผลตอนกดข้าม'
+  )
+})
+
+// ผู้เช่าหนีไปแล้ว — ถ้าบล็อกตายตัว ห้องนั้นจะปล่อยใหม่ไม่ได้ตลอดไปเพราะหนี้ที่ไม่มีวันได้คืน
+check('ผู้เช่าหนีไป กดข้ามพร้อมเหตุผลแล้วปิดสัญญาได้ แต่บิลยังค้างเหมือนเดิม', () => {
   const result = terminations.completeTermination(db, forfeit.contract.contractId, {
     moveOutDate: '2026-06-01',
+    allowOutstanding: true,
+    outstandingReason: 'ผู้เช่าย้ายออกเองโดยไม่แจ้งและติดต่อไม่ได้',
     createdBy: staff.user_id
   })
   assert(result.refundReceipt === null, 'ยอดติดลบต้องไม่ออกใบเสร็จคืนเงิน')
-  assert(result.settledInvoices.length === 0, 'ต้องไม่มีบิลไหนถูกตัดหนี้')
+  assert(result.overrideReason.includes('ติดต่อไม่ได้'), `ได้ ${result.overrideReason}`)
 
+  // **หนี้ต้องไม่หายไปเงียบๆ ในขั้นตอนย้ายออก** — ยังต้องตามเก็บต่อได้
   const invoice = invoices.getInvoiceById(db, forfeitInvoice.invoiceId)
   assert(invoice.status === 'unpaid', `บิลได้ ${invoice.status} ควรยังค้างอยู่`)
   assert(invoice.outstandingCents === 500000, `ยอดค้างได้ ${invoice.outstandingCents}`)
 })
 
 // -----------------------------------------------------
-group('คืนเงินหลังหักหนี้')
+group('เคลียร์บิลแล้วค่อยย้ายออก')
 
 const settle = makeContract({ startDate: '2026-01-01', termMonths: 6 })
 const settleBatch = meter.createBatch(db, apartmentId, '2026-06-01')
@@ -380,36 +416,46 @@ const settleInvoice = invoices.createMonthlyInvoice(db, {
   issueDate: '2026-06-01'
 })
 
-check('อยู่ครบ แจ้งทัน แต่ค้างบิล 5,000 จากเงินประกัน 5,000 = คืน 0 และบิลถูกปิด', () => {
+check('รับเงินบิลจนครบแล้ว ย้ายออกได้ตามปกติและคืนเงินประกันเต็ม', () => {
   terminations.setMoveOutNotice(db, settle.contract.contractId, '2026-06-15')
+
+  // เส้นทางปกติของหอ: ไปกดรับเงินที่บิลใบนั้นก่อน แล้วค่อยกลับมาย้ายออก
+  payments.recordInvoicePayment(db, {
+    invoiceId: settleInvoice.invoiceId,
+    amount: '5000',
+    paymentMethod: 'cash',
+    paymentDate: '2026-06-20',
+    createdBy: staff.user_id
+  })
+
   const result = terminations.completeTermination(db, settle.contract.contractId, {
     moveOutDate: '2026-07-01',
     createdBy: staff.user_id
   })
 
   assert(result.isDepositRefundable === true, 'ต้องคืน (อยู่ครบ 6 เดือน แจ้ง 16 วัน)')
-  assert(result.netRefundCents === 0, `สุทธิได้ ${result.netRefundCents}`)
-  assert(result.refundReceipt === null, 'คืน 0 ไม่ต้องออกใบเสร็จคืนเงิน')
-  assert(result.settledInvoices.length === 1, `ตัดหนี้ ${result.settledInvoices.length} ใบ`)
+  assert(result.outstandingTotalCents === 0, `ยอดค้างได้ ${result.outstandingTotalCents}`)
+  assert(result.netRefundCents === 500000, `สุทธิได้ ${result.netRefundCents}`)
+  assert(result.refundReceipt.amountCents === -500000, `ใบเสร็จได้ ${result.refundReceipt.amountCents}`)
 
   const invoice = invoices.getInvoiceById(db, settleInvoice.invoiceId)
   assert(invoice.status === 'paid', `บิลได้ ${invoice.status}`)
-  assert(invoice.outstandingCents === 0, `ยอดค้างได้ ${invoice.outstandingCents}`)
 })
 
-// เงินประกัน 5,000 ก้อนเดียวถูกนับเป็นรายรับสองรอบไม่ได้ (ตอนรับเข้า + ตอนเอาไปปิดบิล)
-check('ใบเสร็จที่หักจากเงินประกันไม่ถูกนับเป็นเงินสดที่เข้าหอ', () => {
+// เงินที่รับจากบิลเป็นเงินสดจริงที่เข้าหอ ส่วนใบคืนเงินประกันเป็นเงินออก — ทั้งคู่อยู่ในรายงาน
+// ตามความจริง ไม่มีตัวเลขไหนถูกนับซ้ำหรือถูกซ่อน
+check('รายงานใบเสร็จเห็นทั้งเงินที่รับจากบิลและเงินประกันที่คืนไป', () => {
   const report = payments.listReceipts(db, apartmentId, {
-    dateFrom: '2026-07-01',
+    dateFrom: '2026-06-20',
     dateTo: '2026-07-01'
   })
-  const internal = report.receipts.find((r) => r.isInternalTransfer)
-  assert(internal !== undefined, 'ต้องมีใบที่หักจากเงินประกัน')
-  assert(internal.paymentMethodLabel === 'หักจากเงินประกัน', `ได้ ${internal.paymentMethodLabel}`)
-  assert(report.internalTransferCents === 500000, `ได้ ${report.internalTransferCents}`)
   assert(
-    !report.receipts.some((r) => r.isInternalTransfer && !r.isInternalTransfer),
-    'ธงต้องคงที่'
+    report.receipts.some((r) => r.amountCents === 500000 && r.sourceType === 'invoice'),
+    'ต้องมีใบรับเงินค่าบิล'
+  )
+  assert(
+    report.receipts.some((r) => r.amountCents === -500000 && r.sourceType === 'contract'),
+    'ต้องมีใบคืนเงินประกัน'
   )
 })
 

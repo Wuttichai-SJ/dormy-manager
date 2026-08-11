@@ -49,6 +49,8 @@ export function registerTerminationHandlers() {
       adjustments: payload.adjustments,
       overrideRefundable: payload.overrideRefundable,
       overrideReason: payload.overrideReason,
+      allowOutstanding: payload.allowOutstanding,
+      outstandingReason: payload.outstandingReason,
       paymentMethod: payload.paymentMethod,
       createdBy: requireSessionUserId()
     })

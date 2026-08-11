@@ -12,7 +12,7 @@
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
 // ทั้ง invoices.js และ payments.js ไม่ได้นำเข้าไฟล์นี้กลับ ทิศทางจึงไม่เป็นวงกลม
-import { listInvoices, nextDocumentNumber, refreshInvoiceStatus } from './invoices.js'
+import { listInvoices } from './invoices.js'
 import { getDepositStatus, recordContractPayment } from './payments.js'
 
 // แท็บของกล่อง "รายการเก็บเงิน/คืนเงินเพิ่มเติม" ตามต้นแบบ
@@ -188,13 +188,16 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
   const items = normalizeAdjustments(adjustments)
   const adjustmentsTotalCents = items.reduce((sum, i) => sum + i.amountCents, 0)
 
-  // 🔴 **เงินประกันที่ถูกริบ เอาไปหักหนี้ไม่ได้** (ผู้ใช้ตัดสินใจ 2026-08-11)
-  // ริบแปลว่าเงินก้อนนั้นตกเป็นของหอในฐานะค่าปรับผิดสัญญา ไม่ใช่กระเป๋าเงินสำรอง
-  // ที่เอามาปิดหนี้ค่าน้ำค่าไฟได้ — หนี้ยังเป็นหนี้ที่ต้องตามเก็บต่อ
+  // 🔴 **ต้องเคลียร์บิลค้างให้หมดก่อนย้ายออก** (เจ้าของหอยืนยัน 2026-08-11)
   //
-  // ผลคือ `settledFromDepositCents` เป็น 0 เมื่อริบ แล้วยอดสุทธิติดลบเท่ากับที่ยังค้าง
-  // ซึ่งอ่านออกตรงตัวว่า "ผู้เช่ายังต้องจ่ายอีกเท่านี้"
-  const settledFromDepositCents = Math.min(refundableDepositCents, outstandingTotalCents)
+  // ระบบ **ไม่หักหนี้จากเงินประกันให้เอง** — ต่างจากต้นแบบที่ทำอัตโนมัติ เพราะกติกาของหอนี้
+  // คือผู้เช่าต้องจ่ายบิลให้ครบก่อน ถ้าเจ้าของหอตกลงหักจากเงินประกันจริง ก็ไปกดรับเงิน
+  // ที่บิลใบนั้นตามปกติก่อน แล้วค่อยกลับมาย้ายออก — เงินก้อนนั้นจึงถูกบันทึกเป็นการรับชำระ
+  // ที่มีใบเสร็จของตัวเอง ไม่ใช่ตัวเลขที่หายไปในขั้นตอนย้ายออก
+  //
+  // เปิดทางข้ามไว้สำหรับผู้เช่าที่หนีไปเฉยๆ (ดู completeTermination) ไม่งั้นห้องจะติดอยู่กับ
+  // หนี้ที่ไม่มีวันได้คืนตลอดไป และเจ้าของหอปล่อยห้องใหม่ไม่ได้
+  const hasOutstanding = outstandingTotalCents > 0
   const netRefundCents = refundableDepositCents - outstandingTotalCents - adjustmentsTotalCents
 
   return {
@@ -224,9 +227,10 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
     refundableDepositCents,
     outstandingInvoices,
     outstandingTotalCents,
+    // มีบิลค้าง = ย้ายออกไม่ได้จนกว่าจะเคลียร์ หรือกดข้ามพร้อมเหตุผล
+    hasOutstanding,
     items,
     adjustmentsTotalCents,
-    settledFromDepositCents,
     // ติดลบ = ผู้เช่ายังต้องจ่ายเพิ่ม ไม่ใช่ได้เงินคืน
     netRefundCents
   }
@@ -258,16 +262,43 @@ function normalizeAdjustments(adjustments) {
 // ------------------------------------------------------------------
 // ยืนยันย้ายออก
 // ------------------------------------------------------------------
-// ทำทุกอย่างในธุรกรรมเดียว: ตัดหนี้จากเงินประกัน → ออกใบเสร็จคืนเงิน → บันทึกผลการตัดสิน
-// → ปิดสัญญา → คืนห้องเป็นว่าง · ถ้าขั้นใดพัง ต้องไม่เหลือครึ่งๆ กลางๆ ให้ตามแก้
+// ทำทุกอย่างในธุรกรรมเดียว: ออกใบเสร็จคืนเงิน → บันทึกผลการตัดสิน → ปิดสัญญา →
+// คืนห้องเป็นว่าง · ถ้าขั้นใดพัง ต้องไม่เหลือครึ่งๆ กลางๆ ให้ตามแก้
 export function completeTermination(
   db,
   contractId,
-  { moveOutDate, adjustments, overrideRefundable, overrideReason, paymentMethod, createdBy } = {}
+  {
+    moveOutDate,
+    adjustments,
+    overrideRefundable,
+    overrideReason,
+    allowOutstanding,
+    outstandingReason,
+    paymentMethod,
+    createdBy
+  } = {}
 ) {
   if (!createdBy) throw new Error('ไม่ทราบผู้ทำรายการ กรุณาเข้าสู่ระบบใหม่')
 
   const sheet = getTerminationSheet(db, contractId, { moveOutDate, adjustments })
+
+  // **ด่านบิลค้าง** — กติกาของหอคือต้องเคลียร์ให้หมดก่อน (เจ้าของหอยืนยัน 2026-08-11)
+  //
+  // ทางข้ามมีไว้สำหรับผู้เช่าที่หนีไปเฉยๆ เท่านั้น และต้องพิมพ์เหตุผล — ถ้าบล็อกตายตัว
+  // ห้องนั้นจะปล่อยใหม่ไม่ได้ตลอดไปเพราะหนี้ที่ไม่มีวันได้คืน ซึ่งแย่กว่าการยอมให้ผ่าน
+  // โดยมีบันทึกไว้ว่าใครอนุมัติและเพราะอะไร
+  const outstandingNote = String(outstandingReason ?? '').trim()
+  if (sheet.hasOutstanding) {
+    if (!allowOutstanding) {
+      throw new Error(
+        `ยังมีใบแจ้งหนี้ค้างชำระ ${formatBaht(sheet.outstandingTotalCents)} บาท — ` +
+          'ต้องเคลียร์ให้ครบก่อนย้ายออก (หรือระบุเหตุผลเพื่อย้ายออกทั้งที่ยังค้าง)'
+      )
+    }
+    if (!outstandingNote) {
+      throw new Error('กรุณาระบุเหตุผลที่ให้ย้ายออกทั้งที่ยังมีบิลค้างชำระ')
+    }
+  }
 
   // เจ้าของกดข้ามผลการตัดสินได้ แต่ต้องพิมพ์เหตุผล — ถ้าไม่เปิดช่องนี้ไว้ เจ้าของจะเลี่ยง
   // ไปพิมพ์เป็น "รายการคืนเงินเพิ่มเติม" แทน แล้วเหตุผลจริงจะหายไปจากประวัติ (ดู 004)
@@ -282,30 +313,15 @@ export function completeTermination(
 
   const isRefundable = isOverride ? Boolean(overrideRefundable) : sheet.isDepositRefundable
   const refundableDepositCents = isRefundable ? sheet.depositReceivedCents : 0
-  const settledCents = Math.min(refundableDepositCents, sheet.outstandingTotalCents)
   const netRefundCents =
     refundableDepositCents - sheet.outstandingTotalCents - sheet.adjustmentsTotalCents
 
   const now = new Date().toISOString()
   const run = db.transaction(() => {
-    // 1) ตัดหนี้จากเงินประกันเท่าที่คืนได้ ไล่จากบิลเก่าสุดก่อน
-    //    **เงินที่ถูกริบไม่ถูกนำมาตัดหนี้** refundableDepositCents จึงเป็น 0 แล้วลูปนี้ไม่ทำงานเลย
-    let remaining = settledCents
-    const settledInvoices = []
-    for (const invoice of sheet.outstandingInvoices) {
-      if (remaining <= 0) break
-      const pay = Math.min(remaining, invoice.outstandingCents)
-      settleInvoiceFromDeposit(db, invoice.invoiceId, pay, {
-        paymentDate: sheet.moveOutDate,
-        createdBy,
-        apartmentId: sheet.apartmentId,
-        now
-      })
-      settledInvoices.push({ invoiceNumber: invoice.invoiceNumber, amountCents: pay })
-      remaining -= pay
-    }
+    // ใบแจ้งหนี้ค้างชำระ **ไม่ถูกแตะเลย** — ปกติต้องเป็น 0 อยู่แล้วเพราะด่านข้างบน
+    // ส่วนกรณีที่กดข้ามมา หนี้ก้อนนั้นยังต้องตามเก็บต่อ ไม่ใช่หายไปเงียบๆ ในขั้นตอนย้ายออก
 
-    // 2) ใบเสร็จคืนเงินประกัน — ยอดติดลบ ตรงกับที่ต้นแบบแสดงป้าย "คืนเงินประกัน"
+    // ใบเสร็จคืนเงินประกัน — ยอดติดลบ ตรงกับที่ต้นแบบแสดงป้าย "คืนเงินประกัน"
     //    ออกเฉพาะเมื่อมีเงินคืนจริง · ติดลบ (ผู้เช่าค้าง) ไม่ออกใบเสร็จ เพราะยังไม่มีเงินเคลื่อน
     let refundReceipt = null
     if (netRefundCents > 0) {
@@ -358,7 +374,16 @@ export function completeTermination(
         forfeitReason: isRefundable ? null : (sheet.forfeitReason ?? 'policy_never'),
         refundable: refundableDepositCents,
         isOverride: isOverride ? 1 : 0,
-        overrideReason: isOverride ? note : null
+        // เหตุผลสองอย่างอยู่คอลัมน์เดียวกัน (004 มีช่องเดียว) ต่อกันเมื่อมีทั้งคู่ —
+        // ทั้งสองอย่างคือ "ทำไมถึงตัดสินแบบนี้" เหมือนกัน และการเพิ่มคอลัมน์ที่สอง
+        // เพื่อแยกสองประโยคไม่คุ้มกับการที่ใครสักคนอีกสิบปีต้องมาไล่ว่าอันไหนอยู่ช่องไหน
+        overrideReason:
+          [
+            isOverride ? note : null,
+            outstandingNote ? `ย้ายออกทั้งที่ค้างบิล: ${outstandingNote}` : null
+          ]
+            .filter(Boolean)
+            .join(' · ') || null
       })
 
     const terminationId = result.lastInsertRowid
@@ -392,44 +417,11 @@ export function completeTermination(
         WHERE room_id = (SELECT room_id FROM contracts WHERE contract_id = @contractId)`
     ).run({ now, contractId })
 
-    return { terminationId, settledInvoices, refundReceipt }
+    return { terminationId, refundReceipt }
   })
 
-  const { terminationId, settledInvoices, refundReceipt } = run()
-  return {
-    ...getTerminationByContract(db, contractId),
-    settledInvoices,
-    refundReceipt
-  }
-}
-
-// ตัดหนี้ด้วยเงินประกัน — ไม่ได้เรียก recordInvoicePayment เพราะตัวนั้นมีเรื่องค่าปรับ
-// ชำระล่าช้าพ่วงมาด้วย ซึ่งไม่ควรงอกขึ้นมาตอนย้ายออก (ผู้เช่าไปแล้ว ไม่มีใครให้ต่อรอง)
-//
-// **ช่องทางเป็น 'deposit' ไม่ใช่ 'cash'** — เงินก้อนนี้ไม่ได้เพิ่งเข้าหอ มันเข้ามาตั้งแต่
-// วันทำสัญญาแล้วในฐานะเงินประกัน นี่คือการย้ายกระเป๋า ถ้าลงเป็นเงินสด รายงานใบเสร็จ
-// จะนับรายรับซ้ำสองรอบจากเงินก้อนเดียว
-function settleInvoiceFromDeposit(db, invoiceId, amountCents, { paymentDate, createdBy, apartmentId, now }) {
-  const receiptNumber = nextDocumentNumber(db, apartmentId, 'receipt', paymentDate)
-  db.prepare(
-    `INSERT INTO payments (
-       invoice_id, contract_id, apartment_id, receipt_number, payment_date,
-       amount_cents, vat_amount_cents, purpose, payment_method, remark, created_by, created_at
-     ) VALUES (
-       @invoiceId, NULL, @apartmentId, @receiptNumber, @paymentDate,
-       @amountCents, 0, 'invoice', 'deposit', @remark, @createdBy, @now
-     )`
-  ).run({
-    invoiceId,
-    apartmentId,
-    receiptNumber,
-    paymentDate,
-    amountCents,
-    remark: 'หักจากเงินประกันตอนย้ายออก',
-    createdBy,
-    now
-  })
-  refreshInvoiceStatus(db, invoiceId, now)
+  const { refundReceipt } = run()
+  return { ...getTerminationByContract(db, contractId), refundReceipt }
 }
 
 // ------------------------------------------------------------------
@@ -522,6 +514,10 @@ function requireActiveContract(db, contractId) {
   if (!row) throw new Error('ไม่พบสัญญา')
   if (row.status !== 'active') throw new Error('สัญญานี้ถูกยกเลิกไปแล้ว')
   return row
+}
+
+function formatBaht(cents) {
+  return (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })
 }
 
 function isDate(value) {

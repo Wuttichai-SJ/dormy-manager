@@ -36,6 +36,10 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
   const [override, setOverride] = useState(null)
   const [overrideReason, setOverrideReason] = useState('')
 
+  // ยอมให้ย้ายออกทั้งที่ยังมีบิลค้าง (ผู้เช่าหนีไป) — ต้องมีเหตุผลเสมอ
+  const [allowOutstanding, setAllowOutstanding] = useState(false)
+  const [outstandingReason, setOutstandingReason] = useState('')
+
   // ดึงใหม่ทุกครั้งที่วันที่ออกหรือรายการเปลี่ยน — ทั้งผลการตัดสินและยอดสุทธิขยับตามวันที่
   // (สูตรอยู่ฝั่ง main ที่เดียว หน้าจอไม่คำนวณเองเด็ดขาด)
   const load = useCallback(async () => {
@@ -61,7 +65,9 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
       moveOutDate,
       adjustments,
       overrideRefundable: override,
-      overrideReason
+      overrideReason,
+      allowOutstanding,
+      outstandingReason
     })
     setBusy(false)
     if (!res.success) return setError(res.error)
@@ -73,8 +79,15 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
     return <MoveOutResult result={result} room={room} onDone={onDone} />
   }
 
-  const refundable = override === null ? sheet?.isDepositRefundable : override
   const needsReason = override !== null && sheet && override !== sheet.isDepositRefundable
+
+  // ด่านทั้งสองต้องผ่านก่อนปุ่มยืนยันจะกดได้ — ปิดปุ่มไว้ดีกว่าปล่อยให้กดแล้วเจอ error
+  // (ฝั่ง main บังคับซ้ำอยู่แล้ว ล็อกที่หน้าจออย่างเดียวไม่เคยพอ)
+  const canConfirm =
+    sheet &&
+    !(needsReason && overrideReason.trim() === '') &&
+    !(sheet.hasOutstanding && !allowOutstanding) &&
+    !(sheet.hasOutstanding && allowOutstanding && outstandingReason.trim() === '')
 
   return (
     <>
@@ -95,24 +108,69 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
             {sheet.outstandingInvoices.length === 0 ? (
               <p className="muted table-empty">ไม่มีใบแจ้งหนี้ค้างชำระ</p>
             ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>เลขที่</th>
-                    <th>รอบเดือน</th>
-                    <th className="align-right">ยอดค้าง</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sheet.outstandingInvoices.map((invoice) => (
-                    <tr key={invoice.invoiceId}>
-                      <td>{invoice.invoiceNumber}</td>
-                      <td>{invoice.billingMonth}</td>
-                      <td className="align-right">{formatBaht(invoice.outstandingCents)}</td>
+              <>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>เลขที่</th>
+                      <th>รอบเดือน</th>
+                      <th className="align-right">ยอดค้าง</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {sheet.outstandingInvoices.map((invoice) => (
+                      <tr key={invoice.invoiceId}>
+                        <td>{invoice.invoiceNumber}</td>
+                        <td>{invoice.billingMonth}</td>
+                        <td className="align-right">{formatBaht(invoice.outstandingCents)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* กติกาของหอ (เจ้าของหอยืนยัน 2026-08-11): ต้องเคลียร์บิลให้หมดก่อนย้ายออก
+                    ระบบไม่หักจากเงินประกันให้เอง — ถ้าตกลงหักจริง ให้ไปกดรับเงินที่บิลใบนั้น
+                    ตามปกติก่อน เงินก้อนนั้นจะได้มีใบเสร็จของตัวเอง */}
+                <Alert kind="warn">
+                  <strong>ต้องเคลียร์บิลค้างชำระให้ครบก่อนย้ายออก</strong> — ยังค้างอยู่{' '}
+                  {formatBaht(sheet.outstandingTotalCents)} บาท · ไปกดรับเงินที่ใบแจ้งหนี้เหล่านี้
+                  ก่อน แล้วกลับมาที่หน้านี้อีกครั้ง
+                </Alert>
+
+                {/* ผู้เช่าที่หนีไปเฉยๆ ยังต้องปิดสัญญาได้ ไม่งั้นห้องจะติดอยู่กับหนี้ที่ไม่มีวัน
+                    ได้คืนตลอดไป แล้วปล่อยห้องใหม่ไม่ได้ */}
+                <div className="field checkbox-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={allowOutstanding}
+                      onChange={(e) => {
+                        setAllowOutstanding(e.target.checked)
+                        if (!e.target.checked) setOutstandingReason('')
+                      }}
+                    />
+                    <span>ย้ายออกทั้งที่ยังมีบิลค้าง (เช่น ผู้เช่าหนีไปแล้ว)</span>
+                  </label>
+                </div>
+
+                {allowOutstanding && (
+                  <div className="field field-required">
+                    <label htmlFor="outstandingReason">
+                      เหตุผล <span className="required">* จำเป็น</span>
+                    </label>
+                    <textarea
+                      id="outstandingReason"
+                      rows={2}
+                      value={outstandingReason}
+                      onChange={(e) => setOutstandingReason(e.target.value)}
+                      placeholder="เช่น ผู้เช่าย้ายออกเองโดยไม่แจ้งและติดต่อไม่ได้"
+                    />
+                    <p className="field-hint">
+                      บิลจะยังค้างอยู่ในระบบให้ตามเก็บต่อ ไม่ได้ถูกปิดหรือหักจากเงินประกัน
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </section>
 
@@ -147,19 +205,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
               คำนวณจาก เงินประกันที่คืนได้ − ยอดรวมใบแจ้งหนี้ค้างชำระ − รายการเงินเพิ่มเติม
             </p>
 
-            {/* กติกาที่ผู้ใช้ตัดสินใจ 2026-08-11 — ต้องเขียนไว้ตรงหน้าคนกด ไม่ใช่ซ่อนในโค้ด */}
-            {refundable === false && sheet.outstandingTotalCents > 0 && (
-              <Alert kind="warn">
-                เงินประกันถูกริบ จึง<strong>นำไปหักหนี้ไม่ได้</strong> — ใบแจ้งหนี้ค้างชำระ{' '}
-                {formatBaht(sheet.outstandingTotalCents)} บาท จะยังค้างอยู่ในระบบให้ตามเก็บต่อ
-              </Alert>
-            )}
-            {refundable !== false && sheet.settledFromDepositCents > 0 && (
-              <Alert kind="warn">
-                เมื่อกดยืนยัน ใบแจ้งหนี้ค้างชำระจะถูกหักออกจากเงินประกัน{' '}
-                {formatBaht(sheet.settledFromDepositCents)} บาท และถูกทำเครื่องหมายว่าชำระแล้ว
-              </Alert>
-            )}
             {sheet.netRefundCents < 0 && (
               <p className="field-hint">
                 ยอดติดลบไม่มีการออกใบเสร็จคืนเงิน — เป็นยอดที่ผู้เช่ายังต้องจ่าย ไม่ใช่เงินที่หอต้องคืน
@@ -175,13 +220,19 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
                 type="button"
                 className="btn btn-danger"
                 onClick={submit}
-                disabled={busy || (needsReason && overrideReason.trim() === '')}
+                disabled={busy || !canConfirm}
               >
                 {busy ? 'กำลังบันทึก...' : 'ยืนยันย้ายออก'}
               </button>
             </div>
             {needsReason && overrideReason.trim() === '' && (
               <p className="field-hint">ต้องกรอกเหตุผลที่ตัดสินต่างจากกฎก่อนจึงจะยืนยันได้</p>
+            )}
+            {sheet.hasOutstanding && !allowOutstanding && (
+              <p className="field-hint">ต้องเคลียร์บิลค้างชำระให้ครบก่อนจึงจะยืนยันได้</p>
+            )}
+            {sheet.hasOutstanding && allowOutstanding && outstandingReason.trim() === '' && (
+              <p className="field-hint">ต้องกรอกเหตุผลที่ให้ย้ายออกทั้งที่ยังค้างบิลก่อน</p>
             )}
           </section>
         </>
