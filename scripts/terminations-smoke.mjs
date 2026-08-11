@@ -518,6 +518,74 @@ check('รายการที่ไม่มีชื่อ / ยอด 0 / �
   )
 })
 
+// 🔴 ผู้ใช้เจอตอนทดสอบจริง 2026-08-11: เก็บเงินเพิ่มค่าลูกบิด/ยางขอบประตูตอนตรวจห้อง
+// แล้วยอดสุทธิติดลบ ระบบขึ้นแค่ "ผู้เช่ายังค้างจ่าย" โดยไม่มีทางบันทึกว่าเก็บเงินมาแล้ว
+// และผู้เช่าไม่ได้ใบเสร็จว่าจ่ายอะไรไป
+group('ยอดสุทธิติดลบ — ผู้เช่าจ่ายเพิ่ม')
+
+const shortfall = makeContract({ startDate: '2026-01-01', termMonths: 6 })
+
+check('เก็บเงินส่วนต่างแล้ว ต้องได้ใบเสร็จยอดบวก', () => {
+  terminations.setMoveOutNotice(db, shortfall.contract.contractId, '2026-06-10')
+  const result = terminations.completeTermination(db, shortfall.contract.contractId, {
+    moveOutDate: '2026-07-01',
+    // ริบเงินประกัน (กดข้าม) แล้วยังเก็บค่าซ่อมเพิ่ม → สุทธิติดลบ
+    overrideRefundable: false,
+    overrideReason: 'ทดสอบกรณีเก็บเงินเพิ่ม',
+    adjustments: [
+      { itemType: 'service', description: 'ค่าเปลี่ยนลูกบิดประตู', amount: '450' },
+      { itemType: 'service', description: 'ค่าเปลี่ยนยางขอบประตู', amount: '350' }
+    ],
+    createdBy: staff.user_id
+  })
+
+  assert(result.netRefundCents === -80000, `สุทธิได้ ${result.netRefundCents}`)
+  assert(result.shortfallReceipt !== null, 'ต้องออกใบเสร็จรับเงินส่วนต่าง')
+  assert(result.shortfallReceipt.amountCents === 80000, `ได้ ${result.shortfallReceipt.amountCents}`)
+  assert(result.unpaidBalanceCents === 0, `ยังค้าง ${result.unpaidBalanceCents} ควรเป็น 0`)
+
+  // ใบเสร็จต้องโผล่ในรายงานด้วย ไม่ใช่มีแต่ในบันทึกการย้ายออก
+  const report = payments.listReceipts(db, apartmentId, {
+    dateFrom: '2026-07-01',
+    dateTo: '2026-07-01'
+  })
+  assert(
+    report.receipts.some((r) => r.receiptNumber === result.shortfallReceipt.receiptNumber),
+    'ใบเสร็จส่วนต่างต้องอยู่ในรายงานใบเสร็จ'
+  )
+})
+
+check('ยังเก็บเงินไม่ได้ ไม่ออกใบเสร็จ แล้วยอดค้างขึ้นในใบสรุป', () => {
+  const unpaid = makeContract({ startDate: '2026-01-01', termMonths: 6 })
+  terminations.setMoveOutNotice(db, unpaid.contract.contractId, '2026-06-10')
+  const result = terminations.completeTermination(db, unpaid.contract.contractId, {
+    moveOutDate: '2026-07-01',
+    overrideRefundable: false,
+    overrideReason: 'ทดสอบกรณีเก็บเงินไม่ได้',
+    adjustments: [{ itemType: 'service', description: 'ค่าซ่อมผนัง', amount: '1200' }],
+    collectShortfall: false,
+    createdBy: staff.user_id
+  })
+
+  assert(result.shortfallReceipt === null, 'ต้องไม่ออกใบเสร็จ')
+  assert(result.unpaidBalanceCents === 120000, `ยังค้าง ${result.unpaidBalanceCents}`)
+})
+
+// ใบสรุปที่พิมพ์ให้ผู้เช่าต้องแจกแจงได้ว่าหักอะไรไปบ้าง และเป็นของใคร
+check('ใบสรุปมีข้อมูลครบสำหรับพิมพ์: หอ ผู้เช่า รายการหัก ใบเสร็จ', () => {
+  const t = terminations.getTerminationByContract(db, shortfall.contract.contractId)
+  assert(t.apartment.name === 'หอทดสอบย้ายออก', `ได้ ${t.apartment.name}`)
+  assert(Boolean(t.tenantName), 'ต้องมีชื่อผู้เช่า')
+  assert(t.termMonths === 6, `ระยะสัญญาได้ ${t.termMonths}`)
+  assert(t.requiredNoticeDays === 15, `กำหนดแจ้งล่วงหน้าได้ ${t.requiredNoticeDays}`)
+  assert(t.items.length === 2, `รายการหักได้ ${t.items.length}`)
+  assert(t.receipts.length === 1, `ใบเสร็จได้ ${t.receipts.length}`)
+  assert(t.receipts[0].label === 'รับเงินส่วนต่างตอนย้ายออก', `ได้ ${t.receipts[0].label}`)
+})
+
+// -----------------------------------------------------
+group('รายการเก็บเงิน/คืนเงินเพิ่มเติม (ต่อ)')
+
 check('รายการถูกเก็บลงฐานข้อมูลแยกบรรทัด ไม่ใช่ยอดรวมก้อนเดียว', () => {
   const result = terminations.completeTermination(db, adjusted.contract.contractId, {
     moveOutDate: '2026-07-01',

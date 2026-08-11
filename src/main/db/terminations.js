@@ -274,6 +274,9 @@ export function completeTermination(
     overrideReason,
     allowOutstanding,
     outstandingReason,
+    // ยอดสุทธิติดลบ = ผู้เช่าต้องจ่ายเพิ่ม · true (ค่าตั้งต้น) = เก็บเงินได้แล้ว ออกใบเสร็จให้
+    // false = ยังเก็บไม่ได้ ไม่ออกใบเสร็จ แล้วยอดนั้นค้างไว้ในบันทึกการย้ายออก
+    collectShortfall,
     paymentMethod,
     createdBy
   } = {}
@@ -321,9 +324,17 @@ export function completeTermination(
     // ใบแจ้งหนี้ค้างชำระ **ไม่ถูกแตะเลย** — ปกติต้องเป็น 0 อยู่แล้วเพราะด่านข้างบน
     // ส่วนกรณีที่กดข้ามมา หนี้ก้อนนั้นยังต้องตามเก็บต่อ ไม่ใช่หายไปเงียบๆ ในขั้นตอนย้ายออก
 
-    // ใบเสร็จคืนเงินประกัน — ยอดติดลบ ตรงกับที่ต้นแบบแสดงป้าย "คืนเงินประกัน"
-    //    ออกเฉพาะเมื่อมีเงินคืนจริง · ติดลบ (ผู้เช่าค้าง) ไม่ออกใบเสร็จ เพราะยังไม่มีเงินเคลื่อน
+    // ยอดสุทธิมีได้สามทาง และ **ทั้งสามทางที่มีเงินเคลื่อนต้องมีใบเสร็จ**:
+    //   บวก  = หอคืนเงินให้ผู้เช่า      → ใบเสร็จยอดติดลบ ป้าย "คืนเงินประกัน"
+    //   ศูนย์ = ไม่มีเงินเคลื่อน         → ไม่ออกใบ
+    //   ลบ   = ผู้เช่าจ่ายเพิ่มให้หอ      → ใบเสร็จยอดบวก
+    //
+    // 🔴 เดิมทางที่สามไม่ออกใบเลย โดยให้เหตุผลว่า "ยังไม่มีเงินเคลื่อน" ซึ่งผิด — เงินเคลื่อนจริง
+    // แค่เคลื่อนคนละทิศ ผลคือระบบไม่มีทางรู้ว่าเก็บเงินส่วนต่างมาแล้วหรือยัง และผู้เช่าไม่ได้
+    // หลักฐานว่าจ่ายอะไรไป (ผู้ใช้เจอตอนทดสอบจริง 2026-08-11)
     let refundReceipt = null
+    let shortfallReceipt = null
+
     if (netRefundCents > 0) {
       refundReceipt = recordContractPayment(db, {
         contractId,
@@ -334,6 +345,18 @@ export function completeTermination(
         createdBy,
         isRefund: true,
         purpose: 'deposit'
+      })
+    } else if (netRefundCents < 0 && collectShortfall !== false) {
+      // ไม่ใช่ 'deposit' เพราะไม่ใช่เงินประกัน และไม่ใช่ 'invoice' เพราะไม่มีใบแจ้งหนี้
+      // อยู่เบื้องหลัง — เป็นเงินที่เรียกเก็บเพิ่มตอนตรวจห้อง
+      shortfallReceipt = recordContractPayment(db, {
+        contractId,
+        amount: -netRefundCents / 100,
+        paymentMethod: paymentMethod ?? 'cash',
+        paymentDate: sheet.moveOutDate,
+        remark: `รับเงินส่วนต่างตอนย้ายออก ห้อง ${sheet.roomNumber}`,
+        createdBy,
+        purpose: 'other'
       })
     }
 
@@ -417,11 +440,11 @@ export function completeTermination(
         WHERE room_id = (SELECT room_id FROM contracts WHERE contract_id = @contractId)`
     ).run({ now, contractId })
 
-    return { terminationId, refundReceipt }
+    return { terminationId, refundReceipt, shortfallReceipt }
   })
 
-  const { refundReceipt } = run()
-  return { ...getTerminationByContract(db, contractId), refundReceipt }
+  const { refundReceipt, shortfallReceipt } = run()
+  return { ...getTerminationByContract(db, contractId), refundReceipt, shortfallReceipt }
 }
 
 // ------------------------------------------------------------------
@@ -430,10 +453,23 @@ export function completeTermination(
 export function getTerminationByContract(db, contractId) {
   const row = db
     .prepare(
-      `SELECT t.*, r.room_number, c.start_date, c.deposit_refund_policy
+      // ข้อมูลหอกับชื่อผู้เช่าติดมาด้วย เพราะใบสรุปการย้ายออกที่พิมพ์ให้ผู้เช่าต้องมีหัวเอกสาร
+      // และต้องบอกได้ว่าเป็นของใคร (เหมือนที่ listReceipts ทำให้ใบเสร็จ)
+      `SELECT t.*, r.room_number, c.start_date, c.deposit_refund_policy, c.term_months,
+              c.deposit_notice_days,
+              a.name_th AS apartment_name, a.address_th AS apartment_address,
+              a.phone AS apartment_phone,
+              (SELECT tn.first_name || ' ' || tn.last_name
+                 FROM contract_tenants ct
+                 JOIN tenants tn ON tn.tenant_id = ct.tenant_id
+                WHERE ct.contract_id = c.contract_id
+                ORDER BY ct.is_primary DESC, tn.tenant_id
+                LIMIT 1) AS tenant_name
          FROM contract_terminations t
-         JOIN contracts c ON c.contract_id = t.contract_id
-         JOIN rooms r     ON r.room_id = c.room_id
+         JOIN contracts c  ON c.contract_id = t.contract_id
+         JOIN rooms r      ON r.room_id = c.room_id
+         JOIN floors f     ON f.floor_id = r.floor_id
+         JOIN apartments a ON a.apartment_id = f.apartment_id
         WHERE t.contract_id = ?`
     )
     .get(contractId)
@@ -452,32 +488,49 @@ export function getTerminationByContract(db, contractId) {
       amountCents: item.total_amount_cents
     }))
 
-  // ใบเสร็จที่เกิดจากการย้ายออกครั้งนี้ — ทั้งใบคืนเงินและใบที่หักจากเงินประกัน
-  // ตรงกับตาราง "รายละเอียดการย้ายออก" ของต้นแบบ (เลขที่ใบเสร็จ | ประเภท | ยอดเงิน)
+  // ใบเสร็จที่เกิดจากการย้ายออกครั้งนี้ — ตรงกับตาราง "รายละเอียดการย้ายออก" ของต้นแบบ
+  //
+  // เอาเฉพาะใบที่ผูกกับ *สัญญา* (คืนเงินประกัน / รับเงินส่วนต่าง) ไม่รวมใบที่ผูกกับใบแจ้งหนี้ —
+  // บิลต้องถูกเคลียร์ไปก่อนย้ายออกอยู่แล้ว ใบเสร็จของบิลจึงเป็นคนละเรื่อง และถ้ากวาดมาด้วย
+  // ใบที่บังเอิญลงวันเดียวกันจะหลุดเข้ามาปนโดยไม่เกี่ยวกับการย้ายออกเลย
   const receipts = db
     .prepare(
-      `SELECT p.receipt_number, p.payment_date, p.amount_cents, p.payment_method,
-              p.purpose, i.invoice_number
-         FROM payments p
-         LEFT JOIN invoices i ON i.invoice_id = p.invoice_id
-        WHERE p.payment_date = @moveOutDate
-          AND p.cancelled_at IS NULL
-          AND (p.contract_id = @contractId
-               OR i.contract_id = @contractId)
-        ORDER BY p.payment_id`
+      `SELECT receipt_number, payment_date, amount_cents, payment_method, purpose, remark
+         FROM payments
+        WHERE contract_id = @contractId
+          AND payment_date = @moveOutDate
+          AND cancelled_at IS NULL
+        ORDER BY payment_id`
     )
     .all({ moveOutDate: row.actual_move_out_date, contractId })
     .map((p) => ({
       receiptNumber: p.receipt_number,
       paymentDate: p.payment_date,
       amountCents: p.amount_cents,
-      label: p.invoice_number ? `หักหนี้ใบแจ้งหนี้ #${p.invoice_number}` : 'คืนเงินประกัน'
+      // ยอดติดลบ = เงินออกจากหอ · ยอดบวก = เงินเข้าหอ อ่านจากทิศของตัวเลขตรงๆ
+      label: p.amount_cents < 0 ? 'คืนเงินประกัน' : 'รับเงินส่วนต่างตอนย้ายออก'
     }))
+
+  // ยอดที่ผู้เช่าต้องจ่ายเพิ่มแต่ยังไม่ได้จ่าย — สุทธิติดลบทั้งที่ไม่มีใบเสร็จรับเงินส่วนต่าง
+  // ใบสรุปที่พิมพ์ให้ผู้เช่าต้องบอกให้ชัดว่ายังค้าง ไม่ใช่ปล่อยให้เข้าใจว่าจบแล้ว
+  const collectedCents = receipts
+    .filter((r) => r.amountCents > 0)
+    .reduce((sum, r) => sum + r.amountCents, 0)
+  const netRefundCents = row.net_refund_amount_cents
+  const unpaidBalanceCents = netRefundCents < 0 ? Math.max(0, -netRefundCents - collectedCents) : 0
 
   return {
     terminationId: row.termination_id,
     contractId: row.contract_id,
     roomNumber: row.room_number,
+    tenantName: row.tenant_name ?? null,
+    apartment: {
+      name: row.apartment_name,
+      address: row.apartment_address,
+      phone: row.apartment_phone
+    },
+    termMonths: row.term_months,
+    requiredNoticeDays: row.deposit_notice_days,
     noticeDate: row.notice_date,
     isNoticeGiven: row.is_notice_given === 1,
     noticeDaysGiven: row.notice_days_given,
@@ -490,7 +543,9 @@ export function getTerminationByContract(db, contractId) {
     refundableDepositCents: row.refundable_deposit_cents,
     outstandingTotalCents: row.unpaid_invoices_total_cents,
     adjustmentsTotalCents: row.additional_adjustments_total_cents,
-    netRefundCents: row.net_refund_amount_cents,
+    netRefundCents,
+    // > 0 = เก็บเงินส่วนต่างยังไม่ได้ ยังต้องตามเก็บ
+    unpaidBalanceCents,
     isManualOverride: row.is_manual_override === 1,
     overrideReason: row.override_reason,
     status: row.status,

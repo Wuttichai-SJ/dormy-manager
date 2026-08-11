@@ -51,6 +51,7 @@ export function registerTerminationHandlers() {
       overrideReason: payload.overrideReason,
       allowOutstanding: payload.allowOutstanding,
       outstandingReason: payload.outstandingReason,
+      collectShortfall: payload.collectShortfall,
       paymentMethod: payload.paymentMethod,
       createdBy: requireSessionUserId()
     })

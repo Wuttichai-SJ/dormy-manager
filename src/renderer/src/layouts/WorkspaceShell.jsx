@@ -134,6 +134,8 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
               <RoomDetailPage
                 apartment={apartment}
                 room={openRoom}
+                // ชื่อผู้ทำรายการไปขึ้นช่องลงชื่อในใบสรุปการย้ายออก
+                user={user}
                 onBack={() => setOpenRoom(null)}
               />
             ) : (

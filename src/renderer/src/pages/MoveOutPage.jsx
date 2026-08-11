@@ -4,6 +4,10 @@ import Alert from '../components/Alert.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { formatBaht } from '../format.js'
+import { PAYMENT_METHODS } from '../constants.js'
+import MoveOutDocument from '../components/MoveOutDocument.jsx'
+import PrintDialog from '../components/PrintDialog.jsx'
+import { revealPdf, savePdf } from '../services/printService.js'
 import { completeTermination, getTerminationSheet } from '../services/terminationService.js'
 
 // หน้าสรุปย้ายออก — โครงตามคู่มือต้นแบบ (yeeraf "ยกเลิกสัญญาเช่า / ย้ายออก" ขั้น 5-7):
@@ -23,7 +27,7 @@ const ITEM_TABS = [
   { key: 'discount_refund', label: 'ส่วนลด / คืนเงิน', hint: 'กรอกเป็นจำนวนบวก ระบบจะบวกกลับเข้ายอดเงินคืนให้เอง' }
 ]
 
-export default function MoveOutPage({ contract, room, onBack, onDone }) {
+export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }) {
   const [moveOutDate, setMoveOutDate] = useState(todayIso())
   const [adjustments, setAdjustments] = useState([])
   const [sheet, setSheet] = useState(null)
@@ -39,6 +43,12 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
   // ยอมให้ย้ายออกทั้งที่ยังมีบิลค้าง (ผู้เช่าหนีไป) — ต้องมีเหตุผลเสมอ
   const [allowOutstanding, setAllowOutstanding] = useState(false)
   const [outstandingReason, setOutstandingReason] = useState('')
+
+  // ช่องทางของเงินที่เคลื่อนในวันย้ายออก (คืนให้ผู้เช่า หรือรับส่วนต่างจากผู้เช่า)
+  const [paymentMethod, setPaymentMethod] = useState('cash')
+  // ยอดสุทธิติดลบ = ผู้เช่าต้องจ่ายเพิ่ม · ค่าตั้งต้นคือเก็บได้แล้ว เพราะเจ้าของหอตรวจห้อง
+  // แล้วบอกผู้เช่าตรงนั้น ผู้เช่าจ่ายก่อนออกจากหอ — เก็บไม่ได้เป็นกรณียกเว้น
+  const [collectShortfall, setCollectShortfall] = useState(true)
 
   // ดึงใหม่ทุกครั้งที่วันที่ออกหรือรายการเปลี่ยน — ทั้งผลการตัดสินและยอดสุทธิขยับตามวันที่
   // (สูตรอยู่ฝั่ง main ที่เดียว หน้าจอไม่คำนวณเองเด็ดขาด)
@@ -67,7 +77,9 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
       overrideRefundable: override,
       overrideReason,
       allowOutstanding,
-      outstandingReason
+      outstandingReason,
+      collectShortfall,
+      paymentMethod
     })
     setBusy(false)
     if (!res.success) return setError(res.error)
@@ -76,7 +88,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
   }
 
   if (result) {
-    return <MoveOutResult result={result} room={room} onDone={onDone} />
+    return <MoveOutResult result={result} room={room} onDone={onDone} signedBy={signedBy} />
   }
 
   const needsReason = override !== null && sheet && override !== sheet.isDepositRefundable
@@ -205,10 +217,28 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
               คำนวณจาก เงินประกันที่คืนได้ − ยอดรวมใบแจ้งหนี้ค้างชำระ − รายการเงินเพิ่มเติม
             </p>
 
+            {/* 🔴 ยอดติดลบ = **เงินไหลเข้าหอ** ไม่ใช่ "ไม่มีอะไรเกิดขึ้น" — ต้องออกใบเสร็จให้
+                ไม่งั้นระบบไม่รู้ว่าเก็บมาแล้วหรือยัง และผู้เช่าไม่ได้หลักฐานว่าจ่ายอะไรไป
+                (ผู้ใช้เจอตอนทดสอบจริง 2026-08-11) */}
             {sheet.netRefundCents < 0 && (
-              <p className="field-hint">
-                ยอดติดลบไม่มีการออกใบเสร็จคืนเงิน — เป็นยอดที่ผู้เช่ายังต้องจ่าย ไม่ใช่เงินที่หอต้องคืน
-              </p>
+              <div className="move-out-shortfall">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={collectShortfall}
+                    onChange={(e) => setCollectShortfall(e.target.checked)}
+                  />
+                  <span>
+                    รับเงินส่วนต่าง {formatBaht(-sheet.netRefundCents)} บาท จากผู้เช่าแล้ว
+                    (ออกใบเสร็จให้)
+                  </span>
+                </label>
+                {!collectShortfall && (
+                  <p className="field-hint">
+                    ไม่ออกใบเสร็จ — ยอดนี้จะขึ้นในใบสรุปการย้ายออกว่ายังค้างชำระ
+                  </p>
+                )}
+              </div>
             )}
 
             <div className="move-out-confirm">
@@ -216,6 +246,26 @@ export default function MoveOutPage({ contract, room, onBack, onDone }) {
                 <label htmlFor="moveOutDate">วันที่ออก</label>
                 <DateField id="moveOutDate" value={moveOutDate} onChange={setMoveOutDate} />
               </div>
+
+              {/* ช่องทางโผล่เฉพาะเมื่อมีเงินเคลื่อนจริง — ยอดสุทธิเป็น 0 ไม่มีใบเสร็จให้ออก */}
+              {(sheet.netRefundCents > 0 || (sheet.netRefundCents < 0 && collectShortfall)) && (
+                <div className="field">
+                  <label htmlFor="moveOutMethod">
+                    {sheet.netRefundCents > 0 ? 'คืนเงินโดย' : 'รับเงินโดย'}
+                  </label>
+                  <select
+                    id="moveOutMethod"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m.key} value={m.key}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button
                 type="button"
                 className="btn btn-danger"
@@ -425,64 +475,73 @@ function AdjustmentsCard({ items, onAdd, onRemove, totalCents, onError }) {
 // ------------------------------------------------------------------
 // หลังยืนยัน — ตรงกับหน้า "รายละเอียดการย้ายออก" ของต้นแบบ
 // ------------------------------------------------------------------
-function MoveOutResult({ result, room, onDone }) {
+function MoveOutResult({ result, room, onDone, signedBy }) {
+  const [printing, setPrinting] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function onSavePdf() {
+    setError('')
+    setBusy(true)
+    const res = await savePdf(`ใบสรุปการย้ายออก-ห้อง${result.roomNumber}-${result.moveOutDate}`)
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    if (res.data.cancelled) return
+    showToast('บันทึกไฟล์ PDF แล้ว')
+    revealPdf(res.data.filePath)
+  }
+
   return (
     <>
       <h2 className="room-detail-title">รายละเอียดการย้ายออก — ห้อง {room.roomNumber}</h2>
+      <Alert>{error}</Alert>
 
-      <section className="panel">
-        {result.receipts.length === 0 ? (
-          <p className="muted table-empty">ไม่มีใบเสร็จจากการย้ายออกครั้งนี้</p>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>เลขที่ใบเสร็จรับเงิน</th>
-                <th>ประเภท</th>
-                <th className="align-right">ยอดเงิน</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.receipts.map((receipt) => (
-                <tr key={receipt.receiptNumber}>
-                  <td>{receipt.receiptNumber}</td>
-                  <td>{receipt.label}</td>
-                  <td className="align-right">
-                    <span className={receipt.amountCents < 0 ? 'negative' : undefined}>
-                      {formatBaht(receipt.amountCents)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {result.unpaidBalanceCents > 0 && (
+        <Alert kind="warn">
+          ยังไม่ได้รับเงินส่วนต่าง {formatBaht(result.unpaidBalanceCents)} บาท — ยอดนี้ขึ้นในใบสรุป
+          ว่ายังค้างชำระ และไม่มีใบเสร็จรับเงินออกให้
+        </Alert>
+      )}
 
-        <p className="move-out-total">
-          {result.netRefundCents >= 0 ? (
-            <strong className="move-out-refund">
-              คืนเงินผู้เช่า {formatBaht(result.netRefundCents)} บาท
-            </strong>
-          ) : (
-            <strong className="move-out-owed">
-              ผู้เช่ายังค้างจ่าย {formatBaht(-result.netRefundCents)} บาท
-            </strong>
-          )}
-        </p>
-
-        {!result.isDepositRefundable && (
-          <Alert kind="warn">
-            ริบเงินประกัน {formatBaht(result.depositSnapshotCents)} บาท — {result.forfeitReasonLabel}
-            {result.isManualOverride && ` (เจ้าของหอตัดสินเอง: ${result.overrideReason})`}
-          </Alert>
-        )}
-
-        <div className="card-foot">
-          <button type="button" className="btn" onClick={onDone}>
-            เสร็จสิ้น
-          </button>
+      <section className="panel invoice-doc">
+        {/* ปุ่มถูกซ่อนตอนพิมพ์ด้วย @media print (คลาส invoice-doc-tools) ไม่ติดไปบนกระดาษ */}
+        <div className="invoice-doc-tools">
+          <div className="invoice-doc-actions">
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => setPrinting(true)}
+              disabled={busy}
+            >
+              <Icon name="printer" />
+              <span>พิมพ์ใบสรุปการย้ายออก</span>
+            </button>
+            <button type="button" className="btn btn-sm" onClick={onSavePdf} disabled={busy}>
+              <Icon name="download" />
+              <span>{busy ? 'กำลังบันทึก...' : 'บันทึก PDF'}</span>
+            </button>
+          </div>
         </div>
+
+        <MoveOutDocument termination={result} signedBy={signedBy} />
       </section>
+
+      <div className="card-foot move-out-done">
+        <button type="button" className="btn" onClick={onDone}>
+          เสร็จสิ้น
+        </button>
+      </div>
+
+      {printing && (
+        <PrintDialog
+          title="พิมพ์ใบสรุปการย้ายออก"
+          onClose={() => setPrinting(false)}
+          onPrinted={() => {
+            setPrinting(false)
+            showToast('ส่งเอกสารเข้าเครื่องพิมพ์แล้ว')
+          }}
+        />
+      )}
     </>
   )
 }

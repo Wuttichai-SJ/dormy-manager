@@ -20,7 +20,7 @@ import { setMoveOutNotice } from '../services/terminationService.js'
 // ห้องไม่ว่าง → รายละเอียดสัญญา · เลขมิเตอร์วันเข้าพัก · บริการรายเดือน · ข้อมูลผู้เช่า
 //
 // ส่วนที่ต้นแบบมีแต่เราตัดทิ้งถาวร: ข้อมูลรถ
-export default function RoomDetailPage({ apartment, room, onBack }) {
+export default function RoomDetailPage({ apartment, room, onBack, user }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(null) // 'monthly' | 'daily' | null
@@ -68,6 +68,8 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
       <MoveOutPage
         contract={active}
         room={room}
+        // ชื่อในช่องลงชื่อท้ายใบสรุป = คนที่กำลังทำรายการย้ายออกใบนี้
+        signedBy={user?.fullName}
         onBack={() => setMovingOut(false)}
         onDone={() => {
           setMovingOut(false)
