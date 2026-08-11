@@ -530,6 +530,65 @@ check('ค่าเสียหายเกินเงินประกัน 
   assert(sheet.netRefundCents === -100000, `สุทธิได้ ${sheet.netRefundCents}`)
 })
 
+// 🔴 ผู้ใช้เจอ 2026-08-11: ติ๊ก "ตัดสินต่างจากกฎ — คืนเงินประกันให้" แล้วยอดสรุปบนจอ
+// ยังขึ้น 0.00 เพราะตัวคำนวณไม่เคยรู้เรื่อง override เลย
+check('ส่ง override มาแล้ว ยอดสรุปต้องเปลี่ยนทันที ไม่ต้องรอกดยืนยัน', () => {
+  const early = makeContract({ startDate: '2026-03-01', termMonths: 12 })
+  const base = { contractId: early.contract.contractId, moveOutDate: '2026-06-01' }
+
+  const byRule = terminations.getTerminationSheet(db, base.contractId, {
+    moveOutDate: base.moveOutDate
+  })
+  assert(byRule.isDepositRefundable === false, 'ตามกฎต้องริบ')
+  assert(byRule.appliedRefundable === false, 'ไม่ได้ส่ง override มา ต้องใช้ผลตามกฎ')
+  assert(byRule.netRefundCents === 0, `ตามกฎได้ ${byRule.netRefundCents}`)
+
+  const overridden = terminations.getTerminationSheet(db, base.contractId, {
+    moveOutDate: base.moveOutDate,
+    overrideRefundable: true
+  })
+  // ผลตามกฎยังต้องรายงานว่า "ริบ" เพื่อให้หน้าจอบอกได้ว่าคนตัดสินต่างจากกฎอย่างไร
+  assert(overridden.isDepositRefundable === false, 'ผลตามกฎต้องไม่เปลี่ยน')
+  assert(overridden.appliedRefundable === true, 'ผลที่ใช้จริงต้องเป็นคืน')
+  assert(overridden.depositRefundCents === 500000, `คืนได้ ${overridden.depositRefundCents}`)
+  assert(overridden.netRefundCents === 500000, `สุทธิได้ ${overridden.netRefundCents}`)
+})
+
+// ใบสรุปตัวเดียวใช้ทั้งใบพรีวิวก่อนยืนยันและใบที่อ่านจากบันทึก — ชื่อฟิลด์ต้องตรงกัน
+// (เคยพลาด: ใบพรีวิวอ่าน depositSnapshotCents ที่ไม่มีในผลของ getTerminationSheet
+//  แล้วแสดงเงินประกันเป็น 0.00 เงียบๆ เพราะ formatBaht(undefined) ให้ 0)
+check('ใบพรีวิวกับใบที่บันทึกแล้ว ใช้ชื่อฟิลด์ชุดเดียวกัน', () => {
+  const same = makeContract({ startDate: '2026-01-01', termMonths: 6 })
+  terminations.setMoveOutNotice(db, same.contract.contractId, '2026-06-10')
+  const adjustment = [{ itemType: 'service', description: 'ค่าเปลี่ยนลูกบิดประตู', amount: '50' }]
+
+  const sheet = terminations.getTerminationSheet(db, same.contract.contractId, {
+    moveOutDate: '2026-07-01',
+    adjustments: adjustment
+  })
+  const saved = terminations.completeTermination(db, same.contract.contractId, {
+    moveOutDate: '2026-07-01',
+    adjustments: adjustment,
+    createdBy: staff.user_id
+  })
+
+  for (const field of [
+    'depositSnapshotCents',
+    'depositBalanceCents',
+    'damageTotalCents',
+    'depositRefundCents',
+    'forfeitedCents',
+    'excessDamageCents',
+    'netRefundCents'
+  ]) {
+    assert(sheet[field] !== undefined, `ใบพรีวิวไม่มี ${field}`)
+    assert(saved[field] !== undefined, `ใบที่บันทึกแล้วไม่มี ${field}`)
+    assert(sheet[field] === saved[field], `${field}: พรีวิว ${sheet[field]} ≠ บันทึก ${saved[field]}`)
+  }
+  // 5,000 − 50 = 4,950
+  assert(saved.depositBalanceCents === 495000, `คงเหลือได้ ${saved.depositBalanceCents}`)
+})
+
 // เงินคนละก้อนกับเงินประกัน จึงไม่ถูกริบไปด้วย (จรรยาบรรณ — ผู้ใช้ยืนยัน)
 check('ส่วนลด/คืนเงินยังได้คืน แม้เงินประกันถูกริบ', () => {
   const owed = makeContract({ startDate: '2026-03-01', termMonths: 12 })

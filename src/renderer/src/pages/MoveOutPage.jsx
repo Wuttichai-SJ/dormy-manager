@@ -54,18 +54,22 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
   // ออกจากหอ ไม่ใช่พิมพ์ได้หลังปิดสัญญาไปแล้วซึ่งผู้เช่าเดินไปแล้ว
   const [previewing, setPreviewing] = useState(false)
 
-  // ดึงใหม่ทุกครั้งที่วันที่ออกหรือรายการเปลี่ยน — ทั้งผลการตัดสินและยอดสุทธิขยับตามวันที่
+  // ดึงใหม่ทุกครั้งที่วันที่ออก รายการ **หรือช่องติ๊กข้ามกฎ** เปลี่ยน
   // (สูตรอยู่ฝั่ง main ที่เดียว หน้าจอไม่คำนวณเองเด็ดขาด)
+  //
+  // 🔴 เดิม `override` ไม่ได้อยู่ในรายการนี้ และ API ก็ไม่รับมันด้วย ยอดสรุปจึงค้างเป็นของ
+  // "ตามกฎ" ตลอด ต่อให้ติ๊กว่าจะคืนเงินให้ ตัวเลขที่ถูกไปโผล่ตอนกดยืนยันซึ่งสายไปแล้ว
   const load = useCallback(async () => {
     const res = await getTerminationSheet({
       contractId: contract.contractId,
       moveOutDate,
-      adjustments
+      adjustments,
+      overrideRefundable: override
     })
     if (!res.success) return setError(res.error)
     setError('')
     setSheet(res.data)
-  }, [contract.contractId, moveOutDate, adjustments])
+  }, [contract.contractId, moveOutDate, adjustments, override])
 
   useEffect(() => {
     load()
@@ -338,7 +342,8 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
 // ระบบนับเดือนถูกไหม ก่อนจะบอกผู้เช่าว่าไม่ได้เงินคืน
 function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrideReason }) {
   const systemSaysRefund = sheet.isDepositRefundable
-  const current = override === null ? systemSaysRefund : override
+  // ผลที่ใช้จริงมาจากฝั่ง main แล้ว (sheet คิดใหม่เมื่อติ๊กช่องนี้) ไม่ต้องเดาเองบนหน้าจอ
+  const current = sheet.appliedRefundable
   const isOverriding = override !== null && override !== systemSaysRefund
 
   return (
@@ -375,7 +380,10 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
 
       <div className={'verdict-box' + (current ? ' verdict-refund' : ' verdict-forfeit')}>
         <strong>
-          {current ? 'คืนเงินประกันเต็มจำนวน' : 'ริบเงินประกันทั้งหมด'}
+          {/* บอกยอดจริงหลังหักค่าเสียหายแล้ว ไม่ใช่คำว่า "เต็มจำนวน" ซึ่งไม่จริงเมื่อมีค่าซ่อม */}
+          {current
+            ? `คืนเงินประกัน ${formatBaht(sheet.depositRefundCents)} บาท`
+            : `ริบเงินประกัน ${formatBaht(sheet.forfeitedCents)} บาท`}
           {isOverriding && ' (เจ้าของหอตัดสินเอง)'}
         </strong>
         {!systemSaysRefund && <span>ตามกฎของสัญญา: {sheet.forfeitReasonLabel}</span>}

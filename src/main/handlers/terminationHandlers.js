@@ -39,8 +39,12 @@ export function registerTerminationHandlers() {
 
   // หน้าสรุปก่อนยืนยัน — คำนวณอย่างเดียว ยังไม่เขียนอะไร หน้าจอเรียกซ้ำได้ทุกครั้งที่
   // ผู้ใช้เปลี่ยนวันที่ออกหรือเพิ่มรายการ
-  handle('termination:sheet', ({ contractId, moveOutDate, adjustments }) =>
-    getTerminationSheet(getDatabase(), contractId, { moveOutDate, adjustments })
+  handle('termination:sheet', ({ contractId, moveOutDate, adjustments, overrideRefundable }) =>
+    getTerminationSheet(getDatabase(), contractId, {
+      moveOutDate,
+      adjustments,
+      overrideRefundable
+    })
   )
 
   handle('termination:complete', (payload) => {

@@ -19,26 +19,39 @@ export default function MoveOutDocument({ termination, signedBy }) {
   //
   // แจกแจงทีละบรรทัด ไม่ใช่ยอดรวมก้อนเดียว — "หักไป 800 บาท" ที่อธิบายไม่ได้
   // คือคำตอบที่ผู้เช่าไม่ยอมรับ
+  // **โครงตารางเหมือนกันทั้งสามกรณี** (ผู้ใช้กำหนดรูปแบบนี้ 2026-08-11) — คงเหลือติดลบได้
+  // และแถว "ริบเงินประกัน" ขึ้นเสมอแม้เป็น 0.00
+  //
+  // เหตุผลที่ไม่ซ่อนแถวที่เป็น 0: คนที่อ่านใบนี้ซ้ำๆ จำตำแหน่งบรรทัดได้ และการที่
+  // "ริบเงินประกัน 0.00" ปรากฏอยู่ แปลว่าระบบตัดสินแล้วว่าไม่ริบ — ต่างจากแถวที่หายไป
+  // ซึ่งแยกไม่ออกว่าไม่ริบหรือระบบลืมคิด (หลักเดียวกับแถว VAT บนใบแจ้งหนี้)
   const depositRows = [{ label: 'เงินประกันที่รับไว้', amount: t.depositSnapshotCents }]
 
   for (const item of t.items.filter((i) => i.itemType === 'service')) {
-    depositRows.push({ label: `หัก ${item.description}`, amount: -Math.abs(item.amountCents) })
+    depositRows.push({ label: item.description, amount: -Math.abs(item.amountCents) })
   }
 
-  if (t.damageTotalCents > 0) {
-    depositRows.push({
-      label: t.excessDamageCents > 0 ? 'ค่าเสียหายเกินเงินประกัน' : 'คงเหลือ',
-      amount: t.excessDamageCents > 0 ? -t.excessDamageCents : t.depositAfterDamageCents,
-      subtotal: true
-    })
+  depositRows.push({
+    label: 'คงเหลือ',
+    amount: t.depositBalanceCents,
+    subtotal: true
+  })
+
+  // คงเหลือติดลบ = เงินประกันไม่พอกับความเสียหาย ต้องบอกเป็นคำ ไม่ใช่ให้อ่านเครื่องหมายลบเอง
+  if (t.excessDamageCents > 0) {
+    depositRows.push({ label: 'ผู้เช่าจ่ายเพิ่ม', amount: t.excessDamageCents })
   }
 
-  if (t.forfeitedCents > 0) {
-    depositRows.push({
-      label: `ริบเงินประกัน — ${t.forfeitReasonLabel}`,
-      amount: -t.forfeitedCents
-    })
-  }
+  depositRows.push({
+    label: t.forfeitedCents > 0 ? `ริบเงินประกัน — ${t.forfeitReasonLabel}` : 'ริบเงินประกัน',
+    amount: -t.forfeitedCents
+  })
+
+  depositRows.push({
+    label: 'คืนให้ผู้เช่า',
+    amount: t.depositRefundCents,
+    subtotal: true
+  })
 
   // **กลุ่มที่ 2 — เงินที่ต้องชำระแยก** ไม่แตะเงินประกัน เพราะไม่ใช่ความเสียหาย
   const chargeRows = t.items

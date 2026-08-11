@@ -142,7 +142,15 @@ export function evaluateDepositRefund({
 //
 // adjustments = [{ itemType, description, amount }] — บวก = เก็บเพิ่ม, ส่วนลดส่งเป็นบวกแล้ว
 // ระบบกลับเครื่องหมายให้เอง (ผู้ใช้ไม่ควรต้องพิมพ์เลขติดลบ เหมือนที่ทำกับส่วนลดบนบิล)
-export function getTerminationSheet(db, contractId, { moveOutDate, adjustments } = {}) {
+//
+// **overrideRefundable ต้องเข้ามาถึงที่นี่ด้วย** — เดิมตัวนี้คิดตามกฎอย่างเดียว หน้าจอจึงแสดง
+// ยอดสรุปเป็นของ "ตามกฎ" ค้างไว้ ต่อให้เจ้าของหอติ๊กว่าจะคืนเงินให้ ตัวเลขที่ถูกไปโผล่ตอน
+// กดยืนยันซึ่งสายไปแล้ว — หน้าจอโกหกทั้งที่ข้อมูลที่บันทึกถูก (ผู้ใช้เจอ 2026-08-11)
+export function getTerminationSheet(
+  db,
+  contractId,
+  { moveOutDate, adjustments, overrideRefundable } = {}
+) {
   const contract = requireActiveContract(db, contractId)
   const outDate = moveOutDate ?? todayIso()
   if (!isDate(outDate)) throw new Error('กรุณาระบุวันที่ย้ายออก')
@@ -185,10 +193,18 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
   const outstandingTotalCents = outstandingInvoices.reduce((sum, i) => sum + i.outstandingCents, 0)
 
   const items = normalizeAdjustments(adjustments)
+
+  // ผลตัดสินที่ "ใช้จริง" — เจ้าของหอกดข้ามกฎได้ (ต้องมีเหตุผลตอนยืนยัน)
+  // เก็บผลตามกฎไว้ต่างหาก เพราะหน้าจอต้องบอกได้ว่ากฎว่าอย่างไร แล้วคนตัดสินต่างไปอย่างไร
+  const appliedRefundable =
+    overrideRefundable === undefined || overrideRefundable === null
+      ? verdict.isRefundable
+      : Boolean(overrideRefundable)
+
   const money = summariseMoney({
     depositReceivedCents: deposit.receivedCents,
     items,
-    isRefundable: verdict.isRefundable
+    isRefundable: appliedRefundable
   })
 
   // 🔴 **ต้องเคลียร์บิลค้างให้หมดก่อนย้ายออก** (เจ้าของหอยืนยัน 2026-08-11)
@@ -229,7 +245,10 @@ export function getTerminationSheet(db, contractId, { moveOutDate, adjustments }
     depositPolicy: contract.deposit_refund_policy,
     depositReceivedCents: deposit.receivedCents,
     depositAgreedCents: deposit.requiredCents,
+    // ผลตามกฎของสัญญา — หน้าจอใช้เทียบว่าคนตัดสินต่างจากกฎหรือไม่
     isDepositRefundable: verdict.isRefundable,
+    // ผลที่ใช้คำนวณเงินจริงในใบนี้ (ต่างกันเมื่อเจ้าของหอกดข้ามกฎ)
+    appliedRefundable,
     forfeitReason: verdict.forfeitReason,
     forfeitReasonLabel: verdict.forfeitReason
       ? FORFEIT_REASON_LABELS[verdict.forfeitReason]
@@ -270,9 +289,13 @@ export function summariseMoney({ depositReceivedCents, items, isRefundable }) {
   const refundItemsTotalCents = sumOf('discount_refund')
 
   // ค่าเสียหายกินเงินประกันก่อนเสมอ — ทั้งกรณีริบและไม่ริบ
-  const depositAfterDamageCents = Math.max(0, depositReceivedCents - damageTotalCents)
+  //
+  // แยกสองตัว: `depositBalanceCents` **ติดลบได้** เอาไว้แสดงบรรทัด "คงเหลือ" บนใบสรุป
+  // ส่วน `depositAfterDamageCents` คือเงินที่เหลืออยู่จริงให้ริบหรือคืน จึงไม่ต่ำกว่า 0
+  const depositBalanceCents = depositReceivedCents - damageTotalCents
+  const depositAfterDamageCents = Math.max(0, depositBalanceCents)
   // ค่าเสียหายเกินเงินประกัน ส่วนที่เกินคือเงินที่ผู้เช่าต้องควักเพิ่ม
-  const excessDamageCents = Math.max(0, damageTotalCents - depositReceivedCents)
+  const excessDamageCents = Math.max(0, -depositBalanceCents)
 
   const forfeitedCents = isRefundable ? 0 : depositAfterDamageCents
   const depositRefundCents = isRefundable ? depositAfterDamageCents : 0
@@ -281,6 +304,11 @@ export function summariseMoney({ depositReceivedCents, items, isRefundable }) {
   const buildingReturnsCents = depositRefundCents + refundItemsTotalCents
 
   return {
+    // **ชื่อเดียวกับที่เก็บในฐานข้อมูล** เพื่อให้ใบสรุปตัวเดียวใช้ได้ทั้งใบพรีวิวก่อนยืนยัน
+    // และใบที่อ่านจากบันทึก — เคยพลาดตรงนี้มาแล้ว: สองแหล่งใช้ชื่อฟิลด์ต่างกัน แล้วใบพรีวิว
+    // แสดงเงินประกันเป็น 0.00 อย่างเงียบสนิท เพราะ `formatBaht(undefined)` ให้ 0
+    depositSnapshotCents: depositReceivedCents,
+    depositBalanceCents,
     damageTotalCents,
     meterTotalCents,
     refundItemsTotalCents,
@@ -344,7 +372,13 @@ export function completeTermination(
 ) {
   if (!createdBy) throw new Error('ไม่ทราบผู้ทำรายการ กรุณาเข้าสู่ระบบใหม่')
 
-  const sheet = getTerminationSheet(db, contractId, { moveOutDate, adjustments })
+  // ส่ง override เข้าไปด้วย ตัวเลขที่บันทึกจึงเป็นตัวเดียวกับที่ผู้ใช้เห็นบนหน้าจอเป๊ะ
+  // (ตัวคำนวณเดียว ทางเดียว — ถ้าคิดซ้ำที่นี่อีกรอบ วันหนึ่งสองทางจะให้คำตอบต่างกัน)
+  const sheet = getTerminationSheet(db, contractId, {
+    moveOutDate,
+    adjustments,
+    overrideRefundable
+  })
 
   // **ด่านบิลค้าง** — กติกาของหอคือต้องเคลียร์ให้หมดก่อน (เจ้าของหอยืนยัน 2026-08-11)
   //
@@ -375,14 +409,8 @@ export function completeTermination(
     throw new Error('กรุณาระบุเหตุผลที่ตัดสินต่างจากกฎของสัญญา')
   }
 
-  const isRefundable = isOverride ? Boolean(overrideRefundable) : sheet.isDepositRefundable
-  // คิดใหม่ด้วยตัวคำนวณตัวเดียวกับพรีวิว — ต่างกันแค่ผลตัดสินที่เจ้าของอาจกดข้าม
-  const money = summariseMoney({
-    depositReceivedCents: sheet.depositReceivedCents,
-    items: sheet.items,
-    isRefundable
-  })
-  const netRefundCents = money.netRefundCents
+  const isRefundable = sheet.appliedRefundable
+  const netRefundCents = sheet.netRefundCents
 
   const now = new Date().toISOString()
   const run = db.transaction(() => {
@@ -452,7 +480,7 @@ export function completeTermination(
         moveOutDate: sheet.moveOutDate,
         depositSnapshot: sheet.depositReceivedCents,
         unpaid: sheet.outstandingTotalCents,
-        adjustments: money.adjustmentsTotalCents,
+        adjustments: sheet.adjustmentsTotalCents,
         netRefund: netRefundCents,
         now,
         isNoticeGiven: sheet.isNoticeGiven ? 1 : 0,
@@ -461,7 +489,7 @@ export function completeTermination(
         isRefundable: isRefundable ? 1 : 0,
         forfeitReason: isRefundable ? null : (sheet.forfeitReason ?? 'policy_never'),
         // เงินประกันส่วนที่คืนได้จริง = หลังหักค่าเสียหายแล้ว ไม่ใช่ยอดเต็มที่รับมา
-        refundable: money.depositRefundCents,
+        refundable: sheet.depositRefundCents,
         isOverride: isOverride ? 1 : 0,
         // เหตุผลสองอย่างอยู่คอลัมน์เดียวกัน (004 มีช่องเดียว) ต่อกันเมื่อมีทั้งคู่ —
         // ทั้งสองอย่างคือ "ทำไมถึงตัดสินแบบนี้" เหมือนกัน และการเพิ่มคอลัมน์ที่สอง
@@ -610,7 +638,8 @@ export function getTerminationByContract(db, contractId) {
     noticeDaysGiven: row.notice_days_given,
     moveOutDate: row.actual_move_out_date,
     monthsStayed: row.months_stayed_total,
-    depositSnapshotCents: row.deposit_snapshot_cents,
+    // `depositSnapshotCents` มาจาก ...money ข้างล่าง (ค่าเดียวกับ row.deposit_snapshot_cents
+    // ที่ส่งเข้าไปเป็นตัวตั้ง) — ชื่อเดียวกับที่ใบพรีวิวใช้ เอกสารจึงมีทางอ่านทางเดียว
     isDepositRefundable: row.is_deposit_refundable === 1,
     forfeitReason: row.forfeit_reason,
     forfeitReasonLabel: row.forfeit_reason ? FORFEIT_REASON_LABELS[row.forfeit_reason] : null,

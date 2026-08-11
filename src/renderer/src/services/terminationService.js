@@ -12,8 +12,15 @@ export function setMoveOutNotice(contractId, noticeDate) {
 // หน้าสรุปก่อนยืนยัน — คำนวณอย่างเดียว ยังไม่เขียนอะไรลงฐานข้อมูล
 // เรียกใหม่ทุกครั้งที่เปลี่ยนวันที่ออกหรือแก้รายการ เพราะทั้งผลการตัดสินเรื่องเงินประกัน
 // และยอดสุทธิขยับตามวันที่ (สูตรอยู่ฝั่ง main ที่เดียว)
-export function getTerminationSheet({ contractId, moveOutDate, adjustments }) {
-  return invoke('termination:sheet', { contractId, moveOutDate, adjustments })
+// overrideRefundable = null/undefined ใช้ผลตามกฎ · true/false คือเจ้าของหอตัดสินเอง
+// ต้องส่งไปด้วยเสมอ ไม่งั้นยอดสรุปบนจอจะเป็นของ "ตามกฎ" ค้างไว้ทั้งที่ติ๊กข้ามกฎแล้ว
+export function getTerminationSheet({ contractId, moveOutDate, adjustments, overrideRefundable }) {
+  return invoke('termination:sheet', {
+    contractId,
+    moveOutDate,
+    adjustments,
+    overrideRefundable
+  })
 }
 
 // ยืนยันย้ายออก — ตัดหนี้จากเงินประกัน ออกใบเสร็จคืนเงิน ปิดสัญญา คืนห้องเป็นว่าง
