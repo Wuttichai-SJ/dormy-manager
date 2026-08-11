@@ -569,6 +569,9 @@ export function toPublicContract(db, row) {
     electricMeterStart: row.electric_meter_start,
     note: row.note,
     status: row.status,
+    // วันที่ผู้เช่าแจ้งย้ายออก (migration 025) — NULL = ยังไม่ได้แจ้ง
+    // หน้าห้องใช้ตัวนี้ตัดสินว่าการ์ดแจ้งย้ายออกจะขึ้นปุ่มแจ้ง หรือขึ้นวันที่ที่แจ้งไว้แล้ว
+    moveOutNoticeDate: row.move_out_notice_date ?? null,
     termMonths: row.term_months,
     depositMinStayMonths: row.deposit_min_stay_months,
     depositNoticeDays: row.deposit_notice_days,

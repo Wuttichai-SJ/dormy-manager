@@ -11,13 +11,14 @@ import Modal from '../components/Modal.jsx'
 import { receiveContractPayment } from '../services/paymentService.js'
 import BookingsCard from '../components/BookingsCard.jsx'
 import ContractWizard from './ContractWizard.jsx'
+import MoveOutPage from './MoveOutPage.jsx'
+import { setMoveOutNotice } from '../services/terminationService.js'
 
 // หน้ารายละเอียดห้อง — ศูนย์กลางของทั้งระบบตามต้นแบบ (สำรวจหน้าจริง 2026-07-31)
 //
 // ห้องว่าง  → การ์ด "เพิ่มสัญญาประเภท" ให้เลือก รายเดือน / รายวัน
 // ห้องไม่ว่าง → รายละเอียดสัญญา · เลขมิเตอร์วันเข้าพัก · บริการรายเดือน · ข้อมูลผู้เช่า
 //
-// ส่วนที่ต้นแบบมีแต่เรายังไม่ได้ทำ: แจ้งย้ายออก (Phase 4) · รายชื่อคนจองรอเข้าพัก (Phase 2.4)
 // ส่วนที่ต้นแบบมีแต่เราตัดทิ้งถาวร: ข้อมูลรถ
 export default function RoomDetailPage({ apartment, room, onBack }) {
   const [data, setData] = useState(null)
@@ -25,6 +26,8 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
   const [creating, setCreating] = useState(null) // 'monthly' | 'daily' | null
   // ใบจองที่กำลังแปลงเป็นสัญญา — ตัวช่วยจะเติมข้อมูลจากใบจองให้ก่อน
   const [converting, setConverting] = useState(null)
+  // กำลังอยู่ในขั้นตอนย้ายออก (หน้าเต็ม เหมือนตัวช่วยทำสัญญา)
+  const [movingOut, setMovingOut] = useState(false)
 
   const load = useCallback(async () => {
     const res = await getContractsForRoom(room.roomId)
@@ -60,6 +63,22 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
 
   const active = data?.active ?? null
 
+  if (movingOut && active) {
+    return (
+      <MoveOutPage
+        contract={active}
+        room={room}
+        onBack={() => setMovingOut(false)}
+        onDone={() => {
+          setMovingOut(false)
+          // โหลดใหม่ทั้งหน้า — สัญญาปิดแล้ว ห้องกลับมาว่าง หน้าจะเปลี่ยนเป็นการ์ด
+          // "เพิ่มสัญญาประเภท" เอง ซึ่งคือสิ่งที่ผู้ใช้ต้องการทำต่อพอดี
+          load()
+        }}
+      />
+    )
+  }
+
   return (
     <>
       <button type="button" className="link-btn link-back-inline" onClick={onBack}>
@@ -82,7 +101,11 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
         <div className="room-detail-grid">
           <div className="room-detail-column">
             {active ? (
-              <ContractCard contract={active} onReload={load} />
+              <ContractCard
+                contract={active}
+                onReload={load}
+                onMoveOut={() => setMovingOut(true)}
+              />
             ) : (
               <section className="panel">
                 <h3 className="panel-title">รายละเอียดสัญญา</h3>
@@ -124,7 +147,7 @@ export default function RoomDetailPage({ apartment, room, onBack }) {
   )
 }
 
-function ContractCard({ contract, onReload }) {
+function ContractCard({ contract, onReload, onMoveOut }) {
   const [receiving, setReceiving] = useState(false)
   const deposit = contract.deposit ?? { requiredCents: contract.depositAmountCents, receivedCents: 0, outstandingCents: 0 }
 
@@ -173,6 +196,8 @@ function ContractCard({ contract, onReload }) {
 
       {contract.note && <p className="field-hint">{contract.note}</p>}
 
+      <MoveOutNotice contract={contract} onReload={onReload} onMoveOut={onMoveOut} />
+
       {receiving && (
         <DepositPaymentDialog
           contract={contract}
@@ -185,6 +210,106 @@ function ContractCard({ contract, onReload }) {
         />
       )}
     </section>
+  )
+}
+
+// แจ้งย้ายออก — โครงตามต้นแบบ (คู่มือ yeeraf ขั้น 2-4): หัวข้อ "แจ้งย้ายออก" มีปุ่มแจ้ง
+// เมื่อยังไม่ได้แจ้ง · แจ้งแล้วขึ้นวันที่ตัวโตพร้อมลิงก์แก้ไข · ใต้ลงมาเป็นปุ่มแดงย้ายออก
+//
+// **สองจังหวะแยกกันโดยตั้งใจ** — วันที่แจ้งต้องถูกบันทึกตั้งแต่วันที่ผู้เช่ามาบอกจริง
+// เพราะระยะห่างจากวันนั้นถึงวันออกคือสิ่งที่กฎเงินประกันใช้ตัดสิน ถ้าให้มากรอกตอนกดย้ายออก
+// ก็แก้ให้เข้าทางได้เสมอ
+function MoveOutNotice({ contract, onReload, onMoveOut }) {
+  const [editing, setEditing] = useState(false)
+  const noticeDate = contract.moveOutNoticeDate
+
+  return (
+    <div className="move-out-notice">
+      <h4>แจ้งย้ายออก</h4>
+
+      {noticeDate ? (
+        <>
+          <p className="move-out-notice-date">{formatDate(noticeDate)}</p>
+          <button type="button" className="link-btn" onClick={() => setEditing(true)}>
+            แก้ไขวันที่แจ้งย้ายออก
+          </button>
+        </>
+      ) : (
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>
+          <Icon name="bookings" />
+          <span>แจ้งย้ายออก</span>
+        </button>
+      )}
+
+      {/* ปุ่มย้ายออกใช้ได้แม้ยังไม่ได้แจ้ง — คนที่ออกเงียบๆ ไม่แจ้งเลยก็ต้องปิดสัญญาได้
+          ระบบจะบันทึกว่า "ไม่ได้แจ้งล่วงหน้า" แล้วกฎเงินประกันตัดสินตามนั้นเอง */}
+      <button type="button" className="btn btn-danger btn-sm" onClick={onMoveOut}>
+        ยกเลิกสัญญา / ย้ายออก
+      </button>
+
+      {editing && (
+        <MoveOutNoticeDialog
+          contract={contract}
+          onClose={() => setEditing(false)}
+          onDone={() => {
+            setEditing(false)
+            onReload?.()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function MoveOutNoticeDialog({ contract, onClose, onDone }) {
+  const [noticeDate, setNoticeDate] = useState(contract.moveOutNoticeDate ?? todayIso())
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function save(value) {
+    setError('')
+    setBusy(true)
+    const res = await setMoveOutNotice(contract.contractId, value)
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    showToast(value ? 'บันทึกวันที่แจ้งย้ายออกแล้ว' : 'ยกเลิกการแจ้งย้ายออกแล้ว')
+    onDone()
+  }
+
+  return (
+    <Modal
+      title="แจ้งย้ายออก"
+      icon="bookings"
+      busy={busy}
+      onClose={onClose}
+      onSubmit={() => save(noticeDate)}
+    >
+      <Alert>{error}</Alert>
+
+      <div className="field field-required">
+        <label htmlFor="noticeDate">
+          วันที่แจ้งย้ายออก <span className="required">* จำเป็น</span>
+        </label>
+        <DateField id="noticeDate" value={noticeDate} onChange={setNoticeDate} />
+        <p className="field-hint">
+          วันที่ผู้เช่ามาแจ้ง ไม่ใช่วันที่จะย้ายออกจริง — สัญญานี้กำหนดให้แจ้งล่วงหน้า{' '}
+          {contract.depositNoticeDays} วัน
+        </p>
+      </div>
+
+      {/* ผู้เช่าเปลี่ยนใจไม่ย้ายแล้วต้องล้างได้ ไม่งั้นวันที่ค้างอยู่จะไปมีผลกับการตัดสิน
+          เงินประกันในอนาคตโดยไม่มีใครนึกถึง */}
+      {contract.moveOutNoticeDate && (
+        <button
+          type="button"
+          className="link-btn link-danger"
+          onClick={() => save(null)}
+          disabled={busy}
+        >
+          ยกเลิกการแจ้งย้ายออก (ผู้เช่าไม่ย้ายแล้ว)
+        </button>
+      )}
+    </Modal>
   )
 }
 
@@ -270,6 +395,14 @@ function todayIso() {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+// วันที่บนหน้าจอทำงานเป็น ค.ศ. รูปแบบ dd/mm/yyyy เหมือนหน้าอื่น — ส่วน พ.ศ. ใช้เฉพาะ
+// บนเอกสารที่ยื่นให้ผู้เช่า (ดู formatDocumentDate ใน format.js)
+function formatDate(iso) {
+  if (!iso) return '-'
+  const [y, m, d] = String(iso).split('-')
+  return `${d}/${m}/${y}`
 }
 
 function MeterCard({ contract }) {

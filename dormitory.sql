@@ -397,6 +397,11 @@ CREATE TABLE IF NOT EXISTS `mydb`.`contracts` (
   -- สายการต่อสัญญา: ใช้ไล่ย้อนเพื่อนับเดือนที่อยู่ต่อเนื่องข้ามสัญญาหลายใบ
   `previous_contract_id` INT NULL,
   `is_deposit_carried_over` TINYINT(1) NOT NULL DEFAULT 0,
+  -- เพิ่มใน 025: วันที่ผู้เช่าแจ้งย้ายออก (NULL = ยังไม่ได้แจ้ง / แจ้งแล้วเปลี่ยนใจ)
+  -- **คนละวันกับ contract_terminations.actual_move_out_date** และระยะห่างของสองวันนี้
+  -- คือสิ่งที่กฎเงินประกันใช้ตัดสิน จึงต้องบันทึกตั้งแต่วันที่แจ้งจริง ไม่ใช่กรอกย้อนหลัง
+  -- ตอนกดย้ายออก ซึ่งจะกลายเป็นตัวเลขที่แก้ให้เข้าทางได้เสมอ
+  `move_out_notice_date` DATE NULL,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`contract_id`, `room_id`, `tenant_id`),
@@ -521,11 +526,16 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `mydb`.`contract_termination_items` (
   `item_id` INT NOT NULL AUTO_INCREMENT,
   `contract_termination_id` INT NOT NULL,
-  `item_type` ENUM('service', 'discount_refund', 'water', 'electricity') NULL,
+  -- 'meter' เพิ่มตอนทำขั้นตอนย้ายออก (2026-08-11) — ต้นแบบรวมน้ำกับไฟเป็นแท็บ "ค่ามิเตอร์"
+  -- แท็บเดียว และตอนย้ายออกไม่มีใครแยกจดสองฝั่งอีกแล้ว · คอลัมน์เป็น TEXT ใน SQLite
+  -- ตรวจค่าที่ TERMINATION_ITEM_TYPES ใน db/terminations.js จึงไม่ต้องมี migration
+  `item_type` ENUM('service', 'discount_refund', 'meter', 'water', 'electricity') NULL,
   `description` VARCHAR(255) NULL,
+  -- คอลัมน์ VAT ปล่อย NULL — รายการปรับปรุงตอนย้ายออกไม่คิดภาษี เหมือนค่าปรับบนบิล
   `amount_before_vat_cents` INTEGER NULL,
   `vat_percent` DECIMAL(5,2) NULL,
   `vat_amount_cents` INTEGER NULL,
+  -- **บวก = เก็บเพิ่มจากผู้เช่า · ลบ = คืนให้ผู้เช่า** ยอดรวมถูกลบออกจากเงินคืนตรงๆ
   `total_amount_cents` INTEGER NOT NULL,
   `created_at` TIMESTAMP NOT NULL,
   PRIMARY KEY (`item_id`),

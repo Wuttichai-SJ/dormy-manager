@@ -4117,6 +4117,113 @@ body {
   margin: 0;
 }
 
+/* -----------------------------------------------------
+   แจ้งย้ายออก / ยกเลิกสัญญา
+   ----------------------------------------------------- */
+/* หัวข้อ "แจ้งย้ายออก" อยู่ท้ายการ์ดสัญญาตามต้นแบบ คั่นด้วยเส้นเพราะเป็นคนละเรื่อง
+   กับรายละเอียดสัญญาด้านบน — นี่คือทางออก ไม่ใช่ข้อมูล */
+.move-out-notice {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.move-out-notice h4 {
+  margin: 0;
+  align-self: flex-start;
+  font-size: 14px;
+}
+
+/* วันที่ที่แจ้งไว้เป็นตัวโตกลางการ์ดตามต้นแบบ — เป็นข้อมูลชิ้นเดียวของบล็อกนี้
+   และเป็นตัวเลขที่กฎเงินประกันใช้ตัดสิน จึงต้องอ่านผิดไม่ได้ */
+.move-out-notice-date {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.btn-danger {
+  background: var(--err);
+  border-color: var(--err);
+  color: #fff;
+}
+
+/* -----------------------------------------------------
+   หน้าสรุปย้ายออก
+   ----------------------------------------------------- */
+/* กล่องผลการตัดสิน — ต้นแบบไม่มีกล่องนี้ (ของเขาคืนเสมอ) ของเราต้องประกาศให้ชัด
+   ว่าตัดสินว่าอะไรเพราะอะไร ก่อนที่เจ้าของหอจะไปบอกผู้เช่าว่าไม่ได้เงินคืน */
+.verdict-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border-left: 3px solid;
+}
+
+.verdict-refund {
+  background: var(--ok-weak);
+  border-color: var(--ok);
+}
+
+.verdict-forfeit {
+  background: var(--err-weak);
+  border-color: var(--err);
+}
+
+.verdict-box span {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.move-out-summary {
+  text-align: center;
+}
+
+.move-out-total {
+  margin: 0;
+  font-size: 20px;
+}
+
+.move-out-refund {
+  color: var(--ok);
+}
+
+/* ยอดติดลบไม่ใช่ "เงินคืนติดลบ" แต่แปลว่าผู้เช่ายังต้องจ่าย — สีต้องต่างกันชัด
+   ไม่งั้นคนกวาดตาผ่านจะอ่านเป็นตัวเลขเงินคืนก้อนหนึ่ง */
+.move-out-owed {
+  color: var(--err);
+}
+
+.move-out-formula {
+  margin-top: 4px;
+}
+
+.move-out-confirm {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.move-out-confirm .field {
+  width: auto;
+  margin: 0;
+}
+
+.move-out-adjust-total {
+  margin-right: auto;
+  font-weight: 600;
+}
+
 /* ชุดใบแจ้งหนี้ที่กำลังจะพิมพ์ทีเดียวทั้งหอ — **ใบละหนึ่งแผ่นเต็ม A4 แนวตั้ง**
    ต่างจากใบเสร็จที่ยัดสองใบต่อแผ่น เพราะใบแจ้งหนี้มีตารางรายการ ท้ายบิล บัญชีธนาคาร
    และ QR ซึ่งไม่มีทางลงครึ่งแผ่นได้ (และผู้ใช้ยืนยันรูปแบบเต็มแผ่นนี้ไว้แล้ว 2026-08-08) */
