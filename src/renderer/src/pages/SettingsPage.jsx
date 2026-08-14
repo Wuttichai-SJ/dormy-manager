@@ -7,7 +7,6 @@ import QrCodePage from './QrCodePage.jsx'
 import FloorPlanPage from './FloorPlanPage.jsx'
 import RoomRatesPage from './RoomRatesPage.jsx'
 import SecuritySettingsPage from './SecuritySettingsPage.jsx'
-import UsersPage from './UsersPage.jsx'
 import BackupsPage from './BackupsPage.jsx'
 
 // หัวข้อของเมนู "ตั้งค่า" — แบ่งสองกลุ่มตามต้นแบบ: เรื่องที่เป็นของ "ทั้งหอ" กับเรื่องที่
@@ -25,32 +24,38 @@ export const SETTINGS_GROUPS = [
   {
     label: 'ระดับอพาร์ตเมนต์',
     items: [
-      { key: 'info', label: 'ข้อมูลหอพัก', ready: true },
-      { key: 'services', label: 'บริการ', ready: true },
+      // 🔴 **ทั้งเมนู "ตั้งค่า" เป็นของเจ้าของหอ ยกเว้น "บัญชีผู้ใช้และความปลอดภัย"**
+      // (ผู้ใช้ตัดสินใจ 2026-08-14) เส้นแบ่งคือ: งานประจำวันอยู่ในเมนูหลัก ส่วนตั้งค่าคือ
+      // การกำหนดกติกาของหอ — ราคา ค่าน้ำ-ไฟ VAT ค่าปรับ ผังห้อง บัญชีรับเงิน
+      // ทุกอย่างในนี้เปลี่ยนแล้วบิลยังออกมา "ถูกต้องตามที่ตั้งไว้" ทุกประการ จึงไม่มีอะไร
+      // ผิดปกติให้จับได้ นอกจากจะไปไล่ดูค่าที่ตั้งไว้เอง
+      { key: 'info', label: 'ข้อมูลหอพัก', ready: true, ownerOnly: true },
+      { key: 'services', label: 'บริการ', ready: true, ownerOnly: true },
       // 🔴 สองหัวข้อนี้คือ "เงินเข้ากระเป๋าใคร" ไม่ใช่ข้อมูลตั้งค่าทั่วไป — พนักงานที่ไม่ซื่อสัตย์
       // เปลี่ยนเป็นบัญชี/QR ของตัวเองแล้วบิลยังหน้าตาเหมือนเดิมทุกอย่าง ผู้เช่าโอนตามปกติ
       // และมีสลิปยืนยันว่าจ่ายแล้ว กว่าหอจะรู้ตัวก็ตอนกระทบยอดธนาคาร (ผู้ใช้ทักท้วง 2026-08-14)
       { key: 'banks', label: 'บัญชีธนาคาร', ready: true, ownerOnly: true },
       { key: 'qrCode', label: 'QR Code รับเงิน', ready: true, ownerOnly: true },
-      { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true },
-      { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false },
+      { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true, ownerOnly: true },
+      { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false, ownerOnly: true },
+      // หัวข้อเดียวที่พนักงานเห็น — เป็นเรื่องของบัญชีตัวเอง (เปลี่ยนรหัสผ่านของตัวเอง)
+      // ไม่ใช่การตั้งค่าหอ
       { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true },
-      // ownerOnly = พนักงานไม่เห็นหัวข้อนี้ในเมนูเลย (ไม่ใช่เห็นแล้วกดไม่ได้)
-      // ต่างจาก ready: false ตรงที่อันนั้นแปลว่า "ยังไม่ได้สร้าง" ซึ่งคนละเรื่องกัน
-      // **การซ่อนเป็นแค่การจัดหน้าจอ ตัวกันสิทธิ์จริงอยู่ที่ requireOwnerUserId ฝั่ง main**
-      { key: 'users', label: 'ผู้ใช้งานระบบ', ready: true, ownerOnly: true },
+      // **"ผู้ใช้งานระบบ" ไม่ได้อยู่ที่นี่** — บัญชีผู้ใช้เป็นของทั้งระบบ ไม่ได้ผูกกับหอ
+      // จึงอยู่ที่หน้ารวมหอ (HubPage แท็บ "จัดการผู้ใช้งาน") อย่าเพิ่มกลับมาที่นี่
+      // จะกลายเป็นสองทางเข้าไปเรื่องเดียวกัน และสื่อผิดว่าพนักงานผูกกับหอเดียว
       // สำรองข้อมูลเป็นเรื่องของ "ทั้งเครื่อง" ไม่ใช่ของหอใดหอหนึ่ง (ไฟล์ฐานข้อมูลมีไฟล์เดียว)
       // แต่วางไว้กลุ่มนี้เพราะเป็นที่ที่คนไปหาเรื่องตั้งค่าระบบ
-      { key: 'backups', label: 'สำรองข้อมูล', ready: true }
+      { key: 'backups', label: 'สำรองข้อมูล', ready: true, ownerOnly: true }
     ]
   },
   {
     label: 'ระดับห้อง',
     items: [
-      { key: 'plan', label: 'ผังห้อง', ready: true },
-      { key: 'status', label: 'ห้องว่าง', ready: true },
-      { key: 'rate', label: 'ค่าห้อง', ready: true },
-      { key: 'roomServices', label: 'ค่าบริการอื่น ๆ', ready: true }
+      { key: 'plan', label: 'ผังห้อง', ready: true, ownerOnly: true },
+      { key: 'status', label: 'ห้องว่าง', ready: true, ownerOnly: true },
+      { key: 'rate', label: 'ค่าห้อง', ready: true, ownerOnly: true },
+      { key: 'roomServices', label: 'ค่าบริการอื่น ๆ', ready: true, ownerOnly: true }
     ]
   }
 ]
@@ -71,8 +76,6 @@ export function SettingsSection({ section, apartment, user, onApartmentDeleted }
       return <UtilitySettingsPage apartment={apartment} />
     case 'security':
       return <SecuritySettingsPage user={user} />
-    case 'users':
-      return <UsersPage user={user} />
     case 'backups':
       return <BackupsPage user={user} />
     case 'plan':

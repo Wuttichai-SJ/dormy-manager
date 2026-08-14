@@ -29,7 +29,10 @@ function assertValid(payload) {
 export function registerApartmentServiceHandlers() {
   handle('apartmentService:list', ({ apartmentId }) => listServices(getDatabase(), apartmentId))
 
+  // ราคาค่าบริการเป็นของเจ้าของหอ (เมนูตั้งค่าทั้งเมนู — ผู้ใช้ตัดสินใจ 2026-08-14)
+  // ช่อง list เปิดไว้ เพราะตัวช่วยทำสัญญาและการออกบิลต้องอ่านรายการค่าบริการ
   handle('apartmentService:create', ({ apartmentId, ...payload }) => {
+    requireOwnerUserId()
     assertValid(payload)
     const service = insertService(getDatabase(), apartmentId, payload)
     logInfo(`เพิ่มค่าบริการ "${service.name}" (apartment_id ${apartmentId})`)
@@ -37,6 +40,7 @@ export function registerApartmentServiceHandlers() {
   })
 
   handle('apartmentService:update', ({ serviceId, ...payload }) => {
+    requireOwnerUserId()
     assertValid(payload)
     const service = updateService(getDatabase(), serviceId, payload)
     logInfo(`แก้ไขค่าบริการ "${service.name}" (service_id ${serviceId})`)
@@ -44,6 +48,7 @@ export function registerApartmentServiceHandlers() {
   })
 
   handle('apartmentService:delete', ({ serviceId }) => {
+    requireOwnerUserId()
     const result = deleteService(getDatabase(), serviceId)
     logInfo(`ลบค่าบริการ (service_id ${serviceId})`)
     return result

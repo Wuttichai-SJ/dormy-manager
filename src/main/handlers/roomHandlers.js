@@ -2,6 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireOwnerUserId } from './authHandlers.js'
 import {
   addFloor,
   attachServicesToRooms,
@@ -30,10 +31,25 @@ function handle(channel, fn) {
   })
 }
 
+// 🔴 **ทุกช่องที่แก้ผังห้อง/ราคา/สถานะ เป็นของเจ้าของหอเท่านั้น** (ผู้ใช้ตัดสินใจ 2026-08-14:
+// ทั้งเมนู "ตั้งค่า" เป็นของเจ้าของ พนักงานทำงานประจำวันในเมนูหลัก)
+//
+// ค่าห้องกับค่าบริการคือ "คิดเท่าไหร่" — ลดค่าเช่าห้องเพื่อนจาก 3,000 เป็น 2,800 แล้วบิล
+// ก็ออกมาถูกต้องตามที่ตั้งไว้ทุกประการ ไม่มีอะไรผิดปกติให้จับได้เลยนอกจากไปไล่ดูราคาห้อง
+//
+// เขียนเป็นตัวห่ออีกชั้นแทนการใส่ requireOwnerUserId() ทีละช่อง เพราะสิบเอ็ดช่องที่ต้อง
+// จำให้ครบคือสิบเอ็ดโอกาสที่จะลืมช่องใดช่องหนึ่ง แล้วรูที่เหลือไว้ก็เท่ากับไม่ได้ล็อกเลย
+function handleOwner(channel, fn) {
+  handle(channel, (payload) => {
+    requireOwnerUserId()
+    return fn(payload)
+  })
+}
+
 export function registerRoomHandlers() {
   handle('room:listFloors', ({ apartmentId }) => listFloors(getDatabase(), apartmentId))
 
-  handle('room:generatePlan', ({ apartmentId, floors }) => {
+  handleOwner('room:generatePlan', ({ apartmentId, floors }) => {
     const errors = validateFloorPlan(floors)
     if (errors.length > 0) throw new Error(errors.join('\n'))
 
@@ -43,35 +59,35 @@ export function registerRoomHandlers() {
     return result
   })
 
-  handle('room:addFloor', ({ apartmentId, floorName, roomCount }) =>
+  handleOwner('room:addFloor', ({ apartmentId, floorName, roomCount }) =>
     addFloor(getDatabase(), apartmentId, { floorName, roomCount })
   )
 
-  handle('room:renameFloor', ({ floorId, floorName }) =>
+  handleOwner('room:renameFloor', ({ floorId, floorName }) =>
     renameFloor(getDatabase(), floorId, floorName)
   )
 
-  handle('room:deleteFloor', ({ floorId }) => {
+  handleOwner('room:deleteFloor', ({ floorId }) => {
     const result = deleteFloor(getDatabase(), floorId)
     logInfo(`ลบชั้น (floor_id ${floorId})`)
     return result
   })
 
-  handle('room:addRoom', ({ floorId, roomNumber, roomTypeName }) =>
+  handleOwner('room:addRoom', ({ floorId, roomNumber, roomTypeName }) =>
     addRoom(getDatabase(), floorId, { roomNumber, roomTypeName })
   )
 
-  handle('room:updateRoom', ({ roomId, roomNumber, roomTypeName, isActive }) =>
+  handleOwner('room:updateRoom', ({ roomId, roomNumber, roomTypeName, isActive }) =>
     updateRoom(getDatabase(), roomId, { roomNumber, roomTypeName, isActive })
   )
 
-  handle('room:deleteRoom', ({ roomId }) => {
+  handleOwner('room:deleteRoom', ({ roomId }) => {
     const result = deleteRoom(getDatabase(), roomId)
     logInfo(`ลบห้อง (room_id ${roomId})`)
     return result
   })
 
-  handle('room:setRates', ({ roomIds, monthlyRent, dailyRent }) => {
+  handleOwner('room:setRates', ({ roomIds, monthlyRent, dailyRent }) => {
     const errors = validateRoomRateInput({ monthlyRent, dailyRent })
     if (errors.length > 0) throw new Error(errors.join('\n'))
 
@@ -80,19 +96,19 @@ export function registerRoomHandlers() {
     return result
   })
 
-  handle('room:attachServices', ({ roomIds, serviceIds }) => {
+  handleOwner('room:attachServices', ({ roomIds, serviceIds }) => {
     const result = attachServicesToRooms(getDatabase(), roomIds, serviceIds)
     logInfo(`ผูกค่าบริการ ${serviceIds.length} รายการเข้ากับ ${roomIds.length} ห้อง`)
     return result
   })
 
-  handle('room:detachServices', ({ roomIds, serviceIds }) => {
+  handleOwner('room:detachServices', ({ roomIds, serviceIds }) => {
     const result = detachServicesFromRooms(getDatabase(), roomIds, serviceIds)
     logInfo(`นำค่าบริการ ${serviceIds.length} รายการออกจาก ${roomIds.length} ห้อง`)
     return result
   })
 
-  handle('room:setStatus', ({ roomIds, status }) => {
+  handleOwner('room:setStatus', ({ roomIds, status }) => {
     const result = setRoomStatus(getDatabase(), roomIds, status)
     logInfo(`ตั้งสถานะห้อง ${roomIds.length} ห้อง เป็น ${status}`)
     return result

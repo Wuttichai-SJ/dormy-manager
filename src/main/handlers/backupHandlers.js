@@ -35,7 +35,11 @@ export function registerBackupHandlers() {
     backups: listBackups(userData())
   }))
 
+  // เจ้าของหอเท่านั้น — ไฟล์สำรองคือสำเนาข้อมูลทั้งหอที่ลากออกจากเครื่องไปได้
+  // (เดิมเปิดให้พนักงานสร้างได้ด้วยเหตุผลว่า "ยิ่งมีสำเนายิ่งดี" แต่เมนูตั้งค่าทั้งเมนู
+  //  เป็นของเจ้าของแล้ว — ผู้ใช้ตัดสินใจ 2026-08-14)
   handle('backup:create', async ({ label }) => {
+    requireOwnerUserId()
     const backup = await createBackup(getDatabase(), userData(), { label })
     logInfo(`สร้างไฟล์สำรอง ${backup.fileName} (${backup.sizeBytes} ไบต์)`)
     return backup

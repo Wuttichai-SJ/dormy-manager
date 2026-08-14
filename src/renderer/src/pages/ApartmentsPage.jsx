@@ -11,7 +11,7 @@ import { listApartments } from '../services/apartmentService.js'
 // ตัวเลข "บิลค้างชำระ" ของต้นแบบยังไม่ใส่ เพราะตาราง invoices ยังไม่มีข้อมูล (Phase 3)
 // จงใจไม่โชว์ 0 ไปก่อน — เลข 0 ที่ไม่ได้มาจากการนับจริงทำให้เจ้าของหอเข้าใจผิดว่า
 // "ไม่มีใครค้างเลย" ทั้งที่ระบบยังไม่ได้เริ่มออกบิล
-export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
+export default function ApartmentsPage({ user, onOpen, onCreated, onSetup }) {
   const [apartments, setApartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -56,11 +56,15 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
 
   return (
     <>
-      <div className="page-actions">
-        <button type="button" className="btn" onClick={() => setView({ mode: 'create' })}>
-          เพิ่มหอพัก
-        </button>
-      </div>
+      {/* สร้าง/แก้ข้อมูลหอเป็นของเจ้าของหอ (main บังคับที่ apartment:create / :update)
+          พนักงานเข้าหอที่มีอยู่ไปทำงานได้ตามปกติ แต่ไม่ได้ตั้งหอเอง */}
+      {user?.isOwner && (
+        <div className="page-actions">
+          <button type="button" className="btn" onClick={() => setView({ mode: 'create' })}>
+            เพิ่มหอพัก
+          </button>
+        </div>
+      )}
 
       <Alert>{error}</Alert>
 
@@ -70,12 +74,18 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
         <section className="panel empty-state">
           <Icon name="apartments" />
           <h2>ยังไม่มีหอพักในระบบ</h2>
-          <p className="muted">
-            เริ่มต้นด้วยการเพิ่มหอพักแห่งแรก จากนั้นจึงตั้งค่าชั้น ห้องพัก และค่าบริการ
-          </p>
-          <button type="button" className="btn" onClick={() => setView({ mode: 'create' })}>
-            เพิ่มหอพัก
-          </button>
+          {user?.isOwner ? (
+            <>
+              <p className="muted">
+                เริ่มต้นด้วยการเพิ่มหอพักแห่งแรก จากนั้นจึงตั้งค่าชั้น ห้องพัก และค่าบริการ
+              </p>
+              <button type="button" className="btn" onClick={() => setView({ mode: 'create' })}>
+                เพิ่มหอพัก
+              </button>
+            </>
+          ) : (
+            <p className="muted">รอเจ้าของหอเพิ่มหอพักและตั้งค่าให้เสร็จก่อน จึงจะเริ่มทำงานได้</p>
+          )}
         </section>
       ) : (
         <div className="card-grid">
@@ -90,7 +100,12 @@ export default function ApartmentsPage({ onOpen, onCreated, onSetup }) {
                 showToast('ยังตั้งค่าตั้งต้นไม่สมบูรณ์', 'error')
                 onSetup?.(a)
               }}
-              onEdit={() => setView({ mode: 'edit', apartmentId: a.apartmentId })}
+              // ส่ง null = ไม่มีปุ่ม "แก้ไข" ให้กด (พนักงานแก้ข้อมูลหอไม่ได้)
+              onEdit={
+                user?.isOwner
+                  ? () => setView({ mode: 'edit', apartmentId: a.apartmentId })
+                  : null
+              }
             />
           ))}
         </div>
@@ -134,9 +149,11 @@ function ApartmentCard({ apartment, onOpen, onEdit }) {
           <button type="button" className="btn btn-sm" onClick={onOpen}>
             จัดการ
           </button>
-          <button type="button" className="link-btn" onClick={onEdit}>
-            แก้ไข
-          </button>
+          {onEdit && (
+            <button type="button" className="link-btn" onClick={onEdit}>
+              แก้ไข
+            </button>
+          )}
           {/* ปุ่มลบไม่ได้อยู่ตรงนี้ — อยู่ในหอนั้นเอง ที่ ตั้งค่า > ข้อมูลหอพัก (ตามต้นแบบ)
               จึงต้องตั้งค่าให้เสร็จก่อนถึงจะลบได้ */}
         </div>

@@ -23,7 +23,9 @@ function handle(channel, fn) {
 export function registerUtilityHandlers() {
   handle('utility:get', ({ apartmentId }) => getUtilityDefaults(getDatabase(), apartmentId))
 
+  // ราคาน้ำ-ไฟเป็นของเจ้าของหอ · ช่อง get เปิดไว้ (หน้าจอกับการออกบิลต้องอ่าน)
   handle('utility:save', ({ apartmentId, water, electric }) => {
+    requireOwnerUserId()
     const errors = validateUtilityInput({ water, electric })
     if (errors.length > 0) throw new Error(errors.join('\n'))
 
@@ -34,6 +36,7 @@ export function registerUtilityHandlers() {
 
   // ทับราคาของห้องทั้งหมดด้วยราคาปัจจุบันของหอ — ผู้ใช้ต้องกดสั่งเอง
   handle('utility:applyToRooms', ({ apartmentId }) => {
+    requireOwnerUserId()
     const result = applyDefaultsToRooms(getDatabase(), apartmentId)
     logInfo(`นำค่าน้ำ/ค่าไฟของหอ ${apartmentId} ไปใช้กับ ${result.updatedRooms} ห้อง`)
     return result

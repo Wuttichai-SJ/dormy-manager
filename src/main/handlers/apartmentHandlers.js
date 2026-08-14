@@ -40,14 +40,20 @@ export function registerApartmentHandlers() {
     return apartment
   })
 
+  // สร้างหอใหม่ = เปิดกิจการเพิ่ม ไม่ใช่งานประจำวัน · และถ้าพนักงานสร้างหอได้แต่แก้ไม่ได้
+  // (apartment:update ถูกล็อก) จะได้หอที่สร้างค้างไว้แล้วเดินต่อไม่ได้
   handle('apartment:create', (payload) => {
+    requireOwnerUserId()
     assertValid(payload)
     const apartment = insertApartment(getDatabase(), payload)
     logInfo(`สร้างหอพัก "${apartment.nameTh}" (apartment_id ${apartment.apartmentId})`)
     return apartment
   })
 
+  // ข้อมูลหอพักมีสวิตช์ VAT อัตราค่าปรับ วันครบกำหนด และชื่อ/ที่อยู่/เบอร์ที่พิมพ์บนบิล
+  // ทั้งหมดเป็นกติกาของหอ = เรื่องของเจ้าของ (ช่อง get/list เปิดไว้ ทุกหน้าจอต้องอ่าน)
   handle('apartment:update', ({ apartmentId, ...payload }) => {
+    requireOwnerUserId()
     assertValid(payload)
     const apartment = updateApartment(getDatabase(), apartmentId, payload)
     logInfo(`แก้ไขหอพัก "${apartment.nameTh}" (apartment_id ${apartmentId})`)

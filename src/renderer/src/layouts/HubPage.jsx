@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
 import ApartmentsPage from '../pages/ApartmentsPage.jsx'
+import UsersPage from '../pages/UsersPage.jsx'
 
 // หน้าแรกหลังเข้าสู่ระบบ — ยังไม่มีเมนูด้านข้าง
 //
@@ -35,32 +36,31 @@ export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartm
           <Icon name="apartments" />
           <span>จัดการหอพัก</span>
         </button>
-        <button
-          className={'hub-tab' + (tab === 'users' ? ' active' : '')}
-          onClick={() => setTab('users')}
-        >
-          <Icon name="tenants" />
-          <span>จัดการผู้ใช้งาน</span>
-        </button>
+        {/* บัญชีผู้ใช้เป็นของ "ทั้งระบบ" ไม่ได้ผูกกับหอใดหอหนึ่ง (ตาราง users ไม่มี
+            apartment_id) จึงอยู่ที่หน้ารวมนี้ ไม่ใช่ในเมนูตั้งค่าของหอ — วางไว้ในหอจะสื่อ
+            ผิดว่าพนักงานคนหนึ่งผูกกับหอเดียว และกลายเป็นสองทางเข้าไปเรื่องเดียวกัน
+            · พนักงานไม่เห็นแท็บนี้เลย */}
+        {user.isOwner && (
+          <button
+            className={'hub-tab' + (tab === 'users' ? ' active' : '')}
+            onClick={() => setTab('users')}
+          >
+            <Icon name="tenants" />
+            <span>จัดการผู้ใช้งาน</span>
+          </button>
+        )}
       </nav>
 
       <main className="hub-content">
-        {tab === 'apartments' ? (
+        {tab === 'apartments' || !user.isOwner ? (
           <ApartmentsPage
+            user={user}
             onOpen={onOpenApartment}
             onCreated={onSetupApartment}
             onSetup={onSetupApartment}
           />
         ) : (
-          <section className="panel empty-state">
-            <Icon name="tenants" />
-            <h2>จัดการผู้ใช้งาน</h2>
-            <p className="muted">
-              หน้าเพิ่ม/แก้ไขเจ้าหน้าที่ กำหนดตำแหน่งและสิทธิ์รายหอพัก
-              <br />
-              ยังไม่ได้สร้าง — เป็นงานที่เหลือของเฟสนี้
-            </p>
-          </section>
+          <UsersPage user={user} />
         )}
       </main>
     </div>
