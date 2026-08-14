@@ -8,6 +8,7 @@ import path from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireOwnerUserId } from './authHandlers.js'
 import {
   ALLOWED_MIME_TYPES,
   MAX_IMAGE_BYTES,
@@ -39,7 +40,11 @@ function handle(channel, fn) {
 
 export function registerImageHandlers() {
   // อัปโหลด QR ของหอ — เลือกไฟล์ → เก็บลงตาราง images → ผูกกับหอ → เก็บกวาดรูปเก่า
+  // 🔴 **เจ้าของหอเท่านั้น** — QR บนบิลคือปลายทางที่ผู้เช่าสแกนจ่าย เปลี่ยนรูปนี้เป็น QR
+  // ของตัวเองคือการเปลี่ยนว่าเงินเข้ากระเป๋าใคร โดยที่บิลยังหน้าตาเหมือนเดิมทุกอย่าง
+  // (ช่อง getQr / getDataUrl เปิดไว้ เพราะบิลที่พนักงานพิมพ์ต้องมี QR อยู่บนเอกสาร)
   handle('image:uploadQr', async ({ apartmentId }) => {
+    requireOwnerUserId()
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title: 'เลือกรูป QR Code รับเงิน',
       properties: ['openFile'],
@@ -87,6 +92,7 @@ export function registerImageHandlers() {
   })
 
   handle('image:removeQr', ({ apartmentId }) => {
+    requireOwnerUserId()
     const db = getDatabase()
     const run = db.transaction(() => {
       db.prepare('UPDATE apartments SET qr_code_image_id = NULL, updated_at = ? WHERE apartment_id = ?')

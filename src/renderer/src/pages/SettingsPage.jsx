@@ -27,8 +27,11 @@ export const SETTINGS_GROUPS = [
     items: [
       { key: 'info', label: 'ข้อมูลหอพัก', ready: true },
       { key: 'services', label: 'บริการ', ready: true },
-      { key: 'banks', label: 'บัญชีธนาคาร', ready: true },
-      { key: 'qrCode', label: 'QR Code รับเงิน', ready: true },
+      // 🔴 สองหัวข้อนี้คือ "เงินเข้ากระเป๋าใคร" ไม่ใช่ข้อมูลตั้งค่าทั่วไป — พนักงานที่ไม่ซื่อสัตย์
+      // เปลี่ยนเป็นบัญชี/QR ของตัวเองแล้วบิลยังหน้าตาเหมือนเดิมทุกอย่าง ผู้เช่าโอนตามปกติ
+      // และมีสลิปยืนยันว่าจ่ายแล้ว กว่าหอจะรู้ตัวก็ตอนกระทบยอดธนาคาร (ผู้ใช้ทักท้วง 2026-08-14)
+      { key: 'banks', label: 'บัญชีธนาคาร', ready: true, ownerOnly: true },
+      { key: 'qrCode', label: 'QR Code รับเงิน', ready: true, ownerOnly: true },
       { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true },
       { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false },
       { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true },
