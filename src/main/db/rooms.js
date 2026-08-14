@@ -7,6 +7,7 @@
 // หมายเหตุ: ไฟล์ใน db/ ห้าม import logger.js หรืออะไรที่ดึง electron เข้ามา
 // (เหตุผลอยู่ใน db/bankAccounts.js) — การ log เป็นหน้าที่ของชั้น handlers
 import { getUtilityDefaults } from './utilityDefaults.js'
+import { deleteOrphanImages } from './images.js'
 import { toCents } from '../money.js'
 
 // ต้นแบบจำกัดไว้ที่ 50 ห้อง/ชั้น และ 30 ชั้น — ใช้ตัวเลขเดียวกัน
@@ -440,9 +441,23 @@ export function deleteRoom(db, roomId) {
 
   const run = db.transaction(() => {
     // ตารางลูกที่ผูกกับห้องต้องถูกล้างก่อน ไม่งั้น FK บล็อก
+    //
+    // **เพิ่มตารางใหม่ที่ผูกกับ room_id เมื่อไหร่ ต้องกลับมาเพิ่มที่นี่ด้วย** — บทเรียน
+    // เดียวกับ deleteApartment ที่เคยลืม apartment_utility_defaults แล้วโยนข้อความดิบ
+    // ของ SQLite ("FOREIGN KEY constraint failed") ออกไปที่หน้าจอ
+    //
+    // งานแจ้งซ่อมของห้องที่ไม่เคยมีสัญญา (ด่านข้างบนกันไว้แล้ว) คือเรื่องของห้องเปล่า
+    // ที่กำลังจะไม่มีอยู่ — เก็บไว้ก็ชี้ไปที่ห้องที่ถูกลบ
+    db.prepare(
+      `DELETE FROM maintenance_request_images
+        WHERE maintenance_id IN (SELECT maintenance_id FROM maintenance_requests WHERE room_id = ?)`
+    ).run(roomId)
+    db.prepare('DELETE FROM maintenance_requests WHERE room_id = ?').run(roomId)
     db.prepare('DELETE FROM room_utility_settings WHERE room_id = ?').run(roomId)
     db.prepare('DELETE FROM room_services WHERE room_id = ?').run(roomId)
     db.prepare('DELETE FROM rooms WHERE room_id = ?').run(roomId)
+    // รูปที่เพิ่งหลุดจากงานซ่อมกลายเป็นรูปกำพร้า เก็บกวาดในธุรกรรมเดียวกัน
+    deleteOrphanImages(db)
   })
   run()
 

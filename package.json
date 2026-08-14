@@ -17,7 +17,7 @@
     "test:utility": "node scripts/utility-smoke.mjs",
     "test:banks": "node scripts/banks-smoke.mjs",
     "test:rooms": "node scripts/rooms-smoke.mjs",
-    "test": "npm run test:auth && npm run test:apartments && npm run test:services && npm run test:utility && npm run test:banks && npm run test:rooms && npm run test:tenants && npm run test:contracts && npm run test:bookings && npm run test:backups && npm run test:images && npm run test:meter && npm run test:invoices && npm run test:payments && npm run test:terminations && npm run test:csv",
+    "test": "npm run test:auth && npm run test:apartments && npm run test:services && npm run test:utility && npm run test:banks && npm run test:rooms && npm run test:tenants && npm run test:contracts && npm run test:bookings && npm run test:backups && npm run test:images && npm run test:meter && npm run test:invoices && npm run test:payments && npm run test:terminations && npm run test:maintenance && npm run test:csv",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "test:tenants": "node scripts/tenants-smoke.mjs",
     "test:contracts": "node scripts/contracts-smoke.mjs",
@@ -28,6 +28,7 @@
     "test:invoices": "node scripts/invoices-smoke.mjs",
     "test:payments": "node scripts/payments-smoke.mjs",
     "test:terminations": "node scripts/terminations-smoke.mjs",
+    "test:maintenance": "node scripts/maintenance-smoke.mjs",
     "test:csv": "node scripts/csv-smoke.mjs"
   },
   "dependencies": {

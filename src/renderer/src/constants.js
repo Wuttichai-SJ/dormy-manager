@@ -97,6 +97,18 @@ export const OWNER_ONLY_ACTIONS = [
   'จัดการผู้ใช้งานระบบ'
 ]
 
+// ต้องตรงกับ MAINTENANCE_STATUSES / MAINTENANCE_STATUS_LABELS ใน src/main/db/maintenance.js
+// (ดู migration 028) · 'open' ไม่ใช่สถานะจริงในฐานข้อมูล แต่เป็นตัวกรอง "งานที่ยังต้องตามต่อ"
+// ซึ่งเป็นคำถามที่คนเปิดหน้านี้ถามบ่อยที่สุด จึงเป็นค่าตั้งต้นของตัวกรอง
+export const MAINTENANCE_STATUS_FILTERS = [
+  { key: 'open', label: 'ที่ยังค้างอยู่' },
+  { key: 'pending', label: 'รอดำเนินการ' },
+  { key: 'scheduled', label: 'นัดช่างแล้ว' },
+  { key: 'done', label: 'ซ่อมเสร็จแล้ว' },
+  { key: 'cancelled', label: 'ยกเลิก' },
+  { key: '', label: 'ทั้งหมด' }
+]
+
 // ต้องตรงกับ VAT_RATE ใน src/main/db/invoices.js — ใช้ขึ้นป้าย "VAT 7%" บนใบแจ้งหนี้เท่านั้น
 // การคำนวณจริงอยู่ฝั่ง main ทั้งหมด ห้ามเอาค่านี้ไปคูณอะไรที่นี่
 export const VAT_RATE = 7

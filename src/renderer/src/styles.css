@@ -1536,6 +1536,9 @@ body {
   font-size: 12px;
   font-weight: 500;
   color: #fff;
+  /* ต้องมีพื้นตั้งต้น ไม่งั้นป้ายที่ใช้เดี่ยวๆ โดยไม่มีคลาสสถานะ (เช่น "คุณ", "ตัดสินเอง",
+     "รูป 2") จะเป็นตัวอักษรขาวบนพื้นขาว = มองไม่เห็นเลย · คลาสสถานะข้างล่างทับค่านี้เอง */
+  background: var(--text-muted);
   border-radius: 5px;
 }
 
@@ -4775,4 +4778,47 @@ body {
 .meter-table + .card-foot {
   align-items: center;
   justify-content: space-between;
+}
+
+/* ------------------------------------------------------------------
+   แจ้งซ่อม
+   ------------------------------------------------------------------ */
+/* ช่องอาการในตารางเป็นข้อความยาว ถ้าปล่อยให้ดันความกว้างเอง คอลัมน์อื่นจะถูกบีบจนอ่านไม่ออก
+   จำกัดความกว้างแล้วให้ตัดบรรทัดแทน (ไม่ตัดด้วย ellipsis เพราะอาการที่อ่านได้ครึ่งเดียว
+   ไม่ช่วยให้ตัดสินใจอะไรได้ ต้องกดเข้าไปดูอยู่ดี) */
+.maintenance-description {
+  max-width: 320px;
+}
+
+.maintenance-description .room-badge {
+  margin-left: 6px;
+}
+
+.maintenance-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.maintenance-image {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* รูปจากกล้องมือถือเป็นแนวตั้งบ้างแนวนอนบ้าง — บังคับกรอบสูงเท่ากันแล้วให้รูปพอดีข้างใน
+   ไม่ใช้ cover เพราะรอยรั่วที่มุมภาพคือสิ่งที่คนถ่ายมาให้ดู ครอบตัดออกไปก็เสียประโยชน์ */
+.maintenance-image img {
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  background: var(--bg);
+  border-radius: 6px;
 }

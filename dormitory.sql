@@ -501,13 +501,23 @@ CREATE TABLE IF NOT EXISTS `mydb`.`maintenance_requests` (
   `maintenance_id` INT NOT NULL AUTO_INCREMENT,
   `room_id` INT NOT NULL,
   `reported_date` DATE NOT NULL,
-  `appointment_date` DATE NOT NULL,
-  `status` ENUM('pending', 'completed', 'cancelled') NOT NULL,
+  -- migration 028: NULL = รับแจ้งแล้วแต่ยังไม่ได้นัดช่าง
+  -- ของเดิมเป็น NOT NULL ซึ่งบังคับให้คนคีย์ใส่วันมั่วตั้งแต่ตอนรับแจ้ง แล้วคอลัมน์นี้
+  -- จะเชื่อไม่ได้ทั้งตาราง (รูปแบบเดียวกับเลขมิเตอร์ 0 ที่แปลว่า "ยังไม่ได้จด" ใน 014)
+  `appointment_date` DATE NULL,
+  -- 'pending' | 'scheduled' | 'done' | 'cancelled' — ตรวจค่าที่ db/maintenance.js
+  -- (ต่างจากที่ต้นแบบร่างไว้: เพิ่ม 'scheduled' เพราะ "นัดช่างแล้ว" คือสถานะที่เจ้าของหอ
+  --  ต้องแยกออกจาก "รอดำเนินการ" เวลากวาดตาดูว่างานไหนยังไม่มีใครรับ)
+  `status` VARCHAR(255) NOT NULL,
   `description` TEXT NOT NULL,
+  -- เลิกใช้ตั้งแต่ 011 (รูปเก็บเป็น BLOB ที่ maintenance_request_images) ไม่ลบทิ้ง
   `image_url` VARCHAR(255) NULL,
-  `repaired_date` DATE NOT NULL,
-  `repair_cost_cents` INTEGER NOT NULL,
-  `repair_details` TEXT NOT NULL,
+  -- ทั้งสามช่องนี้ว่างได้: งานที่ยังไม่ปิดยังไม่มีผลการซ่อม
+  -- **`repair_cost_cents` NULL = ยังไม่รู้ค่าซ่อม · 0 = ซ่อมแล้วไม่เสียเงิน** คนละเรื่องกัน
+  -- ยังไม่ได้ผูกกับระบบเงินใดๆ (รอคำตอบว่าค่าซ่อมระหว่างผู้เช่าอยู่ เรียกเก็บได้ไหม)
+  `repaired_date` DATE NULL,
+  `repair_cost_cents` INTEGER NULL,
+  `repair_details` TEXT NULL,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`maintenance_id`),

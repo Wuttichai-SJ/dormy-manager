@@ -6,6 +6,7 @@ import MetersPage from '../pages/MetersPage.jsx'
 import InvoicesPage from '../pages/InvoicesPage.jsx'
 import ReceiptsPage from '../pages/ReceiptsPage.jsx'
 import MoveOutHistoryPage from '../pages/MoveOutHistoryPage.jsx'
+import MaintenancePage from '../pages/MaintenancePage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
@@ -32,7 +33,7 @@ const NAV = [
   // ที่ผูกกับห้องที่ยังมีคนอยู่ ผู้เช่าที่ย้ายออกแล้วไม่มีห้องให้เข้าไปหาอีกต่อไป
   // (ห้องกลับเป็นห้องว่างและอาจมีผู้เช่าคนใหม่อยู่แล้ว)
   { key: 'moveOuts', label: 'ประวัติการย้ายออก' },
-  { key: 'maintenance', label: 'แจ้งซ่อม', soon: 'รับแจ้งซ่อมจากผู้เช่าและบันทึกการเข้าซ่อม' }
+  { key: 'maintenance', label: 'แจ้งซ่อม' }
 ]
 
 const SETTINGS_ITEMS = SETTINGS_GROUPS.flatMap((g) => g.items)
@@ -160,6 +161,8 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
           ) : active === 'payments' ? (
             // user ไปตัดสินว่าจะแสดงปุ่ม "ยกเลิกใบเสร็จ" ไหม (เจ้าของหอเท่านั้น)
             <ReceiptsPage apartment={apartment} user={user} />
+          ) : active === 'maintenance' ? (
+            <MaintenancePage apartment={apartment} />
           ) : active === 'moveOuts' ? (
             // ชื่อผู้ที่ล็อกอินอยู่ไปขึ้นช่องลงชื่อในใบสรุปที่พิมพ์ย้อนหลัง
             <MoveOutHistoryPage apartment={apartment} user={user} />
