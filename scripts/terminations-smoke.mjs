@@ -1051,5 +1051,62 @@ check('ไม่ระบุหอ ไล่รายการไม่ได้
 })
 
 // -----------------------------------------------------
+group('ใบที่ตัดสินไว้ด้วยสูตรคนละรุ่น')
+
+// เจอจริง 2026-08-14: ใบของห้อง 103 ถูกยืนยันไว้ 57 นาทีก่อน `051da46` (commit ที่แก้บั๊ก
+// "จ่ายสองต่อ") เอกสารจึงแจกแจงว่าผู้เช่าต้องชำระ 380 แล้วสรุปว่า 880 โดยไม่มีอะไรอธิบาย
+// ส่วนต่าง 500 — เพราะรายการมาจากสูตรปัจจุบัน ส่วนยอดสุทธิมาจากคอลัมน์ที่บันทึกไว้
+check('ยอดที่บันทึกไม่ตรงกับสูตรปัจจุบัน ต้องติดธงและบอกยอดทั้งสองชุด', () => {
+  const made = makeContract({ startDate: '2026-02-01', termMonths: 12 })
+  terminations.completeTermination(db, made.contract.contractId, {
+    moveOutDate: '2026-05-01',
+    adjustments: [
+      { itemType: 'service', description: 'ค่าทาสี', amount: '500' },
+      { itemType: 'meter', description: 'ค่าน้ำ-ไฟ', amount: '380' }
+    ],
+    collectShortfall: false,
+    createdBy: staff.user_id
+  })
+
+  const fresh = terminations.getTerminationByContract(db, made.contract.contractId)
+  assert(fresh.netRefundCents === -38000, `สูตรปัจจุบันต้องได้ -38000 (ได้ ${fresh.netRefundCents})`)
+  assert(fresh.hasNetRefundMismatch === false, 'ใบที่เพิ่งทำต้องไม่ติดธง')
+
+  // เขียนทับด้วยยอดของสูตรเก่า (ริบเงินประกันแล้วยังเก็บค่าทาสีอีก 500)
+  // = จำลองใบที่ยืนยันไว้ก่อนสูตรถูกแก้ ซึ่งเป็นสภาพที่เกิดขึ้นจริงในฐานข้อมูลของผู้ใช้
+  db.prepare('UPDATE contract_terminations SET net_refund_amount_cents = ? WHERE contract_id = ?')
+    .run(-88000, made.contract.contractId)
+
+  const stale = terminations.getTerminationByContract(db, made.contract.contractId)
+  assert(stale.hasNetRefundMismatch === true, 'ต้องติดธง')
+  // ยอดที่ตกลงกับผู้เช่าไว้ในวันนั้นยังต้องชนะ — ธงมีไว้บอก ไม่ได้มีไว้เขียนทับ
+  assert(stale.netRefundCents === -88000, `ยอดที่บันทึกต้องชนะ (ได้ ${stale.netRefundCents})`)
+  assert(
+    stale.recomputedNetRefundCents === -38000,
+    `ยอดตามสูตรปัจจุบันได้ ${stale.recomputedNetRefundCents}`
+  )
+  assert(stale.tenantOwesCents === 38000, `รายการแจกแจงยังคิดตามสูตรปัจจุบัน (${stale.tenantOwesCents})`)
+  // ยอดค้างคิดจากยอดที่บันทึกไว้ ไม่ใช่ยอดที่คำนวณใหม่
+  assert(stale.unpaidBalanceCents === 88000, `ยอดค้างได้ ${stale.unpaidBalanceCents}`)
+})
+
+check('ธงขึ้นถึงตารางประวัติด้วย ไม่ใช่เห็นเฉพาะตอนเปิดใบ', () => {
+  const report = terminations.listTerminations(db, apartmentId)
+  const flagged = report.terminations.filter((t) => t.hasNetRefundMismatch)
+  assert(report.mismatchCount === flagged.length, `นับได้ ${report.mismatchCount}`)
+  assert(report.mismatchCount === 1, `ต้องมีใบเดียวที่ไม่ตรง (ได้ ${report.mismatchCount})`)
+  assert(
+    flagged[0].recomputedNetRefundCents === -38000,
+    `ตารางต้องบอกยอดตามสูตรปัจจุบันด้วย (ได้ ${flagged[0].recomputedNetRefundCents})`
+  )
+
+  // ใบที่เหลือทั้งหมดต้องไม่ติดธง — ถ้าธงขึ้นมั่วจะกลายเป็นเสียงรบกวนที่คนเลิกอ่าน
+  for (const t of report.terminations) {
+    if (t.contractId === flagged[0].contractId) continue
+    assert(t.hasNetRefundMismatch === false, `ห้อง ${t.roomNumber} ไม่ควรติดธง`)
+  }
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('การย้ายออกและคืนเงินประกันทำงานครบทุกเส้นทาง')

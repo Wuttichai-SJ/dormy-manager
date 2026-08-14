@@ -81,6 +81,15 @@ export default function MoveOutHistoryPage({ apartment, user }) {
         {rangeReversed && (
           <Alert kind="warn">วันที่เริ่มต้นอยู่หลังวันที่สิ้นสุด — ลองสลับสองช่องนี้</Alert>
         )}
+        {/* ปกติต้องไม่ขึ้นเลย — ขึ้นเมื่อไหร่แปลว่ามีใบที่ตัดสินไว้ด้วยสูตรคนละรุ่นกับที่ใช้อยู่
+            ต้องเห็นตั้งแต่หน้ารายการ ไม่ใช่รอให้บังเอิญเปิดใบนั้นเจอ */}
+        {(report?.mismatchCount ?? 0) > 0 && (
+          <Alert kind="warn">
+            มี {report.mismatchCount} ใบที่ยอดสุทธิซึ่งบันทึกไว้ ไม่ตรงกับที่คำนวณด้วยกติกาปัจจุบัน
+            (ทำเครื่องหมาย ⚠ ไว้ในตาราง) — เป็นใบที่ยืนยันไว้ตอนที่สูตรยังเป็นอีกรุ่น
+            เปิดดูรายละเอียดเพื่อเทียบตัวเลขทั้งสองชุด
+          </Alert>
+        )}
 
         <div className="invoice-filters">
           <div className="field">
@@ -195,6 +204,15 @@ export default function MoveOutHistoryPage({ apartment, user }) {
                     <span className={t.netRefundCents < 0 ? 'negative' : undefined}>
                       {formatBaht(t.netRefundCents)}
                     </span>
+                    {t.hasNetRefundMismatch && (
+                      <span
+                        className="negative"
+                        title={`คิดด้วยกติกาปัจจุบันจะได้ ${formatBaht(t.recomputedNetRefundCents)}`}
+                      >
+                        {' '}
+                        ⚠
+                      </span>
+                    )}
                   </td>
                   <td className="align-right">
                     {t.unpaidBalanceCents > 0 ? (
@@ -298,6 +316,28 @@ function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
           <h2 className="room-detail-title">
             รายละเอียดการย้ายออก — ห้อง {record.roomNumber}
           </h2>
+
+          {/* ใบที่ตัดสินด้วยสูตรคนละรุ่น — ต้องกางตัวเลขทั้งสองชุดให้เห็น ไม่ใช่บอกแค่ว่า
+              "ไม่ตรงกัน" เพราะคนอ่านต้องตัดสินใจได้ว่าจะยึดอันไหน */}
+          {record.hasNetRefundMismatch && (
+            <section className="panel">
+              <Alert kind="warn">
+                ใบนี้บันทึกยอดสุทธิไว้{' '}
+                <strong>
+                  {record.netRefundCents >= 0 ? 'คืนให้ผู้เช่า' : 'ผู้เช่าต้องชำระเพิ่ม'}{' '}
+                  {formatBaht(Math.abs(record.netRefundCents))} บาท
+                </strong>{' '}
+                แต่คำนวณด้วยกติกาปัจจุบันได้{' '}
+                <strong>
+                  {record.recomputedNetRefundCents >= 0 ? 'คืนให้ผู้เช่า' : 'ผู้เช่าต้องชำระเพิ่ม'}{' '}
+                  {formatBaht(Math.abs(record.recomputedNetRefundCents))} บาท
+                </strong>{' '}
+                — ใบนี้ถูกยืนยันตอนที่ระบบยังใช้สูตรอีกรุ่น รายการแจกแจงด้านล่างคิดด้วยกติกา
+                ปัจจุบัน ส่วนยอดสุทธิยังเป็นยอดที่ตกลงกับผู้เช่าไว้ในวันนั้น (ยอดที่บันทึกไว้
+                เป็นยอดที่ระบบใช้จริง)
+              </Alert>
+            </section>
+          )}
 
           {record.unpaidBalanceCents > 0 && (
             <section className="panel">

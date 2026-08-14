@@ -652,6 +652,19 @@ export function getTerminationByContract(db, contractId) {
     isRefundable: row.is_deposit_refundable === 1
   })
 
+  // 🔴 **ใบเก่าที่ตัดสินด้วยสูตรคนละรุ่นต้องบอกออกมา ไม่ใช่ปล่อยให้เอกสารบวกไม่ลงเงียบๆ**
+  //
+  // เอกสารใบนี้ดึงตัวเลขจากสองแหล่งโดยตั้งใจ: รายการแจกแจงกับยอดย่อยมาจาก summariseMoney
+  // (สูตรปัจจุบัน) ส่วนยอดสุทธิบรรทัดล่างสุดมาจากคอลัมน์ที่บันทึกไว้ตอนกดยืนยัน เพราะยอดที่
+  // ตกลงกับผู้เช่าไว้ในวันนั้นต้องไม่ถูกสูตรรุ่นหลังเขียนทับ
+  //
+  // ปกติสองทางนี้ให้ค่าเท่ากัน แต่ถ้าสูตรเคยถูกแก้ ใบที่ทำก่อนหน้านั้นจะแสดง
+  // "รวมที่ผู้เช่าต้องชำระ 380" แล้วสรุปว่า "ผู้เช่าต้องชำระเพิ่ม 880" โดยไม่มีอะไรอธิบาย
+  // 500 ที่หายไป — ยอดรวมที่อธิบายไม่ได้คือที่มาของข้อพิพาท (เจอจริง 2026-08-14 กับใบที่
+  // ยืนยันไว้ 57 นาทีก่อน `051da46` ซึ่งเป็น commit ที่แก้สูตร "จ่ายสองต่อ")
+  const recomputedNetRefundCents = money.netRefundCents
+  const hasNetRefundMismatch = netRefundCents !== recomputedNetRefundCents
+
   return {
     terminationId: row.termination_id,
     contractId: row.contract_id,
@@ -679,6 +692,10 @@ export function getTerminationByContract(db, contractId) {
     // ยอดที่บันทึกไว้ตอนยืนยันชนะเสมอ — ตัวคำนวณข้างบนไว้แจกแจง ไม่ได้ไว้เขียนประวัติใหม่
     // (ถ้าวันหนึ่งสูตรเปลี่ยน ใบเก่าต้องยังแสดงยอดที่ตกลงกันไว้ในวันนั้น)
     netRefundCents,
+    // ยอดที่สูตรปัจจุบันคำนวณได้ + ธงว่าไม่ตรงกับที่บันทึกไว้ (ดูเหตุผลข้างบน)
+    // ทั้งเอกสารและหน้าจอต้องขึ้นข้อความกำกับเมื่อธงนี้เป็นจริง
+    recomputedNetRefundCents,
+    hasNetRefundMismatch,
     // > 0 = เก็บเงินส่วนต่างยังไม่ได้ ยังต้องตามเก็บ
     unpaidBalanceCents,
     isManualOverride: row.is_manual_override === 1,
@@ -755,31 +772,69 @@ export function listTerminations(db, apartmentId, { search, dateFrom, dateTo } =
     )
     .all(params)
 
-  const terminations = rows.map((row) => ({
-    terminationId: row.termination_id,
-    contractId: row.contract_id,
-    roomNumber: row.room_number,
-    tenantName: row.tenant_name ?? null,
-    startDate: row.start_date,
-    moveOutDate: row.actual_move_out_date,
-    noticeDate: row.notice_date,
-    isNoticeGiven: row.is_notice_given === 1,
-    noticeDaysGiven: row.notice_days_given,
-    monthsStayed: row.months_stayed_total,
-    termMonths: row.term_months,
-    depositSnapshotCents: row.deposit_snapshot_cents,
-    depositRefundCents: row.refundable_deposit_cents,
-    outstandingTotalCents: row.unpaid_invoices_total_cents,
-    netRefundCents: row.net_refund_amount_cents,
-    isDepositRefundable: row.is_deposit_refundable === 1,
-    forfeitReason: row.forfeit_reason,
-    forfeitReasonLabel: row.forfeit_reason ? FORFEIT_REASON_LABELS[row.forfeit_reason] : null,
-    isManualOverride: row.is_manual_override === 1,
-    collectedShortfallCents: row.collected_cents,
-    // > 0 = ยังต้องตามเก็บ — คอลัมน์นี้คือเหตุผลหลักที่หน้านี้มีอยู่
-    unpaidBalanceCents: shortfallOutstanding(row.net_refund_amount_cents, row.collected_cents),
-    createdAt: row.created_at
-  }))
+  // รายการหักของทุกใบในคิวรีเดียว แล้วจับกลุ่มในหน่วยความจำ — ต้องมีเพื่อคิดยอดตามสูตร
+  // ปัจจุบันเทียบกับยอดที่บันทึกไว้ (ธง hasNetRefundMismatch) ถ้าธงนี้โผล่เฉพาะตอนเปิดดูรายใบ
+  // ก็ไม่มีใครหาเจออยู่ดี ตารางคือที่ที่คนกวาดสายตา
+  const itemsByTermination = new Map()
+  if (rows.length > 0) {
+    const ids = rows.map((row) => row.termination_id)
+    const placeholders = ids.map(() => '?').join(',')
+    const allItems = db
+      .prepare(
+        `SELECT contract_termination_id, item_type, description, total_amount_cents
+           FROM contract_termination_items
+          WHERE contract_termination_id IN (${placeholders})
+          ORDER BY item_id`
+      )
+      .all(ids)
+    for (const item of allItems) {
+      const list = itemsByTermination.get(item.contract_termination_id) ?? []
+      list.push({
+        itemType: item.item_type,
+        itemTypeLabel: TERMINATION_ITEM_TYPE_LABELS[item.item_type] ?? item.item_type,
+        description: item.description,
+        amountCents: item.total_amount_cents
+      })
+      itemsByTermination.set(item.contract_termination_id, list)
+    }
+  }
+
+  const terminations = rows.map((row) => {
+    const money = summariseMoney({
+      depositReceivedCents: row.deposit_snapshot_cents,
+      items: itemsByTermination.get(row.termination_id) ?? [],
+      isRefundable: row.is_deposit_refundable === 1
+    })
+
+    return {
+      terminationId: row.termination_id,
+      contractId: row.contract_id,
+      roomNumber: row.room_number,
+      tenantName: row.tenant_name ?? null,
+      startDate: row.start_date,
+      moveOutDate: row.actual_move_out_date,
+      noticeDate: row.notice_date,
+      isNoticeGiven: row.is_notice_given === 1,
+      noticeDaysGiven: row.notice_days_given,
+      monthsStayed: row.months_stayed_total,
+      termMonths: row.term_months,
+      depositSnapshotCents: row.deposit_snapshot_cents,
+      depositRefundCents: row.refundable_deposit_cents,
+      outstandingTotalCents: row.unpaid_invoices_total_cents,
+      netRefundCents: row.net_refund_amount_cents,
+      isDepositRefundable: row.is_deposit_refundable === 1,
+      forfeitReason: row.forfeit_reason,
+      forfeitReasonLabel: row.forfeit_reason ? FORFEIT_REASON_LABELS[row.forfeit_reason] : null,
+      isManualOverride: row.is_manual_override === 1,
+      collectedShortfallCents: row.collected_cents,
+      // > 0 = ยังต้องตามเก็บ — คอลัมน์นี้คือเหตุผลหลักที่หน้านี้มีอยู่
+      unpaidBalanceCents: shortfallOutstanding(row.net_refund_amount_cents, row.collected_cents),
+      // ยอดที่บันทึกไว้ไม่ตรงกับที่สูตรปัจจุบันคำนวณได้ = ใบที่ตัดสินด้วยสูตรคนละรุ่น
+      recomputedNetRefundCents: money.netRefundCents,
+      hasNetRefundMismatch: row.net_refund_amount_cents !== money.netRefundCents,
+      createdAt: row.created_at
+    }
+  })
 
   const unpaid = terminations.filter((t) => t.unpaidBalanceCents > 0)
 
@@ -789,7 +844,9 @@ export function listTerminations(db, apartmentId, { search, dateFrom, dateTo } =
     // ยอดที่หอยังตามเก็บไม่ได้ทั้งหมด — ตัวเลขที่เจ้าของหอเปิดหน้านี้มาดูเป็นอย่างแรก
     unpaidTotalCents: unpaid.reduce((sum, t) => sum + t.unpaidBalanceCents, 0),
     unpaidCount: unpaid.length,
-    forfeitedCount: terminations.filter((t) => !t.isDepositRefundable).length
+    forfeitedCount: terminations.filter((t) => !t.isDepositRefundable).length,
+    // ปกติต้องเป็น 0 เสมอ — ไม่เป็น 0 เมื่อไหร่แปลว่ามีใบที่ตัดสินไว้ด้วยสูตรคนละรุ่นกับที่ใช้อยู่
+    mismatchCount: terminations.filter((t) => t.hasNetRefundMismatch).length
   }
 }
 
