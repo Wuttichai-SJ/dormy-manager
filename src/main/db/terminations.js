@@ -36,6 +36,28 @@ export const FORFEIT_REASON_LABELS = {
   policy_never: 'สัญญาฉบับนี้ระบุว่าไม่คืนเงินประกัน'
 }
 
+// เงื่อนไข SQL ที่บอกว่า "ใบเสร็จใบนี้เกิดจากการย้ายออก" — ดูเหตุผลเต็มที่
+// getTerminationByContract · ต้องเป็นก้อนเดียวที่ใช้ร่วมกันทุกที่ ถ้าแยกกันเขียน วันหนึ่ง
+// ยอด "ยังค้างเก็บ" ในตารางประวัติกับในใบสรุปจะไม่ตรงกัน แล้วไม่มีใครรู้ว่าอันไหนถูก
+const MOVE_OUT_RECEIPT_FILTER = `cancelled_at IS NULL
+          AND (purpose = 'other' OR (purpose = 'deposit' AND amount_cents < 0))`
+
+// เงินส่วนต่างที่ตามเก็บมาได้แล้วของสัญญาใบหนึ่ง — ใบรับเงินส่วนต่างคือ purpose = 'other'
+// (ทั้งใบที่ออกตอนย้ายออกและใบที่ออกตอนตามเก็บทีหลัง เป็นชนิดเดียวกัน)
+const COLLECTED_SHORTFALL_SUBQUERY = `SELECT COALESCE(SUM(amount_cents), 0)
+             FROM payments
+            WHERE contract_id = t.contract_id
+              AND cancelled_at IS NULL
+              AND purpose = 'other'`
+
+// ยอดที่ผู้เช่าต้องจ่ายเพิ่มแต่ยังไม่ได้จ่าย
+//
+// สุทธิติดลบ = ผู้เช่าต้องจ่ายเพิ่ม · ลบด้วยที่เก็บมาได้แล้ว · ไม่ติดลบ (เก็บเกินไม่ได้อยู่แล้ว)
+// สุทธิเป็นบวกหรือศูนย์ = หอเป็นฝ่ายคืนเงิน ไม่มีอะไรให้ตามเก็บ
+export function shortfallOutstanding(netRefundCents, collectedCents) {
+  return netRefundCents < 0 ? Math.max(0, -netRefundCents - collectedCents) : 0
+}
+
 // ------------------------------------------------------------------
 // แจ้งย้ายออก (จังหวะแรก)
 // ------------------------------------------------------------------
@@ -585,18 +607,27 @@ export function getTerminationByContract(db, contractId) {
   // ใบเสร็จที่เกิดจากการย้ายออกครั้งนี้ — ตรงกับตาราง "รายละเอียดการย้ายออก" ของต้นแบบ
   //
   // เอาเฉพาะใบที่ผูกกับ *สัญญา* (คืนเงินประกัน / รับเงินส่วนต่าง) ไม่รวมใบที่ผูกกับใบแจ้งหนี้ —
-  // บิลต้องถูกเคลียร์ไปก่อนย้ายออกอยู่แล้ว ใบเสร็จของบิลจึงเป็นคนละเรื่อง และถ้ากวาดมาด้วย
-  // ใบที่บังเอิญลงวันเดียวกันจะหลุดเข้ามาปนโดยไม่เกี่ยวกับการย้ายออกเลย
+  // บิลต้องถูกเคลียร์ไปก่อนย้ายออกอยู่แล้ว ใบเสร็จของบิลจึงเป็นคนละเรื่อง
+  // (ข้อนี้ได้มาฟรีอยู่แล้ว: payments บังคับให้ผูกกับใบแจ้งหนี้ *หรือ* สัญญาอย่างใดอย่างหนึ่ง
+  //  ใบที่มี contract_id จึงเป็นใบระดับสัญญาเสมอ)
+  //
+  // 🔴 **แยกด้วยความหมายของใบ ไม่ใช่ด้วยวันที่** — เดิมกรอง `payment_date = วันที่ย้ายออก`
+  // ซึ่งใช้ได้ตราบใดที่เงินทุกก้อนเคลื่อนในวันย้ายออกวันเดียว พอเปิดให้ตามเก็บเงินส่วนต่าง
+  // ทีหลังได้ (ผู้เช่าเอาค่าซ่อมมาจ่ายอีกสองอาทิตย์ถัดมา) ใบนั้นลงวันคนละวันแล้วหลุดออกจาก
+  // ผลลัพธ์ทันที — ยอด "ยังค้างเก็บ" จะไม่มีวันลดลงทั้งที่เก็บเงินมาแล้ว
+  //
+  // ที่เหลือคือแยกใบของการย้ายออก ออกจากเงินประกัน/ค่าเช่าล่วงหน้าที่รับตอนเข้าพัก:
+  //   purpose = 'other'               → รับเงินส่วนต่าง (ทั้งระบบมีที่เดียวคือการย้ายออก)
+  //   purpose = 'deposit' + ยอดติดลบ  → คืนเงินประกัน (เงินประกันไหลออกได้ทางเดียวเท่านั้น)
   const receipts = db
     .prepare(
       `SELECT receipt_number, payment_date, amount_cents, payment_method, purpose, remark
          FROM payments
         WHERE contract_id = @contractId
-          AND payment_date = @moveOutDate
-          AND cancelled_at IS NULL
-        ORDER BY payment_id`
+          AND ${MOVE_OUT_RECEIPT_FILTER}
+        ORDER BY payment_date, payment_id`
     )
-    .all({ moveOutDate: row.actual_move_out_date, contractId })
+    .all({ contractId })
     .map((p) => ({
       receiptNumber: p.receipt_number,
       paymentDate: p.payment_date,
@@ -611,7 +642,7 @@ export function getTerminationByContract(db, contractId) {
     .filter((r) => r.amountCents > 0)
     .reduce((sum, r) => sum + r.amountCents, 0)
   const netRefundCents = row.net_refund_amount_cents
-  const unpaidBalanceCents = netRefundCents < 0 ? Math.max(0, -netRefundCents - collectedCents) : 0
+  const unpaidBalanceCents = shortfallOutstanding(netRefundCents, collectedCents)
 
   // แจกแจงเงินด้วยตัวคำนวณตัวเดียวกับตอนพรีวิว — ใบสรุปที่ยื่นให้ผู้เช่าก่อนย้ายออก
   // กับใบที่เปิดดูย้อนหลังจึงแสดงตัวเลขชุดเดียวกันเสมอ
@@ -657,6 +688,164 @@ export function getTerminationByContract(db, contractId) {
     items,
     receipts
   }
+}
+
+// ------------------------------------------------------------------
+// ประวัติการย้ายออกทั้งหมดของหอ
+// ------------------------------------------------------------------
+// ต้นแบบเก็บผู้เช่าที่ย้ายออกไว้ให้เปิดดูย้อนหลังได้เสมอ ส่วนของเราเคยปิดสัญญาแล้ว
+// ข้อมูลหายไปจากทุกหน้าจอ ทั้งที่ยังอยู่ครบใน contract_terminations — ห้องกลับไปเป็นห้องว่าง
+// แล้วผู้เช่าคนเดิมก็ไม่มีทางเข้าไปดูอีกเลย ทั้งเรื่องเงินประกันที่คืนไปและเหตุผลที่ริบ
+//
+// หน้านี้ยังเป็นทางเดียวที่จะไปถึงยอด "ยังเก็บไม่ได้" ของการย้ายออกเก่าๆ ด้วย
+// (ดู collectTerminationShortfall)
+export function listTerminations(db, apartmentId, { search, dateFrom, dateTo } = {}) {
+  if (!apartmentId) throw new Error('ไม่พบหอพัก')
+
+  const where = ['f.apartment_id = @apartmentId']
+  const params = { apartmentId }
+
+  // วันขอบนับรวม (เหมือนตัวกรองของหน้าใบแจ้งหนี้และรายงานใบเสร็จ) · ใส่ข้างเดียวได้
+  if (dateFrom) {
+    where.push('t.actual_move_out_date >= @dateFrom')
+    params.dateFrom = dateFrom
+  }
+  if (dateTo) {
+    where.push('t.actual_move_out_date <= @dateTo')
+    params.dateTo = dateTo
+  }
+
+  const keyword = String(search ?? '').trim()
+  if (keyword) {
+    params.search = `%${keyword}%`
+    // ค้นด้วย EXISTS ไม่ใช่อ้างชื่อคอลัมน์ที่ตั้ง alias ไว้ใน SELECT — SQLite ยอมให้ทำ
+    // แต่เป็นส่วนขยายของมันเอง ไม่ใช่ SQL มาตรฐาน เขียนตรงๆ อ่านง่ายกว่าและไม่พึ่งของแถม
+    where.push(
+      `(r.room_number LIKE @search
+        OR EXISTS (SELECT 1
+                     FROM contract_tenants ct
+                     JOIN tenants tn ON tn.tenant_id = ct.tenant_id
+                    WHERE ct.contract_id = c.contract_id
+                      AND (tn.first_name || ' ' || tn.last_name) LIKE @search))`
+    )
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT t.termination_id, t.contract_id, t.actual_move_out_date, t.notice_date,
+              t.is_notice_given, t.notice_days_given, t.months_stayed_total,
+              t.deposit_snapshot_cents, t.refundable_deposit_cents,
+              t.net_refund_amount_cents, t.unpaid_invoices_total_cents,
+              t.is_deposit_refundable, t.forfeit_reason, t.is_manual_override,
+              t.created_at,
+              r.room_number, c.start_date, c.term_months,
+              (SELECT tn.first_name || ' ' || tn.last_name
+                 FROM contract_tenants ct
+                 JOIN tenants tn ON tn.tenant_id = ct.tenant_id
+                WHERE ct.contract_id = c.contract_id
+                ORDER BY ct.is_primary DESC, tn.tenant_id
+                LIMIT 1) AS tenant_name,
+              (${COLLECTED_SHORTFALL_SUBQUERY}) AS collected_cents
+         FROM contract_terminations t
+         JOIN contracts c  ON c.contract_id = t.contract_id
+         JOIN rooms r      ON r.room_id = c.room_id
+         JOIN floors f     ON f.floor_id = r.floor_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY t.actual_move_out_date DESC, t.termination_id DESC`
+    )
+    .all(params)
+
+  const terminations = rows.map((row) => ({
+    terminationId: row.termination_id,
+    contractId: row.contract_id,
+    roomNumber: row.room_number,
+    tenantName: row.tenant_name ?? null,
+    startDate: row.start_date,
+    moveOutDate: row.actual_move_out_date,
+    noticeDate: row.notice_date,
+    isNoticeGiven: row.is_notice_given === 1,
+    noticeDaysGiven: row.notice_days_given,
+    monthsStayed: row.months_stayed_total,
+    termMonths: row.term_months,
+    depositSnapshotCents: row.deposit_snapshot_cents,
+    depositRefundCents: row.refundable_deposit_cents,
+    outstandingTotalCents: row.unpaid_invoices_total_cents,
+    netRefundCents: row.net_refund_amount_cents,
+    isDepositRefundable: row.is_deposit_refundable === 1,
+    forfeitReason: row.forfeit_reason,
+    forfeitReasonLabel: row.forfeit_reason ? FORFEIT_REASON_LABELS[row.forfeit_reason] : null,
+    isManualOverride: row.is_manual_override === 1,
+    collectedShortfallCents: row.collected_cents,
+    // > 0 = ยังต้องตามเก็บ — คอลัมน์นี้คือเหตุผลหลักที่หน้านี้มีอยู่
+    unpaidBalanceCents: shortfallOutstanding(row.net_refund_amount_cents, row.collected_cents),
+    createdAt: row.created_at
+  }))
+
+  const unpaid = terminations.filter((t) => t.unpaidBalanceCents > 0)
+
+  return {
+    terminations,
+    count: terminations.length,
+    // ยอดที่หอยังตามเก็บไม่ได้ทั้งหมด — ตัวเลขที่เจ้าของหอเปิดหน้านี้มาดูเป็นอย่างแรก
+    unpaidTotalCents: unpaid.reduce((sum, t) => sum + t.unpaidBalanceCents, 0),
+    unpaidCount: unpaid.length,
+    forfeitedCount: terminations.filter((t) => !t.isDepositRefundable).length
+  }
+}
+
+// ------------------------------------------------------------------
+// ตามเก็บเงินส่วนต่างทีหลัง
+// ------------------------------------------------------------------
+// ตอนย้ายออก ถ้ายอดสุทธิติดลบแล้วเจ้าของหอติ๊ก "ยังเก็บไม่ได้" ระบบจะไม่ออกใบเสร็จ
+// แล้วยอดนั้นค้างอยู่ในบันทึกการย้ายออกโดย **ไม่มีที่ให้บันทึกตอนเก็บเงินได้จริง** —
+// ผู้เช่าเอาเงินมาให้อีกสองอาทิตย์ถัดมา คนคีย์ก็ไม่มีปุ่มให้กด สุดท้ายจะไปคีย์เป็นอย่างอื่น
+// หรือไม่คีย์เลย แล้วยอดค้างในระบบจะไม่ตรงกับความจริงตลอดไป
+//
+// ใบที่ออกเป็นชนิดเดียวกับใบที่ออกตอนย้ายออก (purpose = 'other' ผูกกับสัญญา) เพราะมันคือ
+// เงินก้อนเดียวกัน แค่มาถึงช้ากว่า — ทั้งสองใบจึงโผล่ในใบสรุปการย้ายออกใบเดิมเหมือนกัน
+export function collectTerminationShortfall(
+  db,
+  contractId,
+  { amount, paymentMethod, paymentDate, remark, createdBy } = {}
+) {
+  if (!createdBy) throw new Error('ไม่ทราบผู้รับเงิน กรุณาเข้าสู่ระบบใหม่')
+
+  const termination = getTerminationByContract(db, contractId)
+  if (!termination) throw new Error('ไม่พบบันทึกการย้ายออกของสัญญานี้')
+  if (termination.unpaidBalanceCents <= 0) {
+    throw new Error('การย้ายออกครั้งนี้ไม่มียอดค้างให้เก็บแล้ว')
+  }
+
+  const date = paymentDate ?? todayIso()
+  if (!isDate(date)) throw new Error('กรุณาระบุวันที่รับเงิน')
+  // รับเงินก่อนวันที่ย้ายออกไม่ได้ — เงินก้อนนี้เกิดจากการตรวจห้องตอนย้ายออก
+  // วันที่ก่อนหน้านั้นคือวันที่พิมพ์ผิด และจะทำให้ใบเสร็จไปโผล่ผิดเดือนในรายงาน
+  if (date < termination.moveOutDate) {
+    throw new Error(`วันที่รับเงินต้องไม่ก่อนวันที่ย้ายออก (${termination.moveOutDate})`)
+  }
+
+  const magnitude = toCents(amount, 'จำนวนเงิน')
+  if (magnitude <= 0) throw new Error('จำนวนเงินต้องมากกว่า 0')
+  // เก็บเกินยอดค้างไม่ได้ (กติกาเดียวกับการรับชำระบิล) — ทยอยจ่ายทีละส่วนได้ตามปกติ
+  if (magnitude > termination.unpaidBalanceCents) {
+    throw new Error(
+      `รับเงินเกินยอดที่ค้างอยู่ (${formatBaht(termination.unpaidBalanceCents)} บาท) ไม่ได้`
+    )
+  }
+
+  const receipt = recordContractPayment(db, {
+    contractId,
+    amount: magnitude / 100,
+    paymentMethod: paymentMethod ?? 'cash',
+    paymentDate: date,
+    remark: String(remark ?? '').trim() || `รับเงินส่วนต่างตอนย้ายออก ห้อง ${termination.roomNumber}`,
+    createdBy,
+    purpose: 'other'
+  })
+
+  // คืนบันทึกที่อ่านใหม่ทั้งใบ ไม่ใช่แค่ใบเสร็จ — หน้าจอต้องได้ยอดค้างที่ลดลงแล้ว
+  // และใบสรุปที่พิมพ์ต่อจากนี้ต้องมีใบเสร็จใบใหม่อยู่ในตารางด้วย
+  return { ...getTerminationByContract(db, contractId), receipt }
 }
 
 // ------------------------------------------------------------------

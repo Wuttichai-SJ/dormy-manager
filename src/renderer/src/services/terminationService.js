@@ -32,3 +32,21 @@ export function completeTermination(payload) {
 export function getTermination(contractId) {
   return invoke('termination:get', { contractId })
 }
+
+// ประวัติการย้ายออกทั้งหมดของหอ — ค้นด้วยเลขห้องหรือชื่อผู้เช่า กรองด้วยช่วงวันที่ย้ายออก
+// (ใส่ข้างเดียวได้ วันขอบนับรวม)
+export function listTerminations(apartmentId, { search, dateFrom, dateTo } = {}) {
+  return invoke('termination:list', { apartmentId, search, dateFrom, dateTo })
+}
+
+// ตามเก็บเงินส่วนต่างที่ตอนย้ายออกติ๊กไว้ว่า "ยังเก็บไม่ได้"
+// ทยอยเก็บทีละส่วนได้ แต่เก็บเกินยอดค้างไม่ได้ (main เป็นฝ่ายบังคับ)
+export function collectShortfall({ contractId, amount, paymentMethod, paymentDate, remark }) {
+  return invoke('termination:collect', {
+    contractId,
+    amount,
+    paymentMethod,
+    paymentDate,
+    remark
+  })
+}

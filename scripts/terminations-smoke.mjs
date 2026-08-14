@@ -769,5 +769,287 @@ check('สัญญาที่ปิดไปแล้วย้ายออก�
 })
 
 // -----------------------------------------------------
+group('ตามเก็บเงินส่วนต่างทีหลัง')
+
+// ตอนย้ายออกติ๊ก "ยังเก็บไม่ได้" ไว้ แล้วผู้เช่าเอาเงินมาให้ทีหลัง
+function makeUncollected({ startDate = '2026-03-01', moveOutDate = '2026-06-01', meter = '1200' } = {}) {
+  const made = makeContract({ startDate, termMonths: 12 })
+  const result = terminations.completeTermination(db, made.contract.contractId, {
+    moveOutDate,
+    adjustments: [{ itemType: 'meter', description: 'ค่าน้ำ-ค่าไฟงวดสุดท้าย', amount: meter }],
+    collectShortfall: false,
+    createdBy: staff.user_id
+  })
+  return { ...made, result }
+}
+
+// 🔴 ข้อที่สำคัญที่สุดของกลุ่มนี้: ใบเสร็จลงวัน **คนละวัน** กับวันย้ายออก
+// ของเดิมไล่หาใบเสร็จด้วย `payment_date = วันที่ย้ายออก` ใบที่ตามเก็บทีหลังจึงหลุดหายไป
+// และยอดค้างจะไม่มีวันลดลงเลยแม้เก็บเงินมาแล้ว
+check('เก็บเงินส่วนต่างทีหลังได้ ยอดค้างเป็นศูนย์ แม้ใบเสร็จลงวันคนละวันกับวันย้ายออก', () => {
+  const { contract } = makeUncollected()
+  const after = terminations.collectTerminationShortfall(db, contract.contractId, {
+    amount: '1200',
+    paymentMethod: 'transfer',
+    paymentDate: '2026-06-20',
+    createdBy: staff.user_id
+  })
+
+  assert(after.receipt.amountCents === 120000, `ใบเสร็จได้ ${after.receipt.amountCents}`)
+  assert(after.receipt.paymentDate === '2026-06-20', `ลงวันที่ ${after.receipt.paymentDate}`)
+  assert(after.unpaidBalanceCents === 0, `ยังค้าง ${after.unpaidBalanceCents}`)
+  // ใบเสร็จต้องเข้าไปอยู่ในใบสรุปการย้ายออกใบเดิมด้วย ไม่ใช่ลอยอยู่เฉยๆ
+  assert(after.receipts.length === 1, `ใบเสร็จในใบสรุปได้ ${after.receipts.length}`)
+  assert(
+    after.receipts[0].label === 'รับเงินส่วนต่างตอนย้ายออก',
+    `ป้ายได้ ${after.receipts[0].label}`
+  )
+
+  // อ่านใหม่จากฐานข้อมูลต้องได้ผลเดียวกัน (ไม่ใช่ถูกเฉพาะค่าที่ฟังก์ชันคืนกลับมา)
+  const reread = terminations.getTerminationByContract(db, contract.contractId)
+  assert(reread.unpaidBalanceCents === 0, `อ่านใหม่ยังค้าง ${reread.unpaidBalanceCents}`)
+})
+
+check('ทยอยจ่ายบางส่วนได้ ยอดค้างลดลงตามจริง', () => {
+  const { contract } = makeUncollected()
+  const first = terminations.collectTerminationShortfall(db, contract.contractId, {
+    amount: '500',
+    paymentDate: '2026-06-10',
+    createdBy: staff.user_id
+  })
+  assert(first.unpaidBalanceCents === 70000, `ค้างเหลือ ${first.unpaidBalanceCents}`)
+
+  const second = terminations.collectTerminationShortfall(db, contract.contractId, {
+    amount: '700',
+    paymentDate: '2026-06-25',
+    createdBy: staff.user_id
+  })
+  assert(second.unpaidBalanceCents === 0, `ค้างเหลือ ${second.unpaidBalanceCents}`)
+  assert(second.receipts.length === 2, `ใบเสร็จรวมได้ ${second.receipts.length}`)
+})
+
+check('เก็บเกินยอดที่ค้างอยู่ไม่ได้', () => {
+  const { contract } = makeUncollected()
+  throws(
+    () =>
+      terminations.collectTerminationShortfall(db, contract.contractId, {
+        amount: '1200.01',
+        paymentDate: '2026-06-05',
+        createdBy: staff.user_id
+      }),
+    'เกินยอดที่ค้าง',
+    'ต้องปฏิเสธยอดที่เกิน'
+  )
+})
+
+check('เก็บครบแล้วเก็บซ้ำอีกไม่ได้', () => {
+  const { contract } = makeUncollected()
+  terminations.collectTerminationShortfall(db, contract.contractId, {
+    amount: '1200',
+    paymentDate: '2026-06-05',
+    createdBy: staff.user_id
+  })
+  throws(
+    () =>
+      terminations.collectTerminationShortfall(db, contract.contractId, {
+        amount: '100',
+        paymentDate: '2026-06-06',
+        createdBy: staff.user_id
+      }),
+    'ไม่มียอดค้าง',
+    'ต้องปฏิเสธการเก็บซ้ำ'
+  )
+})
+
+check('รับเงินก่อนวันที่ย้ายออกไม่ได้', () => {
+  const { contract } = makeUncollected()
+  throws(
+    () =>
+      terminations.collectTerminationShortfall(db, contract.contractId, {
+        amount: '100',
+        paymentDate: '2026-05-31',
+        createdBy: staff.user_id
+      }),
+    'ไม่ก่อนวันที่ย้ายออก',
+    'ต้องปฏิเสธวันที่ย้อนหลังเกินไป'
+  )
+})
+
+check('สัญญาที่ยังไม่ได้ย้ายออก เก็บเงินส่วนต่างไม่ได้', () => {
+  const live = makeContract()
+  throws(
+    () =>
+      terminations.collectTerminationShortfall(db, live.contract.contractId, {
+        amount: '100',
+        createdBy: staff.user_id
+      }),
+    'ไม่พบบันทึกการย้ายออก',
+    'ต้องปฏิเสธสัญญาที่ยังอยู่'
+  )
+})
+
+check('ไม่รู้ว่าใครรับเงิน ออกใบเสร็จไม่ได้', () => {
+  const { contract } = makeUncollected()
+  throws(
+    () => terminations.collectTerminationShortfall(db, contract.contractId, { amount: '100' }),
+    'ผู้รับเงิน',
+    'ต้องรู้ผู้รับเงินก่อน'
+  )
+})
+
+// ใบเสร็จที่ถูกยกเลิกต้องไม่ถูกนับว่าเก็บเงินมาแล้ว ไม่งั้นยอดค้างจะหายไปทั้งที่เงินไม่เคยเข้า
+// (กติกาเดียวกับทุกคิวรีที่ SUM(payments) — ต้องมี cancelled_at IS NULL)
+check('ยกเลิกใบเสร็จส่วนต่างแล้ว ยอดค้างกลับมาเท่าเดิม', () => {
+  const { contract } = makeUncollected()
+  const after = terminations.collectTerminationShortfall(db, contract.contractId, {
+    amount: '1200',
+    paymentDate: '2026-06-15',
+    createdBy: staff.user_id
+  })
+  assert(after.unpaidBalanceCents === 0, 'เก็บครบแล้วต้องเป็นศูนย์ก่อน')
+
+  payments.cancelPayment(db, after.receipt.paymentId, {
+    reason: 'คีย์ยอดผิด',
+    cancelledBy: staff.user_id
+  })
+
+  const reread = terminations.getTerminationByContract(db, contract.contractId)
+  assert(reread.unpaidBalanceCents === 120000, `ยอดค้างกลับมาได้ ${reread.unpaidBalanceCents}`)
+  assert(reread.receipts.length === 0, `ใบที่ยกเลิกต้องไม่อยู่ในใบสรุป (ได้ ${reread.receipts.length})`)
+})
+
+// -----------------------------------------------------
+group('ประวัติการย้ายออก')
+
+check('รายการที่ย้ายออกแล้วขึ้นในประวัติ เรียงจากใหม่ไปเก่า', () => {
+  const report = terminations.listTerminations(db, apartmentId)
+  assert(report.count > 0, 'ต้องมีรายการ')
+  assert(report.count === report.terminations.length, 'จำนวนต้องตรงกับรายการที่คืนมา')
+
+  for (let i = 1; i < report.terminations.length; i += 1) {
+    assert(
+      report.terminations[i - 1].moveOutDate >= report.terminations[i].moveOutDate,
+      `เรียงผิดที่ลำดับ ${i}`
+    )
+  }
+})
+
+// ตัวเลขบนตารางกับตัวเลขบนใบสรุปต้องมาจากกติกาเดียวกัน — ถ้าสองที่นี้เพี้ยนกัน
+// จะไม่มีใครรู้ว่าอันไหนถูก และยอดที่ต้องตามเก็บคือเรื่องเงินจริง
+check('ยอด "ยังเก็บไม่ได้" ในตารางตรงกับในใบสรุปทุกแถว', () => {
+  const report = terminations.listTerminations(db, apartmentId)
+  for (const row of report.terminations) {
+    const sheet = terminations.getTerminationByContract(db, row.contractId)
+    assert(
+      row.unpaidBalanceCents === sheet.unpaidBalanceCents,
+      `ห้อง ${row.roomNumber}: ตาราง ${row.unpaidBalanceCents} · ใบสรุป ${sheet.unpaidBalanceCents}`
+    )
+    assert(
+      row.netRefundCents === sheet.netRefundCents,
+      `ห้อง ${row.roomNumber}: สุทธิไม่ตรงกัน`
+    )
+  }
+
+  const unpaidRows = report.terminations.filter((t) => t.unpaidBalanceCents > 0)
+  assert(report.unpaidCount === unpaidRows.length, `นับรายที่ค้างได้ ${report.unpaidCount}`)
+  assert(
+    report.unpaidTotalCents === unpaidRows.reduce((sum, t) => sum + t.unpaidBalanceCents, 0),
+    `ยอดค้างรวมได้ ${report.unpaidTotalCents}`
+  )
+})
+
+check('ค้นด้วยเลขห้องและชื่อผู้เช่าได้', () => {
+  const target = terminations.listTerminations(db, apartmentId).terminations[0]
+
+  const byRoom = terminations.listTerminations(db, apartmentId, { search: target.roomNumber })
+  assert(
+    byRoom.terminations.some((t) => t.contractId === target.contractId),
+    `ค้นห้อง ${target.roomNumber} ไม่เจอ`
+  )
+
+  const byName = terminations.listTerminations(db, apartmentId, { search: target.tenantName })
+  assert(
+    byName.terminations.some((t) => t.contractId === target.contractId),
+    `ค้นชื่อ ${target.tenantName} ไม่เจอ`
+  )
+
+  const none = terminations.listTerminations(db, apartmentId, { search: 'ไม่มีคนชื่อนี้แน่นอน' })
+  assert(none.count === 0, `ค้นคำที่ไม่มีต้องได้ 0 (ได้ ${none.count})`)
+})
+
+check('กรองด้วยช่วงวันที่ย้ายออก วันขอบนับรวม', () => {
+  const all = terminations.listTerminations(db, apartmentId).terminations
+  const pivot = all[all.length - 1].moveOutDate
+
+  const onlyPivot = terminations.listTerminations(db, apartmentId, {
+    dateFrom: pivot,
+    dateTo: pivot
+  })
+  assert(onlyPivot.count > 0, 'วันขอบต้องนับรวม ไม่ใช่ตัดทิ้ง')
+  assert(
+    onlyPivot.terminations.every((t) => t.moveOutDate === pivot),
+    'ต้องได้เฉพาะวันที่ที่กรอง'
+  )
+
+  // ใส่ข้างเดียวได้ — ตั้งแต่วันนั้นเป็นต้นไปต้องได้ทั้งหมดที่ไม่เก่ากว่านั้น
+  const fromOnly = terminations.listTerminations(db, apartmentId, { dateFrom: pivot })
+  assert(
+    fromOnly.terminations.every((t) => t.moveOutDate >= pivot),
+    'กรองข้างเดียวแล้วยังมีของเก่ากว่าหลุดมา'
+  )
+})
+
+// บทเรียนจาก migration 021 (เลขเอกสารซ้ำข้ามหอ): อะไรที่ต้องแยกรายหอ ต้องมีเทสต์คุม
+// ตั้งแต่แรก ไม่ใช่รอให้หอที่สองมาเจอเอง
+check('ประวัติของหออื่นไม่ปนเข้ามา', () => {
+  const other = apartments.insertApartment(db, {
+    nameTh: 'หอที่สอง',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 10,
+    lateFeePerDay: '0'
+  })
+  const floors = rooms.addFloor(db, other.apartmentId, { roomCount: 1 })
+  const room = floors[floors.length - 1].rooms[0]
+  rooms.setRoomRates(db, [room.roomId], { monthlyRent: '4000' })
+  const person = tenants.insertTenant(db, {
+    firstName: 'ผู้เช่าหอสอง',
+    lastName: 'ทดสอบ',
+    phone: '0899999999'
+  })
+  const contract = contracts.createContract(db, {
+    roomId: room.roomId,
+    rentType: 'monthly',
+    startDate: '2026-01-01',
+    rentAmount: '4000',
+    deposit: '4000',
+    depositPaymentMethod: 'cash',
+    bookingFee: '0',
+    termMonths: 12,
+    waterMeterStart: 0,
+    electricMeterStart: 0,
+    tenants: [person.tenantId],
+    createdBy: staff.user_id
+  })
+  terminations.completeTermination(db, contract.contractId, {
+    moveOutDate: '2027-01-01',
+    createdBy: staff.user_id
+  })
+
+  const mine = terminations.listTerminations(db, apartmentId)
+  assert(
+    !mine.terminations.some((t) => t.contractId === contract.contractId),
+    'การย้ายออกของหออื่นต้องไม่โผล่ในประวัติของหอนี้'
+  )
+
+  const theirs = terminations.listTerminations(db, other.apartmentId)
+  assert(theirs.count === 1, `หอที่สองต้องมี 1 รายการ (ได้ ${theirs.count})`)
+  assert(theirs.terminations[0].contractId === contract.contractId, 'ต้องเป็นรายการของหอที่สอง')
+})
+
+check('ไม่ระบุหอ ไล่รายการไม่ได้', () => {
+  throws(() => terminations.listTerminations(db, null), 'ไม่พบหอพัก', 'ต้องบังคับให้ระบุหอ')
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('การย้ายออกและคืนเงินประกันทำงานครบทุกเส้นทาง')

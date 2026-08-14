@@ -7,9 +7,11 @@ import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import { requireSessionUserId } from './authHandlers.js'
 import {
+  collectTerminationShortfall,
   completeTermination,
   getTerminationByContract,
   getTerminationSheet,
+  listTerminations,
   setMoveOutNotice
 } from '../db/terminations.js'
 
@@ -71,4 +73,27 @@ export function registerTerminationHandlers() {
   handle('termination:get', ({ contractId }) =>
     getTerminationByContract(getDatabase(), contractId)
   )
+
+  // ประวัติการย้ายออกทั้งหมดของหอ — ผู้เช่าที่ย้ายออกแล้วต้องยังเปิดดูย้อนหลังได้
+  handle('termination:list', ({ apartmentId, search, dateFrom, dateTo }) =>
+    listTerminations(getDatabase(), apartmentId, { search, dateFrom, dateTo })
+  )
+
+  // ตามเก็บเงินส่วนต่างที่ตอนย้ายออกยังเก็บไม่ได้
+  // ผู้รับเงินมาจากเซสชันเหมือนใบเสร็จทุกใบ — หน้าจอส่ง createdBy มาเองไม่ได้
+  handle('termination:collect', (payload) => {
+    const result = collectTerminationShortfall(getDatabase(), payload.contractId, {
+      amount: payload.amount,
+      paymentMethod: payload.paymentMethod,
+      paymentDate: payload.paymentDate,
+      remark: payload.remark,
+      createdBy: requireSessionUserId()
+    })
+    logInfo(
+      `รับเงินส่วนต่างย้ายออก ห้อง ${result.roomNumber} ` +
+        `ใบเสร็จ ${result.receipt.receiptNumber} ${result.receipt.amountCents / 100} บาท · ` +
+        `คงค้าง ${result.unpaidBalanceCents / 100} บาท`
+    )
+    return result
+  })
 }
