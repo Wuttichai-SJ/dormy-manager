@@ -20,6 +20,9 @@ import calendar from './assets/icons/heroicons/24/outline/calendar-days.svg?raw'
 import meters from './assets/icons/heroicons/24/outline/bolt.svg?raw'
 import invoices from './assets/icons/heroicons/24/outline/receipt-percent.svg?raw'
 import payments from './assets/icons/heroicons/24/outline/banknotes.svg?raw'
+// ประวัติการย้ายออก = "ผู้เช่าที่ออกไปแล้ว" จึงเป็นคนที่มีเครื่องหมายลบ ไม่ใช่ประตูทางออก
+// (ประตูถูกใช้เป็นไอคอนออกจากระบบไปแล้ว สองอย่างนี้ต้องแยกกันให้ออกในเมนูเดียวกัน)
+import moveOuts from './assets/icons/heroicons/24/outline/user-minus.svg?raw'
 import maintenance from './assets/icons/heroicons/24/outline/wrench-screwdriver.svg?raw'
 import settings from './assets/icons/heroicons/24/outline/cog-6-tooth.svg?raw'
 // ไอคอนของระบบเข้าสู่ระบบ — ตั้งชื่อตามหน้าที่ ไม่ใช่ตามชื่อไฟล์ heroicons
@@ -64,6 +67,7 @@ const ICONS = {
   meters,
   invoices,
   payments,
+  moveOuts,
   maintenance,
   settings,
   eye,

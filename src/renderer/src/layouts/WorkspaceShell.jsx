@@ -5,6 +5,7 @@ import RoomDetailPage from '../pages/RoomDetailPage.jsx'
 import MetersPage from '../pages/MetersPage.jsx'
 import InvoicesPage from '../pages/InvoicesPage.jsx'
 import ReceiptsPage from '../pages/ReceiptsPage.jsx'
+import MoveOutHistoryPage from '../pages/MoveOutHistoryPage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
 // หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
@@ -27,6 +28,10 @@ const NAV = [
   { key: 'meters', label: 'จดมิเตอร์' },
   { key: 'invoices', label: 'ใบแจ้งหนี้' },
   { key: 'payments', label: 'การชำระเงิน' },
+  // ประวัติการย้ายออกเป็นเมนูของตัวเอง ไม่ได้ซ่อนอยู่ในหน้าห้อง — ต่างจากสัญญา/การจอง
+  // ที่ผูกกับห้องที่ยังมีคนอยู่ ผู้เช่าที่ย้ายออกแล้วไม่มีห้องให้เข้าไปหาอีกต่อไป
+  // (ห้องกลับเป็นห้องว่างและอาจมีผู้เช่าคนใหม่อยู่แล้ว)
+  { key: 'moveOuts', label: 'ประวัติการย้ายออก' },
   { key: 'maintenance', label: 'แจ้งซ่อม', soon: 'รับแจ้งซ่อมจากผู้เช่าและบันทึกการเข้าซ่อม' }
 ]
 
@@ -147,6 +152,9 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
             <InvoicesPage apartment={apartment} user={user} />
           ) : active === 'payments' ? (
             <ReceiptsPage apartment={apartment} />
+          ) : active === 'moveOuts' ? (
+            // ชื่อผู้ที่ล็อกอินอยู่ไปขึ้นช่องลงชื่อในใบสรุปที่พิมพ์ย้อนหลัง
+            <MoveOutHistoryPage apartment={apartment} user={user} />
           ) : settingsItem ? (
             <SettingsSection
               section={active}
