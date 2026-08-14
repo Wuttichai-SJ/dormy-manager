@@ -9,7 +9,7 @@ import { deleteApartment } from '../services/apartmentService.js'
 // ปุ่มลบอยู่ที่นี่ ไม่ได้อยู่บนการ์ดในหน้ารวมหอ (ตามต้นแบบ) — ซึ่งแปลว่าต้องเดินตัวช่วย
 // ตั้งค่าให้ครบก่อนถึงจะเข้ามาลบได้ เพราะหน้าที่มีเมนูข้างถูกล็อกไว้จนกว่าจะตั้งค่าเสร็จ
 // ยอมรับข้อจำกัดนี้โดยตั้งใจ: หอที่สร้างค้างไว้ให้กด "จัดการ" เพื่อเดินให้จบก่อน
-export default function ApartmentInfoPage({ apartment, onDeleted }) {
+export default function ApartmentInfoPage({ apartment, user, onDeleted }) {
   const [error, setError] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -31,6 +31,9 @@ export default function ApartmentInfoPage({ apartment, onDeleted }) {
         onDone={() => showToast('แก้ไขข้อมูลสำเร็จ')}
       />
 
+      {/* โซนลบหอไม่แสดงกับพนักงานเลย — คำสั่งนี้ลากผู้เช่า สัญญา บิล และใบเสร็จของทั้งหอ
+          ไปด้วยในครั้งเดียว (main บังคับที่ apartment:delete อีกชั้น) */}
+      {user?.isOwner && (
       <section className="form-section danger-zone">
         <div className="form-section-head">
           <h2>ลบหอพัก</h2>
@@ -66,6 +69,7 @@ export default function ApartmentInfoPage({ apartment, onDeleted }) {
           )}
         </div>
       </section>
+      )}
     </>
   )
 }

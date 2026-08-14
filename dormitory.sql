@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS `mydb`.`users` (
   `password` VARCHAR(255) NOT NULL,
   `email` VARCHAR(255) NULL,
   `recovery_code_hash` VARCHAR(255) NULL,
+  -- migration 027: 'owner' (เจ้าของหอ) | 'staff' (พนักงาน) — ตรวจค่าใน db/users.js
+  -- DEFAULT เป็น 'staff' ซึ่งเป็นสิทธิ์ต่ำสุด: โค้ดที่ลืมส่ง role มาต้องได้บัญชีที่ทำอะไรไม่ได้
+  -- **พนักงานเท่านั้นที่ recovery_code_hash เป็น NULL ได้** (ลืมรหัสผ่านให้เจ้าของรีเซ็ตให้)
+  `role` VARCHAR(255) NOT NULL DEFAULT 'staff',
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NOT NULL,
@@ -35,75 +39,17 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `mydb`.`roles`
+-- ตาราง `roles` / `permissions` / `user_roles` / `role_permission` ถูก **ลบทิ้งแล้ว**
+-- ใน migration 027
+--
+-- ทั้งสี่ใบลอกมาจากสคีมาของต้นแบบตั้งแต่ 001_init.sql แต่ไม่เคยมีโค้ดบรรทัดไหนแตะเลย
+-- ตลอด 26 migration — เป็นระบบสิทธิ์แบบตั้งค่าได้ของ SaaS หลายลูกค้า ซึ่งหอสามตึกที่มี
+-- เจ้าของคนเดียวกับลูกจ้างหนึ่งคนไม่ต้องใช้ และเป็นภาระที่ต้องดูแลไปอีกยี่สิบปี
+--
+-- สิทธิ์ของระบบนี้อยู่ที่คอลัมน์ `users`.`role` ใบเดียว (สองบทบาทตายตัว)
+-- ถ้าวันหนึ่งต้องการสิทธิ์ละเอียดกว่านี้จริงๆ ให้เริ่มจากการคุยว่าต้องละเอียดแค่ไหนก่อน
+-- อย่ารื้อตารางพวกนี้กลับมาเพราะ "ต้นแบบมี"
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `mydb`.`roles` (
-  `role_id` INT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(255) NOT NULL,
-  `slug` VARCHAR(255) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
-  PRIMARY KEY (`role_id`))
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
--- Table `mydb`.`permissions`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `mydb`.`permissions` (
-  `permission_id` INT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(255) NOT NULL,
-  `module` VARCHAR(255) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
-  PRIMARY KEY (`permission_id`))
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
--- Table `mydb`.`user_roles`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `mydb`.`user_roles` (
-  `user_role_id` INT NOT NULL,
-  `user_id` INT NOT NULL,
-  `role_id` INT NOT NULL,
-  PRIMARY KEY (`user_role_id`, `user_id`, `role_id`),
-  INDEX `fk_users_has_roles_roles1_idx` (`role_id` ASC) VISIBLE,
-  INDEX `fk_users_has_roles_users_idx` (`user_id` ASC) VISIBLE,
-  CONSTRAINT `fk_users_has_roles_users`
-    FOREIGN KEY (`user_id`)
-    REFERENCES `mydb`.`users` (`user_id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_users_has_roles_roles1`
-    FOREIGN KEY (`role_id`)
-    REFERENCES `mydb`.`roles` (`role_id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
--- Table `mydb`.`role_permission`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `mydb`.`role_permission` (
-  `role_permission_id` INT NOT NULL,
-  `permission_id` INT NOT NULL,
-  `role_id` INT NOT NULL,
-  PRIMARY KEY (`role_permission_id`, `permission_id`, `role_id`),
-  INDEX `fk_permissions_has_roles_roles1_idx` (`role_id` ASC) VISIBLE,
-  INDEX `fk_permissions_has_roles_permissions1_idx` (`permission_id` ASC) VISIBLE,
-  CONSTRAINT `fk_permissions_has_roles_permissions1`
-    FOREIGN KEY (`permission_id`)
-    REFERENCES `mydb`.`permissions` (`permission_id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_permissions_has_roles_roles1`
-    FOREIGN KEY (`role_id`)
-    REFERENCES `mydb`.`roles` (`role_id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------

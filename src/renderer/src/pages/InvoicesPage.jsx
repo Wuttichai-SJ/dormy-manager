@@ -120,6 +120,8 @@ export default function InvoicesPage({ apartment, user }) {
       <InvoiceDetailPage
         invoiceId={openInvoiceId}
         signedBy={user?.fullName}
+        // ยกเลิกใบเสร็จเป็นของเจ้าของหอเท่านั้น (main บังคับที่ payment:cancel)
+        canCancelReceipt={Boolean(user?.isOwner)}
         onBack={() => {
           setOpenInvoiceId(null)
           load()
@@ -381,7 +383,9 @@ export default function InvoicesPage({ apartment, user }) {
                     </button>
                     {/* ลบได้เฉพาะใบที่ยกเลิกแล้ว — ใบที่ยังใช้งานอยู่ต้องยกเลิกก่อน
                         เป็นด่านที่บังคับให้ตัดสินใจสองครั้งก่อนเอกสารการเงินจะหายไป */}
-                    {inv.status === 'cancelled' && (
+                    {/* และเจ้าของหอเท่านั้น — แถวถูกลบจริง เลขที่ที่ยื่นให้ผู้เช่าไปแล้ว
+                        จะชี้ไปที่ความว่างเปล่า (main บังคับที่ invoice:delete) */}
+                    {inv.status === 'cancelled' && user?.isOwner && (
                       <button
                         type="button"
                         className="link-btn link-danger table-action icon-only"

@@ -10,13 +10,19 @@ import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import {
   PASSWORD_MIN_LENGTH,
+  assertIdentifiersFree,
+  assertOwnerRemains,
   countUsers,
   findUserByIdentifier,
   getUserById,
   insertUser,
   replacePasswordAndRecoveryCode,
+  setUserActive,
   toPublicUser,
+  updatePassword,
   updateRecoveryCodeHash,
+  updateUserProfile,
+  validateRole,
   validateUserInput
 } from './db/users.js'
 
@@ -90,11 +96,98 @@ export function setupFirstUser(db, { fullName, phone, email, password }) {
     phone,
     email,
     passwordHash: hashSecret(password),
-    recoveryCodeHash: hashSecret(recoveryCode)
+    recoveryCodeHash: hashSecret(recoveryCode),
+    // คนแรกของเครื่องคือเจ้าของหอเสมอ — ไม่มีใครอยู่ก่อนหน้าที่จะแต่งตั้งเขาได้
+    role: 'owner'
   })
 
   // คืนรหัสสำรองตัวจริงออกไปครั้งนี้ครั้งเดียวเท่านั้น หลังจากนี้ในฐานข้อมูลมีแต่ hash
   return { user: toPublicUser(user), recoveryCode }
+}
+
+// -----------------------------------------------------
+// จัดการผู้ใช้ (เฉพาะเจ้าของหอ — ด่านสิทธิ์อยู่ที่ handler)
+// -----------------------------------------------------
+// เจ้าของหอจ้างคนมาดูแลแทนได้ (ผู้ใช้ยืนยัน 2026-08-14) บัญชีที่สองขึ้นไปจึงเกิดที่นี่
+// ไม่ใช่ที่ setupFirstUser ซึ่งทำงานเฉพาะตอนระบบยังไม่มีใครเลย
+export function createUser(db, { fullName, phone, email, password, role }) {
+  const errors = validateUserInput({ fullName, phone, email, password })
+  if (errors.length > 0) throw new Error(errors.join('\n'))
+  validateRole(role)
+  assertIdentifiersFree(db, { phone, email })
+
+  // **เจ้าของได้รหัสสำรอง พนักงานไม่ได้** — พนักงานที่ลืมรหัสผ่านให้เจ้าของรีเซ็ตให้
+  // (ออกแบบไว้แบบนี้ตั้งแต่ Phase 1) กระดาษที่ต้องเก็บยิ่งน้อย ยิ่งมีโอกาสหายน้อย
+  // และรหัสสำรองมีไว้แก้ปัญหา "ไม่มีใครช่วยได้" ซึ่งไม่ใช่สถานการณ์ของพนักงาน
+  const recoveryCode = role === 'owner' ? generateRecoveryCode() : null
+
+  const user = insertUser(db, {
+    fullName,
+    phone,
+    email,
+    passwordHash: hashSecret(password),
+    recoveryCodeHash: recoveryCode ? hashSecret(recoveryCode) : null,
+    role
+  })
+  return { user: toPublicUser(user), recoveryCode }
+}
+
+export function updateUser(db, userId, { fullName, phone, email, role }) {
+  const current = getUserById(db, userId)
+  if (!current) throw new Error('ไม่พบบัญชีผู้ใช้')
+
+  const errors = validateUserInput({ fullName, phone, email }, { requirePassword: false })
+  if (errors.length > 0) throw new Error(errors.join('\n'))
+  validateRole(role)
+  assertIdentifiersFree(db, { phone, email, excludeUserId: userId })
+  assertOwnerRemains(db, userId, { role })
+
+  const updated = updateUserProfile(db, userId, { fullName, phone, email, role })
+
+  // เลื่อนพนักงานขึ้นเป็นเจ้าของ ต้องออกรหัสสำรองให้ด้วย ไม่งั้นจะได้เจ้าของที่กู้รหัสผ่าน
+  // ตัวเองไม่ได้ และถ้าเป็นเจ้าของคนเดียวที่เหลืออยู่ ระบบจะไม่มีทางกลับเข้ามาได้เลย
+  let recoveryCode = null
+  if (role === 'owner' && !current.recovery_code_hash) {
+    recoveryCode = generateRecoveryCode()
+    updateRecoveryCodeHash(db, userId, hashSecret(recoveryCode))
+  }
+
+  return { user: toPublicUser(getUserById(db, updated.user_id)), recoveryCode }
+}
+
+// ปิด/เปิดบัญชี — ไม่มีการลบผู้ใช้ทิ้งในระบบนี้ (ดู setUserActive)
+export function setUserActiveState(db, { userId, isActive }) {
+  assertOwnerRemains(db, userId, { isActive })
+  return toPublicUser(setUserActive(db, userId, isActive))
+}
+
+// เจ้าของตั้งรหัสผ่านใหม่ให้บัญชีอื่น = ทางกู้คืนของพนักงาน
+//
+// ไม่แตะรหัสสำรองของบัญชีนั้น — เจ้าของกำลังช่วยเรื่องรหัสผ่าน ไม่ได้แปลว่ารหัสสำรอง
+// ที่เจ้าตัวจดไว้หลุดไปไหน (ถ้าจะหมุนใหม่มีปุ่มแยกอยู่แล้วในหน้าความปลอดภัย)
+export function resetUserPassword(db, { userId, newPassword }) {
+  const row = getUserById(db, userId)
+  if (!row) throw new Error('ไม่พบบัญชีผู้ใช้')
+  if (!newPassword || String(newPassword).length < PASSWORD_MIN_LENGTH) {
+    throw new Error(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+  }
+
+  updatePassword(db, userId, hashSecret(newPassword))
+  return toPublicUser(getUserById(db, userId))
+}
+
+// เปลี่ยนรหัสผ่านของตัวเอง — ต้องมี ไม่งั้นพนักงานจะใช้รหัสที่เจ้าของตั้งให้ไปตลอด
+// และเจ้าของจะรู้รหัสผ่านของลูกน้องทุกคนตลอดกาล ซึ่งทำให้ "ใครเป็นคนทำรายการ" เชื่อไม่ได้
+export function changeOwnPassword(db, { userId, currentPassword, newPassword }) {
+  const row = getUserById(db, userId)
+  if (!row) throw new Error('ไม่พบบัญชีผู้ใช้')
+  if (!verifySecret(currentPassword, row.password)) throw new Error('รหัสผ่านเดิมไม่ถูกต้อง')
+  if (!newPassword || String(newPassword).length < PASSWORD_MIN_LENGTH) {
+    throw new Error(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+  }
+
+  updatePassword(db, userId, hashSecret(newPassword))
+  return toPublicUser(getUserById(db, userId))
 }
 
 // -----------------------------------------------------

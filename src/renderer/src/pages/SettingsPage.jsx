@@ -7,6 +7,7 @@ import QrCodePage from './QrCodePage.jsx'
 import FloorPlanPage from './FloorPlanPage.jsx'
 import RoomRatesPage from './RoomRatesPage.jsx'
 import SecuritySettingsPage from './SecuritySettingsPage.jsx'
+import UsersPage from './UsersPage.jsx'
 import BackupsPage from './BackupsPage.jsx'
 
 // หัวข้อของเมนู "ตั้งค่า" — แบ่งสองกลุ่มตามต้นแบบ: เรื่องที่เป็นของ "ทั้งหอ" กับเรื่องที่
@@ -31,6 +32,10 @@ export const SETTINGS_GROUPS = [
       { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true },
       { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false },
       { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true },
+      // ownerOnly = พนักงานไม่เห็นหัวข้อนี้ในเมนูเลย (ไม่ใช่เห็นแล้วกดไม่ได้)
+      // ต่างจาก ready: false ตรงที่อันนั้นแปลว่า "ยังไม่ได้สร้าง" ซึ่งคนละเรื่องกัน
+      // **การซ่อนเป็นแค่การจัดหน้าจอ ตัวกันสิทธิ์จริงอยู่ที่ requireOwnerUserId ฝั่ง main**
+      { key: 'users', label: 'ผู้ใช้งานระบบ', ready: true, ownerOnly: true },
       // สำรองข้อมูลเป็นเรื่องของ "ทั้งเครื่อง" ไม่ใช่ของหอใดหอหนึ่ง (ไฟล์ฐานข้อมูลมีไฟล์เดียว)
       // แต่วางไว้กลุ่มนี้เพราะเป็นที่ที่คนไปหาเรื่องตั้งค่าระบบ
       { key: 'backups', label: 'สำรองข้อมูล', ready: true }
@@ -51,7 +56,8 @@ export const SETTINGS_GROUPS = [
 export function SettingsSection({ section, apartment, user, onApartmentDeleted }) {
   switch (section) {
     case 'info':
-      return <ApartmentInfoPage apartment={apartment} onDeleted={onApartmentDeleted} />
+      // user ไปตัดสินว่าจะแสดงปุ่ม "ลบหอพัก" ไหม (เจ้าของหอเท่านั้น)
+      return <ApartmentInfoPage apartment={apartment} user={user} onDeleted={onApartmentDeleted} />
     case 'services':
       return <ApartmentServicesPage apartment={apartment} />
     case 'banks':
@@ -62,8 +68,10 @@ export function SettingsSection({ section, apartment, user, onApartmentDeleted }
       return <UtilitySettingsPage apartment={apartment} />
     case 'security':
       return <SecuritySettingsPage user={user} />
+    case 'users':
+      return <UsersPage user={user} />
     case 'backups':
-      return <BackupsPage />
+      return <BackupsPage user={user} />
     case 'plan':
       return <FloorPlanPage apartment={apartment} />
     // สามหัวข้อนี้ใช้หน้าเดียวกัน ต่างกันที่โหมด — key บังคับให้สร้างใหม่ทุกครั้งที่สลับ

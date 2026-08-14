@@ -33,7 +33,7 @@ const CSV_COLUMNS = [
   { key: 'remark', label: 'หมายเหตุ' }
 ]
 
-export default function ReceiptsPage({ apartment }) {
+export default function ReceiptsPage({ apartment, user }) {
   const [range, setRange] = useState(currentMonthRange)
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -318,13 +318,17 @@ export default function ReceiptsPage({ apartment }) {
                         ยกเลิกแล้ว
                       </span>
                     ) : (
-                      <button
-                        type="button"
-                        className="link-btn link-danger"
-                        onClick={() => setCancelling(r)}
-                      >
-                        ยกเลิก
-                      </button>
+                      // ยกเลิกใบเสร็จ = เจ้าของหอเท่านั้น (main บังคับที่ payment:cancel)
+                      // พนักงานไม่เห็นปุ่มนี้เลย ดีกว่าให้กดแล้วเจอข้อความปฏิเสธ
+                      user?.isOwner && (
+                        <button
+                          type="button"
+                          className="link-btn link-danger"
+                          onClick={() => setCancelling(r)}
+                        >
+                          ยกเลิก
+                        </button>
+                      )
                     )}
                   </td>
                 </tr>

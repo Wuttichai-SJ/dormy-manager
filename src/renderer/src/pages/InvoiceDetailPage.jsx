@@ -26,7 +26,7 @@ import { revealPdf, savePdf } from '../services/printService.js'
 // (เอกสาร + ฟอร์มรับเงิน + ประวัติการรับเงิน + ฟอร์มเพิ่มรายการ) และแอปนี้เดินด้วยหน้า
 // ไม่ได้เดินด้วย URL แบบเว็บ การเปิดซ้อนจึงไม่ได้ประโยชน์เรื่องปุ่มย้อนกลับของเบราว์เซอร์
 // signedBy = ชื่อผู้ที่กำลังออก/พิมพ์เอกสารใบนี้ ไปขึ้นในช่อง "ลงชื่อ" ท้ายบิล
-export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
+export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCancelReceipt }) {
   const [invoice, setInvoice] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -112,7 +112,11 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy }) {
             />
           )}
 
-          <PaymentHistory payments={payments} onCancelReceipt={setCancellingReceipt} />
+          {/* ส่ง null ไปเมื่อผู้ใช้ไม่ใช่เจ้าของ = ไม่มีปุ่มยกเลิกใบเสร็จให้กด */}
+          <PaymentHistory
+            payments={payments}
+            onCancelReceipt={canCancelReceipt ? setCancellingReceipt : null}
+          />
         </aside>
       </div>
 
@@ -683,14 +687,16 @@ function PaymentHistory({ payments, onCancelReceipt }) {
                   </span>
                 </p>
               ) : (
-                <button
-                  type="button"
-                  className="link-btn link-danger"
-                  onClick={() => onCancelReceipt(p)}
-                >
-                  <Icon name="close" />
-                  <span>ยกเลิกใบเสร็จ</span>
-                </button>
+                onCancelReceipt && (
+                  <button
+                    type="button"
+                    className="link-btn link-danger"
+                    onClick={() => onCancelReceipt(p)}
+                  >
+                    <Icon name="close" />
+                    <span>ยกเลิกใบเสร็จ</span>
+                  </button>
+                )
               )}
             </li>
           ))}

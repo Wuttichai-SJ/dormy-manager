@@ -3,7 +3,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireSessionUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   addInvoiceItem,
   cancelInvoice,
@@ -104,10 +104,13 @@ export function registerInvoiceHandlers() {
   })
 
   // ลบถาวร — ผู้ลบมาจากเซสชันฝั่ง main เหมือนใบเสร็จ ไม่ให้หน้าจอบอกว่าตัวเองเป็นใคร
+  //
+  // **เจ้าของหอเท่านั้น** (ดู OWNER_ONLY_ACTIONS) — แถวถูกลบจริง เลขที่ที่เคยยื่นให้ผู้เช่า
+  // จะชี้ไปที่ความว่างเปล่า พนักงานที่ออกบิลผิดใช้ "ยกเลิกบิล" ซึ่งเก็บแถวไว้และตามได้
   handle('invoice:delete', ({ invoiceId, reason }) => {
     const result = deleteInvoice(getDatabase(), invoiceId, {
       reason,
-      deletedBy: requireSessionUserId()
+      deletedBy: requireOwnerUserId()
     })
     logInfo(`ลบบิล ${result.invoiceNumber} — เหตุผล: ${String(reason ?? '').trim()}`)
     return result

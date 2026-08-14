@@ -16,7 +16,7 @@ import {
 // ข้อมูลทั้งระบบอยู่ในไฟล์เดียว ไม่มีเซิร์ฟเวอร์ให้ดึงกลับ (offline-first) การสำรองจึงเป็น
 // ตาข่ายนิรภัยชั้นเดียวที่มี — หน้านี้ต้องอธิบายให้ชัดว่า "สำรองไว้ในเครื่องเดียวกันยังไม่พอ"
 // เพราะดิสก์พังทีเดียวหายทั้งต้นฉบับและสำเนา
-export default function BackupsPage() {
+export default function BackupsPage({ user }) {
   const [state, setState] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -129,17 +129,26 @@ export default function BackupsPage() {
                     <td>{formatDateTime(b.createdAt)}</td>
                     <td>{b.label ?? <span className="muted">—</span>}</td>
                     <td className="align-right">{formatSize(b.sizeBytes)}</td>
+                    {/* กู้คืน = ทับข้อมูลปัจจุบันทั้งฐาน · ลบ = ทิ้งตาข่ายนิรภัย
+                        ทั้งสองอย่างเป็นของเจ้าของหอเท่านั้น (main บังคับอีกชั้น)
+                        ส่วนการ "สร้าง" ไฟล์สำรอง พนักงานทำได้ตามปกติ ยิ่งมีสำเนายิ่งดี */}
                     <td className="align-right">
-                      <button type="button" className="link-btn" onClick={() => restore(b)}>
-                        กู้คืน
-                      </button>
-                      <button
-                        type="button"
-                        className="link-btn link-danger table-action"
-                        onClick={() => remove(b)}
-                      >
-                        ลบ
-                      </button>
+                      {user?.isOwner ? (
+                        <>
+                          <button type="button" className="link-btn" onClick={() => restore(b)}>
+                            กู้คืน
+                          </button>
+                          <button
+                            type="button"
+                            className="link-btn link-danger table-action"
+                            onClick={() => remove(b)}
+                          >
+                            ลบ
+                          </button>
+                        </>
+                      ) : (
+                        <span className="muted">เจ้าของหอเท่านั้น</span>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { closeDatabase, getDatabase, resolveDbPath, resolveMigrationsDir } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { clearSession } from './authHandlers.js'
+import { clearSession, requireOwnerUserId } from './authHandlers.js'
 import {
   createBackup,
   deleteBackup,
@@ -41,7 +41,10 @@ export function registerBackupHandlers() {
     return backup
   })
 
+  // **เจ้าของหอเท่านั้น** — ไฟล์สำรองคือตาข่ายรองสุดท้ายของทั้งระบบ
+  // (สร้างไฟล์สำรองพนักงานทำได้ตามปกติ ยิ่งมีสำเนายิ่งดี)
   handle('backup:delete', ({ fileName }) => {
+    requireOwnerUserId()
     const result = deleteBackup(userData(), fileName)
     logInfo(`ลบไฟล์สำรอง ${fileName}`)
     return result
@@ -73,7 +76,9 @@ export function registerBackupHandlers() {
   //   4) เปิดฐานข้อมูลใหม่ — migrations จะวิ่งอีกรอบ ไฟล์สำรองจากแอปเวอร์ชันเก่าจึงถูก
   //      อัปเกรดให้เองโดยอัตโนมัติ
   //   5) ล้างเซสชัน + reload หน้าจอ
+  //   **เจ้าของหอเท่านั้น** — ทับข้อมูลปัจจุบันทั้งฐาน
   handle('backup:restore', async ({ fileName }) => {
+    requireOwnerUserId()
     // ส่ง migrationsDir เข้าไปด้วยเพื่อให้ตรวจได้ว่าไฟล์นี้มาจากแอปรุ่นใหม่กว่าหรือเปล่า
     const { source, info } = prepareRestore(userData(), fileName, resolveMigrationsDir())
 

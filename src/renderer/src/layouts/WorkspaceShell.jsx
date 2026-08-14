@@ -38,6 +38,13 @@ const NAV = [
 const SETTINGS_ITEMS = SETTINGS_GROUPS.flatMap((g) => g.items)
 
 export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
+  // หัวข้อที่สงวนไว้ให้เจ้าของหอ พนักงานจะไม่เห็นในเมนูเลย (ดู SETTINGS_GROUPS)
+  // เป็นการจัดหน้าจอเท่านั้น — ตัวกันสิทธิ์จริงอยู่ที่ requireOwnerUserId ฝั่ง main ทุกช่อง
+  const settingsGroups = SETTINGS_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.ownerOnly || user.isOwner)
+  })).filter((group) => group.items.length > 0)
+
   const [active, setActive] = useState('dashboard')
   const [settingsOpen, setSettingsOpen] = useState(false)
   // ห้องที่กำลังเปิดรายละเอียดอยู่ — null = อยู่ที่ตารางห้อง
@@ -91,7 +98,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
           </button>
 
           {settingsOpen &&
-            SETTINGS_GROUPS.map((group) => (
+            settingsGroups.map((group) => (
               <div className="nav-group" key={group.label}>
                 <p className="nav-group-label">{group.label}</p>
                 {group.items.map((item) => (
@@ -151,7 +158,8 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
           ) : active === 'invoices' ? (
             <InvoicesPage apartment={apartment} user={user} />
           ) : active === 'payments' ? (
-            <ReceiptsPage apartment={apartment} />
+            // user ไปตัดสินว่าจะแสดงปุ่ม "ยกเลิกใบเสร็จ" ไหม (เจ้าของหอเท่านั้น)
+            <ReceiptsPage apartment={apartment} user={user} />
           ) : active === 'moveOuts' ? (
             // ชื่อผู้ที่ล็อกอินอยู่ไปขึ้นช่องลงชื่อในใบสรุปที่พิมพ์ย้อนหลัง
             <MoveOutHistoryPage apartment={apartment} user={user} />

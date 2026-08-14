@@ -9,6 +9,24 @@
 // -----------------------------------------------------
 export const PASSWORD_MIN_LENGTH = 8
 
+// สองบทบาทตายตัว ไม่ใช่เมทริกซ์สิทธิ์ (ดู migration 027)
+// ค่าเหล่านี้ต้องตรงกับ constants.js ฝั่งหน้าจอ — main เป็นฝ่ายตรวจเสมอ
+export const USER_ROLES = ['owner', 'staff']
+
+export const USER_ROLE_LABELS = {
+  owner: 'เจ้าของหอ',
+  staff: 'พนักงาน'
+}
+
+// สิ่งที่พนักงานทำไม่ได้ — เขียนไว้ที่เดียวเพื่อให้หน้าจออธิบายตรงกับที่ main บังคับจริง
+export const OWNER_ONLY_ACTIONS = [
+  'ลบใบแจ้งหนี้',
+  'ยกเลิกใบเสร็จรับเงิน',
+  'ลบหอพัก',
+  'กู้คืนและลบไฟล์สำรองข้อมูล',
+  'จัดการผู้ใช้งานระบบ'
+]
+
 // เก็บเบอร์โทรเป็น "ตัวเลขล้วน" เสมอ เพื่อให้ 081-234-5678 กับ 0812345678 คือคนเดียวกัน
 // ทั้งตอนสมัครและตอน login (ถ้าไม่ normalize ผู้ใช้จะสมัครด้วยขีดแล้ว login แบบไม่มีขีดไม่ได้)
 export function normalizePhone(phone) {
@@ -24,7 +42,10 @@ export function normalizeEmail(email) {
 
 // คืนรายการข้อผิดพลาดทั้งหมดพร้อมกัน ไม่ใช่ throw ตัวแรกที่เจอ
 // เพื่อให้หน้าจอไฮไลต์ทุกช่องที่ผิดในครั้งเดียว ไม่ต้องให้ผู้ใช้กดบันทึกซ้ำทีละรอบ
-export function validateUserInput({ fullName, phone, email, password }) {
+//
+// requirePassword = false ใช้ตอน "แก้ข้อมูลผู้ใช้" ซึ่งไม่ได้เปลี่ยนรหัสผ่านไปด้วย
+// (การเปลี่ยนรหัสผ่านเป็นคนละคำสั่ง เพราะต้องยืนยันตัวตนคนละแบบ)
+export function validateUserInput({ fullName, phone, email, password }, { requirePassword = true } = {}) {
   const errors = []
 
   if (!String(fullName ?? '').trim()) errors.push('กรุณากรอกชื่อ-นามสกุล')
@@ -39,11 +60,38 @@ export function validateUserInput({ fullName, phone, email, password }) {
   // regex อีเมลแบบเข้มมักปฏิเสธอีเมลที่ใช้งานได้จริง และแอปนี้ไม่ได้ส่งเมลอยู่แล้ว
   if (mail !== null && !/^[^@\s]+@[^@\s]+$/.test(mail)) errors.push('รูปแบบอีเมลไม่ถูกต้อง')
 
-  if (!password) errors.push('กรุณากรอกรหัสผ่าน')
-  else if (String(password).length < PASSWORD_MIN_LENGTH)
-    errors.push(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+  if (requirePassword || password !== undefined) {
+    if (!password) errors.push('กรุณากรอกรหัสผ่าน')
+    else if (String(password).length < PASSWORD_MIN_LENGTH)
+      errors.push(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+  }
 
   return errors
+}
+
+// บทบาทต้องเป็นค่าที่รู้จักเท่านั้น — เก็บเป็น TEXT ใน SQLite จึงไม่มีอะไรกันค่าแปลกๆ
+// ให้นอกจากการตรวจตรงนี้ (กติกาเดียวกับ ENUM ทุกตัวในโปรเจกต์)
+export function validateRole(role) {
+  if (!USER_ROLES.includes(role)) throw new Error(`บทบาทไม่ถูกต้อง: ${role}`)
+  return role
+}
+
+// เบอร์โทรกับอีเมลใช้เข้าสู่ระบบ จึงต้องไม่ซ้ำกับใคร (unique index มาตั้งแต่ 002)
+//
+// ตรวจเองก่อนเขียน เพราะข้อความจาก SQLite คือ "UNIQUE constraint failed: users.phone"
+// ซึ่งคนกรอกอ่านไม่ออกว่าต้องแก้อะไร · excludeUserId ไว้ให้ตอนแก้ข้อมูลของตัวเอง
+export function assertIdentifiersFree(db, { phone, email, excludeUserId = null }) {
+  const digits = normalizePhone(phone)
+  const mail = normalizeEmail(email)
+
+  const clash = (row) => row && row.user_id !== excludeUserId
+
+  if (digits && clash(db.prepare('SELECT user_id FROM users WHERE phone = ?').get(digits))) {
+    throw new Error('เบอร์โทรศัพท์นี้ถูกใช้กับบัญชีอื่นแล้ว')
+  }
+  if (mail && clash(db.prepare('SELECT user_id FROM users WHERE email = ?').get(mail))) {
+    throw new Error('อีเมลนี้ถูกใช้กับบัญชีอื่นแล้ว')
+  }
 }
 
 // -----------------------------------------------------
@@ -72,12 +120,12 @@ export function findUserByIdentifier(db, identifier) {
 
 // เขียนแถวผู้ใช้ใหม่ ผู้เรียกต้องส่ง hash มาแล้วเท่านั้น (passwordHash / recoveryCodeHash)
 // ฟังก์ชันนี้ไม่รู้จักและไม่รับรหัสผ่านตัวจริง เพื่อไม่ให้มีทางเผลอเขียน plaintext ลงตาราง
-export function insertUser(db, { fullName, phone, email, passwordHash, recoveryCodeHash }) {
+export function insertUser(db, { fullName, phone, email, passwordHash, recoveryCodeHash, role }) {
   const now = new Date().toISOString()
   const result = db
     .prepare(
-      `INSERT INTO users (full_name, phone, password, email, recovery_code_hash, is_active, created_at, updated_at)
-       VALUES (@fullName, @phone, @passwordHash, @email, @recoveryCodeHash, 1, @now, @now)`
+      `INSERT INTO users (full_name, phone, password, email, recovery_code_hash, role, is_active, created_at, updated_at)
+       VALUES (@fullName, @phone, @passwordHash, @email, @recoveryCodeHash, @role, 1, @now, @now)`
     )
     .run({
       fullName: String(fullName).trim(),
@@ -85,9 +133,81 @@ export function insertUser(db, { fullName, phone, email, passwordHash, recoveryC
       email: normalizeEmail(email),
       passwordHash,
       recoveryCodeHash: recoveryCodeHash ?? null,
+      // ไม่ส่งบทบาทมา = พนักงาน ซึ่งเป็นสิทธิ์ต่ำสุด (กติกาเดียวกับ DEFAULT ของ 027)
+      role: validateRole(role ?? 'staff'),
       now
     })
   return getUserById(db, result.lastInsertRowid)
+}
+
+// -----------------------------------------------------
+// หน้าจัดการผู้ใช้
+// -----------------------------------------------------
+// เจ้าของขึ้นก่อน แล้วค่อยพนักงาน · ในกลุ่มเดียวกันเรียงตามลำดับที่สร้าง
+export function listUsers(db) {
+  return db
+    .prepare(
+      `SELECT * FROM users
+        ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, user_id`
+    )
+    .all()
+    .map(toPublicUser)
+}
+
+// 🔴 ต้องเหลือเจ้าของที่ยังใช้งานได้อย่างน้อยหนึ่งบัญชีเสมอ
+//
+// เผลอลดตัวเองเป็นพนักงาน หรือปิดบัญชีเจ้าของคนสุดท้าย = ไม่มีใครในระบบกดจัดการผู้ใช้
+// ได้อีกเลย ล็อกตัวเองออกจากสิทธิ์เจ้าของถาวรโดยไม่มีทางแก้จากในแอป
+function countActiveOwners(db, { excludeUserId = null } = {}) {
+  return db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM users
+        WHERE role = 'owner' AND is_active = 1 AND user_id <> COALESCE(@excludeUserId, -1)`
+    )
+    .get({ excludeUserId }).n
+}
+
+export function assertOwnerRemains(db, userId, { role, isActive } = {}) {
+  const target = getUserById(db, userId)
+  if (!target) throw new Error('ไม่พบบัญชีผู้ใช้')
+
+  const stillOwner = (role ?? target.role) === 'owner'
+  const stillActive = isActive ?? target.is_active === 1
+  if (stillOwner && stillActive) return
+
+  if (countActiveOwners(db, { excludeUserId: userId }) === 0) {
+    throw new Error(
+      'ต้องมีเจ้าของหอที่ใช้งานอยู่อย่างน้อยหนึ่งบัญชี — ' +
+        'ถ้าเปลี่ยนบัญชีนี้จะไม่เหลือใครที่จัดการผู้ใช้ได้อีกเลย'
+    )
+  }
+}
+
+export function updateUserProfile(db, userId, { fullName, phone, email, role }) {
+  db.prepare(
+    `UPDATE users SET full_name = @fullName, phone = @phone, email = @email,
+                      role = @role, updated_at = @now
+      WHERE user_id = @userId`
+  ).run({
+    userId,
+    fullName: String(fullName).trim(),
+    phone: normalizePhone(phone),
+    email: normalizeEmail(email),
+    role: validateRole(role),
+    now: new Date().toISOString()
+  })
+  return getUserById(db, userId)
+}
+
+// ปิดบัญชี ไม่ใช่ลบทิ้ง — ใบเสร็จทุกใบอ้าง created_by ไว้ ถ้าลบแถวผู้ใช้ คอลัมน์
+// "ผู้รับเงิน" ของเอกสารเก่าจะกลายเป็นช่องว่างย้อนหลังทั้งระบบ
+export function setUserActive(db, userId, isActive) {
+  db.prepare('UPDATE users SET is_active = ?, updated_at = ? WHERE user_id = ?').run(
+    isActive ? 1 : 0,
+    new Date().toISOString(),
+    userId
+  )
+  return getUserById(db, userId)
 }
 
 export function updatePassword(db, userId, passwordHash) {
@@ -126,6 +246,14 @@ export function toPublicUser(row) {
     fullName: row.full_name,
     phone: row.phone,
     email: row.email,
+    role: row.role,
+    roleLabel: USER_ROLE_LABELS[row.role] ?? row.role,
+    // หน้าจอใช้ธงนี้ซ่อนปุ่มที่พนักงานกดไม่ได้ — **เป็นแค่การจัดหน้าจอ ไม่ใช่การกันสิทธิ์**
+    // ตัวกันจริงอยู่ที่ requireOwnerUserId() ฝั่ง main ทุกช่อง (หน้าจอแก้ค่าตัวเองได้จาก DevTools)
+    isOwner: row.role === 'owner',
+    // บัญชีที่ยังไม่เคยมีรหัสสำรอง = พนักงาน ซึ่งกู้รหัสผ่านเองไม่ได้โดยการออกแบบ
+    // ต้องให้เจ้าของรีเซ็ตให้ (ดู .claude/skills/dormy-manager หัวข้อ Password Recovery)
+    hasRecoveryCode: Boolean(row.recovery_code_hash),
     isActive: row.is_active === 1,
     createdAt: row.created_at
   }

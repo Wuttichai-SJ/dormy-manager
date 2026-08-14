@@ -321,6 +321,224 @@ check('รหัสผ่านถูกต้องได้ใบใหม่ 
 })
 
 // -----------------------------------------------------
+console.log('\nบทบาทผู้ใช้ (เจ้าของหอ / พนักงาน)')
+
+check('ผู้ใช้คนแรกของเครื่องเป็นเจ้าของหอเสมอ และมีรหัสสำรอง', () => {
+  const row = users.getUserById(db, owner.userId)
+  assert(row.role === 'owner', `ได้บทบาท ${row.role}`)
+  assert(Boolean(row.recovery_code_hash), 'เจ้าของต้องมีรหัสสำรอง')
+  assert(users.toPublicUser(row).isOwner === true, 'ธง isOwner ต้องเป็นจริง')
+})
+
+// 🔴 ตารางที่ลอกมาจากสคีมาต้นแบบแต่ไม่เคยมีโค้ดแตะ ถูกทิ้งไปใน 027 —
+// ถ้ามันกลับมาแปลว่ามีคนเผลอเอา 001_init.sql มารันใหม่ทับ
+check('ตาราง RBAC ของต้นแบบถูกทิ้งไปแล้ว', () => {
+  const left = db
+    .prepare(
+      `SELECT name FROM sqlite_master
+        WHERE type = 'table'
+          AND name IN ('roles', 'permissions', 'user_roles', 'role_permission')`
+    )
+    .all()
+  assert(left.length === 0, `ยังเหลือตาราง: ${left.map((t) => t.name).join(', ')}`)
+})
+
+let staff = null
+check('เจ้าของสร้างบัญชีพนักงานได้ และพนักงานไม่มีรหัสสำรอง', () => {
+  const result = auth.createUser(db, {
+    fullName: 'พนักงานเก็บเงิน',
+    phone: '0899990001',
+    email: 'staff@example.com',
+    password: 'staff-password-1',
+    role: 'staff'
+  })
+  staff = result.user
+  assert(staff.role === 'staff', `ได้บทบาท ${staff.role}`)
+  assert(staff.isOwner === false, 'พนักงานต้องไม่ติดธง isOwner')
+  // พนักงานกู้รหัสผ่านเองไม่ได้โดยการออกแบบ — เจ้าของเป็นคนตั้งใหม่ให้
+  assert(result.recoveryCode === null, 'พนักงานต้องไม่ได้รหัสสำรอง')
+  assert(!users.getUserById(db, staff.userId).recovery_code_hash, 'ต้องไม่มี hash รหัสสำรอง')
+})
+
+check('พนักงานเข้าสู่ระบบได้ และเซสชันบอกบทบาทมาด้วย', () => {
+  const session = auth.login(db, { identifier: '0899990001', password: 'staff-password-1' })
+  assert(session.role === 'staff', `ได้ ${session.role}`)
+  assert(session.roleLabel === 'พนักงาน', `ได้ป้าย ${session.roleLabel}`)
+})
+
+check('เบอร์โทร/อีเมลซ้ำกับบัญชีอื่นไม่ได้ และบอกเป็นภาษาคน', () => {
+  throws(
+    () =>
+      auth.createUser(db, {
+        fullName: 'คนใหม่',
+        phone: '0899990001',
+        password: 'another-password',
+        role: 'staff'
+      }),
+    'เบอร์โทรศัพท์นี้ถูกใช้',
+    'เบอร์ซ้ำผ่านได้'
+  )
+  throws(
+    () =>
+      auth.createUser(db, {
+        fullName: 'คนใหม่',
+        phone: '0899990002',
+        email: 'staff@example.com',
+        password: 'another-password',
+        role: 'staff'
+      }),
+    'อีเมลนี้ถูกใช้',
+    'อีเมลซ้ำผ่านได้'
+  )
+})
+
+check('บทบาทที่ไม่รู้จักถูกปฏิเสธ', () => {
+  throws(
+    () =>
+      auth.createUser(db, {
+        fullName: 'คนใหม่',
+        phone: '0899990003',
+        password: 'another-password',
+        role: 'admin'
+      }),
+    'บทบาทไม่ถูกต้อง',
+    'บทบาทมั่วผ่านได้'
+  )
+})
+
+check('ไม่ส่งบทบาทมาที่ชั้น db ได้บัญชีสิทธิ์ต่ำสุด ไม่ใช่เจ้าของ', () => {
+  const row = users.insertUser(db, {
+    fullName: 'บัญชีที่ลืมระบุบทบาท',
+    phone: '0899990009',
+    passwordHash: 'x',
+    recoveryCodeHash: null
+  })
+  assert(row.role === 'staff', `ได้ ${row.role}`)
+})
+
+// 🔴 กติกาที่กันไม่ให้ล็อกตัวเองออกจากสิทธิ์เจ้าของถาวร
+check('ลดเจ้าของคนสุดท้ายเป็นพนักงานไม่ได้', () => {
+  throws(
+    () =>
+      auth.updateUser(db, owner.userId, {
+        fullName: 'เจ้าของหอ',
+        phone: '0812345678',
+        email: null,
+        role: 'staff'
+      }),
+    'อย่างน้อยหนึ่งบัญชี',
+    'ลดเจ้าของคนสุดท้ายได้'
+  )
+})
+
+check('ปิดบัญชีเจ้าของคนสุดท้ายไม่ได้', () => {
+  throws(
+    () => auth.setUserActiveState(db, { userId: owner.userId, isActive: false }),
+    'อย่างน้อยหนึ่งบัญชี',
+    'ปิดเจ้าของคนสุดท้ายได้'
+  )
+})
+
+check('เลื่อนพนักงานขึ้นเป็นเจ้าของ ต้องได้รหัสสำรองใบแรก', () => {
+  const result = auth.updateUser(db, staff.userId, {
+    fullName: 'พนักงานเก็บเงิน',
+    phone: '0899990001',
+    email: 'staff@example.com',
+    role: 'owner'
+  })
+  assert(result.user.role === 'owner', `ได้ ${result.user.role}`)
+  assert(Boolean(result.recoveryCode), 'ต้องออกรหัสสำรองให้เจ้าของคนใหม่')
+
+  // รหัสที่ออกให้ต้องใช้กู้รหัสผ่านได้จริง ไม่ใช่แค่สตริงที่โชว์บนจอ
+  const { ticket } = auth.verifyRecoveryCode(db, {
+    identifier: '0899990001',
+    recoveryCode: result.recoveryCode
+  })
+  assert(Boolean(ticket), 'รหัสสำรองที่เพิ่งออกใช้ไม่ได้')
+})
+
+check('มีเจ้าของสองคนแล้ว ลดคนหนึ่งลงได้', () => {
+  const result = auth.updateUser(db, staff.userId, {
+    fullName: 'พนักงานเก็บเงิน',
+    phone: '0899990001',
+    email: 'staff@example.com',
+    role: 'staff'
+  })
+  assert(result.user.role === 'staff', `ได้ ${result.user.role}`)
+  // ลดกลับเป็นพนักงานแล้วไม่ออกรหัสสำรองใบใหม่ (ของเดิมยังอยู่ ไม่ได้หายไปไหน)
+  assert(result.recoveryCode === null, 'ไม่ควรออกรหัสสำรองตอนลดบทบาท')
+})
+
+check('เจ้าของตั้งรหัสผ่านใหม่ให้พนักงานได้ = ทางกู้คืนของพนักงาน', () => {
+  auth.resetUserPassword(db, { userId: staff.userId, newPassword: 'reset-by-owner-1' })
+  const session = auth.login(db, { identifier: '0899990001', password: 'reset-by-owner-1' })
+  assert(session.userId === staff.userId, 'เข้าสู่ระบบด้วยรหัสใหม่ไม่ได้')
+  throws(
+    () => auth.login(db, { identifier: '0899990001', password: 'staff-password-1' }),
+    'ไม่ถูกต้อง',
+    'รหัสเดิมยังใช้ได้อยู่'
+  )
+})
+
+check('รหัสผ่านใหม่ที่สั้นเกินไปถูกปฏิเสธ', () => {
+  throws(
+    () => auth.resetUserPassword(db, { userId: staff.userId, newPassword: 'sml' }),
+    'อย่างน้อย',
+    'รหัสสั้นผ่านได้'
+  )
+})
+
+check('เปลี่ยนรหัสผ่านของตัวเองต้องรู้รหัสเดิม', () => {
+  throws(
+    () =>
+      auth.changeOwnPassword(db, {
+        userId: staff.userId,
+        currentPassword: 'ไม่ใช่รหัสเดิม',
+        newPassword: 'my-own-password-1'
+      }),
+    'รหัสผ่านเดิมไม่ถูกต้อง',
+    'เปลี่ยนได้ทั้งที่รหัสเดิมผิด'
+  )
+
+  auth.changeOwnPassword(db, {
+    userId: staff.userId,
+    currentPassword: 'reset-by-owner-1',
+    newPassword: 'my-own-password-1'
+  })
+  const session = auth.login(db, { identifier: '0899990001', password: 'my-own-password-1' })
+  assert(session.userId === staff.userId, 'รหัสที่เจ้าตัวตั้งเองใช้ไม่ได้')
+})
+
+check('บัญชีที่ถูกปิดการใช้งานเข้าสู่ระบบไม่ได้', () => {
+  auth.setUserActiveState(db, { userId: staff.userId, isActive: false })
+  throws(
+    () => auth.login(db, { identifier: '0899990001', password: 'my-own-password-1' }),
+    'ถูกปิดการใช้งาน',
+    'บัญชีที่ปิดแล้วยัง login ได้'
+  )
+  auth.setUserActiveState(db, { userId: staff.userId, isActive: true })
+})
+
+check('listUsers เรียงเจ้าของขึ้นก่อน และไม่หลุด hash ออกไป', () => {
+  const list = users.listUsers(db)
+  assert(list.length >= 3, `ได้ ${list.length} บัญชี`)
+  assert(list[0].role === 'owner', 'เจ้าของต้องอยู่บนสุด')
+  // เจ้าของทุกคนต้องมาก่อนพนักงานคนแรก ไม่ใช่แค่แถวบนสุดบังเอิญถูก
+  const firstStaff = list.findIndex((row) => row.role === 'staff')
+  if (firstStaff !== -1) {
+    assert(
+      list.slice(firstStaff).every((row) => row.role === 'staff'),
+      'มีเจ้าของโผล่ใต้พนักงาน'
+    )
+  }
+  for (const row of list) {
+    assert(!('password' in row), 'มี password หลุดออกไป')
+    assert(!('recovery_code_hash' in row), 'มี hash รหัสสำรองหลุดออกไป')
+    assert(typeof row.roleLabel === 'string', 'ต้องมีป้ายบทบาทให้หน้าจอใช้')
+  }
+})
+
+// -----------------------------------------------------
 db.close()
 fs.rmSync(tmpDir, { recursive: true, force: true })
 

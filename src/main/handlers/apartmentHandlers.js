@@ -3,6 +3,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireOwnerUserId } from './authHandlers.js'
 import {
   deleteApartment,
   getApartmentById,
@@ -67,7 +68,10 @@ export function registerApartmentHandlers() {
     return result
   })
 
+  // **เจ้าของหอเท่านั้น** (ดู OWNER_ONLY_ACTIONS) — ลากผู้เช่า สัญญา บิล และใบเสร็จ
+  // ของทั้งหอไปด้วยในคำสั่งเดียว ไม่มีปุ่มเรียกกลับ
   handle('apartment:delete', ({ apartmentId }) => {
+    requireOwnerUserId()
     const result = deleteApartment(getDatabase(), apartmentId)
     logInfo(`ลบหอพัก (apartment_id ${apartmentId})`)
     return result

@@ -3,6 +3,7 @@ import path from 'path'
 import { getDatabase } from './database.js'
 import { logInfo, logError, getLogPath } from './logger.js'
 import { registerAuthHandlers } from './handlers/authHandlers.js'
+import { registerUserHandlers } from './handlers/userHandlers.js'
 import { registerApartmentHandlers } from './handlers/apartmentHandlers.js'
 import { registerApartmentServiceHandlers } from './handlers/apartmentServiceHandlers.js'
 import { registerUtilityHandlers } from './handlers/utilityHandlers.js'
@@ -115,6 +116,7 @@ app.whenReady().then(() => {
   // ต้องลงทะเบียนให้ครบ "ก่อน" สร้างหน้าต่าง ไม่งั้นหน้าจอที่โหลดเร็วกว่าจะยิง
   // auth:status ไปหาช่องที่ยังไม่มีใครรับ แล้วได้ error "No handler registered"
   registerAuthHandlers()
+  registerUserHandlers()
   registerApartmentHandlers()
   registerApartmentServiceHandlers()
   registerUtilityHandlers()

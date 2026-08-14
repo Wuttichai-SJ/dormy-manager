@@ -7,7 +7,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireSessionUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   cancelPayment,
   getMultiPaymentSheet,
@@ -74,10 +74,14 @@ export function registerPaymentHandlers() {
   //
   // ยกเลิกใบเสร็จที่คีย์ผิด — เหตุผลบังคับกรอก และ **ผู้ยกเลิกมาจากเซสชันเสมอ**
   // เหมือนผู้รับเงิน ไม่งั้นบันทึกการยกเลิกก็เชื่อไม่ได้เหมือนกัน
+  //
+  // **เจ้าของหอเท่านั้น** (ดู OWNER_ONLY_ACTIONS) — ยกเลิกใบเสร็จคือการบอกว่าเงินที่เคย
+  // บันทึกว่ารับมาแล้วไม่เคยเข้ามาจริง ยอดค้างของบิลกลับมาทันที คนที่รับเงินไม่ควรเป็นคน
+  // ตัดสินเองว่าใบไหนไม่นับ
   handle('payment:cancel', ({ paymentId, reason }) => {
     const result = cancelPayment(getDatabase(), paymentId, {
       reason,
-      cancelledBy: requireSessionUserId()
+      cancelledBy: requireOwnerUserId()
     })
     logInfo(
       `ยกเลิกใบเสร็จ ${result.payment.receiptNumber} ` +

@@ -6,6 +6,7 @@ import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import { readPrefs, writePrefs } from '../prefs.js'
+import { getUserById } from '../db/users.js'
 import {
   isInitialized,
   login,
@@ -34,6 +35,24 @@ export function clearSession() {
 export function requireSessionUserId() {
   if (!session) throw new Error('ยังไม่ได้เข้าสู่ระบบ')
   return session.userId
+}
+
+// ผู้ทำรายการที่ต้องเป็น "เจ้าของหอ" เท่านั้น (ลบบิล / ยกเลิกใบเสร็จ / ลบหอ /
+// กู้คืนข้อมูล / จัดการผู้ใช้ — ดู OWNER_ONLY_ACTIONS ใน db/users.js)
+//
+// 🔴 **อ่านบทบาทจากฐานข้อมูลสดทุกครั้ง ไม่ใช่จากเซสชันที่จับไว้ตอนล็อกอิน**
+// เจ้าของอาจลดบทบาทหรือปิดบัญชีของคนที่กำลังเปิดแอปค้างอยู่ ถ้าเชื่อเซสชัน คนนั้นจะยัง
+// ลบบิลได้ต่อไปจนกว่าจะปิดแอป — และการซ่อนปุ่มฝั่งหน้าจอกันไม่ได้เลย เพราะยิง IPC ตรงได้
+export function requireOwnerUserId() {
+  const userId = requireSessionUserId()
+  const row = getUserById(getDatabase(), userId)
+  if (!row || row.is_active !== 1) {
+    throw new Error('บัญชีนี้ถูกปิดการใช้งานแล้ว กรุณาเข้าสู่ระบบใหม่')
+  }
+  if (row.role !== 'owner') {
+    throw new Error('เฉพาะเจ้าของหอเท่านั้นที่ทำรายการนี้ได้')
+  }
+  return userId
 }
 
 function handle(channel, fn) {
