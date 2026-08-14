@@ -348,9 +348,15 @@ export function createContract(db, input) {
 
   // กฎคืนเงินประกันถูก "ถ่ายสำเนา" ลงสัญญา ณ วันทำสัญญา (ดู 004_deposit_refund_policy.sql)
   // ถ้าเจ้าของหอเปลี่ยนกฎทีหลัง สัญญาเก่าต้องยังใช้กฎเดิมที่ตกลงกันไว้ ไม่ใช่ย้อนหลัง
+  //
+  // 🔴 ตัวนโยบายเองเคยหลุดจากการสำเนานี้ — INSERT ไม่ได้ใส่ deposit_refund_policy เลย
+  // สัญญาทุกใบจึงได้ 'on_full_term' จาก DEFAULT ของตาราง ต่อให้หอตั้งเป็นอย่างอื่นไว้
+  // (แก้พร้อมกับหน้าตั้งค่านโยบาย 2026-08-14 · คอลัมน์ระดับหอมาจาก migration 029)
   const policy = db
     .prepare(
-      `SELECT default_deposit_min_stay_months AS minStay, default_deposit_notice_days AS noticeDays
+      `SELECT default_deposit_min_stay_months AS minStay,
+              default_deposit_notice_days AS noticeDays,
+              default_deposit_refund_policy AS refundPolicy
          FROM apartments WHERE apartment_id = ?`
     )
     .get(room.apartment_id)
@@ -396,12 +402,14 @@ export function createContract(db, input) {
            room_id, rent_type, start_date, end_date, rent_amount_cents,
            deposit_amount_cents, deposit_payment_method, booking_fee_cents, booking_receipt_no,
            advance_payment_amount_cents, water_meter_start, electric_meter_start, note, status,
-           term_months, deposit_min_stay_months, deposit_notice_days, created_at
+           term_months, deposit_min_stay_months, deposit_notice_days,
+           deposit_refund_policy, created_at
          ) VALUES (
            @roomId, @rentType, @startDate, @endDate, @rentAmountCents,
            @depositCents, @depositPaymentMethod, @bookingFeeCents, @bookingReceiptNo,
            @advanceCents, @waterMeterStart, @electricMeterStart, @note, 'active',
-           @termMonths, @minStay, @noticeDays, @now
+           @termMonths, @minStay, @noticeDays,
+           @refundPolicy, @now
          )`
       )
       .run({
@@ -422,6 +430,7 @@ export function createContract(db, input) {
         termMonths: input.termMonths ? Number(input.termMonths) : null,
         minStay: policy?.minStay ?? null,
         noticeDays: policy?.noticeDays ?? 15,
+        refundPolicy: policy?.refundPolicy ?? 'on_full_term',
         now
       }).lastInsertRowid
 

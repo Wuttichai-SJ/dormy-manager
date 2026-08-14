@@ -7,6 +7,8 @@ import { requireOwnerUserId } from './authHandlers.js'
 import {
   deleteApartment,
   getApartmentById,
+  getDepositPolicy,
+  saveDepositPolicy,
   insertApartment,
   markSetupCompleted,
   listApartments,
@@ -72,6 +74,28 @@ export function registerApartmentHandlers() {
     const result = markSetupCompleted(getDatabase(), apartmentId)
     logInfo(`ตั้งค่าหอพักเสร็จ (apartment_id ${apartmentId})`)
     return result
+  })
+
+  // นโยบายคืนเงินประกัน — ค่าตั้งต้นที่จะถูกสำเนาลง "สัญญาใบใหม่" เท่านั้น
+  // (สัญญาที่เซ็นไปแล้วยังใช้กฎที่ตกลงกันวันนั้น ดู 004) · อ่านได้ทุกคน เพราะหน้าทำสัญญา
+  // ต้องรู้ว่ากติกาปัจจุบันคืออะไร
+  handle('apartment:getDepositPolicy', ({ apartmentId }) =>
+    getDepositPolicy(getDatabase(), apartmentId)
+  )
+
+  handle('apartment:saveDepositPolicy', ({ apartmentId, policy, noticeDays, minStayMonths }) => {
+    requireOwnerUserId()
+    const saved = saveDepositPolicy(getDatabase(), apartmentId, {
+      policy,
+      noticeDays,
+      minStayMonths
+    })
+    logInfo(
+      `บันทึกนโยบายเงินประกัน (apartment_id ${apartmentId}): ${saved.policy} · ` +
+        `แจ้งล่วงหน้า ${saved.noticeDays} วัน · ` +
+        `ขั้นต่ำ ${saved.minStayMonths === null ? 'ตามระยะสัญญา' : `${saved.minStayMonths} เดือน`}`
+    )
+    return saved
   })
 
   // **เจ้าของหอเท่านั้น** (ดู OWNER_ONLY_ACTIONS) — ลากผู้เช่า สัญญา บิล และใบเสร็จ

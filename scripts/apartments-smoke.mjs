@@ -391,5 +391,93 @@ check('นับเฉพาะห้องสถานะ vacant', () => {
 })
 
 // -----------------------------------------------------
+group('นโยบายคืนเงินประกันของหอ')
+
+const policyHome = apartments.insertApartment(db, {
+  nameTh: 'หอทดสอบนโยบายเงินประกัน',
+  addressTh: 'ที่อยู่',
+  dueDateDay: 10,
+  lateFeePerDay: '0'
+})
+
+check('ค่าตั้งต้นตรงกับกติกาที่เจ้าของหอยืนยันไว้', () => {
+  const policy = apartments.getDepositPolicy(db, policyHome.apartmentId)
+  assert(policy.policy === 'on_full_term', `ได้ ${policy.policy}`)
+  assert(policy.noticeDays === 15, `ได้ ${policy.noticeDays}`)
+  // null = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์ ซึ่งเป็นค่าที่หอนี้ใช้อยู่
+  assert(policy.minStayMonths === null, `ได้ ${policy.minStayMonths}`)
+  assert(policy.policyLabel === 'คืนเมื่ออยู่ครบตามสัญญา', `ได้ ${policy.policyLabel}`)
+})
+
+check('บันทึกแล้วอ่านกลับมาได้ และเว้นเดือนขั้นต่ำเป็นว่างได้', () => {
+  const saved = apartments.saveDepositPolicy(db, policyHome.apartmentId, {
+    policy: 'on_full_term',
+    noticeDays: 30,
+    minStayMonths: 6
+  })
+  assert(saved.noticeDays === 30, `ได้ ${saved.noticeDays}`)
+  assert(saved.minStayMonths === 6, `ได้ ${saved.minStayMonths}`)
+
+  // ส่งสตริงว่างมา = กลับไปใช้ระยะสัญญาเป็นเกณฑ์ ไม่ใช่ 0 เดือน
+  const cleared = apartments.saveDepositPolicy(db, policyHome.apartmentId, {
+    policy: 'always',
+    noticeDays: 15,
+    minStayMonths: ''
+  })
+  assert(cleared.minStayMonths === null, `ได้ ${cleared.minStayMonths}`)
+  assert(cleared.policy === 'always', `ได้ ${cleared.policy}`)
+})
+
+check('นโยบายที่ไม่รู้จัก / วันติดลบ / ค่าเกินเพดาน ต้องไม่ผ่าน', () => {
+  throws(
+    () =>
+      apartments.saveDepositPolicy(db, policyHome.apartmentId, {
+        policy: 'refund_maybe',
+        noticeDays: 15
+      }),
+    'กรุณาเลือกนโยบาย',
+    'นโยบายมั่วผ่านได้'
+  )
+  throws(
+    () =>
+      apartments.saveDepositPolicy(db, policyHome.apartmentId, {
+        policy: 'on_full_term',
+        noticeDays: -1
+      }),
+    'ไม่ติดลบ',
+    'วันติดลบผ่านได้'
+  )
+  // 🔴 พิมพ์ 150 แทน 15 แล้วปล่อยผ่าน = ผู้เช่าทุกคนถูกริบเงินประกันโดยไม่มีใครรู้ว่าทำไม
+  throws(
+    () =>
+      apartments.saveDepositPolicy(db, policyHome.apartmentId, {
+        policy: 'on_full_term',
+        noticeDays: 400
+      }),
+    'ไม่เกิน',
+    'วันเกินเพดานผ่านได้'
+  )
+  throws(
+    () =>
+      apartments.saveDepositPolicy(db, policyHome.apartmentId, {
+        policy: 'on_full_term',
+        noticeDays: 15,
+        minStayMonths: 0
+      }),
+    'ตั้งแต่ 1',
+    'เดือนขั้นต่ำ 0 ผ่านได้'
+  )
+})
+
+check('หอที่ไม่มีอยู่ อ่านหรือบันทึกไม่ได้', () => {
+  throws(() => apartments.getDepositPolicy(db, 999999), 'ไม่พบหอพัก', 'อ่านหอมั่วได้')
+  throws(
+    () => apartments.saveDepositPolicy(db, 999999, { policy: 'always', noticeDays: 15 }),
+    'ไม่พบหอพัก',
+    'บันทึกหอมั่วได้'
+  )
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลหอพักทำงานครบทุกเส้นทาง')

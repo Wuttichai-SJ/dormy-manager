@@ -29,3 +29,19 @@ export function deleteApartment(apartmentId) {
 export function completeApartmentSetup(apartmentId) {
   return invoke('apartment:completeSetup', { apartmentId })
 }
+
+// นโยบายคืนเงินประกัน — ค่าตั้งต้นที่จะถูกสำเนาลง "สัญญาใบใหม่" เท่านั้น
+// สัญญาที่เซ็นไปแล้วยังใช้กฎที่ตกลงกันในวันนั้น (สำเนาไว้ที่ตัวสัญญาตั้งแต่ migration 004)
+export function getDepositPolicy(apartmentId) {
+  return invoke('apartment:getDepositPolicy', { apartmentId })
+}
+
+// minStayMonths เว้นว่าง (null) = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
+export function saveDepositPolicy(apartmentId, { policy, noticeDays, minStayMonths }) {
+  return invoke('apartment:saveDepositPolicy', {
+    apartmentId,
+    policy,
+    noticeDays,
+    minStayMonths
+  })
+}

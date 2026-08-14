@@ -92,9 +92,16 @@ CREATE TABLE IF NOT EXISTS `mydb`.`apartments` (
   -- เวลาที่เดินตัวช่วยตั้งค่าครบ 8 ขั้น (migration 008) — NULL = ยังตั้งค่าไม่เสร็จ
   -- หอที่ยัง NULL อยู่จะเข้าหน้าทำงานที่มีเมนูข้างไม่ได้ ต้องกลับไปตั้งค่าให้จบก่อน
   `setup_completed_at` TIMESTAMP NULL,
-  -- ค่าตั้งต้นกฎคืนเงินประกัน (migration 004) — NULL = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
-  `default_deposit_min_stay_months` INT NULL,
+  -- ค่าตั้งต้นกฎคืนเงินประกัน (migration 004 + 029) — ตั้งที่ ตั้งค่า › เงินประกันและการคืนเงิน
+  --
+  -- **ทั้งสามค่าถูกถ่ายสำเนาลงตัวสัญญาตอน createContract ไม่ได้อ่านสดตอนย้ายออก**
+  -- แก้ที่นี่จึงมีผลกับสัญญาใบใหม่เท่านั้น สัญญาที่เซ็นไปแล้วใช้กติกาที่ตกลงกันวันนั้นเสมอ
+  `default_deposit_min_stay_months` INT NULL, -- NULL = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
   `default_deposit_notice_days` INT NOT NULL DEFAULT 15,
+  -- 'on_full_term' | 'always' | 'never' — ตรวจค่าที่ db/apartments.js
+  -- migration 029: ก่อนหน้านี้ไม่มีคอลัมน์นี้ สัญญาทุกใบจึงได้ 'on_full_term' จาก DEFAULT
+  -- ของตาราง contracts ต่อให้หอตั้งไว้เป็นอย่างอื่น (เงียบ เพราะค่าตรงกับกติกาจริงพอดี)
+  `default_deposit_refund_policy` VARCHAR(255) NOT NULL DEFAULT 'on_full_term',
   `created_at` TIMESTAMP NOT NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`apartment_id`))

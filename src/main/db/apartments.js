@@ -23,6 +23,27 @@ export const MAX_METER_DIGITS = 8
 export const DEFAULT_METER_DIGITS = 5
 
 // -----------------------------------------------------
+// นโยบายคืนเงินประกัน (ค่าตั้งต้นของหอ)
+// -----------------------------------------------------
+// **ค่าเหล่านี้ถูกสำเนาลงสัญญาแต่ละใบตอนทำสัญญา ไม่ได้อ่านสดตอนย้ายออก** (ดู 004)
+// เปลี่ยนที่นี่จึงมีผลกับ "สัญญาใบใหม่" เท่านั้น สัญญาที่เซ็นไปแล้วยังใช้กฎที่ตกลงกันวันนั้น
+// — ถ้าอ่านสดตอนคำนวณ ผู้เช่าที่เซ็นตอนแจ้ง 15 วันจะโดนกฎ 60 วันย้อนหลัง ซึ่งเป็นข้อพิพาทจริง
+export const DEPOSIT_REFUND_POLICIES = ['on_full_term', 'always', 'never']
+
+export const DEPOSIT_REFUND_POLICY_LABELS = {
+  on_full_term: 'คืนเมื่ออยู่ครบตามสัญญา',
+  always: 'คืนเสมอ',
+  never: 'ไม่คืนเงินประกัน'
+}
+
+// แจ้งล่วงหน้าได้มากสุด 1 ปี — เกินจากนี้คือกรอกผิดหลัก (พิมพ์ 150 แทน 15)
+// ปล่อยผ่านแล้วผู้เช่าทุกคนจะถูกริบเงินประกันโดยไม่มีใครรู้ว่าทำไม
+export const MAX_DEPOSIT_NOTICE_DAYS = 365
+
+// อยู่ครบขั้นต่ำได้มากสุด 60 เดือน (5 ปี) ด้วยเหตุผลเดียวกัน
+export const MAX_DEPOSIT_MIN_STAY_MONTHS = 60
+
+// -----------------------------------------------------
 // ตรวจข้อมูลก่อนเขียน
 // -----------------------------------------------------
 // คืนข้อผิดพลาดทั้งหมดพร้อมกัน ไม่ใช่ throw ตัวแรกที่เจอ (เหมือน validateUserInput)
@@ -269,6 +290,95 @@ export function deleteApartment(db, apartmentId) {
   })
   run()
   return { ok: true }
+}
+
+// -----------------------------------------------------
+// นโยบายคืนเงินประกันของหอ
+// -----------------------------------------------------
+export function validateDepositPolicyInput({ policy, noticeDays, minStayMonths }) {
+  const errors = []
+
+  if (!DEPOSIT_REFUND_POLICIES.includes(policy)) {
+    errors.push('กรุณาเลือกนโยบายคืนเงินประกัน')
+  }
+
+  const days = Number(noticeDays)
+  if (!Number.isInteger(days) || days < 0) {
+    errors.push('จำนวนวันที่ต้องแจ้งล่วงหน้าต้องเป็นจำนวนเต็มไม่ติดลบ')
+  } else if (days > MAX_DEPOSIT_NOTICE_DAYS) {
+    errors.push(`จำนวนวันที่ต้องแจ้งล่วงหน้าต้องไม่เกิน ${MAX_DEPOSIT_NOTICE_DAYS} วัน`)
+  }
+
+  // เว้นว่างได้ = ใช้ระยะสัญญาของสัญญาใบนั้นเป็นเกณฑ์ (สัญญา 12 เดือนต้องอยู่ครบ 12)
+  // ซึ่งเป็นค่าที่หอนี้ใช้อยู่ ใส่ตัวเลขเมื่อหอต้องการเกณฑ์ตายตัวไม่ขึ้นกับระยะสัญญา
+  if (minStayMonths !== null && minStayMonths !== undefined && String(minStayMonths).trim() !== '') {
+    const months = Number(minStayMonths)
+    if (!Number.isInteger(months) || months < 1) {
+      errors.push('เดือนขั้นต่ำที่ต้องอยู่ต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป')
+    } else if (months > MAX_DEPOSIT_MIN_STAY_MONTHS) {
+      errors.push(`เดือนขั้นต่ำที่ต้องอยู่ต้องไม่เกิน ${MAX_DEPOSIT_MIN_STAY_MONTHS} เดือน`)
+    }
+  }
+
+  return errors
+}
+
+export function getDepositPolicy(db, apartmentId) {
+  const row = db
+    .prepare(
+      `SELECT default_deposit_refund_policy AS policy,
+              default_deposit_notice_days AS noticeDays,
+              default_deposit_min_stay_months AS minStayMonths
+         FROM apartments WHERE apartment_id = ?`
+    )
+    .get(apartmentId)
+  if (!row) throw new Error('ไม่พบหอพัก')
+
+  return {
+    policy: row.policy,
+    policyLabel: DEPOSIT_REFUND_POLICY_LABELS[row.policy] ?? row.policy,
+    noticeDays: row.noticeDays,
+    // null = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
+    minStayMonths: row.minStayMonths,
+    // จำนวนสัญญาที่ยัง active อยู่ — หน้าจอต้องบอกให้ชัดว่าการแก้ตรงนี้ "ไม่" กระทบใบเหล่านี้
+    activeContractCount: db
+      .prepare(
+        `SELECT COUNT(*) AS n
+           FROM contracts c
+           JOIN rooms r  ON r.room_id = c.room_id
+           JOIN floors f ON f.floor_id = r.floor_id
+          WHERE f.apartment_id = ? AND c.status = 'active'`
+      )
+      .get(apartmentId).n
+  }
+}
+
+export function saveDepositPolicy(db, apartmentId, { policy, noticeDays, minStayMonths } = {}) {
+  const errors = validateDepositPolicyInput({ policy, noticeDays, minStayMonths })
+  if (errors.length > 0) throw new Error(errors.join('\n'))
+
+  const result = db
+    .prepare(
+      `UPDATE apartments
+          SET default_deposit_refund_policy = @policy,
+              default_deposit_notice_days = @noticeDays,
+              default_deposit_min_stay_months = @minStayMonths,
+              updated_at = @now
+        WHERE apartment_id = @apartmentId`
+    )
+    .run({
+      apartmentId,
+      policy,
+      noticeDays: Number(noticeDays),
+      minStayMonths:
+        minStayMonths === null || minStayMonths === undefined || String(minStayMonths).trim() === ''
+          ? null
+          : Number(minStayMonths),
+      now: new Date().toISOString()
+    })
+  if (result.changes === 0) throw new Error('ไม่พบหอพัก')
+
+  return getDepositPolicy(db, apartmentId)
 }
 
 // -----------------------------------------------------

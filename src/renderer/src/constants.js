@@ -97,6 +97,26 @@ export const OWNER_ONLY_ACTIONS = [
   'จัดการผู้ใช้งานระบบ'
 ]
 
+// ต้องตรงกับ DEPOSIT_REFUND_POLICIES / DEPOSIT_REFUND_POLICY_LABELS ใน src/main/db/apartments.js
+// (ดู migration 004 + 029) — main เป็นฝ่ายตรวจค่าจริงเสมอ
+export const DEPOSIT_REFUND_POLICIES = [
+  {
+    key: 'on_full_term',
+    label: 'คืนเมื่ออยู่ครบตามสัญญา',
+    hint: 'อยู่ครบตามระยะสัญญา และแจ้งย้ายออกล่วงหน้าครบกำหนด จึงได้คืนเต็มจำนวน · ผิดข้อใดข้อหนึ่ง = ริบทั้งหมด'
+  },
+  {
+    key: 'always',
+    label: 'คืนเสมอ',
+    hint: 'คืนเงินประกันทุกกรณี ไม่ว่าจะอยู่ครบหรือแจ้งทันหรือไม่ (ค่าเสียหายยังหักได้ตามปกติ)'
+  },
+  {
+    key: 'never',
+    label: 'ไม่คืนเงินประกัน',
+    hint: 'ไม่คืนเงินประกันทุกกรณี — ใช้เมื่อหอเก็บเป็นค่าแรกเข้าที่ไม่มีการคืนอยู่แล้ว'
+  }
+]
+
 // ต้องตรงกับ MAINTENANCE_STATUSES / MAINTENANCE_STATUS_LABELS ใน src/main/db/maintenance.js
 // (ดู migration 028) · 'open' ไม่ใช่สถานะจริงในฐานข้อมูล แต่เป็นตัวกรอง "งานที่ยังต้องตามต่อ"
 // ซึ่งเป็นคำถามที่คนเปิดหน้านี้ถามบ่อยที่สุด จึงเป็นค่าตั้งต้นของตัวกรอง

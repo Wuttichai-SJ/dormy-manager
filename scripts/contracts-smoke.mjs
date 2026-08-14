@@ -281,5 +281,94 @@ check('จำนวนสัญญาที่ยังใช้งานอย�
 })
 
 // -----------------------------------------------------
+group('สำเนากติกาเงินประกันลงสัญญา')
+
+// 🔴 บั๊กที่เจอตอนทำหน้าตั้งค่านโยบาย (2026-08-14): INSERT ของ createContract ไม่ได้ใส่
+// `deposit_refund_policy` เลย สัญญาทุกใบจึงได้ 'on_full_term' จาก DEFAULT ของตาราง
+// ต่อให้หอตั้งไว้เป็นอย่างอื่น — เงียบสนิทเพราะค่า DEFAULT บังเอิญตรงกับกติกาจริงของหอนี้
+check('สัญญาใหม่ได้กติกาปัจจุบันของหอครบทั้งสามค่า', () => {
+  const home = apartments.insertApartment(db, {
+    nameTh: 'หอทดสอบสำเนากติกา',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 10,
+    lateFeePerDay: '0'
+  })
+  apartments.saveDepositPolicy(db, home.apartmentId, {
+    policy: 'never',
+    noticeDays: 45,
+    minStayMonths: 9
+  })
+
+  rooms.generateFloorPlan(db, home.apartmentId, [{ roomCount: 1 }])
+  const room = rooms.listFloors(db, home.apartmentId)[0].rooms[0]
+  rooms.setRoomRates(db, [room.roomId], { monthlyRent: '4000' })
+
+  const person = tenants.insertTenant(db, {
+    firstName: 'ผู้เช่ากติกา',
+    lastName: 'ทดสอบ',
+    phone: '0899998888'
+  })
+  const contract = contracts.createContract(db, {
+    ...BASE,
+    roomId: room.roomId,
+    rentAmount: '4000',
+    deposit: '4000',
+    termMonths: 12,
+    tenants: [person.tenantId]
+  })
+
+  const row = db
+    .prepare(
+      `SELECT deposit_refund_policy, deposit_notice_days, deposit_min_stay_months
+         FROM contracts WHERE contract_id = ?`
+    )
+    .get(contract.contractId)
+  assert(row.deposit_refund_policy === 'never', `ได้ ${row.deposit_refund_policy}`)
+  assert(row.deposit_notice_days === 45, `ได้ ${row.deposit_notice_days}`)
+  assert(row.deposit_min_stay_months === 9, `ได้ ${row.deposit_min_stay_months}`)
+})
+
+// **หัวใจของการ snapshot**: ผู้เช่าที่เซ็นตอนกติกาเป็นอย่างหนึ่ง ต้องไม่โดนกติกาใหม่ย้อนหลัง
+check('เปลี่ยนกติกาของหอทีหลัง สัญญาที่ทำไปแล้วต้องไม่เปลี่ยนตาม', () => {
+  const home = apartments.insertApartment(db, {
+    nameTh: 'หอทดสอบไม่ย้อนหลัง',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 10,
+    lateFeePerDay: '0'
+  })
+  rooms.generateFloorPlan(db, home.apartmentId, [{ roomCount: 1 }])
+  const room = rooms.listFloors(db, home.apartmentId)[0].rooms[0]
+  rooms.setRoomRates(db, [room.roomId], { monthlyRent: '4000' })
+
+  const person = tenants.insertTenant(db, {
+    firstName: 'ผู้เช่าเซ็นก่อน',
+    lastName: 'ทดสอบ',
+    phone: '0899997777'
+  })
+  const contract = contracts.createContract(db, {
+    ...BASE,
+    roomId: room.roomId,
+    rentAmount: '4000',
+    deposit: '4000',
+    termMonths: 12,
+    tenants: [person.tenantId]
+  })
+
+  apartments.saveDepositPolicy(db, home.apartmentId, {
+    policy: 'never',
+    noticeDays: 60,
+    minStayMonths: 24
+  })
+
+  const row = db
+    .prepare(
+      `SELECT deposit_refund_policy, deposit_notice_days FROM contracts WHERE contract_id = ?`
+    )
+    .get(contract.contractId)
+  assert(row.deposit_refund_policy === 'on_full_term', `กติกาเก่าถูกเขียนทับเป็น ${row.deposit_refund_policy}`)
+  assert(row.deposit_notice_days === 15, `จำนวนวันถูกเขียนทับเป็น ${row.deposit_notice_days}`)
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลสัญญาเช่าทำงานครบทุกเส้นทาง')

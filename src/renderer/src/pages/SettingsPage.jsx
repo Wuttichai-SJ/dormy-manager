@@ -2,6 +2,7 @@ import React from 'react'
 import ApartmentInfoPage from './ApartmentInfoPage.jsx'
 import ApartmentServicesPage from './ApartmentServicesPage.jsx'
 import UtilitySettingsPage from './UtilitySettingsPage.jsx'
+import DepositPolicyPage from './DepositPolicyPage.jsx'
 import BankAccountsPage from './BankAccountsPage.jsx'
 import QrCodePage from './QrCodePage.jsx'
 import FloorPlanPage from './FloorPlanPage.jsx'
@@ -37,7 +38,7 @@ export const SETTINGS_GROUPS = [
       { key: 'banks', label: 'บัญชีธนาคาร', ready: true, ownerOnly: true },
       { key: 'qrCode', label: 'QR Code รับเงิน', ready: true, ownerOnly: true },
       { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true, ownerOnly: true },
-      { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: false, ownerOnly: true },
+      { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: true, ownerOnly: true },
       // หัวข้อเดียวที่พนักงานเห็น — เป็นเรื่องของบัญชีตัวเอง (เปลี่ยนรหัสผ่านของตัวเอง)
       // ไม่ใช่การตั้งค่าหอ
       { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true },
@@ -74,6 +75,8 @@ export function SettingsSection({ section, apartment, user, onApartmentDeleted }
       return <QrCodePage apartment={apartment} />
     case 'meterRules':
       return <UtilitySettingsPage apartment={apartment} />
+    case 'deposit':
+      return <DepositPolicyPage apartment={apartment} />
     case 'security':
       return <SecuritySettingsPage user={user} />
     case 'backups':
