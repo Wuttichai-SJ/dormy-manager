@@ -470,7 +470,11 @@ check('มีเจ้าของสองคนแล้ว ลดคนหน
 })
 
 check('เจ้าของตั้งรหัสผ่านใหม่ให้พนักงานได้ = ทางกู้คืนของพนักงาน', () => {
-  auth.resetUserPassword(db, { userId: staff.userId, newPassword: 'reset-by-owner-1' })
+  auth.resetUserPassword(db, {
+    userId: staff.userId,
+    newPassword: 'reset-by-owner-1',
+    actorUserId: owner.userId
+  })
   const session = auth.login(db, { identifier: '0899990001', password: 'reset-by-owner-1' })
   assert(session.userId === staff.userId, 'เข้าสู่ระบบด้วยรหัสใหม่ไม่ได้')
   throws(
@@ -482,9 +486,41 @@ check('เจ้าของตั้งรหัสผ่านใหม่ใ�
 
 check('รหัสผ่านใหม่ที่สั้นเกินไปถูกปฏิเสธ', () => {
   throws(
-    () => auth.resetUserPassword(db, { userId: staff.userId, newPassword: 'sml' }),
+    () =>
+      auth.resetUserPassword(db, {
+        userId: staff.userId,
+        newPassword: 'sml',
+        actorUserId: owner.userId
+      }),
     'อย่างน้อย',
     'รหัสสั้นผ่านได้'
+  )
+})
+
+// 🔴 ด่านที่กันไม่ให้ "ตั้งรหัสผ่านใหม่" กลายเป็นทางลัดข้ามการยืนยันรหัสเดิม
+// ทางนี้ไม่ถามรหัสเดิมโดยตั้งใจ (พนักงานลืมรหัส = ไม่มีใครรู้รหัสเดิมอยู่แล้ว)
+// แต่ถ้าชี้กลับมาที่ตัวเองได้ ใครก็ยึดบัญชีจากเครื่องที่เปิดค้างไว้ได้โดยไม่ต้องรู้รหัสเดิม
+check('เจ้าของตั้งรหัสผ่านใหม่ให้ตัวเองทางนี้ไม่ได้', () => {
+  throws(
+    () =>
+      auth.resetUserPassword(db, {
+        userId: owner.userId,
+        newPassword: 'owner-self-reset-1',
+        actorUserId: owner.userId
+      }),
+    'ตัวเองทางนี้ไม่ได้',
+    'ตั้งรหัสให้ตัวเองผ่านได้'
+  )
+  // รหัสเดิมของเจ้าของต้องไม่ถูกแตะเลยหลังโดนปฏิเสธ
+  const session = auth.login(db, { identifier: '0812345678', password: 'third-password-3' })
+  assert(session.userId === owner.userId, 'รหัสผ่านเดิมของเจ้าของถูกเปลี่ยนไปแล้ว')
+})
+
+check('ลืมส่งว่าใครเป็นผู้ตั้งรหัส = ปฏิเสธ ไม่ใช่ปล่อยผ่าน', () => {
+  throws(
+    () => auth.resetUserPassword(db, { userId: staff.userId, newPassword: 'no-actor-1' }),
+    'ไม่ทราบว่าใคร',
+    'ข้ามด่านได้ด้วยการไม่ส่ง actorUserId'
   )
 })
 

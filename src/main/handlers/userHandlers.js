@@ -78,9 +78,11 @@ export function registerUserHandlers() {
   })
 
   // ทางกู้คืนของพนักงาน: พนักงานไม่มีรหัสสำรอง เจ้าของจึงเป็นคนตั้งรหัสผ่านใหม่ให้
+  // actorUserId มาจากเซสชันฝั่ง main เสมอ ห้ามรับจากหน้าจอ — ไม่งั้นด่าน "ตั้งให้ตัวเองไม่ได้"
+  // ใน resetUserPassword จะถูกข้ามด้วยการส่ง actorUserId ปลอมมาจาก DevTools
   handle('user:resetPassword', ({ userId, newPassword }) => {
-    requireOwnerUserId()
-    const user = resetUserPassword(getDatabase(), { userId, newPassword })
+    const actor = requireOwnerUserId()
+    const user = resetUserPassword(getDatabase(), { userId, newPassword, actorUserId: actor })
     logInfo(`เจ้าของตั้งรหัสผ่านใหม่ให้บัญชี (user_id ${userId})`)
     return { user }
   })
