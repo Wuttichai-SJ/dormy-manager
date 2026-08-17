@@ -327,8 +327,8 @@ const augustBatch = meter.createBatch(db, apartmentId, '2026-08-01')
 check('ใบของเดือนนี้ที่ยังไม่ได้กรอกเลขห้องไหน ต้องยังไม่นับว่าเสร็จ', () => {
   const { meter: task } = summaryAsOf().tasks
   assert(task.hasBatchThisMonth === true, 'มีใบของเดือนนี้แล้วแต่บอกว่าไม่มี')
-  assert(task.latestBatchDate === '2026-08-01', `ได้ ${task.latestBatchDate}`)
-  assert(task.latestBatchRoomCount === 0, `จำนวนห้องที่จดได้ ${task.latestBatchRoomCount}`)
+  assert(task.batchDate === '2026-08-01', `ได้ ${task.batchDate}`)
+  assert(task.roomCount === 0, `จำนวนห้องที่จดได้ ${task.roomCount}`)
 })
 
 check('กรอกเลขมิเตอร์แล้วจำนวนห้องที่จดขึ้นตาม', () => {
@@ -338,7 +338,35 @@ check('กรอกเลขมิเตอร์แล้วจำนวนห�
   ])
 
   const { meter: task } = summaryAsOf().tasks
-  assert(task.latestBatchRoomCount === 2, `ได้ ${task.latestBatchRoomCount}`)
+  assert(task.roomCount === 2, `ได้ ${task.roomCount}`)
+})
+
+// 🔴 บั๊กที่เจอจากการใช้งานจริง 2026-08-17 (เฟิสแคปหน้าจอมา): ของเดิมเทียบเดือนของ
+// **ใบล่าสุดใบเดียว** จึงมองไม่เห็นใบของเดือนนี้เลยเมื่อมีใบของเดือนหลังกว่าอยู่ข้างหน้า
+// — เกิดได้ทั้งจากการสร้างใบของเดือนถัดไปล่วงหน้าวันสุดท้ายของเดือน และจากการพิมพ์ปีผิด
+// ครั้งเดียว ซึ่งจะทำให้แถวนี้เตือนผิดทุกเดือนไปอีกเป็นปี
+check('มีใบของเดือนถัดไป/ปีถัดไปอยู่ข้างหน้า ใบของเดือนนี้ต้องยังถูกเจอ', () => {
+  // สร้างใบของเดือนถัดไปล่วงหน้า (เรื่องปกติ) + ใบที่พิมพ์ปีผิดเป็น 2027 (อุบัติเหตุ)
+  meter.createBatch(db, apartmentId, '2026-09-01')
+  meter.createBatch(db, apartmentId, '2027-09-01')
+
+  const { meter: task } = summaryAsOf().tasks
+  assert(task.hasBatchThisMonth === true, 'ใบของเดือนนี้หายไปเพราะมีใบของเดือนหลังกว่า')
+  assert(task.batchDate === '2026-08-01', `ใบของเดือนนี้ได้ ${task.batchDate}`)
+  assert(task.roomCount === 2, `จำนวนห้องต้องเป็นของใบเดือนนี้ ได้ ${task.roomCount}`)
+  // ใบล่าสุดของหอยังเป็นใบปี 2027 ตามความจริง แค่ต้องไม่ถูกใช้ตัดสินว่าเดือนนี้จดแล้วหรือยัง
+  assert(task.latestBatchDate === '2027-09-01', `ใบล่าสุดได้ ${task.latestBatchDate}`)
+})
+
+check('เดือนเดียวมีใบเปล่ากับใบที่กรอกแล้วปนกัน ต้องนับใบที่กรอกแล้ว', () => {
+  // ใบเปล่าที่สร้างทีหลังในเดือนเดียวกัน (คีย์วันผิดแล้วสร้างใหม่) ต้องไม่ทำให้เดือนที่
+  // จดครบแล้วกลับไปขึ้นว่า "ยังไม่ได้กรอกเลขห้องไหนเลย"
+  meter.createBatch(db, apartmentId, '2026-08-20')
+
+  const { meter: task } = summaryAsOf().tasks
+  assert(task.hasBatchThisMonth === true, 'ใบของเดือนนี้หายไป')
+  assert(task.batchDate === '2026-08-01', `ต้องเลือกใบที่กรอกแล้ว ได้ ${task.batchDate}`)
+  assert(task.roomCount === 2, `ได้ ${task.roomCount}`)
 })
 
 // -----------------------------------------------------

@@ -205,9 +205,11 @@ function TaskRow({ done, icon, text, action, onAction }) {
 
 // ใบจดของเดือนนี้มีสามสภาพ ไม่ใช่สอง — "สร้างใบไว้แต่ยังไม่กรอกห้องไหนเลย" ต้องแยกจาก
 // "จดแล้ว" ไม่งั้นคนกดสร้างใบเปล่าไว้ตอนต้นเดือนแล้วหน้าแรกจะขึ้นติ๊กถูกทั้งที่ยังไม่ได้จด
+//
+// `batchDate` = ใบของเดือนที่สรุป · `latestBatchDate` = ใบล่าสุดของหอไม่ว่าเดือนไหน
+// สองตัวนี้คนละใบกัน และใช้คนละสภาพกัน — ใบล่าสุดใช้เฉพาะตอนเดือนนี้ยังไม่มีใบ
+// (ฝั่ง main ค้นทั้งรายการ ไม่ได้ดูแค่ใบล่าสุด ดู findBatchForMonth)
 function MeterTask({ task, month, onNavigate }) {
-  const readable = task.latestBatchDate ? formatDate(task.latestBatchDate) : null
-
   if (!task.hasBatchThisMonth) {
     return (
       <TaskRow
@@ -215,7 +217,7 @@ function MeterTask({ task, month, onNavigate }) {
         icon="meters"
         text={
           `ยังไม่ได้จดมิเตอร์เดือน ${formatBillingMonth(month)}` +
-          (readable ? ` (ใบล่าสุด ${readable})` : '')
+          (task.latestBatchDate ? ` (ใบล่าสุด ${formatDate(task.latestBatchDate)})` : '')
         }
         action="ไปจดมิเตอร์"
         onAction={() => onNavigate('meters')}
@@ -223,7 +225,9 @@ function MeterTask({ task, month, onNavigate }) {
     )
   }
 
-  if (task.latestBatchRoomCount === 0) {
+  const readable = formatDate(task.batchDate)
+
+  if (task.roomCount === 0) {
     return (
       <TaskRow
         done={false}
@@ -239,7 +243,7 @@ function MeterTask({ task, month, onNavigate }) {
     <TaskRow
       done
       icon="meters"
-      text={`จดมิเตอร์เดือนนี้แล้ว (ใบวันที่ ${readable} · ${task.latestBatchRoomCount} ห้อง)`}
+      text={`จดมิเตอร์เดือนนี้แล้ว (ใบวันที่ ${readable} · ${task.roomCount} ห้อง)`}
       action="ดูใบจด"
       onAction={() => onNavigate('meters')}
     />

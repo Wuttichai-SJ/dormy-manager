@@ -79,6 +79,7 @@ export function getDashboardSummary(db, apartmentId, { today } = {}) {
   const batches = listBatches(db, apartmentId)
   // listBatches เรียงใหม่ก่อนอยู่แล้ว
   const latestBatch = batches[0] ?? null
+  const monthBatch = findBatchForMonth(batches, billingMonth)
 
   const maintenance = listMaintenanceRequests(db, apartmentId)
   const moveOuts = listTerminations(db, apartmentId)
@@ -121,10 +122,13 @@ export function getDashboardSummary(db, apartmentId, { today } = {}) {
     tasks: {
       meter: {
         // ยังไม่มีใบจดของเดือนนี้ = งานประจำเดือนที่ยังไม่ได้เริ่ม
-        hasBatchThisMonth: latestBatch ? latestBatch.readingDate.slice(0, 7) === billingMonth : false,
-        latestBatchDate: latestBatch?.readingDate ?? null,
+        hasBatchThisMonth: Boolean(monthBatch),
+        // ใบของ "เดือนที่สรุป" (null = เดือนนี้ยังไม่มีใบ) — คนละตัวกับใบล่าสุดของหอ
+        batchDate: monthBatch?.readingDate ?? null,
         // ใบที่สร้างแล้วแต่ยังไม่ได้กรอกห้องไหนเลย ต่างจากยังไม่มีใบ — ทั้งสองแบบยังทำไม่เสร็จ
-        latestBatchRoomCount: latestBatch?.roomCount ?? 0
+        roomCount: monthBatch?.roomCount ?? 0,
+        // ใบล่าสุดของหอไม่ว่าเดือนไหน — ใช้บอกว่าครั้งล่าสุดที่จดคือใบไหน ตอนเดือนนี้ยังไม่มีใบ
+        latestBatchDate: latestBatch?.readingDate ?? null
       },
       billing,
       maintenance: {
@@ -137,6 +141,26 @@ export function getDashboardSummary(db, apartmentId, { today } = {}) {
       }
     }
   }
+}
+
+// ---------------------------------------------------------------
+// ใบจดมิเตอร์ของเดือนที่สรุป
+// ---------------------------------------------------------------
+// 🔴 **ต้องค้นทั้งรายการ ห้ามดูแค่ใบล่าสุด** (บั๊กที่เจอจริง 2026-08-17)
+//
+// ของเดิมเทียบเดือนของ `batches[0]` ซึ่งพังทันทีที่มีใบของเดือนหลังกว่านอนอยู่ข้างหน้า:
+// วันที่ 31 ส.ค. คนสร้างใบของวันที่ 1 ก.ย. ไว้ล่วงหน้า → หน้าแรกบอกว่าเดือน ส.ค.
+// ยังไม่ได้จด ทั้งที่จดและออกบิลไปแล้วทั้งเดือน · และถ้าใครพิมพ์ปีผิดครั้งเดียว
+// (01/09/2027 แทน 01/09/2026 — ช่องวันที่รับค่านั้นเพราะเป็นวันที่มีอยู่จริง)
+// แถวนี้จะขึ้นเตือนผิดทุกเดือนไปอีกปีกว่า แล้วคนจะเลิกเชื่อแถวนี้ทั้งแถว
+// ซึ่งเท่ากับไม่มีมันตั้งแต่แรก
+//
+// คำถามที่ถูกคือ "เดือนนี้มีใบจดแล้วหรือยัง" ไม่ใช่ "ใบล่าสุดเป็นของเดือนนี้ไหม"
+function findBatchForMonth(batches, month) {
+  const ofMonth = batches.filter((batch) => batch.readingDate.slice(0, 7) === month)
+  // เดือนเดียวมีหลายใบได้ (สร้างใบเปล่าไว้ผิดแล้วสร้างใหม่) — เอาใบที่กรอกแล้วก่อน
+  // ไม่งั้นใบเปล่าที่ค้างอยู่จะทำให้เดือนที่จดครบแล้วขึ้นว่า "ยังไม่ได้กรอกเลขห้องไหนเลย"
+  return ofMonth.find((batch) => batch.roomCount > 0) ?? ofMonth[0] ?? null
 }
 
 // ---------------------------------------------------------------
