@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import SelectField from '../components/SelectField.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { BANKS, RECOMMENDED_MAX_ACCOUNTS } from '../constants.js'
 import {
@@ -106,18 +107,16 @@ export default function BankAccountsPage({ apartment }) {
             <label htmlFor="bankName">
               ธนาคาร <span className="required">* จำเป็น</span>
             </label>
-            <select
+            {/* ไม่ใช้ <select> ที่นี่: รายการธนาคารยาว 18 รายการ ทำให้ Chromium กาง
+                รายการ **ขึ้นไปทับหัวข้อและตัวช่วยตั้งค่าทั้งหน้า** เพราะใต้ช่องมีที่ไม่พอ
+                และทิศทางนั้น CSS สั่งไม่ได้ (ดู components/SelectField.jsx) */}
+            <SelectField
               id="bankName"
               value={form.bankName}
-              onChange={(e) => set('bankName', e.target.value)}
-            >
-              <option value="">เลือกธนาคาร</option>
-              {BANKS.map((bank) => (
-                <option key={bank} value={bank}>
-                  {bank}
-                </option>
-              ))}
-            </select>
+              onChange={(bank) => set('bankName', bank)}
+              options={BANKS}
+              placeholder="เลือกธนาคาร"
+            />
           </div>
 
           <div className="field">
