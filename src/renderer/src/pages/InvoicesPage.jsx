@@ -42,11 +42,15 @@ const SETTLEMENT_TABS = [
 //
 // โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "ออกบิลรายเดือน"): กดปุ่มออกบิล → ตัวช่วย 2 ขั้น
 // (เลือกใบจดมิเตอร์+เดือน → ตารางพรีวิวทุกห้องแล้วกดสร้าง) ไม่ใช่กรอกทีละห้องเอง
-export default function InvoicesPage({ apartment, user }) {
+// `initialInvoiceId` = เปิดหน้านี้พร้อมกางบิลใบนั้นให้เลย (หน้าภาพรวมกดจากตารางบิลค้าง)
+// **ผู้เรียกต้องใส่ `key` ที่เปลี่ยนตามค่านี้** ไม่งั้นการกดบิลใบที่สองจากหน้าภาพรวมจะไม่มี
+// อะไรเกิดขึ้น เพราะ useState อ่าน prop แค่ตอน mount ครั้งแรก (บทเรียนเดียวกับ
+// RoomRatesPage ที่เอา prop ไปตั้งเป็นค่าเริ่มต้นแล้วขั้น 6/7/8 ค้างหน้าเดิม)
+export default function InvoicesPage({ apartment, user, initialInvoiceId = null }) {
   const [wizard, setWizard] = useState(false)
   const [multiPay, setMultiPay] = useState(false)
   // บิลที่กำลังเปิดดูอยู่ — null = อยู่ที่ตารางรายการ
-  const [openInvoiceId, setOpenInvoiceId] = useState(null)
+  const [openInvoiceId, setOpenInvoiceId] = useState(initialInvoiceId)
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

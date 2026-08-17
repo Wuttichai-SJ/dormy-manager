@@ -2292,6 +2292,18 @@ body {
   color: var(--text-muted);
 }
 
+/* ยอดที่ต้องอ่านว่า "ติดลบ / ยังไม่ได้เงิน" — ใบคืนเงิน ยอดค้าง เงินประกันที่ถูกริบ
+   ส่วนต่างที่ยังเก็บไม่ได้ และวันที่เกินกำหนด
+
+   🔴 คลาสนี้ถูกใช้อยู่ 14 จุดตั้งแต่ Phase 3 (ตารางบิล ใบเสร็จ ใบแจ้งหนี้ ใบสรุปย้ายออก)
+   แต่กฎเดียวที่มีคือ `.contract-summary-row .negative` ข้างล่าง = ทุกจุดที่อยู่นอก
+   กล่องสรุปสัญญาไม่เคยเป็นสีแดงเลย ตัวเลขติดลบจึงอ่านเหมือนตัวเลขธรรมดามาตลอด
+   (เจอตอนทำหน้าภาพรวม 2026-08-17) — ตั้งเป็นกฎกลางเสียทีเดียว ไม่ใช่ตั้งเฉพาะหน้าใหม่
+   แล้วปล่อยให้ 13 จุดที่เหลือยังเพี้ยนอยู่ */
+.negative {
+  color: var(--err);
+}
+
 .tag {
   display: inline-block;
   margin-left: 8px;
@@ -2799,6 +2811,74 @@ body {
   margin-top: 4px;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* บรรทัดที่สามของการ์ด (หน้าภาพรวม) — ตัวเลขเทียบ/รายละเอียดย่อยของยอดที่อยู่ข้างบน
+   เล็กกว่า label เพื่อไม่ให้แข่งกับตัวเลขหลัก แต่ยังเข้มพอให้อ่านออก */
+.stat-card-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* -----------------------------------------------------
+   หน้าภาพรวม — รายการ "สิ่งที่ต้องทำ"
+   ----------------------------------------------------- */
+.dash-tasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-task:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* เครื่องหมายหน้าบรรทัด: ค้าง = สามเหลี่ยมเตือน · ทำแล้ว = ติ๊กถูก
+   สีมาจากที่นี่ ไม่ใช่จากตัวไฟล์ SVG (heroicons ใช้ currentColor) */
+.dash-task-mark {
+  display: flex;
+  color: var(--warn);
+}
+
+.dash-task.done .dash-task-mark {
+  color: var(--ok);
+}
+
+.dash-task-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ไอคอนบอกว่าเป็นงานหมวดไหน (มิเตอร์/บิล/ซ่อม/ย้ายออก) — จางกว่าเครื่องหมายสถานะ
+   เพราะสิ่งที่ต้องเห็นก่อนคือ "ทำแล้วหรือยัง" ไม่ใช่ "เรื่องอะไร" */
+.dash-task-icon {
+  color: var(--text-muted);
+}
+
+.dash-task-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ข้อความกินพื้นที่ที่เหลือ ปุ่มจึงชิดขวาตรงกันทุกบรรทัดโดยไม่ต้องกำหนดความกว้าง */
+.dash-task-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.dash-task.done .dash-task-text {
+  color: var(--text-soft);
 }
 
 .room-filters {

@@ -684,10 +684,12 @@ const SETTLEMENT_STATUSES = {
 }
 
 // รายการบิลค้างชำระของหอ — คอลัมน์ตามต้นแบบ: เลขใบแจ้งหนี้ | วันที่ | สถานะ | ห้อง | ยอดเงิน
+// `today` มีไว้ให้เทสต์ตรึงวันได้ (และให้หน้าภาพรวมนับ "เกินกำหนดกี่วัน" ด้วยวันเดียวกัน
+// ทั้งหน้า) — ไม่ส่งมาก็คือวันนี้ ซึ่งเป็นพฤติกรรมเดิมทุกที่ที่เรียกอยู่แล้ว
 export function listInvoices(
   db,
   apartmentId,
-  { status, settlement, billingMonth, roomNumber, invoiceNumber, dateFrom, dateTo } = {}
+  { status, settlement, billingMonth, roomNumber, invoiceNumber, dateFrom, dateTo, today } = {}
 ) {
   const where = ['f.apartment_id = @apartmentId']
   if (status) where.push('i.status = @status')
@@ -752,7 +754,7 @@ export function listInvoices(
       // นับถึงวันนี้ ไม่ใช่ถึงวันที่จ่าย เพราะบิลใบนี้ยังไม่ได้จ่าย
       overdueDays:
         row.status === 'unpaid' || row.status === 'partial_paid'
-          ? Math.max(0, daysBetween(row.due_date, todayIso()))
+          ? Math.max(0, daysBetween(row.due_date, today ?? todayIso()))
           : 0
     }))
 }

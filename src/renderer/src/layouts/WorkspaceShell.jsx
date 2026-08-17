@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
+import DashboardPage from '../pages/DashboardPage.jsx'
 import RoomsPage from '../pages/RoomsPage.jsx'
 import RoomDetailPage from '../pages/RoomDetailPage.jsx'
 import MetersPage from '../pages/MetersPage.jsx'
@@ -24,7 +25,7 @@ import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 //
 // เมนูที่ยังไม่มีเนื้อหาจริงต้องบอกให้ชัดว่าจะมีอะไร ไม่ใช่ขึ้นว่า "โครงเปล่า" เฉยๆ
 const NAV = [
-  { key: 'dashboard', label: 'ภาพรวม', soon: 'สรุปห้องว่าง รายรับ และยอดค้างชำระของทั้งหอ' },
+  { key: 'dashboard', label: 'ภาพรวม' },
   { key: 'rooms', label: 'ห้องพัก' },
   { key: 'meters', label: 'จดมิเตอร์' },
   { key: 'invoices', label: 'ใบแจ้งหนี้' },
@@ -50,6 +51,16 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   // ห้องที่กำลังเปิดรายละเอียดอยู่ — null = อยู่ที่ตารางห้อง
   const [openRoom, setOpenRoom] = useState(null)
+  // บิลที่หน้าภาพรวมสั่งให้กางทันทีตอนสลับไปหน้าใบแจ้งหนี้ — null = เข้าหน้ารายการปกติ
+  const [jumpInvoiceId, setJumpInvoiceId] = useState(null)
+
+  // ทางเดียวที่ใช้เปลี่ยนหน้าจากในเนื้อหา (ปุ่มบนหน้าภาพรวม) — ล้างสถานะที่ค้างจากหน้าก่อน
+  // ทุกครั้ง เหมือนตอนกดเมนูข้าง ไม่งั้นกดกลับมาหน้าเดิมแล้วเจอบิลใบเก่ากางอยู่
+  function goto(key) {
+    setJumpInvoiceId(null)
+    setOpenRoom(null)
+    setActive(key)
+  }
 
   const settingsItem = SETTINGS_ITEMS.find((i) => i.key === active)
   const activeLabel = settingsItem?.label ?? NAV.find((n) => n.key === active)?.label
@@ -75,10 +86,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
             <button
               key={item.key}
               className={'nav-item' + (item.key === active ? ' active' : '')}
-              onClick={() => {
-                setActive(item.key)
-                setOpenRoom(null)
-              }}
+              onClick={() => goto(item.key)}
             >
               <Icon name={item.key} />
               <span>{item.label}</span>
@@ -111,7 +119,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
                       (item.key === active ? ' active' : '') +
                       (item.ready ? '' : ' disabled')
                     }
-                    onClick={() => item.ready && setActive(item.key)}
+                    onClick={() => item.ready && goto(item.key)}
                     disabled={!item.ready}
                     title={item.ready ? undefined : 'ยังไม่ได้สร้าง'}
                   >
@@ -142,7 +150,18 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
         </header>
 
         <div className="page">
-          {active === 'rooms' ? (
+          {active === 'dashboard' ? (
+            <DashboardPage
+              apartment={apartment}
+              onNavigate={goto}
+              // กดบิลจากตารางบิลค้าง = ไปหน้าใบแจ้งหนี้แล้วกางใบนั้นให้เลย
+              onOpenInvoice={(invoiceId) => {
+                setJumpInvoiceId(invoiceId)
+                setOpenRoom(null)
+                setActive('invoices')
+              }}
+            />
+          ) : active === 'rooms' ? (
             openRoom ? (
               <RoomDetailPage
                 apartment={apartment}
@@ -157,7 +176,14 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
           ) : active === 'meters' ? (
             <MetersPage apartment={apartment} />
           ) : active === 'invoices' ? (
-            <InvoicesPage apartment={apartment} user={user} />
+            // key เปลี่ยนตามบิลที่สั่งกาง = สั่งให้ React สร้างหน้าใหม่ ไม่ใช่ใช้ตัวเดิมที่
+            // อ่าน prop ไปแล้วตอน mount (ดูคำอธิบายที่ initialInvoiceId ใน InvoicesPage)
+            <InvoicesPage
+              key={jumpInvoiceId ?? 'list'}
+              apartment={apartment}
+              user={user}
+              initialInvoiceId={jumpInvoiceId}
+            />
           ) : active === 'payments' ? (
             // user ไปตัดสินว่าจะแสดงปุ่ม "ยกเลิกใบเสร็จ" ไหม (เจ้าของหอเท่านั้น)
             <ReceiptsPage apartment={apartment} user={user} />
