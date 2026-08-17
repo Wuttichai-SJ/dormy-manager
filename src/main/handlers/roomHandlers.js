@@ -12,7 +12,7 @@ import {
   detachServicesFromRooms,
   generateFloorPlan,
   listFloors,
-  renameFloor,
+  updateFloor,
   setRoomRates,
   setRoomStatus,
   updateRoom,
@@ -59,12 +59,13 @@ export function registerRoomHandlers() {
     return result
   })
 
-  handleOwner('room:addFloor', ({ apartmentId, floorName, roomCount }) =>
-    addFloor(getDatabase(), apartmentId, { floorName, roomCount })
+  handleOwner('room:addFloor', ({ apartmentId, floorName, roomCount, buildingName, numberPrefix }) =>
+    addFloor(getDatabase(), apartmentId, { floorName, roomCount, buildingName, numberPrefix })
   )
 
-  handleOwner('room:renameFloor', ({ floorId, floorName }) =>
-    renameFloor(getDatabase(), floorId, floorName)
+  // ช่องเดียวคุมชื่อชั้น/ป้ายตึก/เลขนำหน้าห้อง — ฟิลด์ที่ไม่ได้ส่งมาคือฟิลด์ที่ไม่ถูกแตะ
+  handleOwner('room:updateFloor', ({ floorId, floorName, buildingName, numberPrefix }) =>
+    updateFloor(getDatabase(), floorId, { floorName, buildingName, numberPrefix })
   )
 
   handleOwner('room:deleteFloor', ({ floorId }) => {

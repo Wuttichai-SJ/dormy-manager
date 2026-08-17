@@ -329,13 +329,166 @@ check('เพิ่มห้องโดยไม่ระบุเลข ระ
 
 check('เปลี่ยนชื่อชั้นได้', () => {
   const floor1 = rooms.listFloors(db, id)[0]
-  const result = rooms.renameFloor(db, floor1.floorId, '  ชั้นล่าง  ')
+  const result = rooms.updateFloor(db, floor1.floorId, { floorName: '  ชั้นล่าง  ' })
   assert(result[0].floorName === 'ชั้นล่าง', result[0].floorName)
 })
 
 check('ชื่อชั้นว่างถูกปฏิเสธ', () => {
   const floor1 = rooms.listFloors(db, id)[0]
-  throws(() => rooms.renameFloor(db, floor1.floorId, '   '), 'กรุณากรอก', 'ควรปฏิเสธชื่อว่าง')
+  throws(
+    () => rooms.updateFloor(db, floor1.floorId, { floorName: '   ' }),
+    'กรุณากรอก',
+    'ควรปฏิเสธชื่อว่าง'
+  )
+})
+
+// -----------------------------------------------------
+group('หอหลายตึก — ป้ายตึก + เลขนำหน้าเลขห้อง (migration 030)')
+
+// ที่มา: หอ 2 ตึกที่ใช้เลขตัวหน้าบอกตึก (ตึก 1 ชั้น 2 = 1201 · ตึก 2 ชั้น 2 = 2201)
+// ของเดิมทำไม่ได้เลย เพราะเลขนำหน้าคือ "ลำดับที่ของชั้น" จะได้ 2201 ต้องมี 22 ชั้น
+check('สร้างผังสองตึกด้วยเลขนำหน้า ได้เลขห้องตามที่หอใช้จริง', () => {
+  const twin = newApartment('หอสองตึก')
+  util.saveUtilityDefaults(db, twin.apartmentId, {
+    water: { enabled: false },
+    electric: { enabled: false }
+  })
+
+  const plan = rooms.generateFloorPlan(db, twin.apartmentId, [
+    { buildingName: 'ตึก 1', numberPrefix: '11', roomCount: 2 },
+    { buildingName: 'ตึก 1', numberPrefix: '12', roomCount: 2 },
+    { buildingName: 'ตึก 2', numberPrefix: '21', roomCount: 2 },
+    { buildingName: 'ตึก 2', numberPrefix: '22', roomCount: 2 }
+  ])
+
+  const numbers = plan.flatMap((f) => f.rooms.map((r) => r.roomNumber))
+  assert(
+    numbers.join(',') === '1101,1102,1201,1202,2101,2102,2201,2202',
+    `ได้ ${numbers.join(',')}`
+  )
+  assert(plan[2].buildingName === 'ตึก 2', `ป้ายตึกได้ ${plan[2].buildingName}`)
+  assert(plan[3].numberPrefix === '22', `เลขนำหน้าได้ ${plan[3].numberPrefix}`)
+})
+
+check('ไม่ตั้งเลขนำหน้า = ใช้ลำดับที่ของชั้นเหมือนเดิมทุกประการ', () => {
+  const plain = newApartment('หอตึกเดียว')
+  util.saveUtilityDefaults(db, plain.apartmentId, {
+    water: { enabled: false },
+    electric: { enabled: false }
+  })
+
+  const plan = rooms.generateFloorPlan(db, plain.apartmentId, [
+    { roomCount: 2 },
+    { roomCount: 2 }
+  ])
+  const numbers = plan.flatMap((f) => f.rooms.map((r) => r.roomNumber))
+  assert(numbers.join(',') === '101,102,201,202', `ได้ ${numbers.join(',')}`)
+  assert(plan[0].buildingName === null, `ป้ายตึกต้องเป็น null ได้ ${plan[0].buildingName}`)
+  assert(plan[0].numberPrefix === null, `เลขนำหน้าต้องเป็น null ได้ ${plan[0].numberPrefix}`)
+  // effectivePrefix บอกว่าห้องใหม่จะได้เลขขึ้นต้นด้วยอะไร — หน้าจอใช้ค่านี้ขึ้นตัวอย่าง
+  assert(plan[1].effectivePrefix === '2', `ได้ ${plan[1].effectivePrefix}`)
+})
+
+check('เพิ่มชั้นใหม่พร้อมเลขนำหน้า และ "เพิ่มห้อง" เดินตามเลขนำหน้าของชั้นนั้น', () => {
+  const tower = newApartment('หอเพิ่มชั้น')
+  util.saveUtilityDefaults(db, tower.apartmentId, {
+    water: { enabled: false },
+    electric: { enabled: false }
+  })
+
+  rooms.addFloor(db, tower.apartmentId, {
+    buildingName: 'ตึก 2',
+    numberPrefix: '23',
+    roomCount: 1,
+    floorName: 'ตึก 2 ชั้น 3'
+  })
+  const floor = rooms.listFloors(db, tower.apartmentId)[0]
+  assert(floor.rooms[0].roomNumber === '2301', `ได้ ${floor.rooms[0].roomNumber}`)
+
+  // 🔴 ปุ่ม "เพิ่มห้อง" ไม่ได้ส่งเลขห้องมา ระบบต้องหาเลขถัดไปของชั้นนั้นเอง —
+  // ถ้ายังคิดจากลำดับที่ของชั้น จะได้ 101 ซึ่งเป็นเลขของตึกอื่น
+  const after = rooms.addRoom(db, floor.floorId, {})
+  const numbers = after[0].rooms.map((r) => r.roomNumber)
+  assert(numbers.join(',') === '2301,2302', `ได้ ${numbers.join(',')}`)
+})
+
+check('เลขนำหน้าซ้ำกันสองชั้นไม่ได้ (ทั้งตอนสร้างผังและตอนเพิ่มชั้น)', () => {
+  const clash = newApartment('หอเลขซ้ำ')
+  util.saveUtilityDefaults(db, clash.apartmentId, {
+    water: { enabled: false },
+    electric: { enabled: false }
+  })
+
+  // ซ้ำกันเองภายในชุดที่กำลังสร้าง
+  throws(
+    () =>
+      rooms.generateFloorPlan(db, clash.apartmentId, [
+        { numberPrefix: '11', roomCount: 1 },
+        { numberPrefix: '11', roomCount: 1 }
+      ]),
+    'ถูกใช้กับ',
+    'เลขนำหน้าซ้ำในชุดเดียวกันผ่านได้'
+  )
+  // validateFloorPlan ต้องดักได้ก่อนถึงฐานข้อมูลด้วย (หน้าจอเรียกตัวนี้ก่อนเสมอ)
+  const errors = rooms.validateFloorPlan([
+    { numberPrefix: '11', roomCount: 1 },
+    { numberPrefix: '11', roomCount: 1 }
+  ])
+  assert(errors.some((e) => e.includes('ซ้ำ')), `ควรมีข้อความว่าซ้ำ ได้ ${errors.join(' / ')}`)
+
+  rooms.generateFloorPlan(db, clash.apartmentId, [{ numberPrefix: '11', roomCount: 1 }])
+  throws(
+    () => rooms.addFloor(db, clash.apartmentId, { numberPrefix: '11', roomCount: 1 }),
+    'ถูกใช้กับ',
+    'เลขนำหน้าซ้ำกับชั้นที่มีอยู่ผ่านได้'
+  )
+})
+
+check('เลขนำหน้าที่ยาวเกินหรือมีอักขระแปลกถูกปฏิเสธ', () => {
+  throws(
+    () => rooms.normalizeRoomNumberPrefix('1234'),
+    'ไม่เกิน',
+    'เลขนำหน้ายาวเกินผ่านได้'
+  )
+  throws(() => rooms.normalizeRoomNumberPrefix('1 2'), 'ห้ามเว้นวรรค', 'มีช่องว่างผ่านได้')
+  throws(() => rooms.normalizeRoomNumberPrefix('ก1'), 'ภาษาอังกฤษ', 'อักษรไทยผ่านได้')
+  assert(rooms.normalizeRoomNumberPrefix('  12  ') === '12', 'ควรตัดช่องว่างหัวท้ายให้')
+  assert(rooms.normalizeRoomNumberPrefix('') === null, 'ว่าง = ไม่ได้ตั้ง')
+})
+
+// 🔴 เลขห้องถูกพิมพ์ลงใบแจ้งหนี้/ใบเสร็จ/ใบจดมิเตอร์ที่ยื่นให้ผู้เช่าไปแล้ว
+// การแก้เลขนำหน้าจึงห้ามไล่เปลี่ยนเลขห้องที่มีอยู่ ไม่งั้นเอกสารในมือผู้เช่ากับในระบบ
+// จะเป็นห้องคนละเลขกันทั้งหอ
+check('แก้เลขนำหน้าแล้วเลขห้องเดิมต้องไม่เปลี่ยน มีผลกับห้องใหม่เท่านั้น', () => {
+  const later = newApartment('หอแก้เลขนำหน้า')
+  util.saveUtilityDefaults(db, later.apartmentId, {
+    water: { enabled: false },
+    electric: { enabled: false }
+  })
+  rooms.generateFloorPlan(db, later.apartmentId, [{ roomCount: 2 }])
+
+  const floor = rooms.listFloors(db, later.apartmentId)[0]
+  const updated = rooms.updateFloor(db, floor.floorId, {
+    buildingName: 'ตึก 3',
+    numberPrefix: '31'
+  })
+
+  assert(updated[0].buildingName === 'ตึก 3', `ได้ ${updated[0].buildingName}`)
+  assert(
+    updated[0].rooms.map((r) => r.roomNumber).join(',') === '101,102',
+    `เลขห้องเดิมเปลี่ยนไป: ${updated[0].rooms.map((r) => r.roomNumber).join(',')}`
+  )
+  // ห้องใหม่ต้องได้เลขชุดใหม่
+  const after = rooms.addRoom(db, floor.floorId, {})
+  assert(
+    after[0].rooms.some((r) => r.roomNumber === '3101'),
+    `ห้องใหม่ควรได้ 3101 ได้ ${after[0].rooms.map((r) => r.roomNumber).join(',')}`
+  )
+
+  // ส่งค่าว่างมา = ล้างค่ากลับไปใช้ลำดับที่ของชั้น
+  const cleared = rooms.updateFloor(db, floor.floorId, { numberPrefix: '' })
+  assert(cleared[0].numberPrefix === null, `ได้ ${cleared[0].numberPrefix}`)
+  assert(cleared[0].effectivePrefix === '1', `ได้ ${cleared[0].effectivePrefix}`)
 })
 
 // -----------------------------------------------------

@@ -33,14 +33,74 @@ export const ROOM_STATUS_LABELS = {
   maintenance: 'ปิดปรับปรุง'
 }
 
+// ความยาวของ "เลขนำหน้าเลขห้อง" ที่รับได้ (migration 030)
+// 3 ตัวพอสำหรับตึก+ชั้นสองหลัก ('112' = ตึก 1 ชั้น 12) เกินจากนี้แปลว่าพิมพ์ผิด
+export const MAX_ROOM_NUMBER_PREFIX = 3
+export const MAX_BUILDING_NAME = 30
+
 // -----------------------------------------------------
 // ตัวช่วย
 // -----------------------------------------------------
-// เลขห้องอัตโนมัติ: ชั้น 1 ได้ 101, 102, 103 / ชั้น 10 ได้ 1001, 1002
+// เลขห้องอัตโนมัติ: เลขนำหน้า + ลำดับห้อง 2 หลัก
+//   ชั้นที่ 1 (ไม่ตั้งเลขนำหน้า) → 101, 102, 103 · ชั้นที่ 10 → 1001, 1002
+//   ชั้นที่ตั้งเลขนำหน้า '12'    → 1201, 1202     · ตั้ง '22' → 2201, 2202
+//
 // เติมศูนย์ให้ลำดับห้องเป็น 2 หลักเสมอ เพื่อให้เรียงตามตัวอักษรแล้วยังถูกลำดับ
 // (ถ้าไม่เติม ชั้น 1 ที่มี 12 ห้องจะเรียงเป็น 101, 1010, 1011, 102 ... ซึ่งอ่านแล้วงง)
-export function buildRoomNumber(floorNumber, index) {
-  return `${floorNumber}${String(index + 1).padStart(2, '0')}`
+export function buildRoomNumber(prefix, index) {
+  return `${prefix}${String(index + 1).padStart(2, '0')}`
+}
+
+// เลขนำหน้าที่ชั้นนี้ใช้จริง — ที่ตั้งไว้เอง หรือลำดับที่ของชั้นถ้าไม่ได้ตั้ง
+//
+// รวมไว้ที่เดียวเพราะมีสามที่ที่ต้องรู้คำตอบนี้ (สร้างผังครั้งแรก / เพิ่มชั้น / หาเลขห้อง
+// ถัดไป) และถ้าสามที่ตอบไม่เหมือนกัน เลขห้องจะเริ่มชนกันเองโดยไม่มีใครรู้ว่าทำไม
+export function effectivePrefix(prefix, ordinal) {
+  const trimmed = String(prefix ?? '').trim()
+  return trimmed || String(ordinal)
+}
+
+// เลขนำหน้าต้องเป็นตัวเลขหรืออักษรอังกฤษล้วน ไม่มีเว้นวรรค — มันถูกต่อหน้าเลขห้องตรงๆ
+// เลขห้องที่มีช่องว่างหรืออักขระพิเศษจะไปโผล่บนบิลและค้นหาไม่เจอ
+export function normalizeRoomNumberPrefix(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+  if (text.length > MAX_ROOM_NUMBER_PREFIX) {
+    throw new Error(`เลขนำหน้าห้องต้องยาวไม่เกิน ${MAX_ROOM_NUMBER_PREFIX} ตัวอักษร`)
+  }
+  if (!/^[0-9A-Za-z]+$/.test(text)) {
+    throw new Error('เลขนำหน้าห้องใช้ได้เฉพาะตัวเลขหรือตัวอักษรภาษาอังกฤษ ห้ามเว้นวรรค')
+  }
+  return text
+}
+
+export function normalizeBuildingName(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+  if (text.length > MAX_BUILDING_NAME) {
+    throw new Error(`ชื่อตึกต้องยาวไม่เกิน ${MAX_BUILDING_NAME} ตัวอักษร`)
+  }
+  return text
+}
+
+// เลขนำหน้าซ้ำกันสองชั้น = ห้องของสองชั้นจะได้เลขเดียวกันทั้งชุด แล้วไปตายตอนสร้างห้อง
+// ที่สองเพราะเลขห้องซ้ำ — ดักตอนตั้งค่าดีกว่า ตอนนั้นยังบอกได้ว่าชนกับชั้นไหน
+function assertPrefixFree(db, apartmentId, prefix, excludeFloorId = null) {
+  if (!prefix) return
+
+  const clash = db
+    .prepare(
+      `SELECT floor_id, floor_name FROM floors
+        WHERE apartment_id = @apartmentId
+          AND room_number_prefix = @prefix
+          AND (@excludeFloorId IS NULL OR floor_id <> @excludeFloorId)
+        LIMIT 1`
+    )
+    .get({ apartmentId, prefix, excludeFloorId })
+
+  if (clash) {
+    throw new Error(`เลขนำหน้า ${prefix} ถูกใช้กับ "${clash.floor_name}" อยู่แล้ว`)
+  }
 }
 
 function ensureRoomType(db, apartmentId, name = DEFAULT_ROOM_TYPE) {
@@ -94,12 +154,19 @@ function insertRoomUtilitySettings(db, roomId, defaults, now) {
 // ไล่หาเลขว่างแทนการ +1 เฉยๆ เพราะห้องกลางชั้นอาจถูกลบไปแล้ว หรือเจ้าของหอพิมพ์เลขเอง
 // จนชนกับเลขที่ระบบจะตั้งให้ ถ้าไม่ไล่หาจะโยน "มีห้องนี้อยู่แล้ว" ใส่หน้าคนกดปุ่มเฉยๆ
 function nextRoomNumber(db, apartmentId, floorId) {
-  const floorNumber = db
+  const ordinal = db
     .prepare(
       `SELECT COUNT(*) AS n FROM floors
         WHERE apartment_id = ? AND floor_id <= ?`
     )
     .get(apartmentId, floorId).n
+
+  // ชั้นนี้ตั้งเลขนำหน้าไว้เองไหม (migration 030) — ถ้าตั้ง ห้องใหม่ต้องเดินตามนั้น
+  // ไม่ใช่ตามลำดับที่ของชั้น ไม่งั้นกด "เพิ่มห้อง" ในตึก 2 แล้วได้เลขของตึก 1
+  const row = db
+    .prepare('SELECT room_number_prefix FROM floors WHERE floor_id = ?')
+    .get(floorId)
+  const prefix = effectivePrefix(row?.room_number_prefix, ordinal)
 
   const taken = new Set(
     db
@@ -113,7 +180,7 @@ function nextRoomNumber(db, apartmentId, floorId) {
   )
 
   for (let i = 0; i < MAX_ROOMS_PER_FLOOR; i++) {
-    const candidate = buildRoomNumber(floorNumber, i)
+    const candidate = buildRoomNumber(prefix, i)
     if (!taken.has(candidate)) return candidate
   }
   throw new Error(`ชั้นนี้มีห้องครบ ${MAX_ROOMS_PER_FLOOR} ห้องแล้ว`)
@@ -181,10 +248,16 @@ export function listFloors(db, apartmentId) {
     })
   }
 
-  return floors.map((floor) => ({
+  return floors.map((floor, index) => ({
     floorId: floor.floor_id,
     apartmentId: floor.apartment_id,
     floorName: floor.floor_name,
+    // ป้ายตึก + เลขนำหน้าห้อง (migration 030) · null = ยังไม่ได้ตั้ง
+    buildingName: floor.building_name ?? null,
+    numberPrefix: floor.room_number_prefix ?? null,
+    // เลขที่ห้องใหม่ของชั้นนี้จะได้จริง — หน้าจอเอาไปขึ้นเป็นตัวอย่างให้เห็นก่อนกรอก
+    // ไม่ให้หน้าจอคิดเอง เพราะกฎ "ไม่ตั้ง = ใช้ลำดับที่ของชั้น" ต้องมีคำตอบเดียวในระบบ
+    effectivePrefix: effectivePrefix(floor.room_number_prefix, index + 1),
     rooms: rooms
       .filter((r) => r.floor_id === floor.floor_id)
       .map((r) => ({ ...toPublicRoom(r), services: servicesByRoom.get(r.room_id) ?? [] }))
@@ -225,12 +298,31 @@ export function validateFloorPlan(specs) {
   }
   if (specs.length > MAX_FLOORS) errors.push(`จำนวนชั้นต้องไม่เกิน ${MAX_FLOORS} ชั้น`)
 
+  // เลขนำหน้าที่ผู้ใช้กรอกมา — เก็บไว้เทียบกันเองด้วย ไม่ใช่ตรวจแต่รูปแบบทีละอัน
+  const seenPrefixes = new Map()
+
   specs.forEach((spec, index) => {
     const count = Number(spec?.roomCount)
     if (!Number.isInteger(count) || count < 1) {
       errors.push(`ชั้นที่ ${index + 1}: กรุณากรอกจำนวนห้องเป็นตัวเลขตั้งแต่ 1 ขึ้นไป`)
     } else if (count > MAX_ROOMS_PER_FLOOR) {
       errors.push(`ชั้นที่ ${index + 1}: จำนวนห้องต้องไม่เกิน ${MAX_ROOMS_PER_FLOOR} ห้องต่อชั้น`)
+    }
+
+    try {
+      const prefix = normalizeRoomNumberPrefix(spec?.numberPrefix)
+      if (prefix) {
+        if (seenPrefixes.has(prefix)) {
+          errors.push(
+            `ชั้นที่ ${index + 1}: เลขนำหน้า ${prefix} ซ้ำกับชั้นที่ ${seenPrefixes.get(prefix)}`
+          )
+        } else {
+          seenPrefixes.set(prefix, index + 1)
+        }
+      }
+      normalizeBuildingName(spec?.buildingName)
+    } catch (err) {
+      errors.push(`ชั้นที่ ${index + 1}: ${err.message}`)
     }
   })
 
@@ -254,21 +346,34 @@ export function generateFloorPlan(db, apartmentId, specs) {
     const roomTypeId = ensureRoomType(db, apartmentId)
 
     specs.forEach((spec, floorIndex) => {
-      const floorNumber = floorIndex + 1
+      const ordinal = floorIndex + 1
       const roomCount = Number(spec.roomCount)
+      const buildingName = normalizeBuildingName(spec.buildingName)
+      const prefix = normalizeRoomNumberPrefix(spec.numberPrefix)
+      // ชั้นก่อนหน้าถูกเขียนลงไปแล้วในธุรกรรมเดียวกัน การถามฐานข้อมูลจึงดักเลขนำหน้า
+      // ที่ซ้ำกันเองในชุดที่กำลังสร้างได้ด้วย ไม่ใช่ดักแต่ที่ซ้ำกับชั้นเก่า
+      assertPrefixFree(db, apartmentId, prefix)
 
       const floorId = db
         .prepare(
-          'INSERT INTO floors (apartment_id, floor_name, room_count, created_at) VALUES (?,?,?,?)'
+          `INSERT INTO floors (apartment_id, floor_name, building_name, room_number_prefix,
+                               room_count, created_at)
+           VALUES (?,?,?,?,?,?)`
         )
-        .run(apartmentId, spec.floorName?.trim() || `ชั้น ${floorNumber}`, roomCount, now)
-        .lastInsertRowid
+        .run(
+          apartmentId,
+          spec.floorName?.trim() || `ชั้น ${ordinal}`,
+          buildingName,
+          prefix,
+          roomCount,
+          now
+        ).lastInsertRowid
 
       for (let i = 0; i < roomCount; i += 1) {
         createRoomRow(db, {
           floorId,
           roomTypeId,
-          roomNumber: buildRoomNumber(floorNumber, i),
+          roomNumber: buildRoomNumber(effectivePrefix(prefix, ordinal), i),
           defaults,
           now
         })
@@ -297,7 +402,7 @@ function createRoomRow(db, { floorId, roomTypeId, roomNumber, defaults, now }) {
 // -----------------------------------------------------
 // ชั้น
 // -----------------------------------------------------
-export function addFloor(db, apartmentId, { floorName, roomCount }) {
+export function addFloor(db, apartmentId, { floorName, roomCount, buildingName, numberPrefix } = {}) {
   const count = Number(roomCount)
   if (!Number.isInteger(count) || count < 0 || count > MAX_ROOMS_PER_FLOOR) {
     throw new Error(`จำนวนห้องต้องเป็นตัวเลข 0-${MAX_ROOMS_PER_FLOOR}`)
@@ -308,20 +413,33 @@ export function addFloor(db, apartmentId, { floorName, roomCount }) {
     .get(apartmentId).n
   if (existingFloors >= MAX_FLOORS) throw new Error(`จำนวนชั้นต้องไม่เกิน ${MAX_FLOORS} ชั้น`)
 
+  const building = normalizeBuildingName(buildingName)
+  const prefix = normalizeRoomNumberPrefix(numberPrefix)
+  assertPrefixFree(db, apartmentId, prefix)
+
   const defaults = getUtilityDefaults(db, apartmentId)
   const now = new Date().toISOString()
-  const floorNumber = existingFloors + 1
+  const ordinal = existingFloors + 1
 
   const run = db.transaction(() => {
     const roomTypeId = ensureRoomType(db, apartmentId)
     const floorId = db
       .prepare(
-        'INSERT INTO floors (apartment_id, floor_name, room_count, created_at) VALUES (?,?,?,?)'
+        `INSERT INTO floors (apartment_id, floor_name, building_name, room_number_prefix,
+                             room_count, created_at)
+         VALUES (?,?,?,?,?,?)`
       )
-      .run(apartmentId, floorName?.trim() || `ชั้น ${floorNumber}`, count, now).lastInsertRowid
+      .run(
+        apartmentId,
+        floorName?.trim() || `ชั้น ${ordinal}`,
+        building,
+        prefix,
+        count,
+        now
+      ).lastInsertRowid
 
     for (let i = 0; i < count; i += 1) {
-      const roomNumber = buildRoomNumber(floorNumber, i)
+      const roomNumber = buildRoomNumber(effectivePrefix(prefix, ordinal), i)
       // ชั้นที่เพิ่มทีหลังอาจได้เลขที่ชนกับห้องที่ผู้ใช้ตั้งชื่อเองไว้ก่อน — ข้ามไปเงียบๆ
       // ไม่ได้ เพราะผู้ใช้สั่งสร้าง N ห้องแล้วจะได้ไม่ครบ ต้องบอกให้ไปแก้ก่อน
       assertRoomNumberAvailable(db, apartmentId, roomNumber)
@@ -333,16 +451,39 @@ export function addFloor(db, apartmentId, { floorName, roomCount }) {
   return listFloors(db, apartmentId)
 }
 
-export function renameFloor(db, floorId, floorName) {
-  const name = String(floorName ?? '').trim()
+// แก้ชื่อชั้น / ป้ายตึก / เลขนำหน้าห้อง
+//
+// 🔴 **เปลี่ยนเลขนำหน้าไม่ไปแก้เลขห้องที่มีอยู่แล้ว** มีผลกับห้องที่สร้างใหม่หลังจากนี้
+// เท่านั้น — เลขห้องถูกพิมพ์ลงใบแจ้งหนี้ ใบเสร็จ และใบจดมิเตอร์ที่ยื่นให้ผู้เช่าไปแล้ว
+// ถ้าไล่เปลี่ยนย้อนหลัง เอกสารในมือผู้เช่ากับในระบบจะเป็นห้องคนละเลขกันทั้งหมด
+// (จะย้ายเลขห้องจริงๆ ให้แก้รายห้องด้วย updateRoom ซึ่งเป็นการตัดสินใจของคนไม่ใช่ของระบบ)
+export function updateFloor(db, floorId, { floorName, buildingName, numberPrefix } = {}) {
+  const existing = db
+    .prepare('SELECT apartment_id, floor_name FROM floors WHERE floor_id = ?')
+    .get(floorId)
+  if (!existing) throw new Error('ไม่พบชั้นที่ต้องการแก้ไข')
+
+  // ไม่ได้ส่งมา = ไม่แตะ (ต่างจากส่งค่าว่างมาซึ่งแปลว่า "ล้างค่า")
+  const name = floorName === undefined ? existing.floor_name : String(floorName ?? '').trim()
   if (!name) throw new Error('กรุณากรอกชื่อชั้น')
 
-  const result = db
-    .prepare('UPDATE floors SET floor_name = ?, updated_at = ? WHERE floor_id = ?')
-    .run(name, new Date().toISOString(), floorId)
-  if (result.changes === 0) throw new Error('ไม่พบชั้นที่ต้องการแก้ไข')
+  const fields = ['floor_name = @name']
+  const params = { name, floorId, now: new Date().toISOString() }
 
-  return listFloors(db, apartmentIdOfFloor(db, floorId))
+  if (buildingName !== undefined) {
+    fields.push('building_name = @buildingName')
+    params.buildingName = normalizeBuildingName(buildingName)
+  }
+  if (numberPrefix !== undefined) {
+    params.numberPrefix = normalizeRoomNumberPrefix(numberPrefix)
+    assertPrefixFree(db, existing.apartment_id, params.numberPrefix, floorId)
+    fields.push('room_number_prefix = @numberPrefix')
+  }
+
+  db.prepare(`UPDATE floors SET ${fields.join(', ')}, updated_at = @now WHERE floor_id = @floorId`)
+    .run(params)
+
+  return listFloors(db, existing.apartment_id)
 }
 
 // ลบชั้นได้เฉพาะชั้นที่ไม่มีห้องแล้ว — บังคับให้ลบห้องทีละห้องก่อน

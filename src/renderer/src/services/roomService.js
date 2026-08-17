@@ -14,12 +14,15 @@ export function generateFloorPlan(apartmentId, floors) {
   return invoke('room:generatePlan', { apartmentId, floors })
 }
 
-export function addFloor(apartmentId, { floorName, roomCount }) {
-  return invoke('room:addFloor', { apartmentId, floorName, roomCount })
+// buildingName = ป้ายตึก (ไม่บังคับ) · numberPrefix = เลขนำหน้าเลขห้องของชั้นนี้
+// เช่น '12' → ห้อง 1201, 1202 (ตึก 1 ชั้น 2) · ไม่ส่ง = ใช้ลำดับที่ของชั้นเหมือนเดิม
+export function addFloor(apartmentId, { floorName, roomCount, buildingName, numberPrefix } = {}) {
+  return invoke('room:addFloor', { apartmentId, floorName, roomCount, buildingName, numberPrefix })
 }
 
-export function renameFloor(floorId, floorName) {
-  return invoke('room:renameFloor', { floorId, floorName })
+// ส่งมาเฉพาะฟิลด์ที่ต้องการแก้ — ฟิลด์ที่ไม่ส่งจะไม่ถูกแตะ (ส่งค่าว่าง = ล้างค่า)
+export function updateFloor(floorId, changes) {
+  return invoke('room:updateFloor', { floorId, ...changes })
 }
 
 export function deleteFloor(floorId) {
