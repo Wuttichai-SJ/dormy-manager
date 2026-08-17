@@ -2,6 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireOwnerUserId } from './authHandlers.js'
 import {
   applyDefaultsToRooms,
   getUtilityDefaults,

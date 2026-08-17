@@ -11,13 +11,16 @@
     "dev:web": "vite",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "dist:dir": "electron-vite build && electron-builder --dir",
+    "dist": "electron-vite build && electron-builder",
+    "test:imports": "node scripts/imports-smoke.mjs",
     "test:auth": "node scripts/auth-smoke.mjs",
     "test:apartments": "node scripts/apartments-smoke.mjs",
     "test:services": "node scripts/services-smoke.mjs",
     "test:utility": "node scripts/utility-smoke.mjs",
     "test:banks": "node scripts/banks-smoke.mjs",
     "test:rooms": "node scripts/rooms-smoke.mjs",
-    "test": "npm run test:auth && npm run test:apartments && npm run test:services && npm run test:utility && npm run test:banks && npm run test:rooms && npm run test:tenants && npm run test:contracts && npm run test:bookings && npm run test:backups && npm run test:images && npm run test:meter && npm run test:invoices && npm run test:payments && npm run test:terminations && npm run test:maintenance && npm run test:csv && npm run test:dashboard",
+    "test": "npm run test:imports && npm run test:auth && npm run test:apartments && npm run test:services && npm run test:utility && npm run test:banks && npm run test:rooms && npm run test:tenants && npm run test:contracts && npm run test:bookings && npm run test:backups && npm run test:images && npm run test:meter && npm run test:invoices && npm run test:payments && npm run test:terminations && npm run test:maintenance && npm run test:csv && npm run test:dashboard",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "test:tenants": "node scripts/tenants-smoke.mjs",
     "test:contracts": "node scripts/contracts-smoke.mjs",
@@ -33,17 +36,18 @@
     "test:dashboard": "node scripts/dashboard-smoke.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "11.7.0",
     "bcryptjs": "2.4.3",
+    "better-sqlite3": "11.7.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
-    "electron": "33.2.1",
-    "electron-vite": "2.3.0",
-    "vite": "5.4.11",
+    "@electron/rebuild": "3.7.1",
     "@vitejs/plugin-react": "4.3.4",
-    "@electron/rebuild": "3.7.1"
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8",
+    "electron-vite": "2.3.0",
+    "vite": "5.4.11"
   },
   "engines": {
     "node": ">=20"

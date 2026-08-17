@@ -1,0 +1,79 @@
+# การประกอบร่างเป็น .exe — ใช้กับ `npm run dist` (ดู BUILD.md)
+#
+# ตั้งค่าเท่าที่จำเป็นจริง ไม่ใส่ของที่ยังไม่ได้ใช้ เพราะไฟล์นี้ต้องอ่านรู้เรื่องอีกสิบปีข้างหน้า
+
+appId: com.dormymanager.app
+# ชื่อที่คนเห็น — ขึ้นบนตัวติดตั้ง ชื่อโปรแกรมใน Windows และชื่อทางลัดบนเดสก์ท็อป
+#
+# 🔴 **ห้ามย้ายชื่อนี้ไปใส่เป็น `productName` ใน package.json** — Electron ใช้
+# `productName` จาก package.json (ถ้ามี) เป็นชื่อโฟลเดอร์ข้อมูลผู้ใช้ ถ้าใส่ไว้ที่นั่น
+# โฟลเดอร์จะย้ายจาก `%APPDATA%\dormy-manager` เป็น `%APPDATA%\Dormy Manager`
+# แล้ว **ฐานข้อมูลของหอที่ใช้อยู่จะหายไปทั้งก้อนในสายตาแอป** (ไฟล์ยังอยู่ แต่แอปเปิด
+# ไฟล์ใหม่ที่ว่างเปล่าแทน) วางไว้ที่นี่เท่านั้น package.json ต้องมีแค่ `name`
+productName: Dormy Manager
+
+directories:
+  output: release
+
+# 🔴 ห้าม electron-builder สั่งคอมไพล์ native module ใหม่ตอนแพ็ก
+#
+# ปกติมันจะเรียก @electron/rebuild ให้ better-sqlite3 คอมไพล์ใหม่ให้ตรง ABI ของ Electron
+# ซึ่ง **ทำไม่ได้บนเครื่องนี้ (ไม่มี C++ toolchain) และไม่จำเป็นด้วย** — `.npmrc` สั่งให้
+# ดาวน์โหลดไบนารีที่คอมไพล์มาแล้วสำหรับ Electron 33 (runtime=electron / target=33.2.1)
+# ตั้งแต่ตอน npm install ไบนารีที่มีอยู่จึงตรง ABI อยู่แล้ว
+#
+# ถ้าไม่ปิด จะได้ error `node-gyp failed to rebuild` (และบางครั้ง EPERM ตอนมันพยายามลบ
+# ไฟล์ .node ทิ้งเพื่อสร้างใหม่) — **ตอนอัปเกรด Electron ให้แก้ `target` ใน `.npmrc`
+# แล้วลง dependency ใหม่ ไม่ใช่มาเปิดค่านี้**
+npmRebuild: false
+
+# ใช้แต่รูปแบบ "ไม่เอาอะไร" ไม่ระบุ "เอาอะไร" — ค่าตั้งต้นของ electron-builder เอา
+# `out/` กับ dependencies ที่ใช้ตอนรันจริงมาให้ครบอยู่แล้ว ถ้าเขียนรายการ "เอาอะไร"
+# เองแล้วลืมบรรทัดใดบรรทัดหนึ่ง แอปจะติดตั้งได้แต่พังตอนเปิด ซึ่งจับได้ยากกว่ามาก
+files:
+  - '!src/*'
+  - '!scripts/*'
+  - '!dormitory.sql'
+  - '!README.md'
+  - '!BUILD.md'
+  - '!electron.vite.config.mjs'
+  - '!vite.config.mjs'
+  - '!.npmrc'
+
+# 🔴 ไฟล์ .node คือไบนารีของ better-sqlite3 — ต้องอยู่ **นอก** ไฟล์ asar
+#
+# asar เป็นไฟล์รวมแบบอ่านผ่าน API ของ Electron ระบบปฏิบัติการมองไม่เห็นไฟล์ข้างในเป็น
+# ไฟล์จริง แต่การโหลด native module ใช้กลไกของ OS ไม่ใช่ของ Electron → ถ้าไบนารีถูก
+# ห่ออยู่ใน asar จะโหลดไม่ออก และอาการคือ **แอปเปิดไม่ติดเลย** (เปิดฐานข้อมูลไม่ได้
+# ตั้งแต่วินาทีแรก) ไม่ใช่พังบางหน้า
+asarUnpack:
+  - '**/*.node'
+
+# 🔴 ไฟล์ migration เป็น .sql ที่ **vite ไม่ได้ bundle** (มันรวมแต่ JS) จึงต้องคัดลอก
+# เข้าไปเองที่ `resources/migrations` ให้ตรงกับ `resolveMigrationsDir()` ใน
+# src/main/database.js ที่ชี้ไป `process.resourcesPath/migrations` เมื่อ app.isPackaged
+#
+# ถ้าลืมบรรทัดนี้ `migrate.js` จะโยน error ทันทีที่เปิดแอป (เขียนไว้ให้โยน ไม่ให้เปิด
+# ฐานข้อมูลเปล่าแล้วดูเหมือนปกติ) — **เพิ่มไฟล์ migration ใหม่ไม่ต้องแก้ที่นี่**
+# เพราะคัดลอกทั้งโฟลเดอร์
+extraResources:
+  - from: src/main/migrations
+    to: migrations
+    filter:
+      - '**/*.sql'
+
+win:
+  target: nsis
+
+nsis:
+  # ติดตั้งแบบ "ต่อผู้ใช้" ไม่ต้องขอสิทธิ์ผู้ดูแลเครื่อง — เจ้าของหอลงเองได้โดยไม่ต้องมี
+  # รหัส admin และไม่มีหน้าต่าง UAC สีฟ้าที่ทำให้คนกลัวว่าเป็นไวรัส
+  perMachine: false
+  # ไม่ใช่ตัวติดตั้งกดเดียวจบ — ให้เห็นขั้นตอนและเลือกที่ติดตั้งได้ ปลายทางคือคนที่
+  # ไม่ได้ลงโปรแกรมบ่อย การเห็นว่ากำลังเกิดอะไรขึ้นสำคัญกว่าความเร็ว
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Dormy Manager
+  artifactName: DormyManager-Setup-${version}.${ext}
