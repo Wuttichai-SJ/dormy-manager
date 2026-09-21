@@ -1,0 +1,219 @@
+/* 20-print — พิมพ์ลงกระดาษ/PDF — @page + @media print ก้อนที่ 1 จาก 3 · ช่องกรอกวันที่ · ปุ่มพิมพ์
+   ลำดับที่ 20 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 3678-3892 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   พิมพ์ลงกระดาษ / บันทึกเป็น PDF
+   -----------------------------------------------------
+   หน้าที่พิมพ์คือหน้าเดียวกับที่เห็นบนจอ ไม่ได้วาดเอกสารขึ้นมาใหม่ต่างหาก
+   กฎที่นี่จึงมีหน้าที่เดียว: เก็บทุกอย่างที่ไม่ใช่ "ตัวเอกสาร" ออกไป
+   ทั้ง webContents.print() และ printToPDF() ใช้ชุดนี้เหมือนกัน ผลจึงตรงกันเสมอ
+
+   ขนาดกระดาษกับขอบต้องตรงกับ PAGE ใน src/main/handlers/printHandlers.js */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  /* พื้นหลังอุ่นของแอปกินหมึกเปล่าๆ และทำให้ตัวอักษรอ่านยากบนกระดาษ */
+  body,
+  .app,
+  .content,
+  .page {
+    background: #fff;
+  }
+
+  /* เมนูข้าง แถบบน ทางกลับ และแถบเตือน ไม่ใช่ส่วนหนึ่งของเอกสาร */
+  .sidebar,
+  .topbar,
+  .page-back,
+  .info-banner,
+  .alert {
+    display: none !important;
+  }
+
+  /* หน้าต่างซ้อนกับข้อความแจ้งผลมุมจอ — กล่องเลือกเครื่องพิมพ์ยัง "เปิดค้างอยู่" ตอนที่
+     Chromium กำลังเรนเดอร์หน้าเพื่อพิมพ์ ถ้าไม่ซ่อน มันจะทับเอกสารเต็มหน้ากระดาษ */
+  .modal-backdrop,
+  .toast-host {
+    display: none !important;
+  }
+
+  /* คอลัมน์ขวา (ยอดค้าง/รับเงิน/ประวัติ) กับการ์ดเพิ่มรายการ เป็นเครื่องมือทำงาน
+     ไม่ใช่สิ่งที่ผู้เช่าต้องเห็นบนใบแจ้งหนี้ */
+  .invoice-side,
+  .invoice-main > .panel:not(.invoice-doc) {
+    display: none !important;
+  }
+
+  /* ปุ่มทุกปุ่มบนตัวเอกสาร: พิมพ์ / บันทึก PDF / ยกเลิกบิล / ถังขยะรายบรรทัด
+     🔴 เคยเขียนเป็น `.invoice-items th/td:last-child` ซึ่งแปลว่า "คอลัมน์สุดท้าย"
+     ไม่ใช่ "คอลัมน์ปุ่ม" — เอกสารที่ไม่มีปุ่มลบ (ใบเสร็จ และการพิมพ์ใบแจ้งหนี้ทั้งหอ)
+     คอลัมน์สุดท้ายของมันคือ **ยอดเงิน** ซึ่งถูกซ่อนหายไปจากกระดาษทั้งคอลัมน์
+     ตอนนี้ยิงตรงที่คลาสของคอลัมน์ปุ่มเอง */
+  .invoice-doc-tools,
+  .invoice-col-actions {
+    display: none !important;
+  }
+
+  /* เอกสารต้องเต็มหน้ากระดาษ ไม่ใช่การ์ดลอยที่มีเงาและมุมโค้ง */
+  .app,
+  .content,
+  .page {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  .invoice-layout {
+    display: block;
+  }
+
+  .invoice-doc {
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* ห้ามให้ตารางรายการถูกตัดกลางแถวเมื่อขึ้นหน้าใหม่ — ยอดเงินจะไปคนละหน้ากับชื่อรายการ
+     และช่องทางชำระเงินต้องอยู่ครบบล็อกเดียว ไม่ใช่เลขบัญชีไปโผล่หน้าถัดไปคนละที่กับชื่อธนาคาร
+     (ปกติจะไม่ได้ใช้ เพราะฝั่ง main ย่อเอกสารให้ลงหน้าเดียวอยู่แล้ว — นี่คือตาข่ายชั้นสุดท้าย) */
+  .invoice-items tr,
+  .invoice-totals,
+  .invoice-payment-info {
+    break-inside: avoid;
+  }
+
+  /* -----------------------------------------------------
+     บีบระยะให้แน่นขึ้นเฉพาะตอนพิมพ์
+     -----------------------------------------------------
+     บนจอมีที่ให้เลื่อน บนกระดาษไม่มี — ระยะที่อ่านสบายบนจอกินหน้ากระดาษไปเปล่าๆ
+     ยิ่งบีบตรงนี้ได้มาก ฝั่ง main ก็ยิ่งไม่ต้องย่อสัดส่วนลง ตัวอักษรบนกระดาษจึงคมกว่า */
+  .invoice-doc-title {
+    margin-bottom: 12px;
+    font-size: 17px;
+  }
+
+  .invoice-doc-head {
+    margin-bottom: 12px;
+  }
+
+  .invoice-tenant {
+    margin-bottom: 12px;
+    padding: 8px 0;
+  }
+
+  .invoice-items th,
+  .invoice-items td {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .invoice-line-vat,
+  .invoice-col-sub {
+    font-size: 10px;
+  }
+
+  .invoice-totals {
+    font-size: 12px;
+  }
+
+  .invoice-totals > div {
+    padding: 3px 0;
+  }
+
+  .invoice-total-row {
+    padding-top: 7px !important;
+    font-size: 15px;
+  }
+
+  .invoice-payment-info {
+    margin-top: 14px;
+  }
+
+  .invoice-signature {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+  }
+
+  .invoice-banks th {
+    padding: 5px 10px;
+  }
+
+  .invoice-banks td {
+    padding: 7px 10px;
+  }
+
+  .invoice-footer-note {
+    padding: 6px 10px;
+  }
+}
+
+/* -----------------------------------------------------
+   ช่องกรอกวันที่ (วว/ดด/ปปปป)
+   ----------------------------------------------------- */
+.date-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.date-field-text {
+  width: 100%;
+  padding-right: 40px;
+}
+
+/* ปุ่มปฏิทินวางทับอยู่ในกรอบของช่องกรอก ไม่ใช่ต่อออกมาข้างนอก
+   เพื่อให้ความกว้างของช่องวันที่เท่ากับช่องกรอกอื่นในแถวเดียวกันพอดี */
+.date-field-btn {
+  position: absolute;
+  right: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: calc(100% - 2px);
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  border-radius: 0 7px 7px 0;
+  cursor: pointer;
+}
+
+.date-field-btn:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.date-field-btn .icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ตัวเลือกวันที่ของระบบต้องอยู่ใน DOM จริงๆ ถึงจะสั่ง showPicker() ได้ และต้องวางทับ
+   ปุ่มปฏิทินพอดี เพราะ Chromium กางปฏิทินตรงตำแหน่งของช่องนี้ ไม่ใช่ตรงปุ่มที่กด
+   จึงใช้ opacity:0 + pointer-events:none แทน display:none (ซึ่งจะสั่ง showPicker ไม่ได้) */
+.date-field-picker {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  width: 36px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* -----------------------------------------------------
+   ปุ่มพิมพ์ / บันทึก PDF บนหัวเอกสาร
+   ----------------------------------------------------- */
+.invoice-doc-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+

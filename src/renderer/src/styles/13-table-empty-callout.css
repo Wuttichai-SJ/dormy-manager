@@ -1,0 +1,222 @@
+/* 13-table-empty-callout — ★ ใช้ร่วมกันทุกหน้า: ตารางข้อมูล (16 หน้า) · จอว่างเปล่า · ช่องกรอกที่มีปุ่มซ้อน · กล่องแจ้งเตือน
+   ลำดับที่ 13 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 2451-2668 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* ตารางข้อมูล */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-soft);
+  padding: 9px 12px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border-strong);
+}
+
+.data-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  /* ทุกช่องต้องนั่งกลางแนวตั้งเท่ากันหมด ไม่งั้นช่องที่มีปุ่ม/ป้ายอยู่ข้างในจะดันตัวหนังสือ
+     ของช่องอื่นในแถวเดียวกันให้ลอยขึ้นไปคนละระดับ */
+  vertical-align: middle;
+}
+
+/* หัวตารางกับข้อมูลต้องชิดข้างเดียวกันเสมอ — เขียน text-align ที่ <col> ไม่ได้
+   จึงบังคับผ่านคลาสเดียวกันทั้ง th และ td (ดู .align-right ข้างล่าง) */
+.data-table th.align-right,
+.data-table td.align-right {
+  text-align: right;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table .row-editing {
+  background: var(--accent-weak);
+}
+
+.align-right {
+  text-align: right;
+}
+
+.table-action {
+  margin-left: 12px;
+}
+
+.table-empty {
+  padding: 20px 0;
+  text-align: center;
+}
+
+.unit {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ยอดที่ต้องอ่านว่า "ติดลบ / ยังไม่ได้เงิน" — ใบคืนเงิน ยอดค้าง เงินประกันที่ถูกริบ
+   ส่วนต่างที่ยังเก็บไม่ได้ และวันที่เกินกำหนด
+
+   🔴 คลาสนี้ถูกใช้อยู่ 14 จุดตั้งแต่ Phase 3 (ตารางบิล ใบเสร็จ ใบแจ้งหนี้ ใบสรุปย้ายออก)
+   แต่กฎเดียวที่มีคือ `.contract-summary-row .negative` ข้างล่าง = ทุกจุดที่อยู่นอก
+   กล่องสรุปสัญญาไม่เคยเป็นสีแดงเลย ตัวเลขติดลบจึงอ่านเหมือนตัวเลขธรรมดามาตลอด
+   (เจอตอนทำหน้าภาพรวม 2026-08-17) — ตั้งเป็นกฎกลางเสียทีเดียว ไม่ใช่ตั้งเฉพาะหน้าใหม่
+   แล้วปล่อยให้ 13 จุดที่เหลือยังเพี้ยนอยู่ */
+.negative {
+  color: var(--err);
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-radius: 10px;
+}
+
+/* จอว่างเปล่า — บอกให้ชัดว่าต้องทำอะไรต่อ ไม่ใช่ปล่อยพื้นที่ว่างเฉยๆ */
+.empty-state {
+  text-align: center;
+  padding: 44px 24px;
+}
+
+.empty-state .icon svg {
+  width: 40px;
+  height: 40px;
+  color: var(--text-muted);
+}
+
+.empty-state h2 {
+  margin: 12px 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty-state .muted {
+  margin-bottom: 18px;
+}
+
+.auth-footnote {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ช่องกรอกที่มีปุ่มซ้อนอยู่ข้างใน (ปุ่มดูรหัสผ่าน) */
+.input-with-action {
+  position: relative;
+}
+
+.input-with-action input {
+  padding-right: 40px;
+}
+
+.input-action {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.input-action:hover {
+  color: var(--text);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.form-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 18px;
+}
+
+.inline-form {
+  max-width: 360px;
+  margin-top: 12px;
+}
+
+/* กล่องแจ้งเตือน */
+.alert {
+  display: flex;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.alert p {
+  margin: 0 0 6px;
+}
+
+.alert p:last-child {
+  margin-bottom: 0;
+}
+
+.alert ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.alert .icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.alert-error {
+  color: var(--err);
+  background: var(--err-weak);
+  border-left: 3px solid var(--err);
+}
+
+.alert-success {
+  color: var(--ok);
+  background: var(--ok-weak);
+  border-left: 3px solid var(--ok);
+}
+
+.alert-warn {
+  color: var(--warn);
+  background: var(--warn-weak);
+  border-left: 3px solid var(--warn);
+}
+
+.alert-warn strong {
+  display: block;
+  margin-bottom: 4px;
+}
+

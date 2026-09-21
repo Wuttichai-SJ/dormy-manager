@@ -1,0 +1,196 @@
+/* 16-tenants-rooms-dashboard — หน้าผู้เช่า · หน้าห้องพัก · หน้าภาพรวม
+   ลำดับที่ 16 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 2935-3126 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   หน้าผู้เช่า
+   ----------------------------------------------------- */
+.tenants-toolbar {
+  align-items: center;
+  gap: 16px;
+  /* ช่องค้นหาอยู่ซ้าย ปุ่มเพิ่มอยู่ขวาสุด */
+  justify-content: flex-start;
+}
+
+.tenants-toolbar .btn {
+  margin-left: auto;
+}
+
+/* ช่องค้นหาที่มีไอคอนแว่นขยายอยู่ข้างใน */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 380px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.search-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+.search-field .icon {
+  color: var(--text-muted);
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  font-size: 14px;
+  color: var(--text);
+  background: none;
+  border: none;
+}
+
+.search-field input:focus {
+  outline: none;
+}
+
+/* ช่องกรอกในหน้าต่างซ้อนที่วางเรียงกันเป็นแถว */
+.modal-body .field-row {
+  gap: 16px;
+}
+
+.modal-body .field-row + .field,
+.modal-body .field + .field-row,
+.modal-body .field-row + .field-row {
+  margin-top: 16px;
+}
+
+/* -----------------------------------------------------
+   หน้าห้องพัก (หน้าหลักของระบบ ตามต้นแบบ)
+   ----------------------------------------------------- */
+.room-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  padding: 18px 20px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ใบแรก (ห้องทั้งหมด) เน้นด้วยขอบเขียวแบบต้นแบบ */
+.stat-card.highlight {
+  border-color: #12a150;
+}
+
+.stat-card-value {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.stat-card-label {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* บรรทัดที่สามของการ์ด (หน้าภาพรวม) — ตัวเลขเทียบ/รายละเอียดย่อยของยอดที่อยู่ข้างบน
+   เล็กกว่า label เพื่อไม่ให้แข่งกับตัวเลขหลัก แต่ยังเข้มพอให้อ่านออก */
+.stat-card-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* -----------------------------------------------------
+   หน้าภาพรวม — รายการ "สิ่งที่ต้องทำ"
+   ----------------------------------------------------- */
+.dash-tasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-task:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* เครื่องหมายหน้าบรรทัด: ค้าง = สามเหลี่ยมเตือน · ทำแล้ว = ติ๊กถูก
+   สีมาจากที่นี่ ไม่ใช่จากตัวไฟล์ SVG (heroicons ใช้ currentColor) */
+.dash-task-mark {
+  display: flex;
+  color: var(--warn);
+}
+
+.dash-task.done .dash-task-mark {
+  color: var(--ok);
+}
+
+.dash-task-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ไอคอนบอกว่าเป็นงานหมวดไหน (มิเตอร์/บิล/ซ่อม/ย้ายออก) — จางกว่าเครื่องหมายสถานะ
+   เพราะสิ่งที่ต้องเห็นก่อนคือ "ทำแล้วหรือยัง" ไม่ใช่ "เรื่องอะไร" */
+.dash-task-icon {
+  color: var(--text-muted);
+}
+
+.dash-task-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ข้อความกินพื้นที่ที่เหลือ ปุ่มจึงชิดขวาตรงกันทุกบรรทัดโดยไม่ต้องกำหนดความกว้าง */
+.dash-task-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.dash-task.done .dash-task-text {
+  color: var(--text-soft);
+}
+
+.room-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.room-filters select {
+  padding: 9px 12px;
+  font-size: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.room-cell-number {
+  margin-right: 10px;
+  font-weight: 600;
+}
+
+.room-cell-sub {
+  font-size: 12px;
+}
+
+.room-cell-services {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+

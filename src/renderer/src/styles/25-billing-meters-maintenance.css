@@ -1,0 +1,374 @@
+/* 25-billing-meters-maintenance — ตัวช่วยออกบิล · จดมิเตอร์ · แจ้งซ่อม
+   ลำดับที่ 25 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 4749-5118 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   ตัวช่วยออกบิล
+   ----------------------------------------------------- */
+/* แถบขั้นตอนของตัวช่วยออกบิลเป็นแนวนอน ต่างจากตัวช่วยตั้งค่าหอที่เป็นแนวตั้ง
+   เพราะมีแค่สองขั้นและเนื้อหาขั้นที่สองเป็นตารางกว้างเต็มจอ (ตามต้นแบบ) */
+.billing-steps {
+  display: flex;
+  gap: 40px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--border);
+}
+
+.billing-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font-size: 15px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.billing-step.future {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.billing-step.current {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.billing-step.current .wizard-step-number {
+  color: var(--brand-ink);
+  background: var(--brand);
+}
+
+.billing-step.done .wizard-step-number {
+  color: #1d6b4f;
+  background: #bdeedb;
+}
+
+/* ค่าน้ำ/ค่าไฟในตารางพรีวิวขึ้นสองบรรทัด: จำนวนหน่วยเด่น เงินที่คิดได้ตัวเล็กใต้ลงมา
+   คนกวาดตาหาหน่วยที่ผิดปกติก่อน แล้วค่อยดูว่าเป็นเงินเท่าไหร่ */
+.billing-charge {
+  display: block;
+  font-size: 12px;
+}
+
+.billing-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--ok);
+}
+
+.billing-done .icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* แถบค้นหาเหนือตารางบิล — พื้นครีมแบบเดียวกับต้นแบบ ช่องเรียงแถวเดียวแล้วตัดบรรทัดเอง
+   เมื่อจอแคบ ปุ่มรีเซ็ตอยู่ท้ายสุดและวางให้ตรงกับแถวของช่องกรอก ไม่ใช่ตรงกับป้ายชื่อ */
+/* แท็บกรองตามการชำระ — ขีดใต้แท็บที่เลือกอยู่ ไม่ใช่ปุ่มทึบ เพราะนี่คือ "กำลังดูอะไรอยู่"
+   ไม่ใช่ปุ่มสั่งงาน ปุ่มทึบสามปุ่มติดกันจะแย่งสายตากับปุ่ม "ออกบิลรายเดือน" ที่อยู่เหนือขึ้นไป */
+.settlement-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settlement-tab {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  /* เส้นโปร่งความหนาเท่าเส้นของแท็บที่เลือก — กันไม่ให้ข้อความขยับขึ้นลงตอนสลับแท็บ */
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.settlement-tab:hover {
+  color: var(--text);
+}
+
+/* ใช้ --accent (น้ำตาลเข้ม) ไม่ใช่ --brand (เหลือง) — เหลืองบนพื้นขาวอ่านไม่ออก
+   มันเป็นสีสำหรับถมพื้นแล้ววางตัวอักษรเข้มทับ ไม่ใช่สีตัวอักษร */
+.settlement-tab-active {
+  color: var(--accent);
+  font-weight: 500;
+  border-bottom-color: var(--accent);
+}
+
+.invoice-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: var(--input-bg);
+  border-radius: 10px;
+}
+
+.invoice-filters .field {
+  width: 180px;
+  margin: 0;
+}
+
+.invoice-filter-reset {
+  padding-bottom: 9px;
+}
+
+.invoice-status {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 5px;
+}
+
+.invoice-unpaid {
+  color: var(--err);
+  background: var(--err-weak);
+}
+
+.invoice-partial_paid {
+  color: var(--warn);
+  background: var(--warn-weak);
+}
+
+.invoice-paid {
+  color: var(--ok);
+  background: var(--ok-weak);
+}
+
+.invoice-cancelled {
+  color: var(--text-muted);
+  background: #eceaea;
+}
+
+/* คำอธิบายใต้ช่องกรอกที่กำลังเตือนอยู่ ไม่ใช่แค่บอกข้อมูล */
+.field-hint-warn {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+/* "เกิน N วัน" ต่อท้ายป้ายสถานะ — บอกความหนักของการค้าง ไม่ใช่แค่ว่าค้างหรือไม่ */
+.invoice-overdue {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--err);
+}
+
+/* กล่องค่าปรับในการ์ดรับเงิน — ขอบแดงอ่อนให้ต่างจากช่องกรอกปกติ เพราะเป็นเงินที่
+   ระบบเสนอให้เก็บเพิ่ม ผู้ใช้ต้องเห็นชัดก่อนกดบันทึก ไม่ใช่ผ่านตาไป */
+.late-fee-box {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--err-weak);
+  border: 1px solid #e8c9c5;
+  border-radius: 8px;
+}
+
+.late-fee-head {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--err);
+}
+
+.late-fee-box .checkbox-row {
+  font-size: 13px;
+}
+
+.late-fee-amount {
+  width: 100%;
+  margin-top: 8px;
+  text-align: right;
+}
+
+.late-fee-box .field-hint {
+  margin-top: 8px;
+}
+
+/* -----------------------------------------------------
+   จดมิเตอร์
+   ----------------------------------------------------- */
+/* ทางกลับจากหน้าย่อยที่ไม่ได้อยู่ในเมนูข้าง (ตารางกรอกเลขมิเตอร์)
+   วางไว้เหนือแถบหัวข้อ เพื่อให้เห็นก่อนเนื้อหาว่าตอนนี้อยู่ลึกเข้ามาหนึ่งชั้น */
+.page-back {
+  margin-bottom: 16px;
+}
+
+.meter-batch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* หนึ่งใบจด = หนึ่งแถว: วันที่อยู่ซ้าย ปุ่มเข้าไปกรอกอยู่ขวา (ตามต้นแบบ) */
+.meter-batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.meter-batch-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.meter-batch-info .muted {
+  font-size: 13px;
+}
+
+.meter-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ปุ่มน้ำ/ไฟใช้สีเดียวกับไอคอนของแต่ละฝั่ง เพื่อให้กวาดตาแล้วรู้ทันทีว่ากำลังจะเข้าฝั่งไหน */
+.meter-side-water .icon {
+  color: var(--water);
+}
+
+.meter-side-electric .icon {
+  color: var(--electric);
+}
+
+/* ช่องกรอกในตารางแคบกว่าช่องในฟอร์ม และชิดขวาให้หลักตรงกันทั้งคอลัมน์
+   เลขมิเตอร์อ่านเทียบกันเป็นแนวตั้ง ถ้าชิดซ้ายจะเทียบหลักไม่ได้ */
+.meter-input {
+  width: 110px;
+  text-align: right;
+}
+
+/* เลขครั้งก่อนเป็นข้อความอ่านอย่างเดียว ไม่ใช่ช่องกรอก — ทำให้จางลงเพื่อไม่ให้ตาไปหยุด
+   ที่คอลัมน์ที่ทำอะไรไม่ได้ ช่องที่ต้องกรอกคือ "ปัจจุบัน" ช่องเดียว */
+.meter-previous {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ห้องที่โซ่มิเตอร์ถูกตัดเพราะเปลี่ยนผู้เช่า — เลขในคอลัมน์นี้ไม่ได้มาจากรอบก่อนแล้ว
+   ต้องเห็นได้ตอนกวาดตาลงมาทั้งตาราง ไม่ใช่ต้องไปไล่อ่านแถบเตือนด้านบนแล้วจำเลขห้อง */
+.meter-new-tenant-tag {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+.meter-new-tenant-list {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+/* ตัวเลือกกรณีพิเศษของมิเตอร์อยู่ใต้ช่องเลขปัจจุบันของแถวนั้น ไม่ใช่คอลัมน์แยก
+   เพราะมันขยายความช่องนั้นช่องเดียว และคอลัมน์แยกจะกินความกว้างทั้งตารางไปเปล่าๆ */
+.meter-event {
+  width: 110px;
+  margin-top: 5px;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* ค่าปกติไม่ต้องเด่น มันคือทุกแถวในตาราง — แถวที่ผู้ใช้ตั้งใจเลือกกรณีพิเศษต่างหาก
+   ที่ต้องมองเห็นตอนกวาดตาทบทวนก่อนกดบันทึก */
+.meter-event-special {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.meter-replace-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.meter-replace-fields label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.meter-units {
+  font-size: 15px;
+  color: var(--accent);
+}
+
+/* เลขปัจจุบันน้อยกว่าครั้งก่อนโดยยังไม่ติ๊กเกินรอบ — ขึ้นเครื่องหมายเตือนแทนตัวเลข
+   เพราะยังไม่รู้ว่าผู้ใช้พิมพ์ผิดหรือมิเตอร์หมุนครบรอบ ให้เขาตัดสินใจเอง */
+.meter-units-bad .icon {
+  color: var(--err);
+}
+
+/* แถบท้ายการ์ดของตารางนี้มีข้อความบอกความคืบหน้าอยู่ซ้ายด้วย ไม่ใช่มีแต่ปุ่ม */
+.meter-table + .card-foot {
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ------------------------------------------------------------------
+   แจ้งซ่อม
+   ------------------------------------------------------------------ */
+/* ช่องอาการในตารางเป็นข้อความยาว ถ้าปล่อยให้ดันความกว้างเอง คอลัมน์อื่นจะถูกบีบจนอ่านไม่ออก
+   จำกัดความกว้างแล้วให้ตัดบรรทัดแทน (ไม่ตัดด้วย ellipsis เพราะอาการที่อ่านได้ครึ่งเดียว
+   ไม่ช่วยให้ตัดสินใจอะไรได้ ต้องกดเข้าไปดูอยู่ดี) */
+.maintenance-description {
+  max-width: 320px;
+}
+
+.maintenance-description .room-badge {
+  margin-left: 6px;
+}
+
+.maintenance-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.maintenance-image {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* รูปจากกล้องมือถือเป็นแนวตั้งบ้างแนวนอนบ้าง — บังคับกรอบสูงเท่ากันแล้วให้รูปพอดีข้างใน
+   ไม่ใช้ cover เพราะรอยรั่วที่มุมภาพคือสิ่งที่คนถ่ายมาให้ดู ครอบตัดออกไปก็เสียประโยชน์ */
+.maintenance-image img {
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  background: var(--bg);
+  border-radius: 6px;
+}

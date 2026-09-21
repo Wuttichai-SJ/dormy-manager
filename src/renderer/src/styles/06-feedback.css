@@ -1,0 +1,86 @@
+/* 06-feedback — ข้อความแจ้งผล (toast) · แถบเตือน · @keyframes
+   ลำดับที่ 06 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 722-803 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* ข้อความแจ้งผลลอยมุมขวาบน — ขนาด/สี/เงา วัดจากต้นแบบ */
+.toast-host {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: 356px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: toast-in 0.2s ease-out;
+}
+
+.toast-success {
+  color: #008a2e;
+  background: #ecfdf3;
+  border: 1px solid #bffcd9;
+}
+
+/* แบบแดงใช้ตอนกันไม่ให้เข้าหอที่ยังตั้งค่าไม่ครบ (ต้นแบบใช้แถบนี้เหมือนกัน) */
+.toast-error {
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+}
+
+.toast .icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ขาออกเลื่อนไปทางขวาเหมือนตอนเข้า ไม่ใช่จางหายอยู่กับที่
+   ต้องมี forwards ไม่งั้นพอเล่นจบเฟรมสุดท้ายจะเด้งกลับมาโผล่ให้เห็นอีกวูบก่อนถูกถอด */
+.toast.leaving {
+  animation: toast-out 0.22s ease-in forwards;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.field textarea,
+.field select {
+  width: 100%;
+  padding: 9px 11px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+
+.field textarea:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+

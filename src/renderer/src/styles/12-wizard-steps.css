@@ -1,0 +1,488 @@
+/* 12-wizard-steps — ตัวช่วยตั้งค่า ขั้นที่ 2 (ค่าน้ำ/ค่าไฟ) · ขั้นที่ 4 (จัดการชั้น) · ขั้นที่ 5 (ผังห้อง)
+   ลำดับที่ 12 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 1967-2450 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   ขั้นที่ 2 — ค่าน้ำ / ค่าไฟ
+   ----------------------------------------------------- */
+.utility-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+@media (max-width: 900px) {
+  .utility-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.utility-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ไอคอนใหญ่นำหัวคอลัมน์ ไม่มีข้อความกำกับ — ต้นแบบใช้รูปอย่างเดียวบอกว่าฝั่งไหนคือน้ำ/ไฟ
+   จึงต้องเป็นสีประจำเรื่องที่ต่างกันชัด ไม่ใช่ไอคอนเส้นสีเดียวกันทั้งคู่ */
+.utility-mark {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.utility-mark svg {
+  width: 46px;
+  height: 46px;
+}
+
+.utility-mark-water {
+  color: var(--water);
+}
+
+.utility-mark-electric {
+  color: var(--brand-strong);
+}
+
+.utility-side-action {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.utility-footnote {
+  margin-top: 24px;
+}
+
+/* -----------------------------------------------------
+   ขั้นที่ 4 — จัดการชั้น (แถว "ชั้นที่ N [n] ห้อง")
+   ----------------------------------------------------- */
+/* เรียงลงมาทีละแถว ไม่ใช่วางต่อกันไปทางขวา — หอ 8 ชั้นจะได้อ่านไล่จากบนลงล่างได้ */
+.floor-count-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.floor-count-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ป้าย "ชั้นที่ N" กว้างคงที่ ช่องกรอกทุกแถวจะได้ตรงกันเป็นคอลัมน์เดียว */
+.floor-count-row label {
+  width: 72px;
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+.floor-count-row input {
+  width: 84px;
+  margin: 0;
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 16px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.floor-count-row .unit {
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+/* หอที่มีหลายตึก: หนึ่งแถวต่อชั้น = ป้ายชั้น | ตึก | เลขนำหน้า | จำนวนห้อง | ตัวอย่างเลข
+   (migration 030) — ความกว้างคงที่ทุกคอลัมน์เพื่อให้อ่านลงมาเป็นคอลัมน์ได้ */
+.floor-spec-head,
+.floor-spec-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 96px 96px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.floor-spec-head {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* หัวคอลัมน์ต้องตรงกับช่องกรอกด้านล่าง ไม่ใช่ตรงกับป้าย "ชั้นที่ N" */
+.floor-spec-head span:first-child {
+  visibility: hidden;
+}
+
+.floor-spec-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.floor-spec-label {
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+.floor-spec-row input {
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 16px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+/* ช่องเลขนำหน้ากับจำนวนห้องเป็นตัวเลขสั้น จัดกลางอ่านง่ายกว่าชิดซ้าย
+   ส่วนชื่อตึกเป็นข้อความ ต้องชิดซ้ายตามปกติ */
+.floor-spec-row input:nth-of-type(2),
+.floor-spec-row input:nth-of-type(3) {
+  text-align: center;
+}
+
+.floor-spec-sample {
+  font-size: 13px;
+}
+
+/* -----------------------------------------------------
+   ขั้นที่ 5 — ผังห้อง (การ์ดต่อชั้น หัวเทา ห้องละบรรทัด)
+   ----------------------------------------------------- */
+.plan-summary {
+  margin: 0 0 16px;
+}
+
+.plan-floor {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.plan-floor + .plan-floor {
+  margin-top: 20px;
+}
+
+.plan-floor-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #eceef0;
+}
+
+.plan-floor-head label {
+  font-size: 15px;
+  color: var(--text-soft);
+}
+
+.plan-floor-name {
+  width: 150px;
+  padding: 7px 12px;
+  font-size: 15px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.plan-floor-delete {
+  margin-left: auto;
+}
+
+/* หัวข้อของแต่ละตึก (หอที่มีหลายตึก) — ตัวหนาขนาดกลางคั่นระหว่างกลุ่มการ์ดชั้น
+   หอตึกเดียวจะไม่มีบล็อกนี้เลย หน้าจึงเหมือนเดิมทั้งหมด */
+.plan-building-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 24px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--brand);
+}
+
+.plan-building-head:first-child {
+  margin-top: 0;
+}
+
+.plan-building-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.plan-building-head .muted {
+  font-size: 13px;
+}
+
+.plan-add-floor-in-building {
+  margin-top: 12px;
+}
+
+/* บรรทัดตึก/เลขนำหน้าในหัวการ์ดชั้น — พื้นเดียวกับหัวการ์ด แต่คั่นด้วยเส้นบาง
+   เพื่อให้เห็นว่าเป็นข้อมูลอีกชุด ไม่ใช่ส่วนหนึ่งของชื่อชั้น */
+.plan-floor-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  padding: 12px 20px;
+  background: #f5f6f7;
+  border-top: 1px solid var(--border);
+}
+
+.plan-floor-meta .field {
+  margin: 0;
+}
+
+.plan-floor-meta label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.plan-floor-meta input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 12px;
+  font-size: 15px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+/* คำอธิบายกินสองคอลัมน์ — เป็นประโยคเดียวที่อธิบายทั้งสองช่องข้างบน */
+.plan-floor-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.plan-floor-body {
+  padding: 20px;
+}
+
+/* หนึ่งห้องหนึ่งบรรทัด: เลขห้อง / ประเภทห้อง / สวิตช์ / ปุ่มลบ */
+.plan-room {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding-bottom: 14px;
+}
+
+.plan-room .field {
+  flex: 0 0 auto;
+  width: 170px;
+  margin: 0;
+}
+
+.plan-room .field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.plan-room .field input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 15px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.plan-room .field-required input {
+  background: var(--input-bg);
+}
+
+.plan-room .toggle-row {
+  background: none;
+  padding: 8px 0;
+}
+
+.plan-room-delete {
+  margin-left: auto;
+  padding: 8px;
+}
+
+.plan-room-delete svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ปุ่มเพิ่มชั้นเต็มความกว้างปิดท้ายรายการ ตามต้นแบบ */
+.plan-add-floor {
+  margin-top: 24px;
+}
+
+.wizard-complete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+}
+
+.wizard-complete-card {
+  text-align: center;
+  padding: 40px 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.wizard-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  color: #fff;
+  background: var(--ok);
+  border-radius: 50%;
+}
+
+.wizard-check svg {
+  width: 30px;
+  height: 30px;
+}
+
+.wizard-complete-card h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.wizard-complete-card .muted {
+  margin-bottom: 20px;
+}
+
+/* การ์ดหอที่ยังตั้งค่าไม่เสร็จ */
+.apartment-card.needs-setup header {
+  background: var(--warn-weak);
+  border-bottom-color: var(--warn);
+}
+
+.tag-warn {
+  color: var(--warn);
+  background: var(--warn-weak);
+}
+
+/* แท็บสลับโหมดภายในหน้า */
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.mode-tab {
+  padding: 8px 18px;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.mode-tab.active {
+  color: #fff;
+  font-weight: 600;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.floor-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+}
+
+/* ห้องที่กดเลือกได้ (โหมดตั้งค่าหลายห้องพร้อมกัน) */
+.room-chip.selectable {
+  gap: 4px;
+}
+
+.room-chip.selected {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.status-badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.status-vacant {
+  color: var(--ok);
+  background: var(--ok-weak);
+}
+
+.status-occupied {
+  color: var(--warn);
+  background: var(--warn-weak);
+}
+
+.status-maintenance {
+  color: var(--err);
+  background: var(--err-weak);
+}
+
+/* แถบล่างค้างจอ — เลื่อนดูห้องได้โดยไม่ต้องเลื่อนกลับขึ้นไปกดปุ่ม */
+.bulk-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 -2px 10px rgba(42, 46, 44, 0.06);
+}
+
+.bulk-count {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.bulk-count strong {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.bulk-fields {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* รายการค่าบริการให้ติ๊กเลือกในแถบล่าง — ยาวได้ก็ให้เลื่อนในกล่องตัวเอง
+   ไม่ใช่ดันแถบล่างสูงจนบังห้อง */
+.service-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-height: 76px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.bulk-fields .input-with-suffix input {
+  width: 170px;
+  padding: 8px 11px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+

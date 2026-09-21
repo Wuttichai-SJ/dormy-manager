@@ -1,0 +1,366 @@
+/* 21-invoice — หน้าใบแจ้งหนี้ · หน้าตั้งค่า QR · กล่องบัญชีธนาคาร
+   ลำดับที่ 21 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 3893-4254 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   หน้าใบแจ้งหนี้
+   ----------------------------------------------------- */
+/* สองคอลัมน์ตามต้นแบบ: เอกสารซ้าย ยอดค้าง+รับเงินขวา
+   คอลัมน์ขวาแคบคงที่เพราะเป็นฟอร์มช่องเดียวเรียงลง ไม่ได้ต้องการความกว้าง */
+.invoice-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .invoice-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.invoice-main,
+.invoice-side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.invoice-doc-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 20px;
+}
+
+.invoice-doc-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+}
+
+.invoice-doc-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.invoice-apartment {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
+.invoice-doc-head .muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* หัวข้อ/ค่า เรียงเป็นคู่ชิดขวา ให้ค่าตรงหลังหัวข้อพอดีทุกบรรทัด */
+.invoice-doc-meta {
+  margin: 0;
+  font-size: 13px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.invoice-doc-meta > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.invoice-doc-meta dt {
+  color: var(--text-muted);
+}
+
+.invoice-doc-meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* ผู้เช่าของบิล — สองคอลัมน์ตามต้นแบบ (ชื่อ/ที่อยู่ ซ้าย เบอร์โทร ขวา)
+   คั่นจากหัวหอด้วยเส้นบาง เพื่อให้เห็นว่าเป็นข้อมูลของคนละฝ่าย */
+.invoice-tenant {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+  margin: 0 0 18px;
+  padding: 12px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-tenant > div {
+  display: flex;
+  gap: 8px;
+}
+
+.invoice-tenant dt {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.invoice-tenant dt::after {
+  content: ':';
+}
+
+.invoice-tenant dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* ที่อยู่ยาวกว่าช่องอื่น ให้กินเต็มแถว */
+.invoice-tenant-address {
+  grid-column: 1 / -1;
+}
+
+.invoice-tenant-address dd {
+  font-weight: 400;
+}
+
+.invoice-cotenants {
+  font-weight: 400;
+  color: var(--text-soft);
+}
+
+.invoice-col-no {
+  width: 36px;
+  color: var(--text-muted);
+}
+
+/* "(ก่อน VAT)" / "(รวม VAT)" ใต้หัวคอลัมน์ — บอกว่าตัวเลขในคอลัมน์นั้นรวมภาษีหรือยัง
+   ไม่งั้นผู้เช่าเอาราคาต่อหน่วยคูณจำนวนแล้วไม่ตรงกับยอดเงิน จะคิดว่าคิดเงินผิด */
+.invoice-col-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* บรรทัดภาษีของแต่ละรายการ ตัวเล็กจางใต้ตัวเลขหลัก — เห็นได้ว่าบรรทัดไหนโดนภาษี
+   โดยไม่แย่งสายตาไปจากยอดเงินซึ่งเป็นตัวเลขที่ผู้เช่าต้องอ่านจริง */
+.invoice-line-vat {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ยอดสรุปชิดขวาใต้ตาราง — บรรทัด "รวม" ตัวโตกว่าและมีเส้นคั่นเหนือ */
+.invoice-totals {
+  margin: 0;
+  margin-left: auto;
+  width: 260px;
+  font-size: 14px;
+}
+
+.invoice-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 0;
+}
+
+.invoice-totals dt {
+  color: var(--text-muted);
+}
+
+.invoice-totals dd {
+  margin: 0;
+}
+
+.invoice-total-row {
+  margin-top: 4px;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--border-strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.invoice-total-row dt {
+  color: var(--text) !important;
+}
+
+/* สรุปใบที่กำลังจะลบในหน้าต่างยืนยัน — กว้างเต็มหน้าต่าง ไม่ต้องชิดขวาแบบยอดบนบิล */
+.delete-summary {
+  width: 100%;
+  margin: 16px 0;
+}
+
+/* ท้ายบิล — โครงตามใบเสร็จ PDF ของต้นแบบ */
+.invoice-payment-info {
+  margin-top: 28px;
+}
+
+/* ช่องลงชื่อชิดขวา เว้นที่ให้เซ็นด้วยมือบนกระดาษจริง */
+.invoice-signature {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 260px;
+  margin: 0 0 20px auto;
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.invoice-signature strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* หน้าตั้งค่า QR — รูปตัวอย่างกับปุ่มจัดกลางในกรอบเดียว */
+.qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.qr-preview {
+  width: 220px;
+  height: auto;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* กรอบเส้นประตอนยังไม่มีรูป — บอกว่าตรงนี้ควรมีอะไรอยู่ ไม่ใช่พื้นที่ว่างเปล่า */
+.qr-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 220px;
+  height: 220px;
+  background: var(--bg);
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+}
+
+.qr-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* กล่องบัญชีกับ QR วางเคียงกัน — QR กว้างคงที่ กล่องบัญชีกินที่ที่เหลือ
+   ถ้าไม่มี QR กล่องบัญชีกินเต็มความกว้างเหมือนเดิม */
+.invoice-footer-layout.has-qr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* QR ต้องคมพอให้สแกนจากหน้าจอมือถือได้ พื้นขาวรอบรูปช่วยให้กล้องจับขอบ QR เจอ */
+.invoice-qr {
+  margin: 0;
+  padding: 8px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+.invoice-qr img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.invoice-qr figcaption {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* กล่องเดียวครอบตารางบัญชีกับข้อความท้ายบิล เส้นบางๆ แบ่งเป็นแถวเหมือนต้นแบบ */
+.invoice-footer-box {
+  border: 1px solid var(--border);
+  border-bottom: 0;
+}
+
+.invoice-banks {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.invoice-banks th {
+  padding: 7px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  background: #eceaea;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-banks td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+/* คอลัมน์แรกกว้างกว่า เพราะมีสองบรรทัด (ชื่อบัญชี + ธนาคาร) */
+.invoice-banks th:first-child,
+.invoice-banks td:first-child {
+  width: 55%;
+  border-right: 1px solid var(--border);
+}
+
+.invoice-banks td strong {
+  display: block;
+  font-size: 14px;
+}
+
+.invoice-bank-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.invoice-account-number {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+}
+
+.invoice-footer-note {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-footer-note strong {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* ข้อความท้ายบิลใช้สีน้ำตาลของแบรนด์ ให้ต่างจากตัวเลขในตารางอย่างชัดเจน
+   ผู้เช่าจะได้เห็นว่าเป็นข้อความที่ต้องอ่าน ไม่ใช่ข้อมูลอีกชุด */
+.invoice-footer-note p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--accent);
+  white-space: pre-line;
+}
+
+.invoice-tab-hint {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+

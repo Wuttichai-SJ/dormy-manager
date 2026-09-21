@@ -1,0 +1,222 @@
+/* 19-payments-backups — รับเงินหลายห้อง · หน้าสำรองข้อมูล
+   ลำดับที่ 19 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 3460-3677 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* ------------------------------------------------------------------
+   รับเงินหลายห้อง
+   ------------------------------------------------------------------ */
+/* ช่องทาง/วันที่/หมายเหตุ อยู่แถวเดียวกันด้านบน ใช้ร่วมกันทั้งหน้า — วางแยกจากการ์ดรายห้อง
+   ให้ชัด เพื่อไม่ให้เข้าใจว่าเป็นของห้องใดห้องหนึ่ง */
+.multi-pay-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: var(--input-bg);
+  border-radius: 10px;
+}
+
+.multi-pay-head .field {
+  width: 180px;
+  margin: 0;
+}
+
+.multi-pay-head .multi-pay-remark {
+  flex: 1;
+  min-width: 220px;
+}
+
+.multi-pay-selectall {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.multi-pay-selectall input {
+  width: auto;
+  margin: 0;
+}
+
+.multi-pay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+/* ซ้ายคือบิล ขวาคือช่องรับเงิน ตามต้นแบบ — ฝั่งขวากว้างคงที่เพื่อให้ช่องกรอกของทุกห้อง
+   อยู่ตรงกันเป็นแนวตั้ง กวาดตาไล่ยอดได้โดยไม่ต้องหาช่องใหม่ทุกแถว */
+.multi-pay-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ห้องที่จ่ายแล้ว/ยกเลิกแล้วยังต้องเห็น (ไม่ใช่หายไป) แต่ต้องไม่แย่งสายตากับห้องที่ต้องทำ */
+.multi-pay-card.is-locked {
+  background: var(--bg);
+  border-style: dashed;
+}
+
+.multi-pay-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.multi-pay-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.multi-pay-room input {
+  width: auto;
+  margin: 0;
+}
+
+.multi-pay-entry {
+  width: 260px;
+  flex-shrink: 0;
+}
+
+.multi-pay-entry .field {
+  margin: 0;
+}
+
+.multi-pay-done {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  width: 260px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.multi-pay-latefee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.multi-pay-latefee input {
+  width: auto;
+  margin: 0;
+}
+
+.multi-pay-foot {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.multi-pay-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.multi-pay-total strong {
+  font-size: 18px;
+  color: var(--accent);
+}
+
+/* ป้ายสถานะการจอง — สีบอกว่ายังกันห้องอยู่ไหม */
+.booking-status {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 5px;
+}
+
+.booking-pending {
+  color: #8a6b28;
+  background: var(--warn-weak);
+}
+
+.booking-confirmed {
+  color: #fff;
+  background: #12a150;
+}
+
+.booking-converted_to_contract {
+  color: var(--text-soft);
+  background: var(--border);
+}
+
+.booking-cancelled {
+  color: var(--err);
+  background: var(--err-weak);
+}
+
+/* แถวของใบจองที่จบไปแล้ว (ทำสัญญา/ยกเลิก) — จางลงให้เห็นชัดว่าเป็นประวัติ ไม่ใช่คนที่รออยู่
+   ปกติซ่อนไว้ จะเห็นก็ต่อเมื่อกดดูประวัติเท่านั้น */
+.booking-past td {
+  color: var(--text-muted);
+  background: var(--bg);
+}
+
+.booking-past-toggle {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+/* -----------------------------------------------------
+   หน้าสำรองข้อมูล
+   ----------------------------------------------------- */
+/* คำเตือนเรื่องดิสก์เดียวกัน — ต้องสะดุดตา เพราะเป็นความเข้าใจผิดที่ทำให้สำรองแล้วยังหายอยู่ดี */
+.backup-warning {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: var(--warn-weak);
+  border-radius: var(--radius);
+}
+
+.backup-warning svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--warn);
+}
+
+.backup-warning p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.backup-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* เส้นทางไฟล์ยาวและต้องคัดลอกไปวางได้ จึงใช้ฟอนต์ความกว้างคงที่และตัดขึ้นบรรทัดใหม่ได้ */
+.backup-path {
+  margin-top: 12px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  word-break: break-all;
+  user-select: all;
+}
+

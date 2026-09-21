@@ -1,0 +1,192 @@
+/* 18-contract-wizard — ตัวช่วยทำสัญญา 3 ขั้น
+   ลำดับที่ 18 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 3272-3459 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   ตัวช่วยทำสัญญา 3 ขั้น
+   ----------------------------------------------------- */
+.contract-steps {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.contract-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.contract-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  background: #e4e7ea;
+  border-radius: 50%;
+}
+
+.contract-step.current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.contract-step.current .contract-step-number {
+  color: var(--brand-ink);
+  background: var(--brand);
+}
+
+/* กล่องสรุปเงินสีฟ้าแบบต้นแบบ */
+.contract-summary {
+  margin: 20px 0;
+  padding: 16px 18px;
+  background: #eef2fb;
+  border-radius: var(--radius);
+}
+
+.contract-summary h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.contract-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.contract-summary-row .negative {
+  color: var(--err);
+}
+
+.contract-summary-row.total {
+  margin-top: 4px;
+  padding-top: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  border-top: 1px solid #ccd7ef;
+}
+
+/* ยอดเงินประกันที่จะค้างหลังกดบันทึก — โทนเตือน เพราะเป็นเงินที่ยังไม่ได้เก็บ
+   ไม่ใช่ข้อผิดพลาด และต้องเห็นตั้งแต่ก่อนบันทึก ไม่ใช่ไปเจอเอาทีหลังบนหน้าห้อง */
+.contract-summary-row.contract-summary-warn {
+  font-weight: 600;
+  color: var(--warn);
+}
+
+.contract-tenant {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius);
+}
+
+.contract-tenant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.contract-tenant .field-row + .field-row,
+.contract-tenant .field-row + .field {
+  margin-top: 14px;
+}
+
+/* หัวการ์ดที่มีปุ่มอยู่ขวาสุด (เช่น การ์ดรายชื่อคนจอง) */
+.panel-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.panel-head-row .panel-title,
+.panel-head-row .panel-subtitle {
+  margin-bottom: 0;
+}
+
+/* ยอดเงินประกันที่ยังเก็บไม่ครบ — อยู่ในการ์ดสัญญา ใช้โทนเตือนเพราะเป็นเงินที่ยังไม่ได้เก็บ
+   ไม่ใช่ข้อผิดพลาด จึงเป็นเหลืองไม่ใช่แดง */
+.deposit-due {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--warn-weak);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+}
+
+.deposit-due strong {
+  display: block;
+  color: var(--warn);
+}
+
+.deposit-due span {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+/* ป้ายในตารางห้อง — เห็นได้จากหน้ารวมโดยไม่ต้องกดเข้าไปทีละห้อง */
+.deposit-due-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--warn);
+  background: var(--warn-weak);
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+/* ห้องที่ข้ามไม่ออกบิล — บอกเหตุผลแทนปุ่ม ไม่ใช่ปล่อยช่องว่าง */
+.billing-skip {
+  font-size: 12px;
+}
+
+/* จอที่ขึ้นแทนหน้าที่พัง — ต้องอ่านออกและกดต่อได้ ไม่ใช่จอขาวเปล่าๆ */
+.error-screen {
+  max-width: 720px;
+  margin: 48px auto;
+}
+
+.error-screen h2 {
+  margin-bottom: 8px;
+  color: var(--err);
+}
+
+/* ข้อความ error ดิบ — ตัวหนังสือเล็กและอยู่ในกรอบ เพราะเป็นของสำหรับถ่ายรูปส่งต่อ
+   ไม่ใช่ของที่ต้องอ่านรู้เรื่องด้วยตัวเอง */
+.error-screen-detail {
+  margin: 16px 0;
+  padding: 12px 14px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--err);
+  background: var(--err-weak);
+  border-radius: 8px;
+}
+
+/* หัวการ์ดที่มีปุ่มมากกว่าหนึ่งปุ่ม */
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+

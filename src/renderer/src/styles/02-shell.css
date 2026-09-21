@@ -1,0 +1,169 @@
+/* 02-shell — เมนูข้าง · พื้นที่เนื้อหา · การ์ด · รายการป้าย/ค่า
+   ลำดับที่ 02 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 91-255 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--sidebar);
+  color: var(--sidebar-text);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 8px 12px 20px;
+  letter-spacing: 0.3px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--sidebar-text);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+/* ไอคอนถูกฝังเป็น <svg> ในเครื่อง — คุมขนาดที่นี่ที่เดียว สีวิ่งตาม currentColor เอง */
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nav-item:hover {
+  background: var(--sidebar-hover);
+}
+
+/* รายการที่เลือกอยู่ = ยาเม็ดเหลือง ตัวอักษรเข้ม ไม่ใช่ขีดข้างซ้าย (ตามต้นแบบ) */
+.nav-item.active {
+  background: var(--sidebar-active);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+
+/* Content */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.topbar {
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.page {
+  padding: 24px 28px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+
+/* หัวข้อในการ์ด — มีแถบสีคั่นหน้าเพื่อให้สายตาจับได้ทันทีว่าตรงนี้คือหัวข้อ
+   ไม่ใช่ข้อความธรรมดาที่แค่ตัวหนากว่านิดเดียว */
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.panel-title::before {
+  content: '';
+  width: 3px;
+  height: 17px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.panel-subtitle {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--text-muted);
+  margin-top: 0;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 20px 0;
+}
+
+/* รายการข้อมูลแบบ ป้ายกำกับ/ค่า ใช้ซ้ำได้ทุกหน้าที่แสดงข้อมูลอ่านอย่างเดียว */
+.detail-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.detail-list dt {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.detail-list dd {
+  margin: 0;
+  font-size: 15px;
+}
+

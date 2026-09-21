@@ -1,0 +1,166 @@
+/* 22-receipts — กล่องยอดค้าง · การ์ดรับเงิน · ใบคืนเงิน · ใบเสร็จที่ยกเลิก
+   ลำดับที่ 22 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 4255-4416 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* กล่องยอดค้าง — แดงเมื่อยังค้าง เขียวเมื่อจ่ายครบ ตัวเลขต้องเห็นจากอีกฝั่งห้อง */
+.outstanding-box {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  color: var(--err);
+  background: var(--err-weak);
+  border: 1px solid #e8c9c5;
+  border-radius: 10px;
+}
+
+.outstanding-box strong {
+  font-size: 24px;
+  margin-left: auto;
+}
+
+.outstanding-unit {
+  font-size: 13px;
+}
+
+.outstanding-box.settled {
+  color: var(--ok);
+  background: var(--ok-weak);
+  border-color: #c3ddc9;
+}
+
+/* การ์ดรับเงินมีขอบเขียวตามต้นแบบ เพื่อแยกออกจากการ์ดอ่านอย่างเดียวรอบตัว */
+.payment-card {
+  border: 1px solid #c3ddc9;
+}
+
+.receipt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.receipt {
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.receipt-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.receipt .muted {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
+.receipt-remark {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* ใบคืนเงินมีแถบแดงด้านซ้าย — ในประวัติที่ไล่ลงมายาวๆ ต้องแยกออกจากใบรับเงินได้ทันที */
+.receipt.refund {
+  border-left: 3px solid var(--err);
+}
+
+/* แถวใบคืนเงินในรายงาน — พื้นแดงจางเพื่อให้กวาดตาแล้วเห็นว่าแถวไหนเป็นเงินออก
+   ไม่ใช่ต้องไปสังเกตเครื่องหมายลบหน้าตัวเลขทีละแถว */
+.receipt-row-refund {
+  background: var(--err-weak);
+}
+
+/* ใบเสร็จที่ถูกยกเลิก — ยังอยู่ในรายการ (เลขที่ต้องตามได้) แต่ต้องอ่านออกทันทีว่า
+   ไม่ใช่เงินที่รับมาจริง จึงจางลงและขีดฆ่าเฉพาะ "เลขที่กับยอด" ไม่ขีดทั้งการ์ด
+   เพราะเหตุผลที่ยกเลิกเป็นบรรทัดที่ต้องอ่านออก */
+.receipt.cancelled {
+  border-left: 3px solid var(--text-muted);
+  opacity: 0.75;
+}
+
+.receipt.cancelled .receipt-head {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.receipt-cancelled-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* แถวที่ยกเลิกในรายงาน — จางกว่าแถวปกติ และตัวเลขถูกขีดฆ่าไว้ เพราะยอดในคอลัมน์นี้
+   ไม่ได้ถูกนับรวมในการ์ดสรุปด้านบน ถ้าไม่ทำเครื่องหมายไว้ คนบวกเลขในตารางเองจะได้
+   ยอดที่ไม่ตรงกับการ์ดแล้วนึกว่าระบบคำนวณผิด */
+.receipt-row-cancelled {
+  color: var(--text-muted);
+}
+
+.receipt-row-cancelled td:nth-child(3),
+.receipt-row-cancelled td:nth-child(7) {
+  text-decoration: line-through;
+}
+
+.receipt-cancelled-tag {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.receipt-check {
+  width: 34px;
+}
+
+.receipt-check input {
+  width: auto;
+  margin: 0;
+}
+
+.receipt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ตัวเลือกด่วนวางเป็นลิงก์เรียงกัน ไม่ใช่ปุ่ม — เป็นทางลัดไปตั้งค่าช่องวันที่ข้างๆ
+   ไม่ใช่คำสั่งที่ทำอะไรด้วยตัวเอง */
+.quick-ranges {
+  width: auto !important;
+}
+
+.quick-range-buttons {
+  display: flex;
+  gap: 14px;
+  padding-bottom: 9px;
+}
+
+/* เหตุผล/ผู้ยกเลิก/วันที่ ในแถบเตือนของบิลที่ถูกยกเลิก — หัวข้อซ้ายค่าขวาแบบรายการสั้นๆ
+   ไม่ใช้ .invoice-totals เพราะนั่นเป็นตัวเลขเงินชิดขวา ส่วนนี่เป็นข้อความยาวได้ */
+.invoice-cancel-info {
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  font-size: 13px;
+}
+
+.invoice-cancel-info > div {
+  display: contents;
+}
+
+.invoice-cancel-info dt {
+  font-weight: 600;
+}
+
+.invoice-cancel-info dd {
+  margin: 0;
+}
+

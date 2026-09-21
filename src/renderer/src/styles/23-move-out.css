@@ -1,0 +1,207 @@
+/* 23-move-out — แจ้งย้ายออก · หน้าสรุปย้ายออก · ใบสรุปการย้ายออก — @media print ก้อนที่ 2 จาก 3
+   ลำดับที่ 23 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 4417-4619 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   แจ้งย้ายออก / ยกเลิกสัญญา
+   ----------------------------------------------------- */
+/* หัวข้อ "แจ้งย้ายออก" อยู่ท้ายการ์ดสัญญาตามต้นแบบ คั่นด้วยเส้นเพราะเป็นคนละเรื่อง
+   กับรายละเอียดสัญญาด้านบน — นี่คือทางออก ไม่ใช่ข้อมูล */
+.move-out-notice {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.move-out-notice h4 {
+  margin: 0;
+  align-self: flex-start;
+  font-size: 14px;
+}
+
+/* วันที่ที่แจ้งไว้เป็นตัวโตกลางการ์ดตามต้นแบบ — เป็นข้อมูลชิ้นเดียวของบล็อกนี้
+   และเป็นตัวเลขที่กฎเงินประกันใช้ตัดสิน จึงต้องอ่านผิดไม่ได้ */
+.move-out-notice-date {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.btn-danger {
+  background: var(--err);
+  border-color: var(--err);
+  color: #fff;
+}
+
+/* -----------------------------------------------------
+   หน้าสรุปย้ายออก
+   ----------------------------------------------------- */
+/* กล่องผลการตัดสิน — ต้นแบบไม่มีกล่องนี้ (ของเขาคืนเสมอ) ของเราต้องประกาศให้ชัด
+   ว่าตัดสินว่าอะไรเพราะอะไร ก่อนที่เจ้าของหอจะไปบอกผู้เช่าว่าไม่ได้เงินคืน */
+.verdict-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border-left: 3px solid;
+}
+
+.verdict-refund {
+  background: var(--ok-weak);
+  border-color: var(--ok);
+}
+
+.verdict-forfeit {
+  background: var(--err-weak);
+  border-color: var(--err);
+}
+
+.verdict-box span {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.move-out-summary {
+  text-align: center;
+}
+
+.move-out-total {
+  margin: 0;
+  font-size: 20px;
+}
+
+.move-out-refund {
+  color: var(--ok);
+}
+
+/* ยอดติดลบไม่ใช่ "เงินคืนติดลบ" แต่แปลว่าผู้เช่ายังต้องจ่าย — สีต้องต่างกันชัด
+   ไม่งั้นคนกวาดตาผ่านจะอ่านเป็นตัวเลขเงินคืนก้อนหนึ่ง */
+.move-out-owed {
+  color: var(--err);
+}
+
+.move-out-formula {
+  margin-top: 4px;
+}
+
+.move-out-confirm {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.move-out-confirm .field {
+  width: auto;
+  margin: 0;
+}
+
+.move-out-adjust-total {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+/* ยอดสุทธิติดลบ = ผู้เช่าต้องจ่ายเพิ่ม — ช่องติ๊กว่าเก็บมาแล้วอยู่ตรงนี้ ไม่ใช่ซ่อนในหน้าอื่น
+   เพราะเป็นการตัดสินใจที่เกิดพร้อมกับการกดยืนยัน */
+.move-out-shortfall {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--err-weak);
+  text-align: left;
+}
+
+.move-out-done {
+  margin-top: 16px;
+}
+
+/* -----------------------------------------------------
+   ใบสรุปการย้ายออก
+   -----------------------------------------------------
+   ใช้คลาสชุดเดียวกับใบแจ้งหนี้/ใบเสร็จ (invoice-doc-title / invoice-items / invoice-totals)
+   เพื่อให้กระดาษที่ออกมาเป็นตระกูลเดียวกัน ที่นี่มีแค่ส่วนที่เอกสารนี้มีเพิ่ม */
+.move-out-doc-terms {
+  margin-bottom: 16px;
+}
+
+/* หัวข้อของแต่ละกลุ่มเงิน — สามกลุ่มบนเอกสารมีความหมายทางบัญชีคนละอย่าง
+   (เงินประกัน/ค่าเสียหาย · ค่าที่ต้องชำระแยก · เงินที่หอคืนให้) ถ้าไม่คั่นหัวข้อ
+   ผู้เช่าจะอ่านเป็นบรรทัดยาวบรรทัดเดียวแล้วไม่รู้ว่าอะไรหักจากอะไร */
+.move-out-doc-group {
+  margin: 18px 0 6px;
+  font-size: 14px;
+}
+
+.move-out-doc-group:first-of-type {
+  margin-top: 8px;
+}
+
+/* บรรทัดยอดย่อย (คงเหลือ / ส่วนเกิน) — ขีดเส้นบนให้เห็นว่าเป็นผลรวมของบรรทัดข้างบน */
+.move-out-doc-sub td {
+  border-top: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+
+/* ตารางใบเสร็จท้ายเอกสาร — คั่นจากตารางเงินด้านบนด้วยระยะ เพราะเป็นคนละคำถาม
+   (ข้างบน "หักอะไรบ้าง" · ข้างล่าง "เอกสารที่ออกให้คือใบไหน") */
+.move-out-doc-receipts {
+  margin-top: 20px;
+}
+
+.move-out-doc-unpaid {
+  margin: 12px 0 0;
+  color: var(--err);
+}
+
+.move-out-doc-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+/* ชุดใบแจ้งหนี้ที่กำลังจะพิมพ์ทีเดียวทั้งหอ — **ใบละหนึ่งแผ่นเต็ม A4 แนวตั้ง**
+   ต่างจากใบเสร็จที่ยัดสองใบต่อแผ่น เพราะใบแจ้งหนี้มีตารางรายการ ท้ายบิล บัญชีธนาคาร
+   และ QR ซึ่งไม่มีทางลงครึ่งแผ่นได้ (และผู้ใช้ยืนยันรูปแบบเต็มแผ่นนี้ไว้แล้ว 2026-08-08) */
+.invoice-sheet + .invoice-sheet {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+@media print {
+  .invoice-sheet {
+    break-after: page;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* ใบสุดท้ายไม่ต้องขึ้นหน้าใหม่ ไม่งั้นได้กระดาษเปล่าท้ายชุด */
+  .invoice-sheet:last-child {
+    break-after: auto;
+  }
+}
+
+/* ใบเสร็จที่กำลังจะพิมพ์ — ตัวเอกสารใช้สไตล์ชุดเดียวกับใบแจ้งหนี้ */
+.receipt-doc + .receipt-doc {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+/* ยอดที่รับจริงในครั้งนี้ คั่นจากยอดรวมของบิลด้วยเส้น เพราะเป็นคนละตัวเลข
+   (จ่ายบางส่วนแล้วสองยอดนี้ไม่เท่ากัน) */
+.receipt-received {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+

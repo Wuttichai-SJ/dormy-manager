@@ -1,0 +1,275 @@
+/* 11-modal-toggle — หน้าต่างซ้อน · สวิตช์เปิด/ปิด
+   ลำดับที่ 11 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 1696-1966 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* -----------------------------------------------------
+   หน้าต่างซ้อน
+   ----------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(24, 20, 16, 0.45);
+}
+
+.modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* หน้าต่างกว้างสำหรับตัวอย่างก่อนพิมพ์ — กระดาษ A4 ต้องเห็นเต็มใบถึงจะตรวจได้จริง
+   ใช้ flex เพื่อให้ตัวอย่างยืดกินที่ว่างที่เหลือ ส่วนหัวกับแถบปุ่มคงความสูงของตัวเอง */
+.modal-wide {
+  display: flex;
+  flex-direction: column;
+  max-width: 1000px;
+  height: 90vh;
+  overflow: hidden;
+}
+
+.modal-wide form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.modal-wide .modal-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+/* กรอบตัวอย่าง — พื้นเทาเข้มแบบโปรแกรมอ่าน PDF เพื่อให้ขอบกระดาษขาวเห็นชัด
+   iframe วางทับข้อความสถานะ ข้อความจึงโผล่ก็ต่อเมื่อตัวอ่าน PDF แสดงผลไม่ได้ */
+.print-preview {
+  position: relative;
+  flex: 1;
+  min-height: 320px;
+  margin-bottom: 16px;
+  background: #4b4b4b;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.print-preview iframe {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.print-preview-status {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: #e6e0d9;
+}
+
+.print-scale-note {
+  margin: 0 0 12px;
+  color: var(--warn);
+}
+
+/* เครื่องพิมพ์กับจำนวนชุดอยู่แถวเดียวกันใต้ตัวอย่าง ไม่กินความสูงของตัวอย่างไปมาก */
+.print-options {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.print-options .field {
+  flex: 1;
+  margin: 0;
+}
+
+.print-copies {
+  flex: 0 0 110px !important;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.modal-head .icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.modal-close {
+  display: inline-flex;
+  padding: 4px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.modal-close .icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-body .field + .field {
+  margin-top: 16px;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px;
+  background: #f8f7f6;
+  border-top: 1px solid var(--border);
+}
+
+/* -----------------------------------------------------
+   สวิตช์เปิด/ปิด
+   ----------------------------------------------------- */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  font-size: 14px;
+  background: #f4f5f6;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.toggle-row.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ช่องติ๊กจริงยังอยู่ แค่มองไม่เห็น — โฟกัสด้วยแป้นพิมพ์จึงยังทำงาน */
+.toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  background: #c9ccd1;
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+
+/* เปิดแล้วเป็นส้ม ไม่ใช่เขียว — ตามต้นแบบ และเข้าชุดกับโทนน้ำตาล/เหลืองของแบรนด์
+   (สีเขียวสงวนไว้ให้ป้ายสถานะ "ว่าง" กับข้อความแจ้งผลสำเร็จเท่านั้น) */
+.toggle-input:checked + .toggle-track {
+  background: #e5860f;
+}
+
+.toggle-input:checked + .toggle-track .toggle-knob {
+  transform: translateX(18px);
+}
+
+.toggle-input:focus-visible + .toggle-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toggle-label {
+  color: var(--text-soft);
+}
+
+/* ในตารางใช้สวิตช์เปล่าๆ ไม่มีข้อความกำกับและไม่มีพื้นแถบ (หัวคอลัมน์บอกอยู่แล้วว่าคืออะไร) */
+.data-table .toggle-row {
+  gap: 0;
+  padding: 0;
+  background: none;
+}
+
+/* ปุ่มที่มีแต่ไอคอน ไม่ต้องเว้นระยะแบบปุ่มข้อความ */
+.link-btn.icon-only svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* หน้าแต่ละขั้นมีแถบคำอธิบายของตัวเอง (.info-banner) ไว้ใช้ตอนเปิดเดี่ยวๆ จากเมนูตั้งค่า
+   ใน wizard แถบแรกซ้ำกับแถบครีมหัวการ์ด จึงซ่อนทิ้ง — แต่ซ่อนเฉพาะแถบแรกเท่านั้น
+   บางขั้น (บัญชีธนาคาร) มีสองหัวข้อในหน้าเดียว แถบที่สองคือหัวข้อของจริง ห้ามซ่อน */
+.wizard-card-body > .info-banner:first-child {
+  display: none;
+}
+
+/* แถบหัวข้อที่สองเป็นต้นไป ทำให้หน้าตาเหมือนแถบครีมหัวการ์ด และกินเต็มความกว้าง */
+.wizard-card-body > .info-banner {
+  margin: 32px -24px 24px;
+  padding: 20px 24px;
+  background: #fcfdeb;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid #c37800;
+  border-radius: 0;
+}
+
+/* แถบล่างการ์ดที่มีแต่ปุ่มบันทึก — ต้นแบบใช้พื้นเทาอ่อนแยกจากเนื้อหาข้างบน */
+.card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin: 24px -24px -24px;
+  padding: 14px 24px;
+  background: #f8f7f6;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 12px 12px;
+}
+

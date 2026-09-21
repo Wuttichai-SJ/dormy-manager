@@ -1,0 +1,190 @@
+/* 03-controls — ปุ่มหลัก/รอง · ฟอร์มทั่วไป · ช่องกรอกรหัสสำรอง
+   ลำดับที่ 03 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 256-441 ของ styles.css
+   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+
+/* ปุ่ม */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 9px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn {
+  font-weight: 600;
+  box-shadow: var(--shadow-card);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-block {
+  width: 100%;
+  padding: 11px 16px;
+}
+
+/* ปุ่มรอง — ต้องดูเป็น "ทางเลือก" ไม่ใช่ปุ่มหลักอีกใบ จึงไม่มีพื้นสีและไม่มีเงา */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-soft);
+  border: 1px solid var(--border-strong);
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--accent-weak);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.button-row {
+  display: flex;
+  gap: 10px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  width: 100%;
+  text-decoration: none;
+}
+
+.link-back:hover {
+  text-decoration: underline;
+}
+
+/* ฟอร์ม */
+.field {
+  margin-bottom: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.field-row {
+  display: flex;
+  gap: 14px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 5px;
+}
+
+.field .optional {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.field input {
+  width: 100%;
+  padding: 9px 11px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+.field-hint {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ช่องกรอกรหัสสำรอง — แยก 4 กลุ่มตามที่พิมพ์บนกระดาษ ผู้ใช้จะได้เห็นว่าคัดมาถึงกลุ่มไหน
+   ตัวอักษรใช้ฟอนต์ monospace ตัวพิมพ์ใหญ่ เทียบกับกระดาษได้ตรงตัว */
+.code-segments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.code-segment {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  padding: 10px 4px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.code-segment:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+.code-dash {
+  color: var(--text-muted);
+  font-weight: 600;
+  user-select: none;
+}
+
+.code-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.code-complete {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.code-warn {
+  color: var(--err);
+}
+
