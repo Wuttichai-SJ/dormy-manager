@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import DateField from '../components/DateField.jsx'
 import { centsToInput, formatBaht } from '../format.js'
+import { FULL_MONTH_MOVE_IN_UNTIL_DAY, PRORATE_DAYS_PER_MONTH } from '../constants.js'
 import { EMPTY_TENANT } from '../components/TenantDialog.jsx'
 import { createTenant, listTenants } from '../services/tenantService.js'
 import { createContract } from '../services/contractService.js'
@@ -494,13 +495,28 @@ function toCentsSafe(value) {
   return Number.isFinite(n) ? Math.round(n * 100) : 0
 }
 
-// สำเนาสูตรจาก db/contracts.js ไว้แสดงตัวอย่างก่อนบันทึก — ฝั่ง main เป็นตัวจริงเสมอ
-// ถ้าแก้สูตรที่ main ต้องแก้ที่นี่ด้วย (เหมือน constants.js)
+// สำเนาสูตรจาก calculateAdvanceRentCents ใน db/contracts.js ไว้แสดงตัวอย่างก่อนบันทึก
+// **ฝั่ง main เป็นตัวจริงเสมอ — ที่นี่ต้องให้คำตอบเท่ากันทุกกรณี** ไม่งั้นคนหน้าเคาน์เตอร์
+// จะเก็บเงินตามตัวเลขบนจอ แล้วระบบออกใบเสร็จเป็นอีกยอด (เคยเกิดมาแล้ว ดูคอมเมนต์ที่
+// FULL_MONTH_MOVE_IN_UNTIL_DAY ใน constants.js)
+//
+// ต่างจาก main ได้แค่เรื่องเดียว: วันที่ยังกรอกไม่เสร็จให้คืน 0 แทนการโยน error
+// เพราะที่นี่ถูกเรียกใหม่ทุกตัวอักษรที่พิมพ์ ไม่ใช่ตอนกดบันทึก
 function advanceRentCents(rentCents, startDate) {
   const date = new Date(`${startDate}T00:00:00`)
   if (Number.isNaN(date.getTime())) return 0
+
+  const rent = Number(rentCents)
+  const dayOfMonth = date.getDate()
+  if (dayOfMonth <= FULL_MONTH_MOVE_IN_UNTIL_DAY) return rent
+
+  // วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้ (กันเดือน ก.พ. / ปีอธิกสุรทินเอง)
   const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  return Math.round((rentCents * (daysInMonth - date.getDate() + 1)) / daysInMonth)
+  // นับวันเข้าพักเป็นวันแรกที่คิดเงินด้วย — เข้า 15 มิ.ย. = อยู่ 16 วัน (15 ถึง 30)
+  const daysStaying = daysInMonth - dayOfMonth + 1
+
+  // **หารด้วย 30 เสมอ ไม่ใช่ daysInMonth** — กติกาของหอนี้ (ยืนยันกับเจ้าของหอแล้ว)
+  return Math.round((rent * daysStaying) / PRORATE_DAYS_PER_MONTH)
 }
 
 // ใบจองเก็บชื่อเป็นข้อความก้อนเดียว — เดาให้แค่ "คำแรกคือชื่อ ที่เหลือคือนามสกุล"

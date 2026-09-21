@@ -133,6 +133,17 @@ export const MAINTENANCE_STATUS_FILTERS = [
 // การคำนวณจริงอยู่ฝั่ง main ทั้งหมด ห้ามเอาค่านี้ไปคูณอะไรที่นี่
 export const VAT_RATE = 7
 
+// ต้องตรงกับ FULL_MONTH_MOVE_IN_UNTIL_DAY / PRORATE_DAYS_PER_MONTH ใน src/main/db/contracts.js
+// ใช้คิด "ค่าเช่าล่วงหน้าที่ต้องเก็บ" ให้เห็นก่อนกดบันทึกในตัวช่วยทำสัญญา
+//
+// 🔴 **เคยเพี้ยนมาแล้วจริง อย่าปล่อยให้เกิดซ้ำ** — ตอนแก้สูตรฝั่ง main ให้หารด้วย 30
+// และเพิ่มกฎ "เข้าวันที่ 1-3 คิดเต็มเดือน" สำเนาที่ ContractWizard.jsx ไม่ได้ถูกแก้ตาม
+// ยังหารด้วยจำนวนวันจริงของเดือนอยู่ ผลคือตัวเลขที่คนหน้าเคาน์เตอร์อ่านแล้วเก็บเงินสด
+// ไม่ตรงกับใบเสร็จที่ระบบออกให้ (เข้า 15 ก.ค. ค่าเช่า 5,000 → จอโชว์ 2,741.94
+// แต่ระบบเก็บ 2,833.33) ตรงกันเฉพาะเดือนที่มี 30 วันเท่านั้น
+export const FULL_MONTH_MOVE_IN_UNTIL_DAY = 3
+export const PRORATE_DAYS_PER_MONTH = 30
+
 // ต้องตรงกับ INVOICE_STATUSES / INVOICE_STATUS_LABELS ใน src/main/db/invoices.js
 export const INVOICE_STATUS_LABELS = {
   unpaid: 'ค้างชำระ',
