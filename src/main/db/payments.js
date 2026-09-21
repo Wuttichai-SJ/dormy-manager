@@ -68,48 +68,60 @@ export function recordInvoicePayment(
   const errors = validateCommon({ paymentMethod, paymentDate })
   if (errors.length > 0) throw new Error(errors.join('\n'))
 
-  // ค่าปรับต้องเข้าบิล "ก่อน" คิดยอดค้าง ไม่งั้นเงินที่รับมาคลุมค่าปรับไม่ได้
-  const lateFeeCents = lateFee ? toCents(lateFee, 'ค่าปรับชำระล่าช้า') : 0
-  if (lateFeeCents > 0) {
-    const rule = getLateFeeForInvoice(db, invoiceId, paymentDate)
-    if (!rule.enabled) throw new Error('หอพักนี้ไม่ได้เปิดการเก็บค่าปรับชำระล่าช้า')
-    if (lateFeeCents > rule.suggestedCents) {
+  // **ทั้งตัวรับเงินอยู่ในธุรกรรมเดียว** — `addLateFeeItem` ข้างล่างเขียนค่าปรับลงบิล *จริง*
+  // และ commit ทันที ทั้งที่ด่านตรวจ "รับเงินได้ไม่เกินยอดค้างชำระ" ยังอยู่ถัดไปอีกหลายบรรทัด
+  // ถ้าไม่ห่อไว้ การกรอกยอดเกินจะทิ้งรายการค่าปรับค้างบนบิลถาวรโดยไม่มีใบเสร็จคู่กัน
+  // = บิลมีหนี้ที่งอกมาจากการจ่ายเงินที่ไม่เคยเกิดขึ้น (handler `payment:receive` ไม่ได้ห่อ
+  // ธุรกรรมให้ จึงต้องห่อที่นี่ ไม่ใช่ฝากความหวังไว้กับผู้เรียก)
+  //
+  // better-sqlite3 ทำธุรกรรมซ้อนเป็น SAVEPOINT อยู่แล้ว จึงไม่ชนกับธุรกรรมภายใน
+  // `addLateFeeItem`/`writePayment` และซ้อนอยู่ใต้ `recordInvoicePayments` (พหูพจน์) ได้ตามเดิม
+  const run = db.transaction(() => {
+    // ค่าปรับต้องเข้าบิล "ก่อน" คิดยอดค้าง ไม่งั้นเงินที่รับมาคลุมค่าปรับไม่ได้
+    const lateFeeCents = lateFee ? toCents(lateFee, 'ค่าปรับชำระล่าช้า') : 0
+    if (lateFeeCents > 0) {
+      const rule = getLateFeeForInvoice(db, invoiceId, paymentDate)
+      if (!rule.enabled) throw new Error('หอพักนี้ไม่ได้เปิดการเก็บค่าปรับชำระล่าช้า')
+      if (lateFeeCents > rule.suggestedCents) {
+        throw new Error(
+          `ค่าปรับเกินกว่าที่กฎของหอกำหนด — เก็บได้ไม่เกิน ${formatBaht(rule.suggestedCents)} บาท`
+        )
+      }
+      addLateFeeItem(db, invoiceId, {
+        amountCents: lateFeeCents,
+        overdueDays: rule.overdueDays
+      })
+    }
+
+    const invoice = loadInvoiceForPayment(db, invoiceId)
+    const amountCents = toCents(amount, 'จำนวนเงิน')
+    if (amountCents === 0) throw new Error('จำนวนเงินต้องมากกว่า 0')
+
+    // จ่ายเกินยอดค้างไม่ได้ — เงินส่วนเกินไม่มีที่ไป และยอดค้างจะกลายเป็นติดลบ
+    // ซึ่งอ่านไม่ออกว่าแปลว่าอะไร ถ้าผู้เช่าจ่ายเกินจริง ให้ออกใบเสร็จเท่ายอดค้าง
+    // แล้วส่วนเกินไปเป็นเงินล่วงหน้าของสัญญา
+    const outstanding = invoice.totalAmountCents - invoice.paidCents
+    if (amountCents > outstanding) {
       throw new Error(
-        `ค่าปรับเกินกว่าที่กฎของหอกำหนด — เก็บได้ไม่เกิน ${formatBaht(rule.suggestedCents)} บาท`
+        `รับเงินได้ไม่เกินยอดค้างชำระ ${formatBaht(outstanding)} บาท ` +
+          `(กรอกมา ${formatBaht(amountCents)} บาท)`
       )
     }
-    addLateFeeItem(db, invoiceId, {
-      amountCents: lateFeeCents,
-      overdueDays: rule.overdueDays
+
+    return writePayment(db, {
+      invoiceId,
+      contractId: null,
+      apartmentId: invoice.apartmentId,
+      amountCents,
+      purpose: 'invoice',
+      paymentMethod,
+      paymentDate,
+      remark,
+      createdBy
     })
-  }
-
-  const invoice = loadInvoiceForPayment(db, invoiceId)
-  const amountCents = toCents(amount, 'จำนวนเงิน')
-  if (amountCents === 0) throw new Error('จำนวนเงินต้องมากกว่า 0')
-
-  // จ่ายเกินยอดค้างไม่ได้ — เงินส่วนเกินไม่มีที่ไป และยอดค้างจะกลายเป็นติดลบ
-  // ซึ่งอ่านไม่ออกว่าแปลว่าอะไร ถ้าผู้เช่าจ่ายเกินจริง ให้ออกใบเสร็จเท่ายอดค้าง
-  // แล้วส่วนเกินไปเป็นเงินล่วงหน้าของสัญญา
-  const outstanding = invoice.totalAmountCents - invoice.paidCents
-  if (amountCents > outstanding) {
-    throw new Error(
-      `รับเงินได้ไม่เกินยอดค้างชำระ ${formatBaht(outstanding)} บาท ` +
-        `(กรอกมา ${formatBaht(amountCents)} บาท)`
-    )
-  }
-
-  return writePayment(db, {
-    invoiceId,
-    contractId: null,
-    apartmentId: invoice.apartmentId,
-    amountCents,
-    purpose: 'invoice',
-    paymentMethod,
-    paymentDate,
-    remark,
-    createdBy
   })
+
+  return run()
 }
 
 // ------------------------------------------------------------------

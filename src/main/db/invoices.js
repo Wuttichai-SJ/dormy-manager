@@ -859,8 +859,15 @@ export function refreshInvoiceStatus(db, invoiceId, now) {
   // บิลที่ถูกยกเลิกไม่ถูกแตะ — สถานะ 'cancelled' ต้องชนะทุกอย่าง
   if (row.status === 'cancelled') return
 
+  // **บิลยอด 0 (หรือติดลบ) ถือว่าชำระครบ** — เกิดขึ้นจริงเมื่อเจ้าของหอใส่ส่วนลดเท่ากับ
+  // ยอดบิลทั้งใบ (addInvoiceItem รองรับ) เงื่อนไขเดิมมี `&& row.total > 0` ต่อท้าย ทำให้
+  // บิลแบบนั้นตกเป็น 'unpaid' ตลอดกาลและเคลียร์ไม่ได้เลย เพราะ recordInvoicePayment
+  // ไม่รับยอด 0 และไม่รับยอดเกินยอดค้าง (ซึ่งเป็น 0) — บิลจะค้างในแท็บค้างชำระ ในตัวเลข
+  // หน้าภาพรวม และบล็อกการย้ายออก (terminations.js) ถาวร
+  //
+  // ไม่กระทบบิลที่ถูกยกเลิก เพราะ 'cancelled' return ออกไปก่อนแล้วด้านบน
   let status = 'unpaid'
-  if (row.paid >= row.total && row.total > 0) status = 'paid'
+  if (row.paid >= row.total) status = 'paid'
   else if (row.paid > 0) status = 'partial_paid'
 
   if (status === row.status) return
