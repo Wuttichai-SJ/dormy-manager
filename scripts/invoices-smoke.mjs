@@ -19,6 +19,8 @@ const tenants = await import('../src/main/db/tenants.js')
 const contracts = await import('../src/main/db/contracts.js')
 const meter = await import('../src/main/db/meterReadings.js')
 const invoices = await import('../src/main/db/invoices.js')
+// แปลงสตางค์เป็นข้อความบาทด้วยตัวเดียวกับที่โปรแกรมใช้ ไม่หาร 100 เอง (กฎใน money.js)
+const { centsToBaht } = await import('../src/main/money.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-invoices')
 
@@ -1224,6 +1226,66 @@ check('ออกบิลทั้งหอแล้วข้ามห้อง�
     !result.created.some((c) => c.roomNumber === newcomer.roomNumber),
     'ต้องไม่มีบิลของห้องนั้นถูกสร้าง'
   )
+})
+
+// -----------------------------------------------------
+// บิลที่ถูกลดจนยอดรวมเหลือ 0 — เจ้าของหอใส่ส่วนลดเท่ากับยอดบิลทั้งใบ (addInvoiceItem รองรับ)
+// บิลแบบนี้ต้องนับว่าชำระครบทันที ไม่งั้นจะเคลียร์ไม่ได้เลย เพราะ recordInvoicePayment
+// ไม่รับยอด 0 และไม่รับยอดเกินยอดค้าง (ซึ่งเป็น 0) → ค้างในแท็บค้างชำระและบล็อกการย้ายออกถาวร
+group('บิลที่ยอดรวมเหลือ 0')
+
+const zeroBatch = meter.createBatch(db, apartmentId, '2027-10-31')
+const zeroInvoice = invoices.createMonthlyInvoice(db, {
+  contractId: newContract.contractId,
+  billingMonth: '2027-10',
+  meterBatchId: zeroBatch.batchId,
+  issueDate: '2027-10-31'
+})
+
+check('ตั้งต้น: บิลยังค้างชำระตามปกติก่อนใส่ส่วนลด', () => {
+  assert(zeroInvoice.totalAmountCents > 0, `ยอดตั้งต้น ${zeroInvoice.totalAmountCents}`)
+  assert(zeroInvoice.status === 'unpaid', `ได้ ${zeroInvoice.status}`)
+})
+
+check('ส่วนลดเท่ากับยอดบิลทั้งใบ ทำให้บิลเป็นชำระแล้วทันที', () => {
+  const after = invoices.addInvoiceItem(db, zeroInvoice.invoiceId, {
+    itemType: 'discount',
+    description: 'ยกเว้นค่าเช่าทั้งเดือน',
+    amount: centsToBaht(zeroInvoice.totalAmountCents)
+  })
+  assert(after.totalAmountCents === 0, `ได้ ${after.totalAmountCents}`)
+  assert(after.status === 'paid', `ได้ ${after.status}`)
+  assert(after.outstandingCents === 0, `ยอดค้าง ${after.outstandingCents}`)
+})
+
+check('บิลยอด 0 ไม่ค้างอยู่ในแท็บค้างชำระ แต่ไปอยู่แท็บชำระแล้ว', () => {
+  const outstanding = invoices.listInvoices(db, apartmentId, { settlement: 'outstanding' })
+  assert(
+    !outstanding.some((i) => i.invoiceId === zeroInvoice.invoiceId),
+    'ต้องไม่อยู่ในแท็บค้างชำระ'
+  )
+  const paid = invoices.listInvoices(db, apartmentId, { settlement: 'paid' })
+  assert(
+    paid.some((i) => i.invoiceId === zeroInvoice.invoiceId),
+    'ต้องอยู่ในแท็บชำระแล้ว'
+  )
+})
+
+check('บิลที่ยกเลิกแล้วไม่ถูกดึงกลับมาเป็นชำระแล้วเพราะยอดเหลือ 0', () => {
+  const cancelled = invoices.createMonthlyInvoice(db, {
+    contractId: newContract.contractId,
+    billingMonth: '2027-11',
+    meterBatchId: zeroBatch.batchId,
+    issueDate: '2027-11-30'
+  })
+  invoices.cancelInvoice(db, cancelled.invoiceId, {
+    reason: 'ทดสอบว่าสถานะยกเลิกชนะยอด 0',
+    cancelledBy: staffUser.user_id
+  })
+  // สถานะ 'cancelled' ต้องชนะเสมอ — refreshInvoiceStatus return ออกไปก่อนถึงตรรกะยอด 0
+  invoices.refreshInvoiceStatus(db, cancelled.invoiceId, new Date().toISOString())
+  const after = invoices.getInvoiceById(db, cancelled.invoiceId)
+  assert(after.status === 'cancelled', `ได้ ${after.status}`)
 })
 
 // -----------------------------------------------------

@@ -20,6 +20,8 @@ const contracts = await import('../src/main/db/contracts.js')
 const meter = await import('../src/main/db/meterReadings.js')
 const invoices = await import('../src/main/db/invoices.js')
 const payments = await import('../src/main/db/payments.js')
+// แปลงสตางค์เป็นข้อความบาทด้วยตัวเดียวกับที่โปรแกรมใช้ ไม่หาร 100 เอง (กฎใน money.js)
+const { centsToBaht } = await import('../src/main/money.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-payments')
 
@@ -463,6 +465,49 @@ check('เก็บค่าปรับเกินกว่ากฎของ�
     'เกินกว่าที่กฎของหอกำหนด',
     'ต้องบังคับเพดานที่ฝั่ง main ไม่เชื่อหน้าจอ'
   )
+})
+
+// เทสต์กันการถอยหลังของธุรกรรมที่ห่อ recordInvoicePayment ไว้ (เหตุผลเต็มอยู่ในคอมเมนต์
+// ที่ฟังก์ชันนั้น) — ค่าปรับต้องไม่ค้างบนบิลเมื่อการรับเงินถูกปฏิเสธ
+check('กรอกยอดเกินยอดค้าง ค่าปรับต้องถูก rollback ไม่ค้างอยู่บนบิล', () => {
+  const overflow = invoices.createMonthlyInvoice(db, {
+    contractId: contract2.contractId,
+    billingMonth: '2026-11',
+    meterBatchId: batch.batchId,
+    issueDate: '2026-11-30'
+  })
+  const before = invoices.getInvoiceById(db, overflow.invoiceId)
+
+  throws(
+    () =>
+      payments.recordInvoicePayment(db, {
+        ...BASE,
+        invoiceId: overflow.invoiceId,
+        // ครบกำหนด 05/12/2026 · จ่าย 15/12/2026 = เกิน 10 วัน × 10 บาท = เก็บได้ 100 บาท
+        paymentDate: '2026-12-15',
+        lateFee: '100',
+        // ยอดค้าง + ค่าปรับ 100 บาท + อีก 1 บาท = เกินไปหนึ่งบาท ต้องถูกปฏิเสธ
+        amount: centsToBaht(before.totalAmountCents + 10000 + 100)
+      }),
+    'ไม่เกินยอดค้างชำระ',
+    'ยอดเกินต้องถูกปฏิเสธ'
+  )
+
+  const after = invoices.getInvoiceById(db, overflow.invoiceId)
+  assert(
+    after.items.every((i) => i.itemType !== 'late_fee'),
+    'ค่าปรับต้องไม่ค้างอยู่บนบิลหลังการรับเงินล้มเหลว'
+  )
+  assert(
+    after.totalAmountCents === before.totalAmountCents,
+    `ยอดบิลต้องเท่าเดิม ก่อน ${before.totalAmountCents} หลัง ${after.totalAmountCents}`
+  )
+  assert(after.status === 'unpaid', `สถานะต้องยังค้างชำระ ได้ ${after.status}`)
+
+  // และเมื่อกรอกยอดที่ถูกต้อง ค่าปรับต้องคิดใหม่ได้ตั้งแต่ต้น ไม่ค้างว่าเคยเก็บไปแล้ว
+  const rule = invoices.getLateFeeForInvoice(db, overflow.invoiceId, '2026-12-15')
+  assert(rule.alreadyChargedCents === 0, `ยังนับว่าเคยเก็บ ${rule.alreadyChargedCents}`)
+  assert(rule.suggestedCents === 10000, `เสนอเก็บ ${rule.suggestedCents}`)
 })
 
 // -----------------------------------------------------
