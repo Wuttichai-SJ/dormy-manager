@@ -5,6 +5,7 @@ import DateField from './DateField.jsx'
 import { showToast } from './Toast.jsx'
 import { formatPhone } from './TenantDialog.jsx'
 import { formatBaht, centsToInput } from '../format.js'
+import { PAYMENT_METHODS } from '../constants.js'
 import {
   createBooking,
   deleteBooking,
@@ -276,10 +277,14 @@ function BookingDialog({ value, onChange, onClose, onSubmit, busy }) {
           <label>
             ชำระโดย <span className="required">* จำเป็น</span>
           </label>
+          {/* ต้องมาจาก PAYMENT_METHODS เหมือนอีก 6 หน้าที่มีช่องนี้ ไม่ใช่พิมพ์ <option> เอง
+              เดิมพิมพ์เองแล้วคำเพี้ยน: ที่นี่ขึ้น "โอนเงิน" แต่ทุกหน้าอื่นขึ้น "เงินโอน" */}
           <select value={value.paymentMethod} onChange={(e) => set('paymentMethod', e.target.value)}>
-            <option value="cash">เงินสด</option>
-            <option value="transfer">โอนเงิน</option>
-            <option value="other">อื่นๆ</option>
+            {PAYMENT_METHODS.map((method) => (
+              <option key={method.key} value={method.key}>
+                {method.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
