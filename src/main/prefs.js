@@ -11,8 +11,15 @@ import { logError } from './logger.js'
 
 const DEFAULTS = { lastIdentifier: '' }
 
+// 🔴 **ตอนพัฒนาใช้คนละไฟล์กับตัวจริง** ด้วยเหตุผลเดียวกับที่ resolveDbPath() ใน
+// database.js แยก dormy-dev.sqlite ออกจาก dormy.sqlite — userData เป็นโฟลเดอร์เดียวกัน
+// ทั้งตอน `npm run dev` และตอนรันจาก .exe (มันขึ้นกับชื่อแอปอย่างเดียว ไม่สนว่า packaged
+// หรือไม่) ถ้าใช้ไฟล์เดียวกัน ชื่อผู้ใช้ที่จำไว้ตอน dev จะไปโผล่ในช่องเข้าสู่ระบบของแอปจริง
+// ทั้งที่ฐานข้อมูลนั้นไม่มีบัญชีนี้อยู่ — พอกรอกรหัสผ่านก็ขึ้น "ไม่พบผู้ใช้" ซึ่งชวนงงมาก
+// (เจอจริงตอนติดตั้ง .exe ครั้งแรกแล้วเห็นชื่อที่เคยกรอกไว้ตอน dev ขึ้นมาเอง)
 function prefsPath() {
-  return path.join(app.getPath('userData'), 'prefs.json')
+  const fileName = app.isPackaged ? 'prefs.json' : 'prefs-dev.json'
+  return path.join(app.getPath('userData'), fileName)
 }
 
 export function readPrefs() {

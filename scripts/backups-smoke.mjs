@@ -158,6 +158,64 @@ check('ลบไฟล์ที่ไม่มีอยู่ ต้องแจ
 })
 
 // -----------------------------------------------------
+// แยกสำเนาของตอนพัฒนาออกจากของจริง
+// -----------------------------------------------------
+// เครื่องเดียวเป็นทั้งเครื่องพัฒนาและเครื่องที่รันแอปจริง ถ้าสองโหมดเก็บสำเนาไว้โฟลเดอร์
+// เดียวกัน ไฟล์จะหน้าตาเหมือนกันทุกประการ (ชื่อเป็นวันเวลาล้วน) แล้ววันหนึ่งจะมีคน
+// กดกู้คืนผิดใบ ทับข้อมูลหอจริงด้วยข้อมูลทดสอบ — ต้องมองไม่เห็นกันเลยถึงจะปลอดภัย
+group('สำเนาของ dev กับของจริงต้องไม่ปนกัน')
+
+check('คนละโฟลเดอร์กัน', () => {
+  const real = backups.resolveBackupDir(userData)
+  const dev = backups.resolveBackupDir(userData, { isDev: true })
+  assert(real !== dev, `ได้โฟลเดอร์เดียวกัน: ${real}`)
+  assert(real.endsWith('backups'), `ของจริงควรลงท้าย backups ได้ ${real}`)
+  assert(dev.endsWith('backups-dev'), `ของ dev ควรลงท้าย backups-dev ได้ ${dev}`)
+})
+
+check('ไม่ส่งตัวเลือกมา = โหมดจริง (ของเดิมต้องไม่เปลี่ยนพฤติกรรม)', () => {
+  assert(
+    backups.resolveBackupDir(userData) === backups.resolveBackupDir(userData, { isDev: false }),
+    'ค่าเริ่มต้นต้องเท่ากับ isDev: false'
+  )
+})
+
+// ล้างรายการฝั่งจริงให้ว่างก่อน เพื่อให้ข้อถัดไปชี้ชัดว่าไฟล์ที่เห็น/ไม่เห็น มาจากโฟลเดอร์ไหน
+// (ถ้าไม่ล้าง ชื่อไฟล์ที่เป็นวันเวลาระดับวินาทีอาจไปตรงกับใบที่ค้างอยู่ฝั่งจริงพอดี)
+for (const b of backups.listBackups(userData)) backups.deleteBackup(userData, b.fileName)
+
+const devBackup = await backups.createBackup(db, userData, { label: 'ของ dev', isDev: true })
+
+// เทียบด้วย path เต็ม ไม่ใช่ fileName — ชื่อไฟล์เป็นวันเวลาระดับวินาที สำเนาสองใบที่สร้าง
+// ในวินาทีเดียวกันจึงชื่อซ้ำกันได้ ต่างกันแค่โฟลเดอร์ ซึ่งคือสิ่งที่ข้อนี้กำลังทดสอบพอดี
+check('สำเนาที่สร้างในโหมด dev ไม่โผล่ในรายการของจริง', () => {
+  const realList = backups.listBackups(userData)
+  assert(realList.length === 0, `ฝั่งจริงควรว่าง แต่เห็น ${realList.length} ใบ`)
+
+  const devList = backups.listBackups(userData, { isDev: true })
+  assert(devList.length === 1, `รายการของ dev ควรมี 1 ใบ ได้ ${devList.length}`)
+  assert(devList[0].fileName === devBackup.fileName, 'ไฟล์ใน dev ไม่ใช่ใบที่เพิ่งสร้าง')
+  assert(devList[0].label === 'ของ dev', `ป้ายกำกับไม่ตามไปด้วย ได้ ${devList[0].label}`)
+})
+
+check('กู้คืนข้ามโหมดไม่ได้ — หาไฟล์ของ dev จากฝั่งจริงไม่เจอ', () => {
+  throws(
+    () => backups.prepareRestore(userData, devBackup.fileName),
+    'ไม่พบไฟล์สำรอง',
+    'ฝั่งจริงต้องมองไม่เห็นไฟล์ของ dev'
+  )
+})
+
+check('ลบข้ามโหมดไม่ได้ — ไฟล์ของ dev ต้องยังอยู่', () => {
+  throws(
+    () => backups.deleteBackup(userData, devBackup.fileName),
+    'ไม่พบไฟล์สำรอง',
+    'ฝั่งจริงไม่ควรลบไฟล์ของ dev ได้'
+  )
+  assert(fs.existsSync(devBackup.path), 'ไฟล์ของ dev หายไปทั้งที่ลบจากฝั่งจริง')
+})
+
+// -----------------------------------------------------
 cleanup()
 fs.rmSync(userData, { recursive: true, force: true })
 summarize('การสำรอง/กู้คืนข้อมูลทำงานครบทุกเส้นทาง')

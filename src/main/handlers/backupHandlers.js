@@ -29,10 +29,14 @@ function handle(channel, fn) {
 
 const userData = () => app.getPath('userData')
 
+// ตอนพัฒนาเก็บสำเนาไว้คนละโฟลเดอร์กับตัวจริง (เหตุผลเต็มอยู่ที่ resolveBackupDir
+// ใน db/backups.js) — โมดูลใน db/ ห้ามรู้จัก electron ชั้นนี้จึงเป็นคนบอกว่ารันโหมดไหน
+const backupOpts = () => ({ isDev: !app.isPackaged })
+
 export function registerBackupHandlers() {
   handle('backup:list', () => ({
-    directory: resolveBackupDir(userData()),
-    backups: listBackups(userData())
+    directory: resolveBackupDir(userData(), backupOpts()),
+    backups: listBackups(userData(), backupOpts())
   }))
 
   // เจ้าของหอเท่านั้น — ไฟล์สำรองคือสำเนาข้อมูลทั้งหอที่ลากออกจากเครื่องไปได้
@@ -40,7 +44,7 @@ export function registerBackupHandlers() {
   //  เป็นของเจ้าของแล้ว — ผู้ใช้ตัดสินใจ 2026-08-14)
   handle('backup:create', async ({ label }) => {
     requireOwnerUserId()
-    const backup = await createBackup(getDatabase(), userData(), { label })
+    const backup = await createBackup(getDatabase(), userData(), { label, ...backupOpts() })
     logInfo(`สร้างไฟล์สำรอง ${backup.fileName} (${backup.sizeBytes} ไบต์)`)
     return backup
   })
@@ -49,7 +53,7 @@ export function registerBackupHandlers() {
   // (สร้างไฟล์สำรองพนักงานทำได้ตามปกติ ยิ่งมีสำเนายิ่งดี)
   handle('backup:delete', ({ fileName }) => {
     requireOwnerUserId()
-    const result = deleteBackup(userData(), fileName)
+    const result = deleteBackup(userData(), fileName, backupOpts())
     logInfo(`ลบไฟล์สำรอง ${fileName}`)
     return result
   })
@@ -57,7 +61,7 @@ export function registerBackupHandlers() {
   // เปิดโฟลเดอร์สำรองใน File Explorer — ผู้ใช้จะได้คัดลอกไปไดรฟ์อื่น/USB เองได้
   // สำเนาที่อยู่ดิสก์เดียวกับต้นฉบับไม่รอดถ้าดิสก์พัง จึงต้องชวนให้เอาออกไปข้างนอก
   handle('backup:reveal', () => {
-    const dir = resolveBackupDir(userData())
+    const dir = resolveBackupDir(userData(), backupOpts())
     fs.mkdirSync(dir, { recursive: true })
     shell.openPath(dir)
     return { ok: true }
@@ -84,7 +88,12 @@ export function registerBackupHandlers() {
   handle('backup:restore', async ({ fileName }) => {
     requireOwnerUserId()
     // ส่ง migrationsDir เข้าไปด้วยเพื่อให้ตรวจได้ว่าไฟล์นี้มาจากแอปรุ่นใหม่กว่าหรือเปล่า
-    const { source, info } = prepareRestore(userData(), fileName, resolveMigrationsDir())
+    const { source, info } = prepareRestore(
+      userData(),
+      fileName,
+      resolveMigrationsDir(),
+      backupOpts()
+    )
 
     const { response } = await dialog.showMessageBox({
       type: 'warning',
@@ -101,7 +110,8 @@ export function registerBackupHandlers() {
     if (response !== 1) return { cancelled: true }
 
     const safety = await createBackup(getDatabase(), userData(), {
-      label: `สำรองอัตโนมัติก่อนกู้คืนจาก ${fileName}`
+      label: `สำรองอัตโนมัติก่อนกู้คืนจาก ${fileName}`,
+      ...backupOpts()
     })
     logInfo(`สำรองก่อนกู้คืนไว้ที่ ${safety.fileName}`)
 

@@ -15,8 +15,17 @@ import Database from 'better-sqlite3'
 // เก็บสำเนาไว้ข้างไฟล์ฐานข้อมูลจริง (userData) — ผู้ใช้คัดลอกทั้งโฟลเดอร์ไปไว้ไดรฟ์อื่น
 // หรือ USB ได้ในทีเดียว ซึ่งคือสิ่งที่ควรทำจริงๆ เพราะสำเนาที่อยู่ดิสก์เดียวกับต้นฉบับ
 // ไม่รอดถ้าดิสก์พัง
-export function resolveBackupDir(userDataPath) {
-  return path.join(userDataPath, 'backups')
+//
+// 🔴 **ตอนพัฒนาใช้คนละโฟลเดอร์กับตัวจริง** ด้วยเหตุผลเดียวกับที่ resolveDbPath() ใน
+// database.js แยก dormy-dev.sqlite ออกจาก dormy.sqlite — เครื่องนี้เป็นทั้งเครื่องพัฒนา
+// และเครื่องที่รันแอปจริง ถ้าใช้โฟลเดอร์เดียวกัน สำเนาของข้อมูลทดสอบจะไปนั่งปนอยู่ใน
+// รายการเดียวกับสำเนาของข้อมูลหอจริง หน้าตาเหมือนกันทุกประการ (ชื่อไฟล์เป็นวันเวลาล้วน
+// ไม่มีอะไรบอกที่มา) แล้ววันหนึ่งจะมีคนกดกู้คืนผิดใบ ทับข้อมูลหอจริงด้วยข้อมูลทดสอบ
+//
+// ตัวเลือกนี้เป็น argument ไม่ใช่การอ่าน app.isPackaged เอง เพราะโมดูลใน db/ ห้ามรู้จัก
+// electron (ชุดทดสอบรันใต้ ELECTRON_RUN_AS_NODE) — ผู้เรียกฝั่ง handlers เป็นคนตัดสิน
+export function resolveBackupDir(userDataPath, { isDev = false } = {}) {
+  return path.join(userDataPath, isDev ? 'backups-dev' : 'backups')
 }
 
 function ensureDir(dir) {
@@ -47,8 +56,8 @@ function buildFileName(now = new Date()) {
 // สร้างสำเนา
 // ------------------------------------------------------------------
 // db.backup() เป็น async — คืน Promise ที่ resolve เมื่อคัดลอกครบทุกหน้า
-export async function createBackup(db, userDataPath, { label } = {}) {
-  const dir = ensureDir(resolveBackupDir(userDataPath))
+export async function createBackup(db, userDataPath, { label, isDev = false } = {}) {
+  const dir = ensureDir(resolveBackupDir(userDataPath, { isDev }))
   const fileName = buildFileName()
   const target = path.join(dir, fileName)
 
@@ -66,8 +75,8 @@ export async function createBackup(db, userDataPath, { label } = {}) {
 // ------------------------------------------------------------------
 // อ่านรายการ
 // ------------------------------------------------------------------
-export function listBackups(userDataPath) {
-  const dir = resolveBackupDir(userDataPath)
+export function listBackups(userDataPath, { isDev = false } = {}) {
+  const dir = resolveBackupDir(userDataPath, { isDev })
   if (!fs.existsSync(dir)) return []
 
   return fs
@@ -154,14 +163,14 @@ export function listKnownMigrations(migrationsDir) {
 // คืนค่าเป็น path ที่ต้องเอาไปทับ ให้ฝั่ง handler เป็นคนปิดฐานข้อมูล/ทับไฟล์/รีสตาร์ตแอป
 // เพราะโมดูลนี้ต้องไม่รู้จัก electron (ชุดทดสอบรันใต้ ELECTRON_RUN_AS_NODE ที่ import
 // electron ไม่ได้ — กฎเดียวกับ db/*.js ตัวอื่น)
-export function prepareRestore(userDataPath, fileName, migrationsDir = null) {
-  const source = path.join(resolveBackupDir(userDataPath), fileName)
+export function prepareRestore(userDataPath, fileName, migrationsDir = null, { isDev = false } = {}) {
+  const source = path.join(resolveBackupDir(userDataPath, { isDev }), fileName)
   const info = inspectBackup(source, migrationsDir ? listKnownMigrations(migrationsDir) : null)
   return { source, info }
 }
 
-export function deleteBackup(userDataPath, fileName) {
-  const full = path.join(resolveBackupDir(userDataPath), fileName)
+export function deleteBackup(userDataPath, fileName, { isDev = false } = {}) {
+  const full = path.join(resolveBackupDir(userDataPath, { isDev }), fileName)
   if (!fs.existsSync(full)) throw new Error('ไม่พบไฟล์สำรองที่ต้องการลบ')
 
   fs.rmSync(full)
