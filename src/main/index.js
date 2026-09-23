@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog } from 'electron'
 import path from 'path'
 import { getDatabase } from './database.js'
 import { logInfo, logError, getLogPath } from './logger.js'
@@ -33,6 +33,43 @@ process.on('unhandledRejection', (err) => logError('unhandledRejection', err))
 // อาการจะเป็นแบบ "บางทีเปิดติด บางทีไม่ขึ้นเลย" ซึ่งหลอกมากเวลาไล่บั๊ก
 let mainWindow = null
 
+// เมนูของแอปที่ติดตั้งแล้ว — ตัด View > Toggle Developer Tools ออก
+//
+// ทำไม: เมนูมาตรฐานที่ Electron ใส่มาให้เองมี View > Toggle Developer Tools ติดมาด้วย
+// (และคีย์ลัด Ctrl+Shift+I / F12) คนที่เดินมาที่เครื่องตอนแอปค้างอยู่หน้าเข้าสู่ระบบจึงเปิด
+// DevTools แล้วยิง window.electron.invoke(...) ตรงเข้า IPC ได้โดยไม่ต้องรู้รหัสผ่าน
+// การ์ด requireSessionUserId ในชั้น handler กันข้อมูลไว้แล้ว แต่ไม่มีเหตุผลที่จะแจกเครื่องมือ
+// ให้เขาเริ่มงมหาช่องโหว่ตั้งแต่แรก — สองชั้นนี้เสริมกัน ไม่ใช่ชั้นใดชั้นหนึ่งพอ
+//
+// 🔴 **ทำเฉพาะตอน app.isPackaged เท่านั้น** ตอน npm run dev ต้องมี DevTools ครบเหมือนเดิม
+// เพราะเป็นเครื่องมือหลักในการไล่ปัญหาฝั่งหน้าจอ
+//
+// 🔴 **ไม่ setApplicationMenu(null)** ถึงแม้จะดูสะอาดกว่า — บน Windows คีย์ลัดแก้ไขข้อความ
+// (Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+A / Ctrl+Z) ผูกอยู่กับ role ของเมนู ถ้าลบเมนูทิ้งทั้งอัน
+// เสี่ยงที่ช่องกรอกทั้งแอปจะคัดลอก/วางไม่ได้ ซึ่งแย่กว่าปัญหาที่กำลังแก้อยู่มาก
+// จึงเหลือเมนู "แก้ไข" ที่มีแต่ role ไว้ แล้วซ่อนแถบเมนูด้วย autoHideMenuBar ในหน้าต่างแทน
+// (ซ่อนแล้วคีย์ลัดยังทำงานตามปกติ กด Alt ถึงจะเห็นแถบ และเห็นแค่เมนูแก้ไข ไม่มี DevTools)
+function applyPackagedMenu() {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'แก้ไข',
+        submenu: [
+          { role: 'undo', label: 'เลิกทำ' },
+          { role: 'redo', label: 'ทำซ้ำ' },
+          { type: 'separator' },
+          { role: 'cut', label: 'ตัด' },
+          { role: 'copy', label: 'คัดลอก' },
+          { role: 'paste', label: 'วาง' },
+          { role: 'delete', label: 'ลบ' },
+          { type: 'separator' },
+          { role: 'selectAll', label: 'เลือกทั้งหมด' }
+        ]
+      }
+    ])
+  )
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -40,11 +77,24 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     show: false,
+    // ซ่อนแถบเมนูตอนแพ็กแล้ว (กด Alt ถึงจะโผล่ และมีแค่เมนู "แก้ไข" — ดู applyPackagedMenu)
+    // ตอน dev ปล่อยให้เห็นแถบเมนูมาตรฐานเหมือนเดิม จะได้กด View > Toggle Developer Tools ได้
+    autoHideMenuBar: app.isPackaged,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
+      // 🔴 **ปิด DevTools ที่ต้นทางตอนแพ็กแล้ว** — การตัดรายการออกจากเมนู (applyPackagedMenu)
+      // ปิดแค่ "ทางที่คนกดเจอ" คือรายการเมนูกับคีย์ลัดที่ผูกกับรายการนั้น แต่ไม่ได้ปิดตัว
+      // DevTools เอง ถ้าวันหนึ่งมีโค้ดเรียก webContents.openDevTools() (เช่นใส่ไว้ตอนไล่บั๊ก
+      // แล้วลืมถอด) หน้าต่างนักพัฒนาก็เปิดได้อยู่ดี ธงนี้ทำให้เรียกยังไงก็ไม่เปิด
+      //
+      // สองชั้นนี้ทำคนละหน้าที่ ไม่ใช่ของซ้ำกัน: ธงนี้ปิดความสามารถ ส่วนเมนูทำให้ไม่มีปุ่ม
+      // ให้คนเห็นตั้งแต่แรก (และทำให้คีย์ลัดไม่ถูกลงทะเบียน)
+      //
+      // ตอน npm run dev ต้องเป็น true เสมอ ไม่งั้นไล่ปัญหาฝั่งหน้าจอไม่ได้เลย
+      devTools: !app.isPackaged,
       // เปิดตัวอ่าน PDF ในตัวของ Chromium — ใช้แสดงตัวอย่างใบแจ้งหนี้ก่อนพิมพ์
       // (Electron ปิดไว้เป็นค่าเริ่มต้น ถ้าไม่เปิด <iframe> ที่ชี้ไปไฟล์ PDF จะกลายเป็น
       // การดาวน์โหลดแทนการแสดงผล) ไม่ได้เปิดปลั๊กอินจากภายนอก ตัวอ่านนี้มากับ Chromium เอง
@@ -138,6 +188,9 @@ app.whenReady().then(() => {
   registerImageHandlers()
   registerExportHandlers()
   logInfo('ลงทะเบียน IPC ของระบบเข้าสู่ระบบและโมดูลหอพักแล้ว')
+
+  // ต้องตั้งก่อนสร้างหน้าต่าง — หน้าต่างจะหยิบเมนูของแอปไปใช้ตอนถูกสร้าง
+  if (app.isPackaged) applyPackagedMenu()
 
   createWindow()
 
