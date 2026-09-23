@@ -3,6 +3,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireSessionUserId } from './authHandlers.js'
 import {
   createBatch,
   deleteBatch,
@@ -22,25 +23,34 @@ function handle(channel, fn) {
   })
 }
 
-export function registerMeterHandlers() {
-  handle('meter:listBatches', ({ apartmentId }) => listBatches(getDatabase(), apartmentId))
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
 
-  handle('meter:createBatch', ({ apartmentId, readingDate }) => {
+export function registerMeterHandlers() {
+  handleSession('meter:listBatches', ({ apartmentId }) => listBatches(getDatabase(), apartmentId))
+
+  handleSession('meter:createBatch', ({ apartmentId, readingDate }) => {
     const batch = createBatch(getDatabase(), apartmentId, readingDate)
     logInfo(`สร้างใบจดมิเตอร์ ${readingDate} ของหอ ${apartmentId} (batch_id ${batch.batchId})`)
     return batch
   })
 
-  handle('meter:getSheet', ({ batchId, side }) => getBatchSheet(getDatabase(), batchId, side))
+  handleSession('meter:getSheet', ({ batchId, side }) => getBatchSheet(getDatabase(), batchId, side))
 
   // rows = ทั้งตารางของฝั่งนั้น บันทึกทีเดียวทั้งใบตามหน้าจอต้นแบบ
-  handle('meter:saveReadings', ({ batchId, side, rows }) => {
+  handleSession('meter:saveReadings', ({ batchId, side, rows }) => {
     const sheet = saveBatchReadings(getDatabase(), batchId, side, rows)
     logInfo(`บันทึกเลขมิเตอร์ฝั่ง ${side} ของใบจด ${batchId} จำนวน ${rows?.length ?? 0} ห้อง`)
     return sheet
   })
 
-  handle('meter:deleteBatch', ({ batchId }) => {
+  handleSession('meter:deleteBatch', ({ batchId }) => {
     const result = deleteBatch(getDatabase(), batchId)
     logInfo(`ลบใบจดมิเตอร์ ${batchId}`)
     return result

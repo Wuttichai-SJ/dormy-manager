@@ -26,10 +26,19 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 export function registerTerminationHandlers() {
   // จังหวะแรก: บันทึกวันที่ผู้เช่าแจ้งย้ายออก (ยังไม่แตะอะไร ผู้เช่ายังอยู่ ห้องยังไม่ว่าง)
   // ส่ง noticeDate = null เพื่อยกเลิกการแจ้ง (ผู้เช่าเปลี่ยนใจไม่ย้ายแล้ว)
-  handle('termination:setNotice', ({ contractId, noticeDate }) => {
+  handleSession('termination:setNotice', ({ contractId, noticeDate }) => {
     const result = setMoveOutNotice(getDatabase(), contractId, noticeDate ?? null)
     logInfo(
       noticeDate
@@ -41,7 +50,7 @@ export function registerTerminationHandlers() {
 
   // หน้าสรุปก่อนยืนยัน — คำนวณอย่างเดียว ยังไม่เขียนอะไร หน้าจอเรียกซ้ำได้ทุกครั้งที่
   // ผู้ใช้เปลี่ยนวันที่ออกหรือเพิ่มรายการ
-  handle('termination:sheet', ({ contractId, moveOutDate, adjustments, overrideRefundable }) =>
+  handleSession('termination:sheet', ({ contractId, moveOutDate, adjustments, overrideRefundable }) =>
     getTerminationSheet(getDatabase(), contractId, {
       moveOutDate,
       adjustments,
@@ -70,12 +79,12 @@ export function registerTerminationHandlers() {
     return result
   })
 
-  handle('termination:get', ({ contractId }) =>
+  handleSession('termination:get', ({ contractId }) =>
     getTerminationByContract(getDatabase(), contractId)
   )
 
   // ประวัติการย้ายออกทั้งหมดของหอ — ผู้เช่าที่ย้ายออกแล้วต้องยังเปิดดูย้อนหลังได้
-  handle('termination:list', ({ apartmentId, search, dateFrom, dateTo }) =>
+  handleSession('termination:list', ({ apartmentId, search, dateFrom, dateTo }) =>
     listTerminations(getDatabase(), apartmentId, { search, dateFrom, dateTo })
   )
 

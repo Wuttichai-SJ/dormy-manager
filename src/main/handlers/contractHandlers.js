@@ -24,19 +24,28 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 export function registerContractHandlers() {
   // หน้า "ห้องพัก" — หน้าหลักของระบบตามต้นแบบ
-  handle('room:listForApartment', ({ apartmentId, search, tenant, rentType }) =>
+  handleSession('room:listForApartment', ({ apartmentId, search, tenant, rentType }) =>
     listRoomsForApartment(getDatabase(), apartmentId, { search, tenant, rentType })
   )
 
   // หน้ารายละเอียดห้อง: สัญญาที่ยังใช้งานอยู่ + ประวัติสัญญาทั้งหมดของห้องนั้น
-  handle('contract:forRoom', ({ roomId }) => ({
+  handleSession('contract:forRoom', ({ roomId }) => ({
     active: getActiveContractByRoom(getDatabase(), roomId),
     history: listContractsByRoom(getDatabase(), roomId)
   }))
 
-  handle('contract:get', ({ contractId }) => {
+  handleSession('contract:get', ({ contractId }) => {
     const contract = getContractById(getDatabase(), contractId)
     if (!contract) throw new Error('ไม่พบสัญญาที่ต้องการ')
     return contract

@@ -9,6 +9,7 @@ import path from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { requireSessionUserId } from './authHandlers.js'
 import {
   addMaintenanceImage,
   cancelMaintenance,
@@ -42,16 +43,25 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 export function registerMaintenanceHandlers() {
-  handle('maintenance:list', ({ apartmentId, status, search, dateFrom, dateTo }) =>
+  handleSession('maintenance:list', ({ apartmentId, status, search, dateFrom, dateTo }) =>
     listMaintenanceRequests(getDatabase(), apartmentId, { status, search, dateFrom, dateTo })
   )
 
-  handle('maintenance:get', ({ maintenanceId }) =>
+  handleSession('maintenance:get', ({ maintenanceId }) =>
     getMaintenanceRequest(getDatabase(), maintenanceId)
   )
 
-  handle('maintenance:create', (payload) => {
+  handleSession('maintenance:create', (payload) => {
     const request = createMaintenanceRequest(getDatabase(), {
       roomId: payload.roomId,
       reportedDate: payload.reportedDate,
@@ -62,7 +72,7 @@ export function registerMaintenanceHandlers() {
     return request
   })
 
-  handle('maintenance:update', (payload) =>
+  handleSession('maintenance:update', (payload) =>
     updateMaintenanceRequest(getDatabase(), payload.maintenanceId, {
       reportedDate: payload.reportedDate,
       description: payload.description,
@@ -70,7 +80,7 @@ export function registerMaintenanceHandlers() {
     })
   )
 
-  handle('maintenance:complete', (payload) => {
+  handleSession('maintenance:complete', (payload) => {
     const request = completeMaintenance(getDatabase(), payload.maintenanceId, {
       repairedDate: payload.repairedDate,
       repairCost: payload.repairCost,
@@ -83,17 +93,17 @@ export function registerMaintenanceHandlers() {
     return request
   })
 
-  handle('maintenance:cancel', ({ maintenanceId, reason }) => {
+  handleSession('maintenance:cancel', ({ maintenanceId, reason }) => {
     const request = cancelMaintenance(getDatabase(), maintenanceId, { reason })
     logInfo(`ยกเลิกงานซ่อม ห้อง ${request.roomNumber} (maintenance_id ${maintenanceId})`)
     return request
   })
 
-  handle('maintenance:reopen', ({ maintenanceId }) =>
+  handleSession('maintenance:reopen', ({ maintenanceId }) =>
     reopenMaintenance(getDatabase(), maintenanceId)
   )
 
-  handle('maintenance:delete', ({ maintenanceId }) => {
+  handleSession('maintenance:delete', ({ maintenanceId }) => {
     const result = deleteMaintenanceRequest(getDatabase(), maintenanceId)
     logInfo(`ลบงานแจ้งซ่อม (maintenance_id ${maintenanceId})`)
     return result
@@ -101,7 +111,7 @@ export function registerMaintenanceHandlers() {
 
   // **ผู้ใช้เลือกไฟล์แล้ว main อ่านไบต์เอง ไม่ได้ให้หน้าจออ่านแล้วส่งข้ามมา** —
   // รูป 3 MB ที่แปลงเป็น array ธรรมดาเพื่อข้าม IPC จะบวมเป็นสิบเท่า (วิธีเดียวกับ QR)
-  handle('maintenance:addImage', async ({ maintenanceId }) => {
+  handleSession('maintenance:addImage', async ({ maintenanceId }) => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title: 'เลือกรูปประกอบการแจ้งซ่อม',
       properties: ['openFile'],
@@ -121,12 +131,12 @@ export function registerMaintenanceHandlers() {
     return { cancelled: false, ...result }
   })
 
-  handle('maintenance:removeImage', ({ maintenanceId, imageId }) =>
+  handleSession('maintenance:removeImage', ({ maintenanceId, imageId }) =>
     removeMaintenanceImage(getDatabase(), maintenanceId, imageId)
   )
 
   // ส่งออกเป็น data URL ไม่ใช่ Buffer ดิบ (กติกาเดียวกับรูป QR)
-  handle('maintenance:imageDataUrl', ({ imageId }) => ({
+  handleSession('maintenance:imageDataUrl', ({ imageId }) => ({
     dataUrl: getImageDataUrl(getDatabase(), imageId)
   }))
 }

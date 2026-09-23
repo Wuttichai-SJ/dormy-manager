@@ -2,7 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireOwnerUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   deleteService,
   insertService,
@@ -22,13 +22,22 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 function assertValid(payload) {
   const errors = validateServiceInput(payload)
   if (errors.length > 0) throw new Error(errors.join('\n'))
 }
 
 export function registerApartmentServiceHandlers() {
-  handle('apartmentService:list', ({ apartmentId }) => listServices(getDatabase(), apartmentId))
+  handleSession('apartmentService:list', ({ apartmentId }) => listServices(getDatabase(), apartmentId))
 
   // ราคาค่าบริการเป็นของเจ้าของหอ (เมนูตั้งค่าทั้งเมนู — ผู้ใช้ตัดสินใจ 2026-08-14)
   // ช่อง list เปิดไว้ เพราะตัวช่วยทำสัญญาและการออกบิลต้องอ่านรายการค่าบริการ

@@ -3,7 +3,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireOwnerUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   deleteApartment,
   getApartmentById,
@@ -28,15 +28,24 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 function assertValid(payload) {
   const errors = validateApartmentInput(payload)
   if (errors.length > 0) throw new Error(errors.join('\n'))
 }
 
 export function registerApartmentHandlers() {
-  handle('apartment:list', () => listApartments(getDatabase()))
+  handleSession('apartment:list', () => listApartments(getDatabase()))
 
-  handle('apartment:get', ({ apartmentId }) => {
+  handleSession('apartment:get', ({ apartmentId }) => {
     const apartment = getApartmentById(getDatabase(), apartmentId)
     if (!apartment) throw new Error('ไม่พบหอพักที่ต้องการ')
     return apartment
@@ -62,7 +71,7 @@ export function registerApartmentHandlers() {
     return apartment
   })
 
-  handle('apartment:reorder', ({ orderedIds }) => {
+  handleSession('apartment:reorder', ({ orderedIds }) => {
     if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
       throw new Error('ไม่ได้ระบุลำดับใหม่')
     }
@@ -70,7 +79,7 @@ export function registerApartmentHandlers() {
   })
 
   // เรียกตอนกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่า — ก่อนหน้านั้นหอยังเข้าหน้าทำงานไม่ได้
-  handle('apartment:completeSetup', ({ apartmentId }) => {
+  handleSession('apartment:completeSetup', ({ apartmentId }) => {
     const result = markSetupCompleted(getDatabase(), apartmentId)
     logInfo(`ตั้งค่าหอพักเสร็จ (apartment_id ${apartmentId})`)
     return result
@@ -79,7 +88,7 @@ export function registerApartmentHandlers() {
   // นโยบายคืนเงินประกัน — ค่าตั้งต้นที่จะถูกสำเนาลง "สัญญาใบใหม่" เท่านั้น
   // (สัญญาที่เซ็นไปแล้วยังใช้กฎที่ตกลงกันวันนั้น ดู 004) · อ่านได้ทุกคน เพราะหน้าทำสัญญา
   // ต้องรู้ว่ากติกาปัจจุบันคืออะไร
-  handle('apartment:getDepositPolicy', ({ apartmentId }) =>
+  handleSession('apartment:getDepositPolicy', ({ apartmentId }) =>
     getDepositPolicy(getDatabase(), apartmentId)
   )
 

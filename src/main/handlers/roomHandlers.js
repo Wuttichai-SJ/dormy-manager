@@ -2,7 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireOwnerUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   addFloor,
   attachServicesToRooms,
@@ -31,6 +31,16 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็มอยู่เหนือ requireSessionUserId()
+// ใน authHandlers.js · ต่างกับ handleOwner() ข้างล่างแค่ระดับ: ตัวนั้นต้องเป็นเจ้าของหอ
+// ตัวนี้ขอแค่ล็อกอิน (ผังห้องเป็นข้อมูลที่ทุกหน้าจอต้องอ่าน แต่ไม่ใช่ของสาธารณะ)
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 // 🔴 **ทุกช่องที่แก้ผังห้อง/ราคา/สถานะ เป็นของเจ้าของหอเท่านั้น** (ผู้ใช้ตัดสินใจ 2026-08-14:
 // ทั้งเมนู "ตั้งค่า" เป็นของเจ้าของ พนักงานทำงานประจำวันในเมนูหลัก)
 //
@@ -47,7 +57,7 @@ function handleOwner(channel, fn) {
 }
 
 export function registerRoomHandlers() {
-  handle('room:listFloors', ({ apartmentId }) => listFloors(getDatabase(), apartmentId))
+  handleSession('room:listFloors', ({ apartmentId }) => listFloors(getDatabase(), apartmentId))
 
   handleOwner('room:generatePlan', ({ apartmentId, floors }) => {
     const errors = validateFloorPlan(floors)

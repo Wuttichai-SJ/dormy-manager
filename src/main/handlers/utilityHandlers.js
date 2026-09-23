@@ -2,7 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireOwnerUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   applyDefaultsToRooms,
   getUtilityDefaults,
@@ -21,8 +21,17 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 export function registerUtilityHandlers() {
-  handle('utility:get', ({ apartmentId }) => getUtilityDefaults(getDatabase(), apartmentId))
+  handleSession('utility:get', ({ apartmentId }) => getUtilityDefaults(getDatabase(), apartmentId))
 
   // ราคาน้ำ-ไฟเป็นของเจ้าของหอ · ช่อง get เปิดไว้ (หน้าจอกับการออกบิลต้องอ่าน)
   handle('utility:save', ({ apartmentId, water, electric }) => {

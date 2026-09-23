@@ -8,7 +8,7 @@ import path from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireOwnerUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   ALLOWED_MIME_TYPES,
   MAX_IMAGE_BYTES,
@@ -35,6 +35,15 @@ function handle(channel, fn) {
       logError(`${channel} ล้มเหลว`, err)
       return { success: false, error: err.message }
     }
+  })
+}
+
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็มอยู่เหนือ requireSessionUserId()
+// ใน authHandlers.js · 🔴 ต้องส่ง event ต่อให้ fn ด้วย เหตุผลอยู่ที่ exportHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload, event) => {
+    requireSessionUserId()
+    return fn(payload, event)
   })
 }
 
@@ -82,7 +91,7 @@ export function registerImageHandlers() {
     return { cancelled: false, imageId, dataUrl: getImageDataUrl(db, imageId) }
   })
 
-  handle('image:getQr', ({ apartmentId }) => {
+  handleSession('image:getQr', ({ apartmentId }) => {
     const db = getDatabase()
     const row = db
       .prepare('SELECT qr_code_image_id FROM apartments WHERE apartment_id = ?')
@@ -105,7 +114,7 @@ export function registerImageHandlers() {
   })
 
   // รูปสำหรับแสดงบนใบแจ้งหนี้ — คืนเป็น data URL ไม่ใช่ไบต์ดิบ
-  handle('image:getDataUrl', ({ imageId }) => ({
+  handleSession('image:getDataUrl', ({ imageId }) => ({
     dataUrl: getImageDataUrl(getDatabase(), imageId)
   }))
 }

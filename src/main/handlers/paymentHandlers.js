@@ -30,6 +30,15 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 export function registerPaymentHandlers() {
   handle('payment:receive', ({ invoiceId, amount, paymentMethod, paymentDate, remark, lateFee }) => {
     const payment = recordInvoicePayment(getDatabase(), {
@@ -61,11 +70,11 @@ export function registerPaymentHandlers() {
     return payments
   })
 
-  handle('payment:multiSheet', ({ apartmentId, billingMonth, paymentDate }) =>
+  handleSession('payment:multiSheet', ({ apartmentId, billingMonth, paymentDate }) =>
     getMultiPaymentSheet(getDatabase(), apartmentId, { billingMonth, paymentDate })
   )
 
-  handle('payment:billingMonths', ({ apartmentId }) =>
+  handleSession('payment:billingMonths', ({ apartmentId }) =>
     listBillingMonths(getDatabase(), apartmentId)
   )
 
@@ -115,11 +124,11 @@ export function registerPaymentHandlers() {
     }
   )
 
-  handle('payment:listForInvoice', ({ invoiceId }) =>
+  handleSession('payment:listForInvoice', ({ invoiceId }) =>
     listPaymentsForInvoice(getDatabase(), invoiceId)
   )
 
-  handle('payment:listReceipts', ({ apartmentId, dateFrom, dateTo }) =>
+  handleSession('payment:listReceipts', ({ apartmentId, dateFrom, dateTo }) =>
     listReceipts(getDatabase(), apartmentId, { dateFrom, dateTo })
   )
 }

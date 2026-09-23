@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { closeDatabase, getDatabase, resolveDbPath, resolveMigrationsDir } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { clearSession, requireOwnerUserId } from './authHandlers.js'
+import { clearSession, requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   createBackup,
   deleteBackup,
@@ -27,6 +27,15 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 const userData = () => app.getPath('userData')
 
 // ตอนพัฒนาเก็บสำเนาไว้คนละโฟลเดอร์กับตัวจริง (เหตุผลเต็มอยู่ที่ resolveBackupDir
@@ -34,7 +43,7 @@ const userData = () => app.getPath('userData')
 const backupOpts = () => ({ isDev: !app.isPackaged })
 
 export function registerBackupHandlers() {
-  handle('backup:list', () => ({
+  handleSession('backup:list', () => ({
     directory: resolveBackupDir(userData(), backupOpts()),
     backups: listBackups(userData(), backupOpts())
   }))
@@ -60,7 +69,7 @@ export function registerBackupHandlers() {
 
   // เปิดโฟลเดอร์สำรองใน File Explorer — ผู้ใช้จะได้คัดลอกไปไดรฟ์อื่น/USB เองได้
   // สำเนาที่อยู่ดิสก์เดียวกับต้นฉบับไม่รอดถ้าดิสก์พัง จึงต้องชวนให้เอาออกไปข้างนอก
-  handle('backup:reveal', () => {
+  handleSession('backup:reveal', () => {
     const dir = resolveBackupDir(userData(), backupOpts())
     fs.mkdirSync(dir, { recursive: true })
     shell.openPath(dir)

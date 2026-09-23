@@ -26,12 +26,21 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 export function registerBookingHandlers() {
-  handle('booking:listByRoom', ({ roomId }) => listBookingsByRoom(getDatabase(), roomId))
+  handleSession('booking:listByRoom', ({ roomId }) => listBookingsByRoom(getDatabase(), roomId))
 
-  handle('booking:countOpen', ({ apartmentId }) => countOpenBookings(getDatabase(), apartmentId))
+  handleSession('booking:countOpen', ({ apartmentId }) => countOpenBookings(getDatabase(), apartmentId))
 
-  handle('booking:create', (payload) => {
+  handleSession('booking:create', (payload) => {
     const errors = validateBookingInput(payload)
     if (errors.length > 0) throw new Error(errors.join('\n'))
 
@@ -40,7 +49,7 @@ export function registerBookingHandlers() {
     return booking
   })
 
-  handle('booking:setStatus', ({ bookingId, status }) => {
+  handleSession('booking:setStatus', ({ bookingId, status }) => {
     const booking = setBookingStatus(getDatabase(), bookingId, status)
     logInfo(`เปลี่ยนสถานะการจอง ${bookingId} เป็น ${status}`)
     return booking
@@ -61,7 +70,7 @@ export function registerBookingHandlers() {
     return contract
   })
 
-  handle('booking:delete', ({ bookingId }) => {
+  handleSession('booking:delete', ({ bookingId }) => {
     const result = deleteBooking(getDatabase(), bookingId)
     logInfo(`ลบการจอง ${bookingId}`)
     return result

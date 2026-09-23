@@ -2,7 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
-import { requireOwnerUserId } from './authHandlers.js'
+import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   deleteBankAccount,
   getInvoiceNote,
@@ -27,13 +27,22 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 function assertValid(payload) {
   const errors = validateBankAccountInput(payload)
   if (errors.length > 0) throw new Error(errors.join('\n'))
 }
 
 export function registerBankAccountHandlers() {
-  handle('bankAccount:list', ({ apartmentId }) => ({
+  handleSession('bankAccount:list', ({ apartmentId }) => ({
     accounts: listBankAccounts(getDatabase(), apartmentId),
     paymentInstructions: getPaymentInstructions(getDatabase(), apartmentId),
     invoiceNote: getInvoiceNote(getDatabase(), apartmentId)

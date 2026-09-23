@@ -29,13 +29,22 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
+// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload) => {
+    requireSessionUserId()
+    return fn(payload)
+  })
+}
+
 export function registerInvoiceHandlers() {
   // ตารางขั้นที่ 3 ของ wizard ออกบิล — คำนวณอย่างเดียว ยังไม่เขียนอะไรลงฐานข้อมูล
-  handle('invoice:preview', ({ apartmentId, meterBatchId, billingMonth }) =>
+  handleSession('invoice:preview', ({ apartmentId, meterBatchId, billingMonth }) =>
     previewMonthlyBilling(getDatabase(), { apartmentId, meterBatchId, billingMonth })
   )
 
-  handle('invoice:createMonthly', ({ contractId, billingMonth, meterBatchId, issueDate }) => {
+  handleSession('invoice:createMonthly', ({ contractId, billingMonth, meterBatchId, issueDate }) => {
     const invoice = createMonthlyInvoice(getDatabase(), {
       contractId,
       billingMonth,
@@ -48,7 +57,7 @@ export function registerInvoiceHandlers() {
 
   // ปุ่ม "สร้างใบแจ้งหนี้ทุกห้อง" — คืน { created, skipped, failed } ให้หน้าจอสรุปให้ผู้ใช้
   // ห้องที่พังไม่ล้มทั้งชุด จึงต้อง log ไว้ด้วยว่ามีห้องไหนไม่ผ่านบ้าง
-  handle('invoice:createMonthlyAll', ({ apartmentId, meterBatchId, billingMonth, issueDate }) => {
+  handleSession('invoice:createMonthlyAll', ({ apartmentId, meterBatchId, billingMonth, issueDate }) => {
     const result = createMonthlyInvoicesForApartment(getDatabase(), {
       apartmentId,
       meterBatchId,
@@ -63,19 +72,19 @@ export function registerInvoiceHandlers() {
     return result
   })
 
-  handle('invoice:get', ({ invoiceId }) => getInvoiceById(getDatabase(), invoiceId))
+  handleSession('invoice:get', ({ invoiceId }) => getInvoiceById(getDatabase(), invoiceId))
 
   // ค่าปรับ ณ วันที่รับเงินที่ผู้ใช้เลือก — ถามใหม่ทุกครั้งที่เปลี่ยนวันที่
   // คำนวณฝั่ง main ที่เดียว ไม่ทำสำเนาสูตรไว้ที่หน้าจอ
-  handle('invoice:lateFee', ({ invoiceId, paymentDate }) =>
+  handleSession('invoice:lateFee', ({ invoiceId, paymentDate }) =>
     getLateFeeForInvoice(getDatabase(), invoiceId, paymentDate)
   )
 
-  handle('invoice:list', ({ apartmentId, ...filters }) =>
+  handleSession('invoice:list', ({ apartmentId, ...filters }) =>
     listInvoices(getDatabase(), apartmentId, filters)
   )
 
-  handle('invoice:addItem', ({ invoiceId, itemType, description, amount, isTaxable }) => {
+  handleSession('invoice:addItem', ({ invoiceId, itemType, description, amount, isTaxable }) => {
     const invoice = addInvoiceItem(getDatabase(), invoiceId, {
       itemType,
       description,
@@ -86,7 +95,7 @@ export function registerInvoiceHandlers() {
     return invoice
   })
 
-  handle('invoice:removeItem', ({ invoiceId, invoiceItemId }) => {
+  handleSession('invoice:removeItem', ({ invoiceId, invoiceItemId }) => {
     const invoice = removeInvoiceItem(getDatabase(), invoiceId, invoiceItemId)
     logInfo(`ลบรายการ ${invoiceItemId} ออกจากบิล ${invoice.invoiceNumber}`)
     return invoice
@@ -116,7 +125,7 @@ export function registerInvoiceHandlers() {
     return result
   })
 
-  handle('invoice:listDeletions', ({ apartmentId }) =>
+  handleSession('invoice:listDeletions', ({ apartmentId }) =>
     listInvoiceDeletions(getDatabase(), apartmentId)
   )
 }

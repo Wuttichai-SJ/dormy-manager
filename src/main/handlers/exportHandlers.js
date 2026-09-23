@@ -5,6 +5,7 @@ import path from 'node:path'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { buildCsv, safeFileName } from '../csv.js'
 import { logError, logInfo } from '../logger.js'
+import { requireSessionUserId } from './authHandlers.js'
 
 function handle(channel, fn) {
   ipcMain.handle(channel, async (event, payload) => {
@@ -17,8 +18,21 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็มอยู่เหนือ requireSessionUserId()
+// ใน authHandlers.js
+//
+// 🔴 ต้องส่ง event ต่อไปให้ fn ด้วย — handle() ของไฟล์นี้เรียก fn(payload, event) และช่อง
+// ในไฟล์นี้ใช้ event หาหน้าต่างที่จะพิมพ์/เปิดกล่องบันทึก ถ้าลืมส่งต่อจะพังเป็น "ไม่พบหน้าต่าง"
+// (printHandlers.js กับ imageHandlers.js ใช้ตัวห่อรูปเดียวกันด้วยเหตุผลเดียวกันนี้)
+function handleSession(channel, fn) {
+  handle(channel, (payload, event) => {
+    requireSessionUserId()
+    return fn(payload, event)
+  })
+}
+
 export function registerExportHandlers() {
-  handle('export:csv', async ({ fileName, columns, rows }, event) => {
+  handleSession('export:csv', async ({ fileName, columns, rows }, event) => {
     // สร้างเนื้อไฟล์ก่อนเปิดกล่องบันทึก — ถ้าข้อมูลมีปัญหา ผู้ใช้จะได้ไม่ต้องเลือกที่เก็บ
     // เสร็จแล้วค่อยมาเจอ error
     const content = buildCsv(columns, rows)
@@ -43,7 +57,7 @@ export function registerExportHandlers() {
     return { cancelled: false, filePath, rowCount: rows.length }
   })
 
-  handle('export:reveal', ({ filePath }) => {
+  handleSession('export:reveal', ({ filePath }) => {
     if (!filePath) throw new Error('ไม่ทราบตำแหน่งไฟล์')
     shell.showItemInFolder(filePath)
     return { ok: true }

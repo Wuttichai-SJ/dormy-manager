@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { logError, logInfo } from '../logger.js'
+import { requireSessionUserId } from './authHandlers.js'
 
 // A4 แนวตั้ง ขอบ 12 มม. — ใบแจ้งหนี้ของหอพักพิมพ์ลงกระดาษ A4 ธรรมดา
 // ตัวเลขนี้ต้องตรงกับ @page ใน styles.css ไม่งั้นตัวอย่างบนจอกับไฟล์ PDF จะคนละขนาด
@@ -72,6 +73,15 @@ function handle(channel, fn) {
   })
 }
 
+// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็มอยู่เหนือ requireSessionUserId()
+// ใน authHandlers.js · 🔴 ต้องส่ง event ต่อให้ fn ด้วย เหตุผลอยู่ที่ exportHandlers.js
+function handleSession(channel, fn) {
+  handle(channel, (payload, event) => {
+    requireSessionUserId()
+    return fn(payload, event)
+  })
+}
+
 function windowOf(event) {
   const win = BrowserWindow.fromWebContents(event.sender)
   if (!win) throw new Error('ไม่พบหน้าต่างที่จะพิมพ์')
@@ -105,7 +115,7 @@ export function registerPrintHandlers() {
   // ทำไมไม่ใช้กล่องของ Windows: Electron บน Windows เปิดกล่องระบบได้ก็จริง แต่มันเป็น
   // ภาษาอังกฤษล้วนในแอปที่เป็นไทยทั้งตัว และขึ้นว่า "This app doesn't support print preview"
   // ซึ่งอ่านแล้วเหมือนแอปพัง ทั้งที่ตัวเอกสารที่จะพิมพ์คือหน้าที่ผู้ใช้มองอยู่ตรงหน้าแล้ว
-  handle('print:listPrinters', async (_payload, event) => {
+  handleSession('print:listPrinters', async (_payload, event) => {
     const printers = await windowOf(event).webContents.getPrintersAsync()
     return printers.map((p) => ({
       name: p.name,
@@ -122,13 +132,13 @@ export function registerPrintHandlers() {
   // ที่ print() จะเรนเดอร์ ผู้ใช้จึงเห็นสิ่งที่จะออกจากเครื่องพิมพ์จริงๆ ไม่ใช่ของที่คล้ายกัน
   //
   // ส่งเป็น base64 เพราะ Buffer ข้ามสะพาน IPC แล้วกลายเป็น object ที่หน้าจอเอาไปใช้ต่อยาก
-  handle('print:preview', async ({ maxPages }, event) => {
+  handleSession('print:preview', async ({ maxPages }, event) => {
     const { pdf, scale } = await renderFittedPdf(windowOf(event), maxPages)
     return { base64: pdf.toString('base64'), scale }
   })
 
   // ส่งเข้าเครื่องพิมพ์ที่ผู้ใช้เลือกจากกล่องของเรา จึงพิมพ์เงียบได้ (ไม่เปิดกล่องซ้อนอีกชั้น)
-  handle('print:document', async ({ deviceName, copies, maxPages }, event) => {
+  handleSession('print:document', async ({ deviceName, copies, maxPages }, event) => {
     const win = windowOf(event)
     if (!deviceName) throw new Error('กรุณาเลือกเครื่องพิมพ์')
 
@@ -158,7 +168,7 @@ export function registerPrintHandlers() {
 
   // บันทึกเป็น PDF — ให้ผู้ใช้เลือกที่เก็บเอง ตั้งชื่อไฟล์ให้ล่วงหน้าเป็นเลขที่เอกสาร
   // เพื่อให้ส่งต่อทางไลน์/แชตแล้วผู้เช่ารู้ทันทีว่าเป็นบิลใบไหน
-  handle('print:savePdf', async ({ fileName, maxPages }, event) => {
+  handleSession('print:savePdf', async ({ fileName, maxPages }, event) => {
     const win = windowOf(event)
     const suggested = `${safeFileName(fileName)}.pdf`
 
@@ -178,7 +188,7 @@ export function registerPrintHandlers() {
 
   // เปิดโฟลเดอร์ที่เก็บไฟล์แล้วเลือกไฟล์นั้นไว้ให้ — ผู้ใช้จะได้ลากไปแนบในไลน์ได้ทันที
   // ไม่เปิดตัวไฟล์เอง เพราะเป้าหมายคือ "ส่งต่อ" ไม่ใช่ "อ่าน"
-  handle('print:revealPdf', ({ filePath }) => {
+  handleSession('print:revealPdf', ({ filePath }) => {
     if (!filePath) throw new Error('ไม่ทราบตำแหน่งไฟล์')
     shell.showItemInFolder(filePath)
     return { ok: true }
