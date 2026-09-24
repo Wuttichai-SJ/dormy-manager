@@ -33,9 +33,10 @@ function ensureDir(dir) {
   return dir
 }
 
-// ชื่อไฟล์เรียงตามเวลาได้เองเมื่อเรียงตามตัวอักษร (YYYY-MM-DD_HHmm)
+// ชื่อไฟล์เรียงตามเวลาได้เองเมื่อเรียงตามตัวอักษร (YYYY-MM-DD_HHmmss)
 // อ่านออกด้วยตาโดยไม่ต้องเปิดโปรแกรมอะไร
-function buildFileName(now = new Date()) {
+// ใบที่สองขึ้นไปในวินาทีเดียวกันได้เลขต่อท้าย (-2, -3) — ดู reserveBackupFile()
+function buildFileName(now = new Date(), sequence = 1) {
   const pad = (n) => String(n).padStart(2, '0')
   return [
     'dormy-',
@@ -48,20 +49,48 @@ function buildFileName(now = new Date()) {
     pad(now.getHours()),
     pad(now.getMinutes()),
     pad(now.getSeconds()),
+    sequence > 1 ? `-${sequence}` : '',
     '.sqlite'
   ].join('')
+}
+
+// 🔴 จองชื่อไฟล์ด้วยการสร้างไฟล์เปล่าแบบ exclusive ('wx') ไม่ใช่เช็ก existsSync ก่อน
+// ชื่อไฟล์ละเอียดแค่ระดับวินาที เดิมสำรองสองใบในวินาทีเดียวกันแล้ว db.backup() เขียนทับ
+// ใบแรกเงียบๆ — เกิดได้จริงตอนกู้คืน ที่ระบบสร้าง "สำรองอัตโนมัติก่อนกู้คืน" ตามหลังใบที่
+// ผู้ใช้เพิ่งกดสร้าง และการเช็ก existsSync ไม่พอ เพราะ db.backup() เป็น async ถ้ากดสร้าง
+// รัวๆ ทุกคำขอจะเห็นว่าชื่อยังว่างแล้วเลือกชื่อเดียวกันหมด ส่วน 'wx' ให้ระบบปฏิบัติการ
+// ตัดสินว่าใครได้ชื่อไป ชนเมื่อไหร่ได้ EEXIST แล้วขยับไปเลขถัดไป
+// (db.backup() เขียนลงไฟล์เปล่าที่จองไว้ได้ปกติ — ไฟล์ขนาด 0 ไบต์คือฐานข้อมูลว่าง)
+function reserveBackupFile(dir, now) {
+  for (let sequence = 1; ; sequence++) {
+    const fileName = buildFileName(now, sequence)
+    try {
+      fs.closeSync(fs.openSync(path.join(dir, fileName), 'wx'))
+      return fileName
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err
+    }
+  }
 }
 
 // ------------------------------------------------------------------
 // สร้างสำเนา
 // ------------------------------------------------------------------
 // db.backup() เป็น async — คืน Promise ที่ resolve เมื่อคัดลอกครบทุกหน้า
-export async function createBackup(db, userDataPath, { label, isDev = false } = {}) {
+// now มีไว้ให้ชุดทดสอบกำหนดเวลาเองได้ — แอปไม่ต้องส่งมา
+export async function createBackup(db, userDataPath, { label, isDev = false, now = new Date() } = {}) {
   const dir = ensureDir(resolveBackupDir(userDataPath, { isDev }))
-  const fileName = buildFileName()
+  const fileName = reserveBackupFile(dir, now)
   const target = path.join(dir, fileName)
 
-  await db.backup(target)
+  try {
+    await db.backup(target)
+  } catch (err) {
+    // สำรองไม่สำเร็จ = อย่าทิ้งไฟล์ที่จองไว้ (เปล่าหรือครึ่งๆ กลางๆ) ให้โผล่ในรายการ
+    // เพราะหน้าตาเหมือนไฟล์สำรองปกติ แล้ววันหนึ่งจะมีคนกดกู้คืนจากมัน
+    fs.rmSync(target, { force: true })
+    throw err
+  }
 
   // บันทึกป้ายกำกับไว้ในไฟล์ข้างๆ ไม่ยัดลงชื่อไฟล์ — ชื่อไฟล์ต้องเรียงตามเวลาได้เสมอ
   // และผู้ใช้พิมพ์อักษรที่ใช้เป็นชื่อไฟล์ไม่ได้ลงไปได้

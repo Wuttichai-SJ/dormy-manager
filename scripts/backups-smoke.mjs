@@ -216,6 +216,53 @@ check('ลบข้ามโหมดไม่ได้ — ไฟล์ขอ�
 })
 
 // -----------------------------------------------------
+// สำรองสองครั้งในวินาทีเดียวกัน
+// -----------------------------------------------------
+// ชื่อไฟล์ละเอียดแค่ระดับวินาที เดิมใบที่สองจะเขียนทับใบแรกเงียบๆ ไม่มีคำเตือน
+// จุดที่เกิดได้จริงคือตอนกู้คืน: ระบบสร้าง "สำรองอัตโนมัติก่อนกู้คืน" เอง ถ้าตรงกับวินาที
+// ที่ผู้ใช้เพิ่งกดสร้างสำรอง ใบของผู้ใช้จะหายไป — หรือกดปุ่มสร้างสองครั้งติดกัน
+group('สำรองสองครั้งในวินาทีเดียวกัน ต้องไม่ทับกัน')
+
+// ใช้โฟลเดอร์ใหม่ และส่งเวลาตายตัวเข้าไป ไม่พึ่งว่าเครื่องจะเร็วพอให้ตรงวินาทีเดียวกันเอง
+const sameSecondDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dormy-backups-samesec-'))
+const fixedNow = new Date(2026, 0, 15, 10, 20, 30)
+
+const earlier = await backups.createBackup(db, sameSecondDir, { label: 'ใบแรก', now: fixedNow })
+const later = await backups.createBackup(db, sameSecondDir, { label: 'ใบสอง', now: fixedNow })
+
+check('ใบแรกใช้ชื่อปกติ ใบที่สองได้เลขต่อท้าย', () => {
+  assert(earlier.fileName === 'dormy-2026-01-15_102030.sqlite', `ใบแรก ${earlier.fileName}`)
+  assert(later.fileName === 'dormy-2026-01-15_102030-2.sqlite', `ใบสอง ${later.fileName}`)
+})
+
+check('ทั้งสองใบยังอยู่ และป้ายกำกับไม่สลับกัน', () => {
+  const list = backups.listBackups(sameSecondDir)
+  assert(list.length === 2, `ควรมี 2 ใบ ได้ ${list.length}`)
+  const byName = Object.fromEntries(list.map((b) => [b.fileName, b.label]))
+  assert(byName[earlier.fileName] === 'ใบแรก', `ป้ายใบแรก ${byName[earlier.fileName]}`)
+  assert(byName[later.fileName] === 'ใบสอง', `ป้ายใบสอง ${byName[later.fileName]}`)
+})
+
+// กดสร้างรัวๆ: ทุกคำขอเริ่มก่อนใบไหนเขียนเสร็จ — การเช็ก "มีไฟล์ชื่อนี้หรือยัง" ธรรมดา
+// ไม่พอ เพราะ db.backup() เป็น async ทุกคำขอจะเห็นว่ายังว่างแล้วเลือกชื่อเดียวกันหมด
+const rapidNow = new Date(2026, 0, 15, 10, 20, 31)
+const rapid = await Promise.all(
+  [1, 2, 3].map((n) => backups.createBackup(db, sameSecondDir, { label: `รัว ${n}`, now: rapidNow }))
+)
+
+check('สร้างพร้อมกันสามคำขอ ได้สามไฟล์คนละชื่อ ใช้กู้คืนได้ทุกใบ', () => {
+  const names = new Set(rapid.map((b) => b.fileName))
+  assert(names.size === 3, `ได้ชื่อไม่ซ้ำแค่ ${names.size} ชื่อ: ${[...names].join(', ')}`)
+  assert(backups.listBackups(sameSecondDir).length === 5, 'รวมทั้งโฟลเดอร์ควรมี 5 ใบ')
+  for (const b of rapid) {
+    const info = backups.inspectBackup(b.path)
+    assert(info.apartments > 0, `${b.fileName} ไม่มีข้อมูลหอ`)
+  }
+})
+
+fs.rmSync(sameSecondDir, { recursive: true, force: true })
+
+// -----------------------------------------------------
 cleanup()
 fs.rmSync(userData, { recursive: true, force: true })
 summarize('การสำรอง/กู้คืนข้อมูลทำงานครบทุกเส้นทาง')
