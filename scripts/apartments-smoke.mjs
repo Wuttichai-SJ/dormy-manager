@@ -479,5 +479,65 @@ check('หอที่ไม่มีอยู่ อ่านหรือบั
 })
 
 // -----------------------------------------------------
+// -----------------------------------------------------
+// อัตรา VAT (migration 031)
+// -----------------------------------------------------
+group('อัตรา VAT')
+
+const vatBase = {
+  nameTh: 'หอทดสอบ VAT',
+  addressTh: '1 ถนนทดสอบ',
+  dueDateDay: 10,
+  lateFeePerDay: '0'
+}
+
+check('อัตราที่ใช้ได้จริงต้องผ่านทุกตัว รวมเลขที่ทศนิยมลอยทำพัง', () => {
+  // 🔴 8.2 / 2.3 / 16.4 คือเลขที่เคยถูกปฏิเสธผิดๆ เพราะเช็กด้วย Math.round(r*100) !== r*100
+  //    (8.2 * 100 = 819.9999999999999 ในเลขทศนิยมฐานสอง)
+  //    ส่วน 7 / 7.1 / 10 ผ่านอยู่แล้ว — ลองเล่นด้วยเลขที่คุ้นเคยจึงไม่มีวันเจอบั๊กนี้
+  for (const rate of ['0', '7', '7.1', '7.5', '8.2', '2.3', '10', '12.9', '16.4', '100']) {
+    const errors = apartments.validateApartmentInput({ ...vatBase, vatRate: rate })
+    assert(errors.length === 0, `อัตรา ${rate} ควรผ่าน แต่ได้: ${errors.join(' / ')}`)
+  }
+})
+
+check('อัตราที่ใช้ไม่ได้ต้องถูกปฏิเสธ', () => {
+  for (const rate of ['-1', '101', '7.125', 'abc', '7.5.5']) {
+    const errors = apartments.validateApartmentInput({ ...vatBase, vatRate: rate })
+    assert(errors.length > 0, `อัตรา ${rate} ควรถูกปฏิเสธ`)
+  }
+})
+
+check('เปิดสวิตช์ VAT แล้วตั้งอัตราเป็น 0 ไม่ได้', () => {
+  const errors = apartments.validateApartmentInput({
+    ...vatBase,
+    isVatEnabled: true,
+    vatRate: '0'
+  })
+  assert(
+    errors.some((e) => e.includes('อัตรา VAT')),
+    `ควรเตือนเรื่องอัตรา ได้: ${errors.join(' / ')}`
+  )
+})
+
+check('เก็บและอ่านอัตรากลับมาได้ · เว้นว่างถอยไปที่ 7 ไม่ใช่ 0', () => {
+  const withRate = apartments.insertApartment(db, {
+    ...vatBase,
+    nameTh: 'หอ VAT 8.2',
+    isVatEnabled: true,
+    vatRate: '8.2'
+  })
+  assert(withRate.vatRate === 8.2, `ได้ ${withRate.vatRate}`)
+
+  // เว้นว่าง = ไม่ได้มาแก้ช่องนี้ ต้องไม่กลายเป็น 0 (Number('') === 0)
+  const blank = apartments.insertApartment(db, {
+    ...vatBase,
+    nameTh: 'หอ VAT เว้นว่าง',
+    vatRate: ''
+  })
+  assert(blank.vatRate === 7, `เว้นว่างควรได้ 7 ได้ ${blank.vatRate}`)
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลหอพักทำงานครบทุกเส้นทาง')

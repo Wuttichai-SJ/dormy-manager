@@ -23,6 +23,21 @@ export const MAX_METER_DIGITS = 8
 export const DEFAULT_METER_DIGITS = 5
 
 // -----------------------------------------------------
+// อัตรา VAT
+// -----------------------------------------------------
+// **ค่านี้คืออัตราของหอ "ตอนนี้" ใช้กับบิลที่ออกใหม่เท่านั้น** (ดู migration 031)
+//
+// บิลที่ออกไปแล้วเก็บอัตราของตัวเองไว้ที่ invoices.vat_rate และใช้ค่านั้นตลอดไป
+// เจ้าของหอยืนยันว่าบิลที่ยื่นให้ผู้เช่าแล้วต้องคง VAT เดิม ต่อให้มาจ่ายช้าแล้วโดนค่าปรับ
+// — อัตราใหม่มีผลกับรอบบิลถัดไปเท่านั้น
+//
+// ไทยใช้ 7% มาตลอด (เคยเป็น 10%) รับทศนิยมไว้เพราะคอลัมน์เป็น DECIMAL(5,2) อยู่แล้ว
+// และไม่มีเหตุผลที่จะบังคับให้เป็นจำนวนเต็ม
+export const MIN_VAT_RATE = 0
+export const MAX_VAT_RATE = 100
+export const DEFAULT_VAT_RATE = 7
+
+// -----------------------------------------------------
 // นโยบายคืนเงินประกัน (ค่าตั้งต้นของหอ)
 // -----------------------------------------------------
 // **ค่าเหล่านี้ถูกสำเนาลงสัญญาแต่ละใบตอนทำสัญญา ไม่ได้อ่านสดตอนย้ายออก** (ดู 004)
@@ -53,7 +68,9 @@ export function validateApartmentInput({
   dueDateDay,
   lateFeePerDay,
   isAutoLateFeeEnabled,
-  meterDigits
+  meterDigits,
+  isVatEnabled,
+  vatRate
 }) {
   const errors = []
 
@@ -91,6 +108,27 @@ export function validateApartmentInput({
     }
   }
 
+  if (vatRate !== undefined && vatRate !== null && vatRate !== '') {
+    const rate = Number(vatRate)
+    if (!Number.isFinite(rate) || rate < MIN_VAT_RATE || rate > MAX_VAT_RATE) {
+      errors.push(`อัตรา VAT ต้องอยู่ระหว่าง ${MIN_VAT_RATE}-${MAX_VAT_RATE}%`)
+    } else if (!/^\d+(\.\d{1,2})?$/.test(String(vatRate).trim())) {
+      // **ตรวจจากข้อความ ไม่ใช่จากการคูณ 100** — `Math.round(r*100) !== r*100` ใช้ไม่ได้
+      // เพราะเลขทศนิยมฐานสอง: 8.2*100 = 819.9999999999999 · 2.3*100 = 229.99999999999997
+      // อัตราที่ถูกต้องอย่าง 8.2 / 2.3 / 16.4 จะถูกปฏิเสธ ขณะที่ 7 / 7.1 / 10 ผ่าน
+      // — บั๊กที่ลองเล่นด้วยเลขที่คุ้นเคยแล้วไม่มีวันเจอ
+      //
+      // ปัดให้เหลือ 2 ตำแหน่งเงียบๆ ก็ไม่ควร: ถ้าเจ้าของหอพิมพ์ 7.125 แปลว่าเข้าใจอะไรผิด
+      errors.push('อัตรา VAT ใส่ทศนิยมได้ไม่เกิน 2 ตำแหน่ง')
+    }
+  }
+
+  // เปิดสวิตช์ VAT แต่ตั้งอัตราไว้ 0 = สถานะที่เป็นไปไม่ได้ กันแบบเดียวกับค่าปรับล่าช้า
+  // (ถ้าปล่อยผ่าน บิลจะไม่มี VAT เลยทั้งที่ติ๊กเปิดไว้ แล้วดูเหมือนฟีเจอร์เสีย)
+  if (isVatEnabled && Number(vatRate) === 0) {
+    errors.push('เปิดการใช้งาน VAT แล้ว กรุณากรอกอัตรา VAT ให้มากกว่า 0%')
+  }
+
   return errors
 }
 
@@ -102,6 +140,23 @@ function normalizeMeterDigits(value) {
     return DEFAULT_METER_DIGITS
   }
   return digits
+}
+
+// เหตุผลเดียวกับ normalizeMeterDigits — ตัวเลขนี้ไปคูณกับเงินในบิล ห้ามกลายเป็น NaN
+// ไม่ส่งมา/ส่งค่าพังมา ให้ถอยไปที่ 7 ซึ่งเป็นอัตราที่ระบบใช้มาตลอดก่อนมีช่องนี้
+function normalizeVatRate(value) {
+  // เว้นว่าง/ไม่ส่งมา = "ไม่ได้มาแก้ช่องนี้" ไม่ใช่ "ตั้งเป็น 0"
+  // (Number('') กับ Number(null) ได้ 0 ซึ่งผ่านช่วง 0-100 แล้วเก็บ 0 ลงไปเงียบๆ)
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return DEFAULT_VAT_RATE
+  }
+  const rate = Number(value)
+  if (!Number.isFinite(rate) || rate < MIN_VAT_RATE || rate > MAX_VAT_RATE) {
+    return DEFAULT_VAT_RATE
+  }
+  // ตัดให้เหลือ 2 ตำแหน่งเอง — SQLite ไม่ได้บังคับความกว้างของ DECIMAL(5,2) ให้
+  // (NUMERIC affinity เก็บ 7.125 ไว้ตรงๆ ไม่ปัด) ตัวที่การันตี 2 ตำแหน่งคือบรรทัดนี้
+  return Math.round(rate * 100) / 100
 }
 
 // แปลงค่าจากฟอร์มเป็นรูปที่พร้อมเขียนลงตาราง ใช้ร่วมกันทั้งตอนสร้างและตอนแก้ไข
@@ -126,6 +181,7 @@ function toRow(input) {
     // ผ่อนผันกี่วันหลังวันครบกำหนดจึงเริ่มปรับ (0 = ปรับตั้งแต่วันถัดไปเลย)
     lateFeeGraceDays: Math.max(0, Math.floor(Number(input.lateFeeGraceDays) || 0)),
     isVatEnabled: input.isVatEnabled ? 1 : 0,
+    vatRate: normalizeVatRate(input.vatRate),
     meterDigits: normalizeMeterDigits(input.meterDigits)
   }
 }
@@ -195,12 +251,12 @@ export function insertApartment(db, input) {
       `INSERT INTO apartments (
          logo_url, name_th, name_en, address_th, address_en, phone,
          late_fee_per_day_cents, is_auto_late_fee_enabled, late_fee_grace_days,
-         due_date_day, is_vat_enabled, meter_digits,
+         due_date_day, is_vat_enabled, vat_rate, meter_digits,
          default_rent_item_text, display_order, created_at
        ) VALUES (
          @logoUrl, @nameTh, @nameEn, @addressTh, @addressEn, @phone,
          @lateFeePerDayCents, @isAutoLateFeeEnabled, @lateFeeGraceDays,
-         @dueDateDay, @isVatEnabled, @meterDigits,
+         @dueDateDay, @isVatEnabled, @vatRate, @meterDigits,
          @rentItemText, @displayOrder, @now
        )`
     )
@@ -231,6 +287,7 @@ export function updateApartment(db, apartmentId, input) {
          late_fee_grace_days = @lateFeeGraceDays,
          due_date_day = @dueDateDay,
          is_vat_enabled = @isVatEnabled,
+         vat_rate = @vatRate,
          meter_digits = @meterDigits,
          updated_at = @now
        WHERE apartment_id = @apartmentId`
@@ -400,6 +457,8 @@ export function toPublicApartment(row) {
     lateFeeGraceDays: row.late_fee_grace_days ?? 0,
     dueDateDay: row.due_date_day,
     isVatEnabled: row.is_vat_enabled === 1,
+    // อัตราปัจจุบันของหอ — บิลที่ออกไปแล้วถือของตัวเองไว้ที่ invoices.vat_rate
+    vatRate: normalizeVatRate(row.vat_rate),
     meterDigits: normalizeMeterDigits(row.meter_digits),
     displayOrder: row.display_order,
     // null = ยังเดินตัวช่วยตั้งค่าไม่ครบ หน้าจอใช้ค่านี้ตัดสินว่าจะให้เข้าหน้าทำงานได้ไหม
