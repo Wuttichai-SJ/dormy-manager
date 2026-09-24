@@ -28,9 +28,18 @@ const apartmentId = apartment.apartmentId
 rooms.generateFloorPlan(db, apartmentId, [{ roomCount: 3 }])
 const [room1, room2, room3] = rooms.listFloors(db, apartmentId)[0].rooms
 
+// วันเข้าอยู่ = วันที่ 1 ของเดือนหน้าเสมอ ห้ามตรึงเป็นวันตายตัว เพราะวันจองคือ "วันนี้" เสมอ
+// (ใช้เวลา UTC แบบเดียวกับ bookings.js) ถ้าตรึงไว้ พอเลยวันนั้นไปวันจองจะมาทีหลังวันเข้าอยู่
+// ลำดับใบเสร็จจะสลับ — เทสต์นี้เคยตกทุกวันตั้งแต่ 2026-09-01 ด้วยเหตุนี้
+// วันที่ 1 ยังคงอยู่ในช่วง "เข้าวันที่ 1-3 คิดเต็มเดือน" ยอดเงินในเทสต์จึงไม่เปลี่ยน
+const nowUtc = new Date()
+const MOVE_IN_DATE = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth() + 1, 1))
+  .toISOString()
+  .slice(0, 10)
+
 const BASE = {
   rentType: 'monthly',
-  checkInDate: '2026-09-01',
+  checkInDate: MOVE_IN_DATE,
   rentPrice: '5000',
   bookingFee: '1000',
   paymentMethod: 'cash',
@@ -221,7 +230,7 @@ const staff = (await import('../src/main/db/users.js')).insertUser(db, {
 })
 
 const contract = bookings.convertBookingToContract(db, booking.bookingId, {
-  startDate: '2026-09-01',
+  startDate: MOVE_IN_DATE,
   rentAmount: '5000',
   deposit: '5000',
   depositPaymentMethod: 'cash',
@@ -257,7 +266,7 @@ check('เงินจองและส่วนที่เหลือถู�
   // หลายเดือน ถ้ายุบเป็นวันเดียวรายรับของเดือนที่รับเงินจองจะหายไป
   assert(rows[0].payment_date === booking.bookingDate, `ใบแรกลงวันที่ ${rows[0].payment_date}`)
   assert(rows[0].amount_cents === 100000, `ใบแรก ${rows[0].amount_cents}`)
-  assert(rows[1].payment_date === '2026-09-01', `ใบที่สองลงวันที่ ${rows[1].payment_date}`)
+  assert(rows[1].payment_date === MOVE_IN_DATE, `ใบที่สองลงวันที่ ${rows[1].payment_date}`)
   assert(rows[1].amount_cents === 400000, `ใบที่สอง ${rows[1].amount_cents}`)
 })
 
