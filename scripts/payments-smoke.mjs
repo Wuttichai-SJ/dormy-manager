@@ -1257,5 +1257,76 @@ check('บิลที่เคยออกใบเสร็จลบไม่�
 })
 
 // -----------------------------------------------------
+// ใบเสร็จทุกใบของสัญญา — ใช้ทำ "ใบรับเงินแรกเข้า" กระดาษใบเดียวที่รวมทุกก้อน
+// -----------------------------------------------------
+// depositContract ข้างบนเป็นเคสที่ครบที่สุดพอดี: เงินจอง 2,000 รับไว้ 01/03 (คนละวันกับ
+// วันทำสัญญา 25/05) และเงินประกันวันเซ็นสัญญาเก็บไม่ครบ (depositReceived: '0')
+group('ใบเสร็จทุกใบของสัญญา')
+
+check('ดึงใบเสร็จของสัญญาได้ครบทุกก้อน เรียงตามวันที่รับเงินจริง', () => {
+  const rows = payments.listContractReceipts(db, depositContract.contractId)
+  assert(rows.length >= 2, `ควรมีอย่างน้อยเงินจองกับค่าเช่าเดือนแรก ได้ ${rows.length}`)
+
+  // เงินจองรับไว้ 01/03 ก่อนวันทำสัญญา 25/05 จึงต้องขึ้นเป็นบรรทัดแรก
+  assert(rows[0].paymentDate === '2026-03-01', `บรรทัดแรกควรเป็นเงินจอง ได้ ${rows[0].paymentDate}`)
+
+  const dates = rows.map((r) => r.paymentDate)
+  const sorted = [...dates].sort()
+  assert(dates.join() === sorted.join(), `เรียงวันที่ไม่ถูก: ${dates.join(' , ')}`)
+})
+
+check('ทุกบรรทัดมีข้อความบอกว่าเป็นเงินก้อนไหน ไม่ใช่ข้อความกลางๆ เหมือนกันหมด', () => {
+  const rows = payments.listContractReceipts(db, depositContract.contractId)
+  for (const r of rows) {
+    assert(String(r.remark ?? '').trim() !== '', `ใบ ${r.receiptNumber} ไม่มี remark`)
+  }
+  // เอกสารรวมใช้ remark เป็นชื่อรายการ ถ้าทุกใบเขียนเหมือนกันก็แยกไม่ออกว่าจ่ายอะไรบ้าง
+  const remarks = rows.map((r) => r.remark.trim())
+  assert(new Set(remarks).size === remarks.length, `ข้อความซ้ำกัน: ${remarks.join(' / ')}`)
+})
+
+check('ยอดรวมของเอกสารเท่ากับผลรวมใบเสร็จทุกใบ', () => {
+  const rows = payments.listContractReceipts(db, depositContract.contractId)
+  const total = rows.reduce((sum, r) => sum + r.amountCents, 0)
+
+  // เทียบกับตารางตรงๆ ไม่ใช่ rows ก้อนเดียวมาบวกสองรอบ — ไม่งั้นเทียบตัวเองกับตัวเอง
+  // แล้วผ่านทุกกรณี ถึง listContractReceipts จะลืมใบไปทั้งใบก็ตรวจไม่เจอ
+  const raw = db
+    .prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS total
+         FROM payments
+        WHERE contract_id = ? AND cancelled_at IS NULL`
+    )
+    .get(depositContract.contractId)
+
+  assert(rows.length === raw.n, `จำนวนใบไม่ตรง: เอกสาร ${rows.length} ใบ / ตาราง ${raw.n} ใบ`)
+  assert(total === raw.total, `ยอดรวมไม่ตรง: เอกสาร ${total} / ตาราง ${raw.total}`)
+  assert(total > 0, `ยอดรวมควรมากกว่า 0 ได้ ${total}`)
+})
+
+check('ใบเสร็จที่ถูกยกเลิกไม่เข้าเอกสาร', () => {
+  const before = payments.listContractReceipts(db, depositContract.contractId)
+  const target = before[0]
+
+  payments.cancelPayment(db, target.paymentId, {
+    reason: 'ทดสอบว่าใบที่ยกเลิกไม่เข้าเอกสารรวม',
+    cancelledBy: staff.user_id
+  })
+
+  const after = payments.listContractReceipts(db, depositContract.contractId)
+  assert(after.length === before.length - 1, `ควรลดลง 1 ใบ: ${before.length} -> ${after.length}`)
+  assert(
+    !after.some((r) => r.paymentId === target.paymentId),
+    'ใบที่ยกเลิกยังอยู่ในเอกสาร'
+  )
+})
+
+check('ข้อมูลหอติดมากับใบเสร็จ เพื่อให้หัวเอกสารไม่ว่างเปล่า', () => {
+  const rows = payments.listContractReceipts(db, depositContract.contractId)
+  assert(rows[0].apartment?.name, 'ไม่มีชื่อหอติดมาด้วย')
+  assert(rows[0].roomNumber, 'ไม่มีเลขห้องติดมาด้วย')
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลรับชำระเงินทำงานครบทุกเส้นทาง')

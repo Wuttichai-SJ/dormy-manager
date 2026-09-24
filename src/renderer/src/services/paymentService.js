@@ -74,6 +74,11 @@ export function receiveContractPayment({
   })
 }
 
+// ใบเสร็จทุกใบของสัญญา (เงินจอง / เงินประกัน / ค่าเช่าเดือนแรก / เงินประกันที่เก็บเพิ่ม)
+export function listContractReceipts(contractId) {
+  return invoke('payment:contractReceipts', { contractId })
+}
+
 export function listPaymentsForInvoice(invoiceId) {
   return invoke('payment:listForInvoice', { invoiceId })
 }

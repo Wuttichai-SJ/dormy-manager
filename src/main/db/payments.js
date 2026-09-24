@@ -284,6 +284,19 @@ export function recordContractPayment(
   const magnitude = toCents(amount, 'จำนวนเงิน')
   if (magnitude === 0) throw new Error('จำนวนเงินต้องมากกว่า 0')
 
+  // **ใบเสร็จของสัญญาต้องมีข้อความบอกเสมอว่าเป็นเงินก้อนไหน** — remark เป็นช่องที่
+  // เจ้าหน้าที่เว้นว่างได้ (เช่นตอนกด "รับเงินประกันเพิ่ม" แล้วไม่พิมพ์หมายเหตุ)
+  // ถ้าปล่อยว่าง ใบเสร็จกับใบรับเงินแรกเข้าจะขึ้นข้อความกลางๆ ที่ผู้เช่าอ่านแล้ว
+  // แยกไม่ออกว่าจ่ายอะไรไป — ซึ่งคือปัญหาที่เอกสารพวกนี้มีไว้แก้พอดี
+  //
+  // createContract เขียน remark ที่เจาะจงกว่านี้มาให้อยู่แล้ว ('เงินจองตามใบจอง B...'
+  // / 'เงินประกันวันทำสัญญา' / 'ค่าเช่าเดือนแรก (เดือน 09-2569)') ตัวนี้เป็นตาข่าย
+  // สำหรับเงินที่รับเพิ่มทีหลังเท่านั้น
+  const label = String(remark ?? '').trim()
+  const fallback = isRefund
+    ? `คืน${PAYMENT_PURPOSE_LABELS[kind] ?? 'เงินตามสัญญาเช่า'}`
+    : PAYMENT_PURPOSE_LABELS[kind] ?? 'เงินตามสัญญาเช่า'
+
   return writePayment(db, {
     invoiceId: null,
     contractId,
@@ -292,7 +305,7 @@ export function recordContractPayment(
     purpose: kind,
     paymentMethod,
     paymentDate,
-    remark,
+    remark: label || fallback,
     createdBy
   })
 }
@@ -450,6 +463,37 @@ export function listPaymentsForInvoice(db, invoiceId) {
         ORDER BY p.payment_date, p.payment_id`
     )
     .all(invoiceId)
+    .map(toPublicPayment)
+}
+
+// ใบเสร็จทุกใบของสัญญาหนึ่ง — เงินจอง / เงินประกัน / ค่าเช่าเดือนแรก และเงินประกันที่เก็บ
+// เพิ่มทีหลัง · ใช้ทำ "ใบรับเงินแรกเข้า" ที่รวมทุกก้อนไว้ในกระดาษใบเดียว
+//
+// **ดึงสดทุกครั้งที่พิมพ์ ไม่ได้ล็อกไว้ตอนทำสัญญา** — พิมพ์ตอนเซ็นสัญญาได้ 3 บรรทัด
+// พิมพ์อีกทีหลังเก็บเงินประกันส่วนที่ค้างครบแล้วได้ 4 บรรทัด ซึ่งตรงกับความจริงเสมอ
+//
+// เรียงตามวันที่รับเงินจริง ไม่ใช่ลำดับที่บันทึก — เงินจองอาจรับไว้ก่อนวันทำสัญญาหลายเดือน
+// (ดู createContract ใน db/contracts.js) บนเอกสารจึงต้องขึ้นก่อน
+//
+// ใบที่ถูกยกเลิกไม่เอามาด้วย — เอกสารนี้ยื่นให้ผู้เช่า ต้องมีแต่เงินที่รับจริง
+export function listContractReceipts(db, contractId) {
+  return db
+    .prepare(
+      `SELECT p.*, r.room_number, u.full_name AS created_by_name,
+              cu.full_name AS cancelled_by_name,
+              a.name_th AS apartment_name, a.address_th AS apartment_address,
+              a.phone AS apartment_phone
+         FROM payments p
+         JOIN contracts c ON c.contract_id = p.contract_id
+         JOIN rooms r     ON r.room_id = c.room_id
+         JOIN floors f    ON f.floor_id = r.floor_id
+         JOIN apartments a ON a.apartment_id = f.apartment_id
+         LEFT JOIN users u  ON u.user_id = p.created_by
+         LEFT JOIN users cu ON cu.user_id = p.cancelled_by
+        WHERE p.contract_id = ? AND p.cancelled_at IS NULL
+        ORDER BY p.payment_date, p.payment_id`
+    )
+    .all(contractId)
     .map(toPublicPayment)
 }
 

@@ -11,6 +11,7 @@ import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   cancelPayment,
   getMultiPaymentSheet,
+  listContractReceipts,
   listPaymentsForInvoice,
   listReceipts,
   recordContractPayment,
@@ -122,6 +123,12 @@ export function registerPaymentHandlers() {
       )
       return payment
     }
+  )
+
+  // ใบเสร็จทุกใบของสัญญา — ใช้ทำ "ใบรับเงินแรกเข้า" ที่รวมเงินจอง/เงินประกัน/ค่าเช่า
+  // เดือนแรกไว้ในกระดาษใบเดียว
+  handleSession('payment:contractReceipts', ({ contractId }) =>
+    listContractReceipts(getDatabase(), contractId)
   )
 
   handleSession('payment:listForInvoice', ({ invoiceId }) =>
