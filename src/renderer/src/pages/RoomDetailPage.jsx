@@ -8,7 +8,9 @@ import { PAYMENT_METHODS, ROOM_STATUS_LABELS } from '../constants.js'
 import { getContractsForRoom } from '../services/contractService.js'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
-import { receiveContractPayment } from '../services/paymentService.js'
+import { listContractReceipts, receiveContractPayment } from '../services/paymentService.js'
+import MoveInReceiptDocument from '../components/MoveInReceiptDocument.jsx'
+import PrintDialog from '../components/PrintDialog.jsx'
 import BookingsCard from '../components/BookingsCard.jsx'
 import ContractWizard from './ContractWizard.jsx'
 import MoveOutPage from './MoveOutPage.jsx'
@@ -28,6 +30,8 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   const [converting, setConverting] = useState(null)
   // กำลังอยู่ในขั้นตอนย้ายออก (หน้าเต็ม เหมือนตัวช่วยทำสัญญา)
   const [movingOut, setMovingOut] = useState(false)
+  // ใบเสร็จของสัญญาที่ดึงมาเพื่อพิมพ์ "ใบรับเงินแรกเข้า" — null = ยังไม่ได้กดพิมพ์
+  const [moveInReceipts, setMoveInReceipts] = useState(null)
 
   const load = useCallback(async () => {
     const res = await getContractsForRoom(room.roomId)
@@ -81,6 +85,40 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
     )
   }
 
+  // ระหว่างพิมพ์ หน้าจอต้องเหลือแค่เอกสาร เพราะ printToPDF จับภาพหน้าที่กำลังแสดงอยู่
+  // (แบบแผนเดียวกับ ReceiptsPage — ถ้าทำเป็นกล่องซ้อนทับ เมนูกับการ์ดจะติดไปในกระดาษด้วย)
+  if (moveInReceipts && active) {
+    return (
+      <>
+        <div className="receipt-sheets">
+          <MoveInReceiptDocument
+            receipts={moveInReceipts}
+            // ข้อมูลหอมาจากใบเสร็จ ไม่ใช่ prop ของหน้า — ตัวที่ติดมากับใบเสร็จเป็นรูป
+            // { name, address, phone } ตรงกับที่เอกสารทุกใบในระบบใช้ ส่วน prop ของหน้า
+            // เป็น { nameTh, addressTh } คนละรูป ส่งผิดตัวหัวเอกสารจะว่างเปล่าเงียบๆ
+            apartment={moveInReceipts[0]?.apartment ?? {}}
+            roomNumber={room.roomNumber}
+            tenantName={active.tenantName}
+            contractStartDate={active.startDate}
+            deposit={active.deposit}
+            signedBy={user?.fullName}
+          />
+        </div>
+
+        {/* เอกสารนี้เป็น A4 หน้าเดียวเสมอ ไม่ใช่ A5 สองใบต่อแผ่นแบบใบเสร็จ */}
+        <PrintDialog
+          title="พิมพ์ใบรับเงินแรกเข้า"
+          maxPages={1}
+          onClose={() => setMoveInReceipts(null)}
+          onPrinted={() => {
+            setMoveInReceipts(null)
+            showToast('ส่งใบรับเงินแรกเข้าเข้าเครื่องพิมพ์แล้ว')
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <>
       <button type="button" className="link-btn link-back-inline" onClick={onBack}>
@@ -107,6 +145,7 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
                 contract={active}
                 onReload={load}
                 onMoveOut={() => setMovingOut(true)}
+                onPrintMoveIn={setMoveInReceipts}
               />
             ) : (
               <section className="panel">
@@ -149,8 +188,20 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   )
 }
 
-function ContractCard({ contract, onReload, onMoveOut }) {
+function ContractCard({ contract, onReload, onMoveOut, onPrintMoveIn }) {
   const [receiving, setReceiving] = useState(false)
+  // ใบรับเงินแรกเข้า — ดึงใบเสร็จสดตอนกดพิมพ์ ไม่ได้เก็บไว้ตั้งแต่ตอนทำสัญญา
+  // จะได้เห็นเงินประกันที่เก็บเพิ่มทีหลังด้วย (ดูคอมเมนต์ใน MoveInReceiptDocument)
+  const [loadingReceipts, setLoadingReceipts] = useState(false)
+
+  async function openMoveInReceipt() {
+    setLoadingReceipts(true)
+    const res = await listContractReceipts(contract.contractId)
+    setLoadingReceipts(false)
+    if (!res.success) return showToast(res.error, 'error')
+    if (res.data.length === 0) return showToast('สัญญานี้ยังไม่มีใบเสร็จให้พิมพ์', 'error')
+    onPrintMoveIn(res.data)
+  }
   const deposit = contract.deposit ?? { requiredCents: contract.depositAmountCents, receivedCents: 0, outstandingCents: 0 }
 
   const rows = [
@@ -197,6 +248,19 @@ function ContractCard({ contract, onReload, onMoveOut }) {
       )}
 
       {contract.note && <p className="field-hint">{contract.note}</p>}
+
+      {/* พิมพ์กระดาษใบเดียวที่รวมเงินทุกก้อนตอนย้ายเข้า — ผู้เช่าจะได้ไม่ต้องถือใบเสร็จ
+          สามใบที่หน้าตาเหมือนกัน · ใบเสร็จรายก้อนยังพิมพ์แยกได้ที่หน้าการชำระเงินตามเดิม */}
+      <div className="contract-doc-actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={openMoveInReceipt}
+          disabled={loadingReceipts}
+        >
+          {loadingReceipts ? 'กำลังเตรียม...' : 'พิมพ์ใบรับเงินแรกเข้า'}
+        </button>
+      </div>
 
       <MoveOutNotice contract={contract} onReload={onReload} onMoveOut={onMoveOut} />
 

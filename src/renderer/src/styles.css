@@ -48,3 +48,4 @@
 @import './styles/23-move-out.css';                   /* ย้ายออก · ใบสรุป · @media print (2/3) */
 @import './styles/24-receipt-print.css';              /* ใบเสร็จ A5 · @media print (3/3) */
 @import './styles/25-billing-meters-maintenance.css'; /* ออกบิล · จดมิเตอร์ · แจ้งซ่อม */
+@import './styles/26-move-in-receipt.css';            /* ใบรับเงินแรกเข้า + ปุ่มพิมพ์ในการ์ดสัญญา */
