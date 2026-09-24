@@ -31,9 +31,17 @@ export const ITEM_TYPES = [
   'other'
 ]
 
-// ภาษีมูลค่าเพิ่มของไทย เก็บเป็นค่าคงที่ ไม่ใช่ช่องให้กรอก — ถ้าวันหนึ่งอัตราเปลี่ยน
-// ต้องเปลี่ยนที่นี่ที่เดียว และบิลเก่าจะไม่ถูกคิดใหม่เพราะอัตราถูกสำเนาลงทุกบรรทัดแล้ว
-export const VAT_RATE = 7
+// 🔴 **อัตรา VAT ไม่ใช่ค่าคงที่อีกแล้ว** เจ้าของหอกรอกเองได้ที่หน้าตั้งค่าหอ (migration 031)
+//
+// อัตราที่ใช้กับบิลใบหนึ่ง ถูกตรึงไว้ที่ `invoices.vat_rate` ตั้งแต่ตอนออกบิล และใช้ค่านั้น
+// ตลอดไป — **ทุกฟังก์ชันในไฟล์นี้ต้องอ่านอัตราจากบิล ห้ามย้อนไปอ่าน apartments.vat_rate**
+//
+// เหตุผล: เจ้าของหอยืนยันว่าบิลที่ยื่นให้ผู้เช่าแล้วต้องคง VAT เดิม ต่อให้มาจ่ายช้า
+// แล้วโดนค่าปรับ (ซึ่งเรียก addLateFeeItem -> recalculateTotals) ก็ตาม
+// อัตราใหม่มีผลกับบิลที่ออกในรอบถัดไปเท่านั้น
+//
+// ตัวนี้เป็นแค่ค่าถอยเมื่อไม่รู้อัตรา (แถวเก่าก่อน migration 031 ซึ่ง DEFAULT เป็น 7 อยู่แล้ว)
+import { DEFAULT_VAT_RATE } from './apartments.js'
 
 // **VAT คิดแบบ "บวกเพิ่มจากราคา" ไม่ใช่ "รวมอยู่ในราคาแล้ว"**
 // ยืนยันกับบิลจริงของต้นแบบแล้ว (หัวคอลัมน์เขียน "ราคาต่อหน่วย (ก่อน VAT)" / "ยอดเงิน (รวม VAT)")
@@ -153,7 +161,7 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
     .prepare(
       `SELECT c.contract_id, c.room_id, c.rent_amount_cents,
               r.room_number,
-              a.apartment_id, a.is_vat_enabled, a.default_rent_item_text,
+              a.apartment_id, a.is_vat_enabled, a.vat_rate, a.default_rent_item_text,
               a.show_unit_qty_in_invoice
          FROM contracts c
          JOIN rooms r  ON r.room_id = c.room_id
@@ -292,7 +300,9 @@ function formatDocumentMonth(billingMonth) {
 // ------------------------------------------------------------------
 // แยก exempt / taxable / vat ตามที่สคีมาเตรียมช่องไว้ ยอดรวมคือผลบวกของทั้งสาม
 // ส่วนลดเก็บเป็นยอดติดลบในรายการ จึงลดยอดรวมได้เองโดยไม่ต้องมีตรรกะพิเศษ
-export function calculateInvoiceTotals(items) {
+// vatRate = อัตราของ "บิลใบนี้" — จงใจไม่มีค่าเริ่มต้น เพราะการลืมส่งแล้วเงียบๆ คิดที่ 7
+// คือบั๊กที่หาไม่เจอ (เคยเกิดมาแล้วที่ previewMonthlyBilling) ลืมส่งต้องพังตั้งแต่บรรทัดแรก
+export function calculateInvoiceTotals(items, vatRate) {
   let exempt = 0
   let taxable = 0
   let vat = 0
@@ -300,7 +310,7 @@ export function calculateInvoiceTotals(items) {
   for (const item of items) {
     if (item.isTaxable) {
       taxable += item.totalAmountCents
-      vat += Math.round((item.totalAmountCents * VAT_RATE) / 100)
+      vat += Math.round((item.totalAmountCents * vatRate) / 100)
     } else {
       exempt += item.totalAmountCents
     }
@@ -344,7 +354,10 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
   }
 
   const dueDate = calculateDueDate(issueDate, getDueDateDay(db, contract.apartment_id))
-  const totals = calculateInvoiceTotals(items)
+  // **จุดตรึงอัตรา** — อ่านอัตราของหอครั้งเดียวตรงนี้ แล้วเก็บลงบิล จากนี้ไปบิลใบนี้
+  // ใช้ค่านี้ตลอดไป ต่อให้หอเปลี่ยนอัตราทีหลังก็ไม่กระทบ
+  const vatRate = Number(contract.vat_rate ?? DEFAULT_VAT_RATE)
+  const totals = calculateInvoiceTotals(items, vatRate)
   const now = new Date().toISOString()
 
   const run = db.transaction(() => {
@@ -355,12 +368,12 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
         // เพราะ unique index ของเลขที่บิลเป็นแบบ (apartment_id, invoice_number) — ดู 021
         `INSERT INTO invoices (
            contract_id, apartment_id, invoice_number, billing_month, issue_date, due_date, status,
-           invoice_type, meter_batch_id,
+           invoice_type, meter_batch_id, vat_rate,
            exempt_amount_cents, taxable_amount_cents, vat_amount_cents, total_amount_cents,
            created_at
          ) VALUES (
            @contractId, @apartmentId, @invoiceNumber, @billingMonth, @issueDate, @dueDate, 'unpaid',
-           'monthly', @meterBatchId,
+           'monthly', @meterBatchId, @vatRate,
            @exempt, @taxable, @vat, @total,
            @now
          )`
@@ -373,6 +386,7 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
         issueDate,
         dueDate,
         meterBatchId,
+        vatRate,
         exempt: totals.exemptAmountCents,
         taxable: totals.taxableAmountCents,
         vat: totals.vatAmountCents,
@@ -380,14 +394,15 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
         now
       })
 
-    insertItems(db, result.lastInsertRowid, items, now)
+    insertItems(db, result.lastInsertRowid, items, now, vatRate)
     return result.lastInsertRowid
   })
 
   return getInvoiceById(db, run())
 }
 
-function insertItems(db, invoiceId, items, now) {
+// vatRate = อัตราของ "บิลใบนี้" ไม่ใช่ของหอ ผู้เรียกต้องอ่านมาจาก invoices.vat_rate เสมอ
+function insertItems(db, invoiceId, items, now, vatRate) {
   const stmt = db.prepare(
     `INSERT INTO invoice_items (
        invoice_id, item_type, description, quantity,
@@ -398,16 +413,16 @@ function insertItems(db, invoiceId, items, now) {
      )`
   )
   for (const item of items) {
-    const vatRate = item.isTaxable ? VAT_RATE : 0
+    const lineVatRate = item.isTaxable ? vatRate : 0
     stmt.run({
       invoiceId,
       itemType: item.itemType,
       description: item.description,
       quantity: item.quantity,
       unitPriceCents: item.unitPriceCents,
-      vatRate,
+      vatRate: lineVatRate,
       vatAmountCents: item.isTaxable
-        ? Math.round((item.totalAmountCents * VAT_RATE) / 100)
+        ? Math.round((item.totalAmountCents * vatRate) / 100)
         : 0,
       totalAmountCents: item.totalAmountCents,
       now
@@ -449,12 +464,14 @@ export function previewMonthlyBilling(db, { apartmentId, meterBatchId, billingMo
       )
       .get(row.contract_id, billingMonth)
 
-    const { items } = buildInvoiceItems(db, {
+    const { contract, items } = buildInvoiceItems(db, {
       contractId: row.contract_id,
       billingMonth,
       meterBatchId
     })
-    const totals = calculateInvoiceTotals(items)
+    // ต้องใช้อัตราเดียวกับที่ createMonthlyInvoice จะใช้จริง ไม่งั้นตัวเลขบนตารางพรีวิว
+    // ไม่ตรงกับบิลที่ออกมา — ซึ่งขัดกับเจตนาของพรีวิวทั้งหมด (ดูคอมเมนต์หัวไฟล์)
+    const totals = calculateInvoiceTotals(items, Number(contract.vat_rate ?? DEFAULT_VAT_RATE))
     const water = items.find((i) => i.itemType === 'water')
     const electric = items.find((i) => i.itemType === 'electricity')
 
@@ -629,6 +646,9 @@ export function getInvoiceById(db, invoiceId) {
     // เพราะหอที่เปิด VAT ไว้แต่เดือนนี้ไม่มีรายการที่เสียภาษี ก็ได้ 0 เหมือนกัน
     // แต่ควรยังเห็นแถว VAT 0.00 บนบิล ต่างจากหอที่ไม่ได้จด VAT ซึ่งต้องไม่มีแถวนี้เลย
     isVatEnabled: row.is_vat_enabled === 1,
+    // **อัตราของบิลใบนี้ ไม่ใช่ของหอตอนนี้** — ป้าย "VAT x%" บนใบแจ้งหนี้ต้องใช้ตัวนี้
+    // ไม่งั้นบิลเก่าที่ออกตอน 7% จะพิมพ์อัตราใหม่ออกมา ทั้งที่ยอดเงินยังคิดที่ 7%
+    vatRate: Number(row.vat_rate ?? DEFAULT_VAT_RATE),
     totalAmountCents: row.total_amount_cents,
     paidAmountCents: paidCents,
     outstandingCents: row.total_amount_cents - paidCents,
@@ -811,7 +831,7 @@ export function addInvoiceItem(db, invoiceId, { itemType, description, amount, i
         isTaxable:
           invoice.is_vat_enabled === 1 && itemType !== 'discount' && Boolean(isTaxable)
       }
-    ], now)
+    ], now, Number(invoice.vat_rate ?? DEFAULT_VAT_RATE))
     recalculateTotals(db, invoiceId, now)
   })
   run()
@@ -880,7 +900,16 @@ export function refreshInvoiceStatus(db, invoiceId, now) {
 
 // อ่านรายการทั้งหมดกลับมารวมใหม่ ไม่ใช่บวก/ลบส่วนต่างจากยอดเดิม
 // เพราะยอดเดิมอาจเพี้ยนมาก่อนแล้ว การรวมใหม่ทั้งใบทำให้บิลกลับมาถูกเสมอ
+// 🔴 **อ่านอัตราจากบิล ไม่ใช่จากหอ** — นี่คือจุดที่ทำให้ "บิลเก่าไม่เปลี่ยนตามอัตราใหม่"
+// เป็นจริง ฟังก์ชันนี้ถูกเรียกทุกครั้งที่รายการในบิลเปลี่ยน รวมถึงตอนที่ addLateFeeItem
+// เติมค่าปรับให้ผู้เช่าที่มาจ่ายช้า ถ้าตรงนี้ไปหยิบอัตราปัจจุบันของหอมาใช้ บิลที่ออกไป
+// เมื่อหลายเดือนก่อนจะเปลี่ยนยอดเองโดยไม่มีใครสั่ง
 function recalculateTotals(db, invoiceId, now) {
+  const invoice = db
+    .prepare('SELECT vat_rate FROM invoices WHERE invoice_id = ?')
+    .get(invoiceId)
+  const vatRate = Number(invoice?.vat_rate ?? DEFAULT_VAT_RATE)
+
   const rows = db
     .prepare('SELECT vat_rate, total_amount_cents FROM invoice_items WHERE invoice_id = ?')
     .all(invoiceId)
@@ -889,7 +918,8 @@ function recalculateTotals(db, invoiceId, now) {
     rows.map((row) => ({
       totalAmountCents: row.total_amount_cents,
       isTaxable: Number(row.vat_rate) > 0
-    }))
+    })),
+    vatRate
   )
 
   db.prepare(
@@ -916,7 +946,14 @@ function recalculateTotals(db, invoiceId, now) {
 function requireOpenInvoice(db, invoiceId) {
   const row = db
     .prepare(
-      `SELECT i.invoice_id, i.status, a.is_vat_enabled
+      // 🟡 **ตรึงแค่ "อัตรา" ไม่ได้ตรึง "สวิตช์"** — i.vat_rate เป็นของบิล แต่ a.is_vat_enabled
+      // อ่านสดจากหอ ถ้าบิลออกตอนหอปิด VAT แล้วเจ้าของมาเปิดทีหลัง รายการที่เพิ่มเข้าบิล
+      // ใบเก่านั้นจะกลายเป็นรายการเสียภาษี = บิลที่เคยไม่มี VAT งอกแถว VAT ขึ้นมา
+      //
+      // เป็นพฤติกรรมเดิมก่อนมี migration 031 และยังไม่เคยมีใครเจอ (หอเปิด/ปิด VAT ไม่บ่อย)
+      // จึงไม่แก้ในรอบนี้เพื่อไม่ให้ขอบเขตบาน — ถ้าจะตรึง ต้องเพิ่ม invoices.is_vat_enabled
+      // แล้วอ่านจากตรงนั้นแทน ด้วยเหตุผลเดียวกับที่ตรึงอัตรา
+      `SELECT i.invoice_id, i.status, i.vat_rate, a.is_vat_enabled
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
          JOIN rooms r     ON r.room_id = c.room_id
@@ -1054,6 +1091,10 @@ export function getLateFeeForInvoice(db, invoiceId, paymentDate) {
 // เพิ่มบรรทัด "ค่าปรับ" เข้าบิล — ไม่คิด VAT (ตรงกับต้นแบบ: เป็นค่าเสียหาย ไม่ใช่ค่าสินค้า)
 export function addLateFeeItem(db, invoiceId, { amountCents, overdueDays }) {
   const now = new Date().toISOString()
+  // ค่าปรับเองไม่เสีย VAT แต่ insertItems ต้องได้อัตราของบิลไปด้วย เพราะ recalculateTotals
+  // ที่ตามมาจะคิด VAT ของ "ทั้งใบ" ใหม่ — รวมค่าน้ำ/ค่าไฟที่เสียภาษี
+  const invoice = db.prepare('SELECT vat_rate FROM invoices WHERE invoice_id = ?').get(invoiceId)
+  const vatRate = Number(invoice?.vat_rate ?? DEFAULT_VAT_RATE)
   const run = db.transaction(() => {
     insertItems(
       db,
@@ -1068,7 +1109,8 @@ export function addLateFeeItem(db, invoiceId, { amountCents, overdueDays }) {
           isTaxable: false
         }
       ],
-      now
+      now,
+      vatRate
     )
     recalculateTotals(db, invoiceId, now)
   })

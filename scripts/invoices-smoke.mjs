@@ -350,7 +350,7 @@ check('ค่าน้ำและค่าไฟเสียภาษีเม�
 group('รวมยอด')
 
 check('VAT บวกเพิ่มจากฐานภาษี ไม่ใช่รวมอยู่ในราคาแล้ว', () => {
-  const totals = invoices.calculateInvoiceTotals(built.items)
+  const totals = invoices.calculateInvoiceTotals(built.items, 7)
   // ยกเว้น: ค่าเช่า 5,000 + ค่าขยะ 50 (ไม่ได้ติดธง VAT) = 5,050
   assert(totals.exemptAmountCents === 505000, `exempt ได้ ${totals.exemptAmountCents}`)
   // ฐานภาษี: น้ำ 1,960 + ไฟ 2,100 + เน็ต 300 = 4,360
@@ -1286,6 +1286,118 @@ check('บิลที่ยกเลิกแล้วไม่ถูกดึ�
   invoices.refreshInvoiceStatus(db, cancelled.invoiceId, new Date().toISOString())
   const after = invoices.getInvoiceById(db, cancelled.invoiceId)
   assert(after.status === 'cancelled', `ได้ ${after.status}`)
+})
+
+// -----------------------------------------------------
+// อัตรา VAT ถูกตรึงไว้ที่บิลตั้งแต่วันออกบิล (migration 031)
+// -----------------------------------------------------
+// เจ้าของหอยืนยัน: บิลที่ออกไปแล้วต้องคง VAT เดิมตลอด **ต่อให้ผู้เช่ามาจ่ายช้าแล้วโดนค่าปรับ**
+// อัตราใหม่มีผลกับบิลที่ออกในรอบถัดไปเท่านั้น
+//
+// เส้นทางที่อันตรายที่สุดคือ addLateFeeItem -> recalculateTotals ซึ่งคิด VAT ของทั้งใบใหม่
+// ถ้า recalculateTotals ไปหยิบอัตราปัจจุบันของหอมาใช้ บิลเก่าจะเปลี่ยนยอดเองโดยไม่มีใครสั่ง
+group('อัตรา VAT ถูกตรึงไว้ที่บิล')
+
+const vatBatch = meter.createBatch(db, apartmentId, '2028-03-31')
+// ต้องมีเลขมิเตอร์จริง ไม่งั้นค่าน้ำ/ค่าไฟเป็น 0 แล้วบิลไม่มีฐานภาษีให้ทดสอบ
+// (ค่าเช่ายกเว้น VAT เสมอ ฐานภาษีจึงมาจากค่าน้ำ/ค่าไฟล้วน)
+meter.saveBatchReadings(db, vatBatch.batchId, 'water', [
+  { roomId: newcomer.roomId, roomNumber: newcomer.roomNumber, currentReading: 60 }
+])
+meter.saveBatchReadings(db, vatBatch.batchId, 'electric', [
+  { roomId: newcomer.roomId, roomNumber: newcomer.roomNumber, currentReading: 200 }
+])
+
+const billAt7 = invoices.createMonthlyInvoice(db, {
+  contractId: newContract.contractId,
+  billingMonth: '2028-03',
+  meterBatchId: vatBatch.batchId,
+  issueDate: '2028-03-31'
+})
+
+check('บิลเก็บอัตราของตัวเองไว้ตอนออกบิล', () => {
+  assert(billAt7.vatRate === 7, `ได้ ${billAt7.vatRate}`)
+  assert(billAt7.vatAmountCents > 0, 'หอเปิด VAT ไว้ ต้องมียอดภาษี')
+})
+
+const vatAt7Cents = billAt7.vatAmountCents
+const totalAt7Cents = billAt7.totalAmountCents
+
+// เจ้าของหอเปลี่ยนอัตราเป็น 10% หลังจากออกบิลใบบนไปแล้ว
+apartments.updateApartment(db, apartmentId, {
+  nameTh: 'หอทดสอบออกบิล',
+  addressTh: '123 ถนนทดสอบ',
+  dueDateDay: 5,
+  lateFeePerDay: '0',
+  isVatEnabled: true,
+  vatRate: 10
+})
+
+check('หอเปลี่ยนอัตราแล้ว แต่บิลที่ออกไปแล้วไม่ขยับ', () => {
+  const after = invoices.getInvoiceById(db, billAt7.invoiceId)
+  assert(after.vatRate === 7, `บิลเก่าควรยังเป็น 7 ได้ ${after.vatRate}`)
+  assert(after.vatAmountCents === vatAt7Cents, `ยอด VAT เปลี่ยน: ${vatAt7Cents} -> ${after.vatAmountCents}`)
+  assert(after.totalAmountCents === totalAt7Cents, 'ยอดรวมของบิลเก่าต้องเท่าเดิม')
+})
+
+check('บิลที่ออกใหม่หลังเปลี่ยนอัตรา ใช้อัตราใหม่', () => {
+  const nextBatch = meter.createBatch(db, apartmentId, '2028-04-30')
+  // หน่วยที่ใช้เท่ากับรอบก่อนพอดี ฐานภาษีจึงเท่ากัน ต่างกันแค่อัตรา
+  meter.saveBatchReadings(db, nextBatch.batchId, 'water', [
+    { roomId: newcomer.roomId, roomNumber: newcomer.roomNumber, currentReading: 120 }
+  ])
+  meter.saveBatchReadings(db, nextBatch.batchId, 'electric', [
+    { roomId: newcomer.roomId, roomNumber: newcomer.roomNumber, currentReading: 400 }
+  ])
+
+  const billAt10 = invoices.createMonthlyInvoice(db, {
+    contractId: newContract.contractId,
+    billingMonth: '2028-04',
+    meterBatchId: nextBatch.batchId,
+    issueDate: '2028-04-30'
+  })
+  assert(billAt10.vatRate === 10, `ได้ ${billAt10.vatRate}`)
+
+  // ฐานภาษีเท่ากันทั้งสองใบ (ค่าน้ำ/ค่าไฟชุดเดียวกัน) ยอด VAT จึงต้องต่างกันตามอัตรา
+  const oldBill = invoices.getInvoiceById(db, billAt7.invoiceId)
+  if (billAt10.taxableAmountCents === oldBill.taxableAmountCents) {
+    assert(
+      billAt10.vatAmountCents > oldBill.vatAmountCents,
+      `ฐานภาษีเท่ากันแต่ VAT ไม่มากขึ้น: ${oldBill.vatAmountCents} -> ${billAt10.vatAmountCents}`
+    )
+  }
+})
+
+// 🔴 ข้อสำคัญที่สุดของกลุ่มนี้ — ตรงกับสถานการณ์ที่เจ้าของหอระบุมาเป๊ะ
+check('ผู้เช่ามาจ่ายช้าจนโดนค่าปรับ VAT ของบิลเก่าต้องไม่ขยับ', () => {
+  invoices.addLateFeeItem(db, billAt7.invoiceId, { amountCents: 5000, overdueDays: 5 })
+
+  const after = invoices.getInvoiceById(db, billAt7.invoiceId)
+  assert(after.vatRate === 7, `อัตราของบิลเปลี่ยนไป: ${after.vatRate}`)
+  assert(
+    after.vatAmountCents === vatAt7Cents,
+    `ยอด VAT ถูกคิดใหม่: ${vatAt7Cents} -> ${after.vatAmountCents}`
+  )
+  // ยอดรวมต้องเพิ่มขึ้นเท่าค่าปรับพอดี ไม่ใช่เพิ่มเพราะ VAT ถูกคิดใหม่ด้วย
+  assert(
+    after.totalAmountCents === totalAt7Cents + 5000,
+    `ยอดรวมควรเพิ่มแค่ค่าปรับ 50 บาท: ${totalAt7Cents} -> ${after.totalAmountCents}`
+  )
+})
+
+check('แก้รายการในบิลเก่าด้วยมือ ก็ยังคิดที่อัตราเดิมของใบนั้น', () => {
+  const before = invoices.getInvoiceById(db, billAt7.invoiceId)
+  const after = invoices.addInvoiceItem(db, billAt7.invoiceId, {
+    itemType: 'other',
+    description: 'ค่าบริการเพิ่มเติม',
+    amount: '100',
+    isTaxable: true
+  })
+  // 100 บาท ที่อัตรา 7% = 7 บาท ไม่ใช่ 10 บาท
+  assert(
+    after.vatAmountCents - before.vatAmountCents === 700,
+    `VAT ที่เพิ่มควรเป็น 7 บาท ได้ ${(after.vatAmountCents - before.vatAmountCents) / 100}`
+  )
 })
 
 // -----------------------------------------------------
