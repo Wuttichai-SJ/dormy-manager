@@ -4,7 +4,7 @@ import Alert from '../components/Alert.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
 import { showToast } from '../components/Toast.jsx'
-import { PAYMENT_METHODS, VAT_RATE } from '../constants.js'
+import { PAYMENT_METHODS, DEFAULT_VAT_RATE } from '../constants.js'
 import { centsToInput, formatBaht } from '../format.js'
 import {
   addInvoiceItem,
@@ -445,7 +445,7 @@ function AddItemPanel({ invoice, onDone, onError }) {
                 checked={isTaxable}
                 onChange={(e) => setIsTaxable(e.target.checked)}
               />
-              <span>คำนวณ VAT {VAT_RATE}% ของรายการนี้</span>
+              <span>คำนวณ VAT {invoice.vatRate ?? DEFAULT_VAT_RATE}% ของรายการนี้</span>
             </label>
           </div>
         )}

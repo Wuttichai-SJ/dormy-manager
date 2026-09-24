@@ -129,9 +129,17 @@ export const MAINTENANCE_STATUS_FILTERS = [
   { key: '', label: 'ทั้งหมด' }
 ]
 
-// ต้องตรงกับ VAT_RATE ใน src/main/db/invoices.js — ใช้ขึ้นป้าย "VAT 7%" บนใบแจ้งหนี้เท่านั้น
-// การคำนวณจริงอยู่ฝั่ง main ทั้งหมด ห้ามเอาค่านี้ไปคูณอะไรที่นี่
-export const VAT_RATE = 7
+// ต้องตรงกับ MIN_VAT_RATE / MAX_VAT_RATE / DEFAULT_VAT_RATE ใน src/main/db/apartments.js
+//
+// 🔴 **อัตรา VAT ไม่ใช่ค่าคงที่แล้ว** เจ้าของหอกรอกเองได้ (migration 031) ค่าพวกนี้มีไว้
+// ทำช่องกรอกกับเป็นค่าถอยเท่านั้น
+//
+// **ป้าย "VAT x%" บนใบแจ้งหนี้ต้องอ่านจาก `invoice.vatRate` ของบิลใบนั้น ห้ามใช้ค่านี้**
+// เพราะบิลที่ออกตอนอัตรา 7% ต้องพิมพ์ว่า 7% ตลอดไป ต่อให้หอเปลี่ยนเป็น 10% แล้วก็ตาม
+// (ยอดเงินในบิลก็ยังคิดที่ 7% เหมือนกัน — ฝั่ง main ตรึงไว้ที่ invoices.vat_rate)
+export const MIN_VAT_RATE = 0
+export const MAX_VAT_RATE = 100
+export const DEFAULT_VAT_RATE = 7
 
 // ต้องตรงกับ FULL_MONTH_MOVE_IN_UNTIL_DAY / PRORATE_DAYS_PER_MONTH ใน src/main/db/contracts.js
 // ใช้คิด "ค่าเช่าล่วงหน้าที่ต้องเก็บ" ให้เห็นก่อนกดบันทึกในตัวช่วยทำสัญญา

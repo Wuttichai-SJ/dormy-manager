@@ -1,6 +1,6 @@
 import React from 'react'
 import Icon from '../Icon.jsx'
-import { VAT_RATE } from '../constants.js'
+import { DEFAULT_VAT_RATE } from '../constants.js'
 import { formatBaht } from '../format.js'
 
 // ตัวเอกสารที่ยื่นให้ผู้เช่า — ใช้ร่วมกันทั้ง "ใบแจ้งหนี้" และ "ใบเสร็จรับเงิน"
@@ -120,7 +120,7 @@ export default function BillDocument({ invoice, title, meta, tenants, footer, on
               <dd>{formatBaht(invoice.taxableAmountCents)}</dd>
             </div>
             <div>
-              <dt>VAT {VAT_RATE}%</dt>
+              <dt>VAT {invoice.vatRate ?? DEFAULT_VAT_RATE}%</dt>
               <dd>{formatBaht(invoice.vatAmountCents)}</dd>
             </div>
           </>

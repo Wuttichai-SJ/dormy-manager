@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import { centsToInput } from '../format.js'
-import { MAX_DUE_DATE_DAY } from '../constants.js'
+import { MAX_DUE_DATE_DAY, DEFAULT_VAT_RATE, MAX_VAT_RATE } from '../constants.js'
 import { createApartment, getApartment, updateApartment } from '../services/apartmentService.js'
 
 // ฟอร์มเพิ่ม/แก้ไขหอพัก — ลอกหน้า "เพิ่มอพาร์ตเมนต์" ของต้นแบบมาทั้งโครงและระยะ:
@@ -25,8 +25,19 @@ const EMPTY = {
   lateFeeGraceDays: '0',
   isAutoLateFeeEnabled: false,
   isVatEnabled: false,
+  // 7% คืออัตราที่ไทยใช้อยู่ หอใหม่จึงไม่ต้องมากรอกเอง (เปลี่ยนได้ถ้ากฎหมายเปลี่ยน)
+  vatRate: String(DEFAULT_VAT_RATE),
   // 5 หลักคือมิเตอร์ที่หอใช้จริง (เจ้าของหอยืนยัน 2026-08-10) หอใหม่จึงไม่ต้องมาตั้งเอง
   meterDigits: '5'
+}
+
+// ปล่อยให้พิมพ์ได้แค่ตัวเลขกับจุดเดียว ทศนิยมไม่เกิน 2 ตำแหน่ง — ถ้าปล่อย "7.5.5" ผ่าน
+// ฝั่ง main จะปฏิเสธด้วยข้อความ "ต้องอยู่ระหว่าง 0-100%" ซึ่งไม่ตรงกับสิ่งที่ผู้ใช้พิมพ์ผิด
+function sanitiseRate(value) {
+  const cleaned = String(value).replace(/[^\d.]/g, '')
+  const [whole, ...rest] = cleaned.split('.')
+  if (rest.length === 0) return whole
+  return `${whole}.${rest.join('').slice(0, 2)}`
 }
 
 const DUE_DATE_DAYS = Array.from({ length: MAX_DUE_DATE_DAY }, (_, i) => i + 1)
@@ -60,6 +71,7 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
         lateFeeGraceDays: String(a.lateFeeGraceDays ?? 0),
         isAutoLateFeeEnabled: a.isAutoLateFeeEnabled,
         isVatEnabled: a.isVatEnabled,
+        vatRate: String(a.vatRate ?? DEFAULT_VAT_RATE),
         meterDigits: String(a.meterDigits ?? 5)
       })
     })
@@ -300,6 +312,29 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             />
             <span>เปิดการใช้งาน VAT</span>
           </label>
+
+          {/* ปิดช่องไว้เมื่อยังไม่เปิดสวิตช์ — กรอกอัตราทิ้งไว้โดยที่ VAT ปิดอยู่ไม่มีความหมาย
+              และทำให้เข้าใจผิดว่าระบบกำลังคิดภาษีให้ */}
+          <div className="field">
+            <label htmlFor="vatRate">อัตรา VAT</label>
+            <div className="input-with-suffix">
+              <input
+                id="vatRate"
+                value={form.vatRate}
+                onChange={(e) => set('vatRate', sanitiseRate(e.target.value))}
+                inputMode="decimal"
+                disabled={!form.isVatEnabled}
+              />
+              <span className="input-suffix">%</span>
+            </div>
+            <p className="field-hint">
+              กรอกได้ 0-{MAX_VAT_RATE} ทศนิยมไม่เกิน 2 ตำแหน่ง ·{' '}
+              <strong>
+                อัตราที่เปลี่ยนใหม่มีผลกับบิลที่ออกในรอบถัดไปเท่านั้น บิลที่ออกไปแล้วยังคิดที่อัตราเดิม
+              </strong>{' '}
+              ต่อให้ผู้เช่ามาจ่ายช้าแล้วโดนค่าปรับก็ตาม
+            </p>
+          </div>
         </div>
       </section>
 
