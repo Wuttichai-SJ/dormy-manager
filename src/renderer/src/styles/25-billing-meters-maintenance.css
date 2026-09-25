@@ -204,6 +204,20 @@
   margin-bottom: 16px;
 }
 
+/* ปุ่มย้อนกลับใน .page-back หน้าตาเดียวกับ .link-back-inline (08-apartments-settings.css)
+   — เดิมเป็น link-btn ธรรมดา ไอคอนนั่งบนเส้นบรรทัด ไม่ตรงกับข้อความ และขีดเส้นใต้ลากยาวไปถึง
+   ช่องว่างหลังไอคอน (โอ๊คเจอ 2026-09-25) · ไม่ใส่ margin เพราะกรอบ .page-back เว้นให้แล้ว */
+.page-back .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.page-back .link-btn:hover {
+  text-decoration: underline;
+}
+
 .meter-batch-list {
   display: flex;
   flex-direction: column;

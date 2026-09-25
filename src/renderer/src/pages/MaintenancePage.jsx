@@ -408,7 +408,7 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
 
   return (
     <>
-      <button type="button" className="link-btn" onClick={onBack}>
+      <button type="button" className="link-btn link-back-inline" onClick={onBack}>
         <Icon name="back" />
         <span>กลับไปรายการแจ้งซ่อม</span>
       </button>
