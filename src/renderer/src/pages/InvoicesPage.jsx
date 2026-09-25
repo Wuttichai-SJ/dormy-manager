@@ -201,7 +201,14 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
         <div className="panel-head-row">
           <h2 className="panel-title">
             รายการใบแจ้งหนี้
-            <InfoTip text="ปุ่มพิมพ์ทุกห้องจะพิมพ์ทุกใบที่เห็นในตาราง (ยกเว้นใบที่ยกเลิก) — เลือกแท็บหรือช่วงวันที่ก่อนถ้าต้องการเฉพาะบางชุด" />
+            <InfoTip
+              title="พิมพ์ใบแจ้งหนี้ทุกห้อง"
+              points={[
+                'พิมพ์ทุกใบที่เห็นในตาราง ใบละหนึ่งแผ่น',
+                'ต้องการเฉพาะบางชุด ให้เลือกแท็บหรือช่วงวันที่ก่อน',
+                'ใบที่ยกเลิกแล้วจะไม่ถูกพิมพ์'
+              ]}
+            />
           </h2>
           {/* สองปุ่มนี้คือสองงานที่ทำบ่อยที่สุดของหน้านี้: ออกบิลต้นเดือน แล้วตามเก็บเงิน
               รับเงินหลายห้องเป็นปุ่มรอง เพราะออกบิลต้องเกิดก่อนเสมอ */}
@@ -647,7 +654,13 @@ function BillingWizard({ apartment, onClose }) {
               <div className="field">
                 <label htmlFor="batchId">
                   วันที่จดมิเตอร์ <span className="required">* จำเป็น</span>
-                  <InfoTip text="ค่าน้ำ/ค่าไฟคิดจากหน่วยในใบจดนี้ · ห้องที่ยังไม่ได้จดคิดเป็น 0 หน่วย" />
+                  <InfoTip
+                    title="ใบจดมิเตอร์ที่ใช้คิดเงิน"
+                    points={[
+                      'ค่าน้ำ/ค่าไฟคิดจากหน่วยที่จดในใบนี้',
+                      'ห้องที่ยังไม่ได้จด คิดเป็น 0 หน่วย'
+                    ]}
+                  />
                 </label>
                 <select
                   id="batchId"
@@ -670,7 +683,10 @@ function BillingWizard({ apartment, onClose }) {
               <div className="field">
                 <label htmlFor="issueDate">
                   วันที่ออกบิล <span className="required">* จำเป็น</span>
-                  <InfoTip text="เลขที่บิล วันครบกำหนดชำระ และเดือนค่าเช่า คิดจากวันนี้ทั้งหมด" />
+                  <InfoTip
+                    title="วันที่ออกบิลมีผลกับ"
+                    points={['เลขที่บิล', 'วันครบกำหนดชำระ', 'เดือนค่าเช่า']}
+                  />
                 </label>
                 <DateField id="issueDate" value={issueDate} onChange={changeIssueDate} />
                 {/* วันที่นี้ไม่ได้เป็นแค่ตัวเลขบนหัวบิล — เลขที่บิลใช้ปี-เดือนของวันนี้
@@ -680,7 +696,13 @@ function BillingWizard({ apartment, onClose }) {
               <div className="field">
                 <label htmlFor="billingMonth">
                   ออกบิลค่าห้องของเดือน <span className="required">* จำเป็น</span>
-                  <InfoTip text="ระบบเลือกตามวันที่ออกบิลให้แล้ว เปลี่ยนเฉพาะตอนออกบิลย้อนหลัง" />
+                  <InfoTip
+                    title="เดือนค่าเช่า"
+                    points={[
+                      'ระบบเลือกตามวันที่ออกบิลให้แล้ว',
+                      'เปลี่ยนเฉพาะตอนออกบิลย้อนหลัง'
+                    ]}
+                  />
                 </label>
                 <select
                   id="billingMonth"

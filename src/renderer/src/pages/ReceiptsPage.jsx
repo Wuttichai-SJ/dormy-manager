@@ -225,7 +225,13 @@ export default function ReceiptsPage({ apartment, user }) {
         <div className="panel-head-row">
           <h2 className="panel-title">
             ใบเสร็จรับเงิน
-            <InfoTip text="รวมเงินจากใบแจ้งหนี้และจากสัญญา (เงินประกัน/เงินล่วงหน้า) · ใบคืนเงินเป็นยอดติดลบ หักออกจากยอดรวมแล้ว" />
+            <InfoTip
+              title="รายงานใบเสร็จ"
+              points={[
+                'รวมเงินจากใบแจ้งหนี้และจากสัญญา (เงินประกัน/เงินล่วงหน้า)',
+                'ใบคืนเงินเป็นยอดติดลบ หักออกจากยอดรวมแล้ว'
+              ]}
+            />
           </h2>
           <div className="receipt-actions">
             <button

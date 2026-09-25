@@ -13,8 +13,14 @@ import Icon from '../Icon.jsx'
 // เลื่อนแนวนอนได้ (overflow) กับหน้าต่างซ้อนจะตัดกล่องขาดครึ่ง
 // fixed จึงต้องปิดเมื่อเลื่อนจอด้วย ไม่งั้นกล่องลอยค้างอยู่ที่เดิมขณะไอคอนเลื่อนไปแล้ว
 //
+// เนื้อหาแบ่งเป็น title (หัวข้อตัวใหญ่ บอกว่าเรื่องอะไร) + points (ข้อย่อยตัวเล็ก ข้อละเรื่อง)
+// — โอ๊คสั่ง 2026-09-25: เขียนรวมเป็นก้อนเดียวคั่นด้วย · แล้วอ่านยาก ต้องไล่แยกเอง
+// points ที่เป็น null/false ถูกข้าม เขียน `cond && 'ข้อความ'` ได้เลย
+//
 // คำเตือนที่กันเงินผิด/ข้อมูลหาย ห้ามซ่อนไว้ในนี้ — ต้องเห็นโดยไม่ต้องกด
-export default function InfoTip({ text }) {
+export default function InfoTip({ title, points = [] }) {
+  const items = points.filter(Boolean)
+
   const id = useId()
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
@@ -27,8 +33,8 @@ export default function InfoTip({ text }) {
     const r = ref.current.getBoundingClientRect()
     // ใกล้ขอบบนจอเกินไปก็ให้กล่องลงไปอยู่ใต้ไอคอนแทน
     const below = r.top < 120
-    // กล่องกว้างสุด 280px วางกึ่งกลางไอคอน — ไอคอนชิดขอบจอก็เลื่อนกล่องเข้ามาไม่ให้ล้นจอ
-    const x = Math.min(Math.max(r.left + r.width / 2, 152), window.innerWidth - 152)
+    // กล่องกว้างสุด 300px วางกึ่งกลางไอคอน — ไอคอนชิดขอบจอก็เลื่อนกล่องเข้ามาไม่ให้ล้นจอ
+    const x = Math.min(Math.max(r.left + r.width / 2, 162), window.innerWidth - 162)
     setPos({ x, y: below ? r.bottom + 8 : r.top - 8, below })
   }
 
@@ -73,7 +79,14 @@ export default function InfoTip({ text }) {
             className={'info-tip' + (pos.below ? ' info-tip-below' : '')}
             style={{ left: pos.x, top: pos.y }}
           >
-            {text}
+            <strong className="info-tip-title">{title}</strong>
+            {items.length > 0 && (
+              <ul className="info-tip-points">
+                {items.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            )}
           </div>,
           document.body
         )}

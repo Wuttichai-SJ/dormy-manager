@@ -179,7 +179,7 @@ export default function BankAccountsPage({ apartment }) {
                 <th>เลขบัญชี</th>
                 <th>
                   ค่าเริ่มต้น
-                  <InfoTip text="บัญชีที่จะขึ้นเป็นตัวเลือกแรกในใบแจ้งหนี้" />
+                  <InfoTip title="บัญชีค่าเริ่มต้น" points={['ขึ้นเป็นตัวเลือกแรกในใบแจ้งหนี้']} />
                 </th>
                 <th className="align-right">จัดการ</th>
               </tr>

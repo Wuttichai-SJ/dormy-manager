@@ -91,16 +91,37 @@
   position: fixed;
   z-index: 200;
   transform: translate(-50%, -100%);
-  max-width: 280px;
-  padding: 8px 12px;
+  max-width: 300px;
+  padding: 10px 14px;
   border-radius: 8px;
   background: #1f1b16;
   color: #fff;
   font-size: 13px;
   line-height: 1.5;
+  text-align: left;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   pointer-events: none;
   animation: info-tip-in 0.12s ease;
+}
+
+/* หัวข้อตัวใหญ่ขาวเต็ม · ข้อย่อยตัวเล็กสีจางกว่า มีจุดนำ — กวาดตาอ่านทีละข้อได้ */
+.info-tip-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.info-tip-points {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.info-tip-points li + li {
+  margin-top: 3px;
 }
 
 .info-tip-below {

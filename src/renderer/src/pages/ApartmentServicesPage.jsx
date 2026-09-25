@@ -165,7 +165,13 @@ export default function ApartmentServicesPage({ apartment }) {
               onChange={(e) => set('isMeterBased', e.target.checked)}
             />
             <span>ประเภทแปรผันตามมิเตอร์</span>
-            <InfoTip text="คิดตามหน่วยที่ใช้จริง (ราคาข้างบนจะกลายเป็นราคาต่อหน่วย) ไม่ติ๊ก = เหมาจ่ายเท่ากันทุกเดือน" />
+            <InfoTip
+              title="แปรผันตามมิเตอร์"
+              points={[
+                'ติ๊ก = คิดตามหน่วยที่ใช้จริง ราคาข้างบนเป็นราคาต่อหน่วย',
+                'ไม่ติ๊ก = เหมาจ่ายเท่ากันทุกเดือน'
+              ]}
+            />
           </label>
 
           <div className="service-form-submit">
