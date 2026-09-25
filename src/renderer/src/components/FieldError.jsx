@@ -57,3 +57,13 @@ export function useFormErrors(knownFields) {
 
   return { errors: state.fields, formError: state.form, fromResult, clear, reset }
 }
+
+// ช่องที่มี error: กรอบแดง (.has-error ที่ div.field) + ผูกข้อความ error ให้โปรแกรมอ่านหน้าจอ
+// id ของข้อความ error = `${id ของช่อง}-error` เสมอ ใช้คู่กับ <FieldError id=...>
+export function fieldClass(base, error) {
+  return error ? `${base} has-error` : base
+}
+
+export function invalidProps(id, error) {
+  return error ? { 'aria-invalid': true, 'aria-describedby': `${id}-error` } : {}
+}

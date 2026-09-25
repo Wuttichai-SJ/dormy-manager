@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
-import FieldError, { useFormErrors } from '../components/FieldError.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import PasswordField from '../components/PasswordField.jsx'
@@ -216,15 +216,6 @@ export default function UsersPage({ user }) {
 // รหัสผ่านใหม่เป็นคนละคำสั่ง และไม่ควรเผลอเปลี่ยนรหัสผ่านของคนอื่นตอนแก้เบอร์โทร)
 // ชื่อช่องต้องตรงกับ key ที่ main ส่งกลับใน fields (src/main/db/users.js / auth.js)
 const USER_FORM_FIELDS = ['fullName', 'phone', 'email', 'password', 'role']
-
-// ช่องที่มี error: กรอบแดง (.has-error) + ผูกข้อความ error ให้โปรแกรมอ่านหน้าจอ
-function fieldClass(base, error) {
-  return error ? `${base} has-error` : base
-}
-
-function invalidProps(id, error) {
-  return error ? { 'aria-invalid': true, 'aria-describedby': `${id}-error` } : {}
-}
 
 function UserFormDialog({ target, onClose, onSaved }) {
   const editing = Boolean(target)

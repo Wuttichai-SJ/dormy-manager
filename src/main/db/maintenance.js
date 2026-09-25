@@ -3,6 +3,7 @@
 // ห้ามนำเข้า logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
 import { deleteOrphanImages, insertImage } from './images.js'
+import { FieldError } from '../fieldError.js'
 
 // SQLite ไม่มี ENUM — ค่าที่ยอมรับได้อยู่ที่นี่ที่เดียว ตรวจก่อนเขียนทุกครั้ง
 // (ค่าเดียวกันนี้กำกับไว้ที่ migration 028 ด้วย)
@@ -32,10 +33,10 @@ export function createMaintenanceRequest(
   const room = requireRoom(db, roomId)
 
   const reported = reportedDate ?? todayIso()
-  if (!isDate(reported)) throw new Error('กรุณาระบุวันที่แจ้ง')
+  if (!isDate(reported)) throw new FieldError({ reportedDate: 'กรุณาระบุวันที่แจ้ง' })
 
   const detail = String(description ?? '').trim()
-  if (!detail) throw new Error('กรุณาระบุอาการ/สิ่งที่ต้องซ่อม')
+  if (!detail) throw new FieldError({ description: 'กรุณาระบุอาการ/สิ่งที่ต้องซ่อม' })
 
   // นัดไว้ก่อนวันที่แจ้งไม่ได้ — เป็นวันที่พิมพ์ผิด ไม่ใช่เหตุการณ์ที่เกิดได้จริง
   const appointment = normalizeAppointment(appointmentDate, reported)
@@ -78,10 +79,10 @@ export function updateMaintenanceRequest(
   }
 
   const reported = reportedDate ?? current.reported_date
-  if (!isDate(reported)) throw new Error('กรุณาระบุวันที่แจ้ง')
+  if (!isDate(reported)) throw new FieldError({ reportedDate: 'กรุณาระบุวันที่แจ้ง' })
 
   const detail = String(description ?? current.description ?? '').trim()
-  if (!detail) throw new Error('กรุณาระบุอาการ/สิ่งที่ต้องซ่อม')
+  if (!detail) throw new FieldError({ description: 'กรุณาระบุอาการ/สิ่งที่ต้องซ่อม' })
 
   // ส่ง appointmentDate = null มาโดยตั้งใจ = ยกเลิกการนัด (กลับไปเป็นรอดำเนินการ)
   const appointment = normalizeAppointment(
@@ -118,10 +119,12 @@ export function completeMaintenance(
   if (current.status === 'cancelled') throw new Error('งานที่ยกเลิกไปแล้วปิดงานไม่ได้')
 
   const repaired = repairedDate ?? todayIso()
-  if (!isDate(repaired)) throw new Error('กรุณาระบุวันที่ซ่อมเสร็จ')
+  if (!isDate(repaired)) throw new FieldError({ repairedDate: 'กรุณาระบุวันที่ซ่อมเสร็จ' })
   // ซ่อมเสร็จก่อนวันที่แจ้งเป็นไปไม่ได้ — จับตรงนี้ดีกว่าปล่อยให้รายงานสรุปเวลาซ่อมติดลบ
   if (repaired < current.reported_date) {
-    throw new Error(`วันที่ซ่อมเสร็จต้องไม่ก่อนวันที่แจ้ง (${current.reported_date})`)
+    throw new FieldError({
+      repairedDate: `วันที่ซ่อมเสร็จต้องไม่ก่อนวันที่แจ้ง (${current.reported_date})`
+    })
   }
 
   // เว้นว่างได้ = ยังไม่รู้ค่าซ่อม หรือไม่มีค่าใช้จ่าย · ไม่เหมาเป็น 0 เพราะ 0 แปลว่า
@@ -129,8 +132,8 @@ export function completeMaintenance(
   const costCents =
     repairCost === undefined || repairCost === null || String(repairCost).trim() === ''
       ? null
-      : toCents(repairCost, 'ค่าซ่อม')
-  if (costCents !== null && costCents < 0) throw new Error('ค่าซ่อมติดลบไม่ได้')
+      : costToCents(repairCost)
+  if (costCents !== null && costCents < 0) throw new FieldError({ repairCost: 'ค่าซ่อมติดลบไม่ได้' })
 
   db.prepare(
     `UPDATE maintenance_requests
@@ -395,6 +398,15 @@ function toPublicRequest(row, images) {
   }
 }
 
+// toCents โยน Error ธรรมดาเมื่อรูปแบบตัวเลขผิด — ห่อให้ผูกกับช่องค่าซ่อม ข้อความเดิม
+function costToCents(value) {
+  try {
+    return toCents(value, 'ค่าซ่อม')
+  } catch (err) {
+    throw new FieldError({ repairCost: err.message })
+  }
+}
+
 function requireRoom(db, roomId) {
   const row = db.prepare('SELECT room_id FROM rooms WHERE room_id = ?').get(roomId)
   if (!row) throw new Error('ไม่พบห้องที่ต้องการแจ้งซ่อม')
@@ -411,9 +423,9 @@ function requireRequest(db, maintenanceId) {
 
 function normalizeAppointment(value, reportedDate) {
   if (value === null || value === undefined || String(value).trim() === '') return null
-  if (!isDate(value)) throw new Error('กรุณาระบุวันนัดช่างให้ถูกต้อง')
+  if (!isDate(value)) throw new FieldError({ appointmentDate: 'กรุณาระบุวันนัดช่างให้ถูกต้อง' })
   if (value < reportedDate) {
-    throw new Error(`วันนัดช่างต้องไม่ก่อนวันที่แจ้ง (${reportedDate})`)
+    throw new FieldError({ appointmentDate: `วันนัดช่างต้องไม่ก่อนวันที่แจ้ง (${reportedDate})` })
   }
   return value
 }

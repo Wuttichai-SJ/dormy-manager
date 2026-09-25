@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
@@ -209,7 +210,6 @@ export default function MaintenancePage({ apartment }) {
             setOpenId(request.maintenanceId)
             load()
           }}
-          onError={setError}
         />
       )}
     </>
@@ -219,7 +219,10 @@ export default function MaintenancePage({ apartment }) {
 // ------------------------------------------------------------------
 // รับแจ้งงานใหม่
 // ------------------------------------------------------------------
-function ReportDialog({ apartment, onClose, onCreated, onError }) {
+// ชื่อช่องตรงกับ key ใน FieldError ของ src/main/db/maintenance.js
+const REPORT_FIELDS = ['roomId', 'reportedDate', 'description', 'appointmentDate']
+
+function ReportDialog({ apartment, onClose, onCreated }) {
   const [rooms, setRooms] = useState([])
   const [form, setForm] = useState({
     roomId: '',
@@ -228,23 +231,30 @@ function ReportDialog({ apartment, onClose, onCreated, onError }) {
     appointmentDate: ''
   })
   const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(REPORT_FIELDS)
+
+  // แก้ช่องไหน error ของช่องนั้นหายทันที
+  const set = (key, value) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    clear(key)
+  }
 
   useEffect(() => {
     let cancelled = false
     listFloors(apartment.apartmentId).then((res) => {
       if (cancelled) return
-      if (!res.success) return onError(res.error)
+      if (!res.success) return fromResult(res)
       // แบนชั้นทั้งหมดเป็นรายการห้องเดียว — คนแจ้งรู้เลขห้อง ไม่ได้คิดเป็นชั้น
       setRooms(res.data.flatMap((floor) => floor.rooms.map((r) => ({ ...r, floor: floor.floorName }))))
     })
     return () => {
       cancelled = true
     }
-  }, [apartment.apartmentId, onError])
+  }, [apartment.apartmentId, fromResult])
 
   async function submit() {
-    onError('')
-    if (!form.roomId) return onError('กรุณาเลือกห้อง')
+    reset()
+    if (!form.roomId) return fromResult({ fields: { roomId: 'กรุณาเลือกห้อง' } })
     setBusy(true)
     const res = await createMaintenance({
       roomId: Number(form.roomId),
@@ -253,7 +263,7 @@ function ReportDialog({ apartment, onClose, onCreated, onError }) {
       appointmentDate: form.appointmentDate || null
     })
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     onCreated(res.data)
   }
 
@@ -263,17 +273,19 @@ function ReportDialog({ apartment, onClose, onCreated, onError }) {
       icon="maintenance"
       submitLabel="บันทึกการแจ้ง"
       busy={busy}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.roomId)}>
         <label htmlFor="maintenanceRoom">
           ห้อง <span className="required">* จำเป็น</span>
         </label>
         <select
           id="maintenanceRoom"
           value={form.roomId}
-          onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))}
+          onChange={(e) => set('roomId', e.target.value)}
+          {...invalidProps('maintenanceRoom', errors.roomId)}
         >
           <option value="">— เลือกห้อง —</option>
           {rooms.map((room) => (
@@ -282,20 +294,22 @@ function ReportDialog({ apartment, onClose, onCreated, onError }) {
             </option>
           ))}
         </select>
+        <FieldError id="maintenanceRoom-error" message={errors.roomId} />
       </div>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.reportedDate)}>
         <label htmlFor="maintenanceReported">
           วันที่แจ้ง <span className="required">* จำเป็น</span>
         </label>
         <DateField
           id="maintenanceReported"
           value={form.reportedDate}
-          onChange={(v) => setForm((f) => ({ ...f, reportedDate: v }))}
+          onChange={(v) => set('reportedDate', v)}
         />
+        <FieldError id="maintenanceReported-error" message={errors.reportedDate} />
       </div>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.description)}>
         <label htmlFor="maintenanceDescription">
           อาการ / สิ่งที่ต้องซ่อม <span className="required">* จำเป็น</span>
         </label>
@@ -303,12 +317,14 @@ function ReportDialog({ apartment, onClose, onCreated, onError }) {
           id="maintenanceDescription"
           rows={3}
           value={form.description}
-          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          onChange={(e) => set('description', e.target.value)}
           placeholder="เช่น ก๊อกน้ำในห้องน้ำรั่ว / แอร์ไม่เย็น / หลอดไฟหน้าห้องขาด"
+          {...invalidProps('maintenanceDescription', errors.description)}
         />
+        <FieldError id="maintenanceDescription-error" message={errors.description} />
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.appointmentDate)}>
         <label htmlFor="maintenanceAppointment">
           วันนัดช่าง
           <InfoTip
@@ -319,8 +335,9 @@ function ReportDialog({ apartment, onClose, onCreated, onError }) {
         <DateField
           id="maintenanceAppointment"
           value={form.appointmentDate}
-          onChange={(v) => setForm((f) => ({ ...f, appointmentDate: v }))}
+          onChange={(v) => set('appointmentDate', v)}
         />
+        <FieldError id="maintenanceAppointment-error" message={errors.appointmentDate} />
       </div>
 
       <p className="field-hint">แนบรูปได้หลังบันทึก</p>
@@ -566,7 +583,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
             setRequest(updated)
             onChanged?.()
           }}
-          onError={setError}
         />
       )}
 
@@ -580,7 +596,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
             setRequest(updated)
             onChanged?.()
           }}
-          onError={setError}
         />
       )}
 
@@ -594,7 +609,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
             setRequest(updated)
             onChanged?.()
           }}
-          onError={setError}
         />
       )}
     </>
@@ -602,16 +616,24 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
 }
 
 // ------------------------------------------------------------------
-function EditDialog({ request, onClose, onSaved, onError }) {
+const EDIT_FIELDS = ['reportedDate', 'description', 'appointmentDate']
+
+function EditDialog({ request, onClose, onSaved }) {
   const [form, setForm] = useState({
     reportedDate: request.reportedDate,
     description: request.description,
     appointmentDate: request.appointmentDate ?? ''
   })
   const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(EDIT_FIELDS)
+
+  const set = (key, value) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    clear(key)
+  }
 
   async function submit() {
-    onError('')
+    reset()
     setBusy(true)
     const res = await updateMaintenance({
       maintenanceId: request.maintenanceId,
@@ -620,7 +642,7 @@ function EditDialog({ request, onClose, onSaved, onError }) {
       appointmentDate: form.appointmentDate || null
     })
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     onSaved(res.data)
   }
 
@@ -629,21 +651,23 @@ function EditDialog({ request, onClose, onSaved, onError }) {
       title={`แก้ไขงานซ่อม ห้อง ${request.roomNumber}`}
       icon="maintenance"
       busy={busy}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.reportedDate)}>
         <label htmlFor="editReported">
           วันที่แจ้ง <span className="required">* จำเป็น</span>
         </label>
         <DateField
           id="editReported"
           value={form.reportedDate}
-          onChange={(v) => setForm((f) => ({ ...f, reportedDate: v }))}
+          onChange={(v) => set('reportedDate', v)}
         />
+        <FieldError id="editReported-error" message={errors.reportedDate} />
       </div>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.description)}>
         <label htmlFor="editDescription">
           อาการ / สิ่งที่ต้องซ่อม <span className="required">* จำเป็น</span>
         </label>
@@ -651,11 +675,13 @@ function EditDialog({ request, onClose, onSaved, onError }) {
           id="editDescription"
           rows={3}
           value={form.description}
-          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          onChange={(e) => set('description', e.target.value)}
+          {...invalidProps('editDescription', errors.description)}
         />
+        <FieldError id="editDescription-error" message={errors.description} />
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.appointmentDate)}>
         <label htmlFor="editAppointment">
           วันนัดช่าง
           <InfoTip
@@ -666,24 +692,33 @@ function EditDialog({ request, onClose, onSaved, onError }) {
         <DateField
           id="editAppointment"
           value={form.appointmentDate}
-          onChange={(v) => setForm((f) => ({ ...f, appointmentDate: v }))}
+          onChange={(v) => set('appointmentDate', v)}
         />
+        <FieldError id="editAppointment-error" message={errors.appointmentDate} />
       </div>
     </Modal>
   )
 }
 
 // ------------------------------------------------------------------
-function CompleteDialog({ request, onClose, onSaved, onError }) {
+const COMPLETE_FIELDS = ['repairedDate', 'repairCost']
+
+function CompleteDialog({ request, onClose, onSaved }) {
   const [form, setForm] = useState({
     repairedDate: todayIso(),
     repairCost: request.repairCostCents === null ? '' : centsToInput(request.repairCostCents),
     repairDetails: ''
   })
   const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(COMPLETE_FIELDS)
+
+  const set = (key, value) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    clear(key)
+  }
 
   async function submit() {
-    onError('')
+    reset()
     setBusy(true)
     const res = await completeMaintenance({
       maintenanceId: request.maintenanceId,
@@ -692,7 +727,7 @@ function CompleteDialog({ request, onClose, onSaved, onError }) {
       repairDetails: form.repairDetails
     })
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     onSaved(res.data)
   }
 
@@ -702,21 +737,23 @@ function CompleteDialog({ request, onClose, onSaved, onError }) {
       icon="check"
       submitLabel="ปิดงาน"
       busy={busy}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.repairedDate)}>
         <label htmlFor="repairedDate">
           วันที่ซ่อมเสร็จ <span className="required">* จำเป็น</span>
         </label>
         <DateField
           id="repairedDate"
           value={form.repairedDate}
-          onChange={(v) => setForm((f) => ({ ...f, repairedDate: v }))}
+          onChange={(v) => set('repairedDate', v)}
         />
+        <FieldError id="repairedDate-error" message={errors.repairedDate} />
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.repairCost)}>
         <label htmlFor="repairCost">
           ค่าซ่อม (บาท)
           <InfoTip
@@ -729,8 +766,10 @@ function CompleteDialog({ request, onClose, onSaved, onError }) {
           type="text"
           inputMode="decimal"
           value={form.repairCost}
-          onChange={(e) => setForm((f) => ({ ...f, repairCost: e.target.value }))}
+          onChange={(e) => set('repairCost', e.target.value)}
+          {...invalidProps('repairCost', errors.repairCost)}
         />
+        <FieldError id="repairCost-error" message={errors.repairCost} />
         {/* เว้นว่าง ≠ 0 — ช่องว่างแปลว่ายังไม่รู้ค่าซ่อม ส่วน 0 แปลว่าซ่อมแล้วไม่เสียเงิน
             ถ้าเหมาช่องว่างเป็น 0 ยอดรวมค่าซ่อมของหอจะดูน้อยกว่าความจริงตลอดไป */}
       </div>
@@ -741,7 +780,7 @@ function CompleteDialog({ request, onClose, onSaved, onError }) {
           id="repairDetails"
           rows={3}
           value={form.repairDetails}
-          onChange={(e) => setForm((f) => ({ ...f, repairDetails: e.target.value }))}
+          onChange={(e) => set('repairDetails', e.target.value)}
           placeholder="เช่น เปลี่ยนสายชำระใหม่ / ล้างแอร์และเติมน้ำยา"
         />
       </div>
@@ -750,16 +789,18 @@ function CompleteDialog({ request, onClose, onSaved, onError }) {
 }
 
 // ------------------------------------------------------------------
-function CancelDialog({ request, onClose, onSaved, onError }) {
+// ไม่มีช่องไหนที่ main ตรวจ — error ทุกตัว (เช่น งานถูกปิดไปแล้ว) ขึ้นบนสุดของหน้าต่าง
+function CancelDialog({ request, onClose, onSaved }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   async function submit() {
-    onError('')
+    setError('')
     setBusy(true)
     const res = await cancelMaintenance(request.maintenanceId, reason)
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return setError(res.error)
     onSaved(res.data)
   }
 
@@ -769,6 +810,7 @@ function CancelDialog({ request, onClose, onSaved, onError }) {
       icon="close"
       submitLabel="ยืนยันยกเลิกงาน"
       busy={busy}
+      error={error}
       onClose={onClose}
       onSubmit={submit}
     >
