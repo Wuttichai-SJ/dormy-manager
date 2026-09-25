@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import CancelReceiptDialog from '../components/CancelReceiptDialog.jsx'
 import DateField from '../components/DateField.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
@@ -162,14 +163,6 @@ export default function ReceiptsPage({ apartment, user }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>รายงานใบเสร็จรับเงิน</strong>
-        <p>
-          เงินที่รับเข้ามาทั้งหมดของหอ ทั้งจากใบแจ้งหนี้และจากสัญญา (เงินประกัน/เงินล่วงหน้า) ·
-          ใบคืนเงินแสดงเป็นยอดติดลบและถูกหักออกจากยอดรวมแล้ว
-        </p>
-      </div>
-
       <section className="panel">
         <Alert>{error}</Alert>
 
@@ -230,7 +223,10 @@ export default function ReceiptsPage({ apartment, user }) {
         </div>
 
         <div className="panel-head-row">
-          <h2 className="panel-title">ใบเสร็จรับเงิน</h2>
+          <h2 className="panel-title">
+            ใบเสร็จรับเงิน
+            <InfoTip text="รวมเงินจากใบแจ้งหนี้และจากสัญญา (เงินประกัน/เงินล่วงหน้า) · ใบคืนเงินเป็นยอดติดลบ หักออกจากยอดรวมแล้ว" />
+          </h2>
           <div className="receipt-actions">
             <button
               type="button"

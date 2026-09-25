@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -194,22 +195,14 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
 
   return (
     <>
-      <div className="info-banner">
-        <strong>ใบแจ้งหนี้</strong>
-        <p>
-          บิลรายเดือนออกจากใบจดมิเตอร์หนึ่งใบ ครั้งเดียวได้ทั้งหอ — หนึ่งสัญญาออกบิลได้เดือนละใบ
-        </p>
-        <p>
-          ปุ่ม <strong>“พิมพ์ใบแจ้งหนี้ทุกห้อง”</strong> พิมพ์ทุกใบที่เห็นในตารางข้างล่าง ใบละหนึ่งแผ่น —
-          เลือกแท็บหรือกรอกช่วงวันที่ก่อน ถ้าต้องการเฉพาะบางชุด (บิลที่ยกเลิกแล้วไม่ถูกพิมพ์)
-        </p>
-      </div>
-
       <section className="panel">
         <Alert>{error}</Alert>
 
         <div className="panel-head-row">
-          <h2 className="panel-title">รายการใบแจ้งหนี้</h2>
+          <h2 className="panel-title">
+            รายการใบแจ้งหนี้
+            <InfoTip text="ปุ่มพิมพ์ทุกห้องจะพิมพ์ทุกใบที่เห็นในตาราง (ยกเว้นใบที่ยกเลิก) — เลือกแท็บหรือช่วงวันที่ก่อนถ้าต้องการเฉพาะบางชุด" />
+          </h2>
           {/* สองปุ่มนี้คือสองงานที่ทำบ่อยที่สุดของหน้านี้: ออกบิลต้นเดือน แล้วตามเก็บเงิน
               รับเงินหลายห้องเป็นปุ่มรอง เพราะออกบิลต้องเกิดก่อนเสมอ */}
           <div className="panel-head-actions">
@@ -260,11 +253,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
         {/* แท็บนี้เป็นที่เดียวที่ปุ่มลบถาวรโผล่ (ลบได้เฉพาะใบที่ยกเลิกแล้ว) จึงต้องบอกไว้
             ว่ากดแล้วเกิดอะไร ก่อนที่จะมีคนกดเพราะเห็นถังขยะแล้วคิดว่าเป็นการเก็บกวาดเฉยๆ */}
         {settlement === 'cancelled' && (
-          <p className="field-hint">
-            ใบที่ยกเลิกยังอยู่ในระบบเพื่อให้ตามเลขที่ที่หายไปจากลำดับได้ และ<strong>พิมพ์ไม่ได้</strong> —
-            กด “รายละเอียด” เพื่อดูเหตุผลที่ยกเลิก · ถ้าจะลบออกถาวรต้องกรอกเหตุผลอีกครั้ง
-            ซึ่งจะถูกเก็บไว้ในประวัติการลบ
-          </p>
+          <p className="field-hint">ใบที่ยกเลิกพิมพ์ไม่ได้ · ลบถาวรต้องกรอกเหตุผล</p>
         )}
 
         {/* แถบค้นหาเรียงตามต้นแบบ: เลขที่ห้อง | เลขที่ใบแจ้งหนี้ | วันที่เริ่ม | วันที่สิ้นสุด | รีเซ็ต
@@ -452,8 +441,7 @@ function DeleteInvoiceDialog({ invoice, onClose, onDeleted, onError }) {
       onSubmit={submit}
     >
       <Alert kind="warn">
-        ใบแจ้งหนี้และรายการทั้งหมดในใบจะถูกลบออกจากระบบถาวร กู้คืนไม่ได้ —
-        เลขที่ {invoice.invoiceNumber} จะไม่ถูกนำไปใช้ซ้ำ และเหตุผลที่กรอกจะถูกเก็บไว้ในประวัติการลบ
+        ลบถาวร กู้คืนไม่ได้ · เลขที่ {invoice.invoiceNumber} จะไม่ถูกนำไปใช้ซ้ำ
       </Alert>
 
       <dl className="invoice-totals delete-summary">
@@ -652,13 +640,14 @@ function BillingWizard({ apartment, onClose }) {
         ) : step === 0 ? (
           batches.length === 0 ? (
             <div className="empty-state">
-              <p>ยังไม่มีใบจดมิเตอร์ — ต้องจดมิเตอร์ก่อนจึงจะออกบิลรายเดือนได้</p>
+              <p>ยังไม่มีใบจดมิเตอร์ · จดมิเตอร์ก่อนออกบิล</p>
             </div>
           ) : (
             <>
               <div className="field">
                 <label htmlFor="batchId">
                   วันที่จดมิเตอร์ <span className="required">* จำเป็น</span>
+                  <InfoTip text="ค่าน้ำ/ค่าไฟคิดจากหน่วยในใบจดนี้ · ห้องที่ยังไม่ได้จดคิดเป็น 0 หน่วย" />
                 </label>
                 <select
                   id="batchId"
@@ -674,10 +663,6 @@ function BillingWizard({ apartment, onClose }) {
                     </option>
                   ))}
                 </select>
-                <p className="field-hint">
-                  ค่าน้ำ/ค่าไฟในบิลจะคิดจากหน่วยที่จดไว้ในใบนี้ ·
-                  ห้องที่ยังไม่ได้จดจะคิดเป็น 0 หน่วย
-                </p>
               </div>
 
               {/* วันที่ออกบิลมาก่อนเดือนค่าเช่า เพราะเดือนค่าเช่าเดินตามวันนี้
@@ -685,19 +670,17 @@ function BillingWizard({ apartment, onClose }) {
               <div className="field">
                 <label htmlFor="issueDate">
                   วันที่ออกบิล <span className="required">* จำเป็น</span>
+                  <InfoTip text="เลขที่บิล วันครบกำหนดชำระ และเดือนค่าเช่า คิดจากวันนี้ทั้งหมด" />
                 </label>
                 <DateField id="issueDate" value={issueDate} onChange={changeIssueDate} />
                 {/* วันที่นี้ไม่ได้เป็นแค่ตัวเลขบนหัวบิล — เลขที่บิลใช้ปี-เดือนของวันนี้
                     (I2569 02 0001) วันครบกำหนดนับต่อจากวันนี้ และเดือนค่าเช่าก็มาจากวันนี้ */}
-                <p className="field-hint">
-                  ตั้งต้นเป็นวันที่จดมิเตอร์ (หอจดวันที่ 1 แล้วออกบิลวันเดียวกัน) ·
-                  เลขที่บิล วันครบกำหนดชำระ และเดือนค่าเช่า คิดจากวันนี้ทั้งหมด
-                </p>
               </div>
 
               <div className="field">
                 <label htmlFor="billingMonth">
                   ออกบิลค่าห้องของเดือน <span className="required">* จำเป็น</span>
+                  <InfoTip text="ระบบเลือกตามวันที่ออกบิลให้แล้ว เปลี่ยนเฉพาะตอนออกบิลย้อนหลัง" />
                 </label>
                 <select
                   id="billingMonth"
@@ -713,9 +696,8 @@ function BillingWizard({ apartment, onClose }) {
                 {/* บิลใบเดียวมีสองเดือนอยู่ในนั้น — ต้องเขียนให้ชัดตั้งแต่ตอนเลือก ไม่ใช่ให้ไป
                     เจอเอาตอนบิลออกไปถึงมือผู้เช่าแล้ว */}
                 <p className="field-hint">
-                  ค่าเช่าเป็นของเดือนนี้ ส่วนค่าน้ำ-ค่าไฟเป็นของเดือน{' '}
-                  <strong>{formatBillingMonth(utilityMonthOf(billingMonth))}</strong> (เดือนก่อนหน้า)
-                  · ระบบเลือกตามวันที่ออกบิลให้แล้ว เปลี่ยนได้ถ้าออกบิลย้อนหลัง
+                  ค่าน้ำ-ค่าไฟเป็นของเดือน{' '}
+                  <strong>{formatBillingMonth(utilityMonthOf(billingMonth))}</strong>
                 </p>
               </div>
 

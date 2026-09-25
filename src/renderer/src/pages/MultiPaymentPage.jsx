@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS, PAYMENT_METHODS } from '../constants.js'
@@ -169,16 +170,12 @@ export default function MultiPaymentPage({ apartment, onBack }) {
         </button>
       </div>
 
-      <div className="info-banner">
-        <strong>รับเงินหลายห้อง</strong>
-        <p>
-          สำหรับตอนที่ผู้เช่าหลายคนมาจ่ายพร้อมกัน — ช่องทาง วันที่ และหมายเหตุ ใช้ร่วมกันทั้งชุด
-          ส่วนยอดเงินกรอกแยกรายห้องได้ · <strong>ระบบออกใบเสร็จแยกใบต่อห้อง</strong>{' '}
-          ให้ผู้เช่าแต่ละคนถือกลับไป · ถ้ามีห้องใดกรอกผิด จะไม่มีห้องไหนถูกบันทึกเลย
-        </p>
-      </div>
-
       <section className="panel">
+        {/* หัวข้อบอกว่าอยู่หน้าย่อยไหน — แถบหัวของ shell ยังขึ้น "ใบแจ้งหนี้" */}
+        <h2 className="panel-title">
+          รับเงินหลายห้อง
+          <InfoTip text="วันที่ ช่องทาง และหมายเหตุ ใช้ร่วมกันทั้งชุด · ออกใบเสร็จแยกใบต่อห้อง · ถ้ามีห้องใดกรอกผิด จะไม่บันทึกเลยสักห้อง" />
+        </h2>
         <Alert>{error}</Alert>
 
         <div className="multi-pay-head">
@@ -374,7 +371,7 @@ function MultiPaymentCard({ row, onChange }) {
               </p>
             )}
             {emptyAmount && (
-              <p className="field-hint field-hint-warn">ยังไม่ได้กรอกยอดเงินของห้องนี้</p>
+              <p className="field-hint field-hint-warn">ยังไม่ได้กรอกยอดเงิน</p>
             )}
           </div>
 

@@ -256,8 +256,7 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
 function CancelledNotice({ invoice }) {
   return (
     <Alert kind="warn">
-      <strong>ใบแจ้งหนี้นี้ถูกยกเลิกแล้ว</strong> — พิมพ์ไม่ได้ แก้ไขไม่ได้ รับชำระไม่ได้
-      และออกบิลของเดือนนี้ใหม่ได้
+      <strong>ยกเลิกแล้ว</strong> — พิมพ์ แก้ไข และรับชำระไม่ได้ · ออกบิลเดือนนี้ใหม่ได้
       <dl className="invoice-cancel-info">
         <div>
           <dt>เหตุผล</dt>
@@ -265,7 +264,7 @@ function CancelledNotice({ invoice }) {
               ไม่ใช่ปล่อยช่องว่างจนดูเหมือนคนกดยกเลิกลืมกรอก */}
           <dd>
             {invoice.cancelReason ?? (
-              <span className="muted">ไม่ได้บันทึกไว้ (ยกเลิกก่อนที่ระบบจะบังคับกรอกเหตุผล)</span>
+              <span className="muted">ไม่ได้บันทึกไว้</span>
             )}
           </dd>
         </div>
@@ -311,9 +310,7 @@ function CancelInvoiceDialog({ invoice, onClose, onCancelled, onError }) {
       onSubmit={submit}
     >
       <Alert kind="warn">
-        บิลจะยังอยู่ในระบบแต่ถูกทำเครื่องหมายว่ายกเลิก — <strong>พิมพ์ไม่ได้ รับชำระไม่ได้</strong>{' '}
-        และหายไปจากรายการค้างชำระ · ออกบิลของเดือนนี้ใหม่ได้ โดยจะได้เลขที่ใบใหม่
-        ไม่ใช่เลขเดิม
+        <strong>พิมพ์และรับชำระไม่ได้อีก</strong> · ออกบิลเดือนนี้ใหม่ได้ (ได้เลขที่ใหม่)
       </Alert>
 
       <dl className="invoice-totals delete-summary">
@@ -352,12 +349,12 @@ function CancelInvoiceDialog({ invoice, onClose, onCancelled, onError }) {
 // เพิ่มรายการเข้าบิลที่ออกไปแล้ว
 // ------------------------------------------------------------------
 const ITEM_TABS = [
-  { key: 'service', label: 'ค่าบริการ', itemType: 'other', hint: 'ค่าบริการที่เก็บเพิ่มกับผู้เช่า' },
+  { key: 'service', label: 'ค่าบริการ', itemType: 'other', hint: null },
   {
     key: 'discount',
     label: 'ส่วนลด / คืนเงิน',
     itemType: 'discount',
-    hint: 'กรอกเป็นจำนวนบวก ระบบจะหักออกจากยอดรวมให้เอง'
+    hint: 'กรอกเป็นจำนวนบวก ระบบหักออกให้เอง'
   }
 ]
 
@@ -407,7 +404,7 @@ function AddItemPanel({ invoice, onDone, onError }) {
       </div>
 
       <form onSubmit={submit}>
-        <p className="field-hint invoice-tab-hint">{tab.hint}</p>
+        {tab.hint && <p className="field-hint invoice-tab-hint">{tab.hint}</p>}
 
         <div className="field-row">
           <div className="field field-required">
@@ -605,8 +602,8 @@ function PaymentCard({ invoice, onDone, onError }) {
               ไม่ปล่อยให้เงียบจนดูเหมือนระบบไม่ทำงาน */}
           {lateFee?.misconfigured && lateFee.overdueDays > 0 && (
             <Alert kind="warn">
-              บิลนี้เกินกำหนด {lateFee.overdueDays} วัน แต่ยังคิดค่าปรับไม่ได้ เพราะหอพักตั้ง
-              “ค่าปรับชำระล่าช้าต่อวัน” ไว้เป็น 0 บาท — แก้ได้ที่ ตั้งค่า › ข้อมูลหอพัก
+              เกินกำหนด {lateFee.overdueDays} วัน แต่ค่าปรับต่อวันตั้งไว้ 0 บาท — แก้ที่ ตั้งค่า ›
+              ข้อมูลหอพัก
             </Alert>
           )}
 
@@ -644,8 +641,7 @@ function PaymentCard({ invoice, onDone, onError }) {
 
               {lateFee.alreadyChargedCents > 0 && (
                 <p className="field-hint">
-                  บิลนี้เคยเก็บค่าปรับไปแล้ว {formatBaht(lateFee.alreadyChargedCents)} บาท
-                  ยอดข้างบนหักส่วนนั้นออกให้แล้ว
+                  เก็บไปแล้ว {formatBaht(lateFee.alreadyChargedCents)} บาท (หักออกให้แล้ว)
                 </p>
               )}
             </div>
