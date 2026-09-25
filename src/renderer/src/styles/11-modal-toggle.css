@@ -244,6 +244,36 @@
   height: 18px;
 }
 
+/* ปุ่มไอคอนล้วนเดิมเป็น inline ธรรมดา — svg นั่งบนเส้นบรรทัดของตัวอักษร จึงลอยสูงกว่า
+   ลิงก์ "แก้ไข" ข้างๆ (โอ๊คเจอที่ตารางบัญชีธนาคาร) ทำเป็นกล่อง flex แล้วจัดกึ่งกลางแนวตั้ง
+   และมีพื้นที่กด 28px รอบไอคอน (margin ติดลบชดเชย ไม่ให้แถวสูงขึ้น) */
+.link-btn.icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-top: -5px;
+  margin-bottom: -5px;
+  vertical-align: middle;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.link-btn.icon-only:hover:not(:disabled) {
+  background: var(--err-weak);
+}
+
+/* ลิงก์ข้อความในตารางจัดกึ่งกลางแนวตั้งด้วย จะได้อยู่ระดับเดียวกับปุ่มไอคอน */
+.data-table td .link-btn {
+  vertical-align: middle;
+}
+
+/* ปุ่มไอคอนมีพื้นที่กดกว้างอยู่แล้ว ระยะห่างจากลิงก์ข้างๆ ลดลงให้ดูเป็นกลุ่มเดียวกัน */
+.link-btn.icon-only.table-action {
+  margin-left: 6px;
+}
+
 /* หัวข้อระดับหน้า (.page-title) ไว้ใช้ตอนเปิดเดี่ยวๆ จากเมนูตั้งค่า — ในตัวช่วยตั้งค่า
    ซ้ำกับแถบครีมหัวการ์ด (step.brief) จึงซ่อน · ติดคลาสนี้เฉพาะหัวข้อที่ซ้ำกับ brief เท่านั้น
    หัวข้อของหัวข้อย่อยในหน้า (เช่น "ข้อความในใบแจ้งหนี้" ของหน้าบัญชีธนาคาร) ห้ามติด
