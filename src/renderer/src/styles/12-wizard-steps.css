@@ -8,7 +8,9 @@
 .utility-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 32px;
+  /* ช่องไฟระหว่างสองการ์ด = ระยะถึงการ์ด "นำราคาไปใช้" ข้างล่าง ทั้งหน้าจะได้สมมาตร */
+  gap: 24px;
+  margin-bottom: 24px;
 }
 
 @media (max-width: 900px) {
@@ -17,10 +19,17 @@
   }
 }
 
+/* แต่ละฝั่งเป็นการ์ดของตัวเอง หน้าตาเดียวกับ .panel — เดิมลอยอยู่บนพื้นหลังโดยไม่มีกรอบ
+   ขณะที่การ์ดข้างล่างมีกรอบ ทั้งหน้าจึงดูไม่เข้าชุดกัน (โอ๊คขอให้สมมาตร 2026-09-25) */
 .utility-side {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
 
 /* ไอคอนใหญ่นำหัวคอลัมน์ ไม่มีข้อความกำกับ — ต้นแบบใช้รูปอย่างเดียวบอกว่าฝั่งไหนคือน้ำ/ไฟ
@@ -47,11 +56,9 @@
 .utility-side-action {
   display: flex;
   justify-content: center;
-  margin-top: 4px;
-}
-
-.utility-footnote {
-  margin-top: 24px;
+  /* ดันปุ่มลงล่างสุดของการ์ด — สองฝั่งสูงไม่เท่ากันเมื่อฝั่งหนึ่งปิดอยู่ ปุ่มจะได้อยู่ระดับเดียวกัน */
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 /* -----------------------------------------------------
