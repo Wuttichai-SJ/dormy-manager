@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import Icon from '../Icon.jsx'
+import Alert from './Alert.jsx'
 
 // หน้าต่างซ้อน — โครงตามต้นแบบ: หัวเรื่อง (มีไอคอนนำได้) + กากบาทปิดมุมขวา,
 // เนื้อหาตรงกลาง, แถบล่างสีเทาอ่อนที่มีปุ่ม "ปิด" (ขาวมีขอบ) และ "บันทึก" (น้ำตาล)
@@ -16,6 +17,7 @@ export default function Modal({
   submitLabel = 'บันทึก',
   busy,
   wide,
+  error,
   children
 }) {
   // Esc ปิดได้ — ปุ่มกากบาทกับปุ่ม "ปิด" ทำงานเดียวกัน
@@ -51,7 +53,12 @@ export default function Modal({
             onSubmit()
           }}
         >
-          <div className="modal-body">{children}</div>
+          {/* error ของการกดบันทึกต้องขึ้นในหน้าต่างนี้ ตรงหน้าคนกรอก — เดิมหลายหน้าต่างส่ง error
+              ออกไปขึ้นที่หน้าข้างหลัง ซึ่งถูกฉากมืดบังอยู่ มองไม่เห็น (โอ๊คเจอที่แก้ไขผู้ใช้ 2026-09-25) */}
+          <div className="modal-body">
+            <Alert>{error}</Alert>
+            {children}
+          </div>
 
           <footer className="modal-foot">
             <button type="button" className="btn btn-outline" onClick={onClose}>

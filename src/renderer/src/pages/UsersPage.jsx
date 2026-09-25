@@ -117,7 +117,7 @@ export default function UsersPage({ user }) {
                 <tr key={row.userId} className={row.isActive ? undefined : 'receipt-row-cancelled'}>
                   <td>
                     {row.fullName}
-                    {row.userId === user?.userId && <span className="room-badge">คุณ</span>}
+                    {row.userId === user?.userId && <span className="room-badge user-self-badge">คุณ</span>}
                   </td>
                   <td>{row.phone}</td>
                   <td>{row.email ?? '-'}</td>
@@ -176,7 +176,6 @@ export default function UsersPage({ user }) {
               load()
             }
           }}
-          onError={setError}
         />
       )}
 
@@ -194,7 +193,6 @@ export default function UsersPage({ user }) {
               load()
             }
           }}
-          onError={setError}
         />
       )}
 
@@ -206,7 +204,6 @@ export default function UsersPage({ user }) {
             setDialog(null)
             showToast(`ตั้งรหัสผ่านใหม่ให้ ${target.fullName} แล้ว`)
           }}
-          onError={setError}
         />
       )}
     </>
@@ -216,7 +213,7 @@ export default function UsersPage({ user }) {
 // ------------------------------------------------------------------
 // ฟอร์มเดียวใช้ทั้งเพิ่มและแก้ไข — ต่างกันแค่ช่องรหัสผ่าน (ตอนแก้ไขไม่มี เพราะการตั้ง
 // รหัสผ่านใหม่เป็นคนละคำสั่ง และไม่ควรเผลอเปลี่ยนรหัสผ่านของคนอื่นตอนแก้เบอร์โทร)
-function UserFormDialog({ target, onClose, onSaved, onError }) {
+function UserFormDialog({ target, onClose, onSaved }) {
   const editing = Boolean(target)
   const [form, setForm] = useState(() => ({
     fullName: target?.fullName ?? '',
@@ -226,17 +223,18 @@ function UserFormDialog({ target, onClose, onSaved, onError }) {
     role: target?.role ?? 'staff'
   }))
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
   async function submit() {
-    onError('')
+    setError('')
     setBusy(true)
     const res = editing
       ? await updateUser({ userId: target.userId, ...form })
       : await createUser(form)
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return setError(res.error)
     onSaved(res.data)
   }
 
@@ -247,6 +245,7 @@ function UserFormDialog({ target, onClose, onSaved, onError }) {
       icon="account"
       submitLabel={editing ? 'บันทึก' : 'สร้างบัญชี'}
       busy={busy}
+      error={error}
       onClose={onClose}
       onSubmit={submit}
     >
@@ -309,16 +308,17 @@ function UserFormDialog({ target, onClose, onSaved, onError }) {
 
 // ------------------------------------------------------------------
 // ทางกู้คืนของพนักงาน — พนักงานไม่มีรหัสสำรอง เจ้าของจึงเป็นคนตั้งรหัสผ่านใหม่ให้
-function ResetPasswordDialog({ target, onClose, onSaved, onError }) {
+function ResetPasswordDialog({ target, onClose, onSaved }) {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   async function submit() {
-    onError('')
+    setError('')
     setBusy(true)
     const res = await resetUserPassword(target.userId, password)
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return setError(res.error)
     onSaved(target)
   }
 
@@ -328,6 +328,7 @@ function ResetPasswordDialog({ target, onClose, onSaved, onError }) {
       icon="lock"
       submitLabel="ตั้งรหัสผ่านใหม่"
       busy={busy}
+      error={error}
       onClose={onClose}
       onSubmit={submit}
     >
