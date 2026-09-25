@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import Icon from '../Icon.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import Alert from '../components/Alert.jsx'
 import { centsToInput, formatBaht } from '../format.js'
 import {
@@ -165,12 +165,7 @@ export default function ApartmentServicesPage({ apartment }) {
               onChange={(e) => set('isMeterBased', e.target.checked)}
             />
             <span>ประเภทแปรผันตามมิเตอร์</span>
-            <span
-              className="hint-icon"
-              title="คิดตามหน่วยที่ใช้จริง (ราคาข้างบนจะกลายเป็นราคาต่อหน่วย) ไม่ติ๊ก = เหมาจ่ายเท่ากันทุกเดือน"
-            >
-              <Icon name="info" />
-            </span>
+            <InfoTip text="คิดตามหน่วยที่ใช้จริง (ราคาข้างบนจะกลายเป็นราคาต่อหน่วย) ไม่ติ๊ก = เหมาจ่ายเท่ากันทุกเดือน" />
           </label>
 
           <div className="service-form-submit">

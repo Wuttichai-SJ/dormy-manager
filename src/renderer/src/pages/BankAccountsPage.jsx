@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import Alert from '../components/Alert.jsx'
 import SelectField from '../components/SelectField.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
@@ -177,10 +178,8 @@ export default function BankAccountsPage({ apartment }) {
                 <th>ชื่อบัญชี</th>
                 <th>เลขบัญชี</th>
                 <th>
-                  ค่าเริ่มต้น{' '}
-                  <span className="hint-icon" title="บัญชีที่จะขึ้นเป็นตัวเลือกแรกในใบแจ้งหนี้">
-                    <Icon name="info" />
-                  </span>
+                  ค่าเริ่มต้น
+                  <InfoTip text="บัญชีที่จะขึ้นเป็นตัวเลือกแรกในใบแจ้งหนี้" />
                 </th>
                 <th className="align-right">จัดการ</th>
               </tr>

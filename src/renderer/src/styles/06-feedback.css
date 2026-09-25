@@ -84,3 +84,51 @@
   box-shadow: 0 0 0 3px var(--accent-weak);
 }
 
+
+/* กล่องคำอธิบายของจุด ⓘ (components/InfoTip.jsx) — กดแล้วเปิด วาดลง body ด้วย fixed
+   z-index 200: สูงกว่าหน้าต่างซ้อน (100) จะได้ใช้ในหน้าต่างซ้อนได้ แต่ต่ำกว่าข้อความแจ้งผล (9999) */
+.info-tip {
+  position: fixed;
+  z-index: 200;
+  transform: translate(-50%, -100%);
+  max-width: 280px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #1f1b16;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  animation: info-tip-in 0.12s ease;
+}
+
+.info-tip-below {
+  transform: translate(-50%, 0);
+}
+
+@keyframes info-tip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ไอคอนเป็น <button> แล้ว (กดได้ + กด Tab มาถึง) — ล้างหน้าตาปุ่มออกให้เหลือแค่ไอคอน */
+button.hint-icon {
+  vertical-align: middle;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+button.hint-icon:hover {
+  color: var(--accent);
+}
+
+button.hint-icon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
