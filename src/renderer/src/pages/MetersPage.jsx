@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -76,19 +77,21 @@ export default function MetersPage({ apartment }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>ใบจดมิเตอร์</strong>
-        <p>
-          สร้างใบจดหนึ่งใบต่อรอบการจด แล้วกดที่ปุ่มค่าน้ำหรือค่าไฟเพื่อไล่กรอกเลขมิเตอร์ทุกห้อง
-          — ใบที่ถูกใช้ออกบิลไปแล้วจะแก้ไขและลบไม่ได้
-        </p>
-      </div>
-
       <section className="panel">
         <Alert>{error}</Alert>
 
         <div className="panel-head-row">
-          <h2 className="panel-title">รายการใบจดมิเตอร์</h2>
+          <h2 className="panel-title">
+            รายการใบจดมิเตอร์
+            <InfoTip
+              title="ใบจดมิเตอร์"
+              points={[
+                'สร้างหนึ่งใบต่อรอบการจด',
+                'กดค่าน้ำหรือค่าไฟเพื่อกรอกเลขทุกห้อง',
+                'ใบที่ออกบิลไปแล้ว แก้ไขและลบไม่ได้'
+              ]}
+            />
+          </h2>
           <button type="button" className="btn" onClick={() => setCreating(true)}>
             <Icon name="plus" />
             <span>สร้างใบจดมิเตอร์</span>
@@ -269,38 +272,27 @@ function MeterSheet({ batchId, side, onBack }) {
         </button>
       </div>
 
-      <div className="info-banner">
-        <strong>
-          จด{meta.label} — รอบวันที่ {sheet ? formatDate(sheet.readingDate) : '...'}
-        </strong>
-        <p>
-          “จดครั้งก่อน” คือเลขปิดของรอบที่แล้ว — เว้นแต่ห้องที่<strong>เพิ่งเปลี่ยนผู้เช่า</strong>{' '}
-          ซึ่งจะเริ่มนับใหม่จากเลขมิเตอร์วันเข้าพักในสัญญา ระบบกำหนดให้เอง แก้ไม่ได้ ·
-          ห้องที่เว้นช่อง “ปัจจุบัน” ไว้จะไม่ถูกบันทึก ·{' '}
-          <strong>กด Enter เพื่อลงไปกรอกห้องถัดไป</strong>
-        </p>
-        <p>
-          มิเตอร์ของหอนี้ตั้งไว้ <strong>{sheet?.meterDigits ?? '...'} หลัก</strong>{' '}
-          จึงอ่านได้สูงสุด {sheet ? (10 ** sheet.meterDigits - 1).toLocaleString() : '...'} —
-          เลขที่เกินกว่านี้ระบบจะไม่รับ (แก้จำนวนหลักได้ที่หน้าตั้งค่าหอพัก)
-        </p>
-        <p>
-          ถ้าเลขปัจจุบันน้อยกว่าครั้งก่อน ให้เลือกว่าเกิดอะไรขึ้น —{' '}
-          <strong>เกินรอบมิเตอร์</strong> คือมิเตอร์ลูกเดิมวิ่งจนสุดหน้าปัดแล้ววนกลับมาศูนย์ ส่วน{' '}
-          <strong>เปลี่ยนมิเตอร์ใหม่</strong> คือถอดลูกเก่าออกแล้วติดลูกใหม่
-          สองกรณีนี้คิดหน่วยคนละแบบ เลือกผิดบิลจะผิดไปมาก
-        </p>
-      </div>
-
       <section className="panel">
+        <h2 className="panel-title">
+          จด{meta.label} — รอบวันที่ {sheet ? formatDate(sheet.readingDate) : '...'}
+          <InfoTip
+            title="วิธีจด"
+            points={[
+              '“จดครั้งก่อน” คือเลขปิดรอบที่แล้ว',
+              'ห้องที่เปลี่ยนผู้เช่า เริ่มจากเลขวันเข้าพักในสัญญา',
+              'เว้นช่อง “ปัจจุบัน” = ไม่บันทึกห้องนั้น',
+              'กด Enter เพื่อไปห้องถัดไป'
+            ]}
+          />
+        </h2>
         <Alert>{error}</Alert>
 
         {/* ห้องที่มีผู้เช่าแต่ถูกปิดใช้งานไว้ จะไม่อยู่ในตารางนี้ — ต้องบอกว่าห้องไหนหายไป
             และหายเพราะอะไร ไม่ใช่ปล่อยให้ไปนับห้องเอาเองว่าครบหรือไม่ */}
         {sheet?.hiddenRooms?.length > 0 && (
           <Alert kind="warn">
-            ห้อง {sheet.hiddenRooms.join(', ')} มีผู้เช่าอยู่แต่ถูกปิดใช้งานไว้
-            จึงไม่อยู่ในใบจดมิเตอร์นี้ — ถ้ายังใช้งานห้องอยู่ ให้เปิดใช้งานที่ ตั้งค่า → ผังห้อง
+            ห้อง {sheet.hiddenRooms.join(', ')} ถูกปิดใช้งาน จึงไม่อยู่ในใบนี้ — เปิดได้ที่ ตั้งค่า →
+            ผังห้อง
           </Alert>
         )}
 
@@ -313,14 +305,12 @@ function MeterSheet({ batchId, side, onBack }) {
             <ul className="meter-new-tenant-list">
               {sheet.newTenantRooms.map((r) => (
                 <li key={r.roomNumber}>
-                  ห้อง {r.roomNumber}: เข้าพัก {formatDate(r.contractStartDate)} · เริ่มนับจาก{' '}
-                  <strong>{r.previousReading}</strong> (เลขมิเตอร์วันเข้าพักในสัญญา) แทนเลขปิด
-                  รอบก่อน {r.supersededReading} ซึ่งเป็นของผู้เช่าคนก่อน
+                  ห้อง {r.roomNumber}: เริ่มจาก <strong>{r.previousReading}</strong> (เข้าพัก{' '}
+                  {formatDate(r.contractStartDate)}) แทน {r.supersededReading}
                 </li>
               ))}
             </ul>
-            หน่วยที่ผู้เช่าคนก่อนใช้ค้างไว้จะไม่ถูกคิดกับคนใหม่ — ถ้าเลขตั้งต้นไม่ตรงกับหน้าปัดจริง
-            ให้แก้ที่สัญญาของห้องนั้นก่อนบันทึก
+            ถ้าไม่ตรงหน้าปัดจริง ให้แก้ที่สัญญาก่อนบันทึก
           </Alert>
         )}
 
@@ -334,7 +324,20 @@ function MeterSheet({ batchId, side, onBack }) {
                   <th>ห้อง</th>
                   <th>สถานะห้อง</th>
                   <th className="align-right">จดครั้งก่อน</th>
-                  <th className="align-right">ปัจจุบัน</th>
+                  <th className="align-right">
+                    ปัจจุบัน
+                    {sheet && (
+                      <InfoTip
+                        title={`มิเตอร์ ${sheet.meterDigits} หลัก (สูงสุด ${(10 ** sheet.meterDigits - 1).toLocaleString()})`}
+                        points={[
+                          'เลขน้อยกว่าครั้งก่อน ต้องเลือกกรณี:',
+                          '“เกินรอบมิเตอร์” = ลูกเดิมวนกลับศูนย์',
+                          '“เปลี่ยนมิเตอร์ใหม่” = ถอดลูกเก่า ติดลูกใหม่',
+                          'สองกรณีคิดหน่วยคนละแบบ เลือกผิดบิลผิด'
+                        ]}
+                      />
+                    )}
+                  </th>
                   <th className="align-right">หน่วย</th>
                 </tr>
               </thead>

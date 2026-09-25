@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -68,14 +69,6 @@ export default function MaintenancePage({ apartment }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>แจ้งซ่อม</strong>
-        <p>
-          รับแจ้งงานซ่อมของทุกห้องในหอนี้ · ห้องว่างก็แจ้งได้ · ปิดงานแล้วบันทึกค่าซ่อมไว้ได้
-          เพื่อดูย้อนหลังว่าห้องไหนซ่อมบ่อยและหอจ่ายไปเท่าไหร่
-        </p>
-      </div>
-
       <section className="panel">
         <Alert>{error}</Alert>
 
@@ -316,18 +309,21 @@ function ReportDialog({ apartment, onClose, onCreated, onError }) {
       </div>
 
       <div className="field">
-        <label htmlFor="maintenanceAppointment">วันนัดช่าง</label>
+        <label htmlFor="maintenanceAppointment">
+          วันนัดช่าง
+          <InfoTip
+            title="ยังไม่ได้นัด?"
+            points={['เว้นว่างได้ งานจะขึ้นเป็น “รอดำเนินการ”', 'มาใส่วันนัดทีหลังได้']}
+          />
+        </label>
         <DateField
           id="maintenanceAppointment"
           value={form.appointmentDate}
           onChange={(v) => setForm((f) => ({ ...f, appointmentDate: v }))}
         />
-        <p className="field-hint">
-          เว้นว่างได้ถ้ายังไม่ได้นัด — งานจะขึ้นเป็น "รอดำเนินการ" แล้วมาใส่วันนัดทีหลังได้
-        </p>
       </div>
 
-      <p className="field-hint">แนบรูปได้หลังบันทึก ในหน้ารายละเอียดของงาน</p>
+      <p className="field-hint">แนบรูปได้หลังบันทึก</p>
     </Modal>
   )
 }
@@ -524,7 +520,7 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
 
             {request.imageIds.length === 0 ? (
               <p className="muted">
-                ยังไม่มีรูป — รูปช่วยให้ช่างรู้ว่าต้องเตรียมอะไรมา และเป็นหลักฐานสภาพห้องก่อนซ่อม
+                ยังไม่มีรูป
               </p>
             ) : (
               <div className="maintenance-images">
@@ -650,15 +646,18 @@ function EditDialog({ request, onClose, onSaved, onError }) {
       </div>
 
       <div className="field">
-        <label htmlFor="editAppointment">วันนัดช่าง</label>
+        <label htmlFor="editAppointment">
+          วันนัดช่าง
+          <InfoTip
+            title="วันนัดเปลี่ยนสถานะงาน"
+            points={['ใส่วันนัด → “นัดช่างแล้ว”', 'ลบวันนัด → “รอดำเนินการ”']}
+          />
+        </label>
         <DateField
           id="editAppointment"
           value={form.appointmentDate}
           onChange={(v) => setForm((f) => ({ ...f, appointmentDate: v }))}
         />
-        <p className="field-hint">
-          ใส่วันนัดแล้วสถานะจะเปลี่ยนเป็น "นัดช่างแล้ว" · ลบวันนัดออกจะกลับเป็น "รอดำเนินการ"
-        </p>
       </div>
     </Modal>
   )
@@ -708,7 +707,13 @@ function CompleteDialog({ request, onClose, onSaved, onError }) {
       </div>
 
       <div className="field">
-        <label htmlFor="repairCost">ค่าซ่อม (บาท)</label>
+        <label htmlFor="repairCost">
+          ค่าซ่อม (บาท)
+          <InfoTip
+            title="ค่าซ่อม"
+            points={['เว้นว่าง = ยังไม่รู้ยอด', 'กรอก 0 = ซ่อมแล้วไม่มีค่าใช้จ่าย']}
+          />
+        </label>
         <input
           id="repairCost"
           type="text"
@@ -718,9 +723,6 @@ function CompleteDialog({ request, onClose, onSaved, onError }) {
         />
         {/* เว้นว่าง ≠ 0 — ช่องว่างแปลว่ายังไม่รู้ค่าซ่อม ส่วน 0 แปลว่าซ่อมแล้วไม่เสียเงิน
             ถ้าเหมาช่องว่างเป็น 0 ยอดรวมค่าซ่อมของหอจะดูน้อยกว่าความจริงตลอดไป */}
-        <p className="field-hint">
-          เว้นว่างได้ถ้ายังไม่รู้ยอด · กรอก 0 เมื่อซ่อมเองแล้วไม่มีค่าใช้จ่ายจริงๆ
-        </p>
       </div>
 
       <div className="field">
@@ -761,8 +763,7 @@ function CancelDialog({ request, onClose, onSaved, onError }) {
       onSubmit={submit}
     >
       <Alert kind="warn">
-        งานจะยังอยู่ในระบบแต่ถูกทำเครื่องหมายว่ายกเลิก — ประวัติว่าเคยมีคนแจ้งเรื่องนี้
-        ยังตามดูได้ ถ้าปัญหาเดิมกลับมาอีก
+        งานจะไม่ถูกลบ ยังดูประวัติย้อนหลังได้
       </Alert>
 
       <div className="field">
