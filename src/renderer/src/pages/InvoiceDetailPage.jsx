@@ -489,7 +489,13 @@ function PaymentCard({ invoice, onDone, onError }) {
   const [lateFee, setLateFee] = useState(null)
   const [chargeLateFee, setChargeLateFee] = useState(true)
   const [lateFeeAmount, setLateFeeAmount] = useState('')
+  // ผู้ใช้พิมพ์ยอดรับเงินเองแล้วหรือยัง — ถ้าพิมพ์แล้ว ห้ามเติมยอดทับ (ดู effect เติมยอดข้างล่าง)
+  const [amountTouched, setAmountTouched] = useState(false)
 
+  // ต้องถามใหม่เมื่อยอดบิลเปลี่ยนด้วย ไม่ใช่แค่ตอนเปลี่ยนวันที่ — การ์ดนี้ไม่ถูกสร้างใหม่หลังรับเงิน
+  // เดิมรับเงินงวดแรกพร้อมค่าปรับไปแล้ว งวดที่สองในหน้าเดิมยังเสนอค่าปรับเต็มจำนวนอยู่
+  // แล้ว main ปฏิเสธว่าเกินเพดาน (main หักค่าปรับที่เก็บไปแล้วออกให้ แต่หน้าจอไม่ได้ถามใหม่)
+  // ยกเลิกใบเสร็จก็ถอดค่าปรับออกจากบิลได้ — ยอดรวมเปลี่ยน จึงดูทั้งยอดรวมและยอดค้าง
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -502,7 +508,7 @@ function PaymentCard({ invoice, onDone, onError }) {
     return () => {
       cancelled = true
     }
-  }, [invoice.invoiceId, paymentDate])
+  }, [invoice.invoiceId, invoice.totalAmountCents, invoice.outstandingCents, paymentDate])
 
   const feeDue = Boolean(lateFee?.enabled) && lateFee.suggestedCents > 0
   const feeCents = feeDue && chargeLateFee ? Math.round(Number(lateFeeAmount || 0) * 100) : 0
@@ -512,9 +518,13 @@ function PaymentCard({ invoice, onDone, onError }) {
   //
   // ค่าปรับที่จะเก็บต้องบวกเข้าไปด้วย เพราะมันจะกลายเป็นรายการบนบิลตอนกดบันทึก
   // ถ้าไม่บวก ผู้ใช้จะกดบันทึกแล้วเหลือยอดค้างเท่าค่าปรับพอดีโดยไม่ได้ตั้งใจ
+  //
+  // เติมเฉพาะตอนผู้ใช้ยังไม่ได้พิมพ์ยอดเอง — เดิมเติมทับทุกครั้งที่ค่าปรับขยับ พิมพ์ยอด
+  // รับบางส่วนไว้แล้วไปแก้วันที่ ยอดที่พิมพ์ก็กลับเป็นยอดเต็มโดยไม่รู้ตัว
   useEffect(() => {
+    if (amountTouched) return
     setAmount(centsToInput(Math.max(invoice.outstandingCents, 0) + feeCents))
-  }, [invoice.outstandingCents, feeCents])
+  }, [invoice.outstandingCents, feeCents, amountTouched])
 
   async function submit(e) {
     e.preventDefault()
@@ -531,6 +541,8 @@ function PaymentCard({ invoice, onDone, onError }) {
     setBusy(false)
     if (!res.success) return onError(res.error)
     setRemark('')
+    // งวดถัดไปเริ่มจากยอดค้างใหม่ ไม่ใช่ยอดที่พิมพ์ไว้ของงวดที่เพิ่งรับไป
+    setAmountTouched(false)
     onDone(`รับชำระแล้ว ใบเสร็จ ${res.data.receiptNumber}`)
   }
 
@@ -552,10 +564,14 @@ function PaymentCard({ invoice, onDone, onError }) {
               id="paymentAmount"
               inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                setAmount(e.target.value)
+                setAmountTouched(true)
+              }}
             />
             <p className="field-hint">
-              รับได้ไม่เกิน {formatBaht(invoice.outstandingCents)} บาท
+              {/* ค่าปรับที่ติ๊กไว้จะเข้าบิลก่อนรับเงิน เพดานจึงรวมค่าปรับด้วย */}
+              รับได้ไม่เกิน {formatBaht(Math.max(invoice.outstandingCents, 0) + feeCents)} บาท
             </p>
           </div>
 
@@ -606,7 +622,12 @@ function PaymentCard({ invoice, onDone, onError }) {
                 <input
                   type="checkbox"
                   checked={chargeLateFee}
-                  onChange={(e) => setChargeLateFee(e.target.checked)}
+                  onChange={(e) => {
+                    setChargeLateFee(e.target.checked)
+                    // ติ๊กหรือเอาติ๊กออก = ตั้งใจเปลี่ยนยอด ให้เติมยอดใหม่แม้เคยพิมพ์เองไว้
+                    // (แบบเดียวกับหน้ารับเงินหลายห้อง)
+                    setAmountTouched(false)
+                  }}
                 />
                 <span>เรียกเก็บค่าปรับ</span>
               </label>

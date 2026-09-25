@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import DateField from '../components/DateField.jsx'
@@ -47,34 +47,71 @@ export default function MultiPaymentPage({ apartment, onBack }) {
 
   // ค่าปรับขยับตามวันที่รับเงิน จึงต้องดึงใหม่ทุกครั้งที่เปลี่ยนวัน ไม่ใช่คำนวณเองที่หน้าจอ
   // (สูตรอยู่ฝั่ง main ที่เดียว — ต่างจากหน่วยมิเตอร์ที่ต้องมีสำเนาเพราะขยับทุกตัวอักษร)
-  const load = useCallback(async () => {
-    if (!billingMonth) return
-    setLoading(true)
-    const res = await getMultiPaymentSheet({
-      apartmentId: apartment.apartmentId,
-      billingMonth,
-      paymentDate: paymentDate || today()
-    })
-    setLoading(false)
-    if (!res.success) return setError(res.error)
-    setError('')
-    setRows(
-      res.data.map((invoice) => ({
-        ...invoice,
-        // ห้องที่ยังค้างติ๊กไว้ให้เลย — คนที่เข้าหน้านี้ตั้งใจจะรับเงิน ไม่ได้มาดูเฉยๆ
-        // แล้วค่อยเอาห้องที่ยังไม่จ่ายออก เร็วกว่าไล่ติ๊กทีละห้อง
-        selected: invoice.outstandingCents > 0 && invoice.status !== 'cancelled',
-        amountInput: centsToInput(invoice.outstandingCents),
-        // ค่าปรับต้องกดเลือกเอง ไม่ติ๊กให้อัตโนมัติ — เจ้าของหอมักยกให้ และการเก็บเงิน
-        // เพิ่มโดยที่คนกดไม่ได้ตั้งใจเป็นความผิดพลาดที่แก้ไม่ได้ (ระบบไม่มีการคืนเงินค่าบิล)
-        chargeLateFee: false
-      }))
-    )
-  }, [apartment.apartmentId, billingMonth, paymentDate])
+  //
+  // 🔴 การดึงข้อมูลแยกเป็นสองแบบ — เดิมใช้แบบเดียว แก้วันที่แล้วทุกห้องถูกรีเซ็ต ห้องที่เลือก
+  // ยอดที่พิมพ์ และค่าปรับที่ติ๊กไว้หายหมด ทั้งที่แค่อยากเปลี่ยนวันรับเงิน
+  //   · reset — เปลี่ยนรอบเดือน / เพิ่งรับเงินเสร็จ = ชุดบิลหรือยอดค้างเปลี่ยน เริ่มใหม่หมด
+  //   · merge — เปลี่ยนวันที่ = เอาเฉพาะข้อมูลที่ขึ้นกับวัน (ค่าปรับ วันเกินกำหนด) มาใส่
+  //     สิ่งที่ผู้ใช้กรอกไว้คงเดิม
+  // วันที่อ่านผ่าน ref เพื่อให้ reset ไม่ต้องขึ้นกับวันที่ ไม่งั้นแก้วันแล้วก็ reset อีก
+  const paymentDateRef = useRef(paymentDate)
+  paymentDateRef.current = paymentDate
+  // ลำดับคำขอ — คำตอบที่มาช้ากว่าคำขอใหม่ต้องถูกทิ้ง ไม่งั้นข้อมูลของวันเก่ามาทับวันใหม่
+  const requestSeq = useRef(0)
+
+  const fetchSheet = useCallback(
+    async (mode) => {
+      if (!billingMonth) return
+      const date = paymentDateRef.current
+      const seq = ++requestSeq.current
+      if (mode === 'reset') setLoading(true)
+      const res = await getMultiPaymentSheet({
+        apartmentId: apartment.apartmentId,
+        billingMonth,
+        paymentDate: date || today()
+      })
+      if (seq !== requestSeq.current) return
+      setLoading(false)
+      if (!res.success) return setError(res.error)
+      setError('')
+      setRows((previous) => {
+        const before = new Map(previous.map((row) => [row.invoiceId, row]))
+        return res.data.map((invoice) => {
+          const kept = mode === 'merge' ? before.get(invoice.invoiceId) : null
+          if (!kept) return freshRow(invoice)
+
+          // ค่าปรับของวันใหม่อาจไม่มีแล้ว (เช่น ย้อนวันไปก่อนครบกำหนด) — ติ๊กค้างไว้ไม่ได้
+          const chargeLateFee = kept.chargeLateFee && (invoice.lateFee?.suggestedCents ?? 0) > 0
+          const next = {
+            ...invoice,
+            selected: kept.selected,
+            amountInput: kept.amountInput,
+            amountTouched: kept.amountTouched,
+            chargeLateFee
+          }
+          // ยอดที่ระบบเติมให้ (ผู้ใช้ไม่ได้พิมพ์เอง) ต้องตามค่าปรับของวันใหม่ ส่วนยอดที่
+          // ผู้ใช้พิมพ์เองห้ามแตะ
+          if (!kept.amountTouched) {
+            next.amountInput = centsToInput(invoice.outstandingCents + feeCentsOf(next))
+          }
+          return next
+        })
+      })
+    },
+    [apartment.apartmentId, billingMonth]
+  )
 
   useEffect(() => {
-    load()
-  }, [load])
+    fetchSheet('reset')
+  }, [fetchSheet])
+
+  // ช่องวันที่ส่งค่าว่างมาระหว่างที่ยังพิมพ์ไม่ครบ — รอให้เป็นวันที่ครบก่อนค่อยถาม
+  useEffect(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return
+    fetchSheet('merge')
+    // fetchSheet ไม่อยู่ใน deps โดยตั้งใจ — มันเปลี่ยนเมื่อรอบเดือนเปลี่ยน ซึ่ง effect ข้างบน
+    // reset ให้แล้ว ถ้าใส่ไว้จะยิงซ้ำอีกคำขอ
+  }, [paymentDate])
 
   function setRow(invoiceId, patch) {
     setRows((list) =>
@@ -89,13 +126,10 @@ export default function MultiPaymentPage({ apartment, onBack }) {
   )
   const chosen = useMemo(() => payable.filter((row) => row.selected), [payable])
 
+  // ยอดรับเงินของแต่ละห้องรวมค่าปรับไว้แล้ว (ดู feeCentsOf) จึงบวกแค่ช่องยอดรับเงิน
+  // — เดิมบวกค่าปรับซ้ำเข้าไปอีกที ยอดรวมบนจอเลยมากกว่ายอดที่ออกใบเสร็จจริง
   const totalCents = useMemo(
-    () =>
-      chosen.reduce(
-        (sum, row) =>
-          sum + inputToCents(row.amountInput) + (row.chargeLateFee ? row.lateFee.suggestedCents : 0),
-        0
-      ),
+    () => chosen.reduce((sum, row) => sum + inputToCents(row.amountInput), 0),
     [chosen]
   )
 
@@ -123,7 +157,7 @@ export default function MultiPaymentPage({ apartment, onBack }) {
     if (!res.success) return setError(res.error)
 
     showToast(`รับเงินแล้ว ${res.data.length} ห้อง · ออกใบเสร็จ ${res.data.length} ใบ`)
-    load()
+    fetchSheet('reset')
   }
 
   return (
@@ -253,6 +287,27 @@ export default function MultiPaymentPage({ apartment, onBack }) {
   )
 }
 
+// แถวที่ยังไม่มีใครแตะ — ใช้ตอนเปลี่ยนรอบเดือน / หลังรับเงินเสร็จ / ห้องที่เพิ่งโผล่มา
+function freshRow(invoice) {
+  return {
+    ...invoice,
+    // ห้องที่ยังค้างติ๊กไว้ให้เลย — คนที่เข้าหน้านี้ตั้งใจจะรับเงิน ไม่ได้มาดูเฉยๆ
+    // แล้วค่อยเอาห้องที่ยังไม่จ่ายออก เร็วกว่าไล่ติ๊กทีละห้อง
+    selected: invoice.outstandingCents > 0 && invoice.status !== 'cancelled',
+    amountInput: centsToInput(invoice.outstandingCents),
+    // ผู้ใช้พิมพ์ยอดเองแล้วหรือยัง — ถ้าพิมพ์แล้ว เปลี่ยนวันที่ก็ห้ามเติมยอดทับ
+    amountTouched: false,
+    // ค่าปรับต้องกดเลือกเอง ไม่ติ๊กให้อัตโนมัติ — เจ้าของหอมักยกให้ และการเก็บเงิน
+    // เพิ่มโดยที่คนกดไม่ได้ตั้งใจเป็นความผิดพลาดที่แก้ไม่ได้ (ระบบไม่มีการคืนเงินค่าบิล)
+    chargeLateFee: false
+  }
+}
+
+// ค่าปรับที่ห้องนี้จะถูกเก็บในการรับเงินครั้งนี้ (สตางค์ จาก main ไม่ได้แปลงจากช่องกรอก)
+function feeCentsOf(row) {
+  return row.chargeLateFee ? (row.lateFee?.suggestedCents ?? 0) : 0
+}
+
 // ------------------------------------------------------------------
 // การ์ดหนึ่งห้อง — ซ้ายคือบิล ขวาคือช่องรับเงิน (โครงเดียวกับต้นแบบ)
 // ------------------------------------------------------------------
@@ -262,9 +317,11 @@ function MultiPaymentCard({ row, onChange }) {
   const locked = settled || cancelled
 
   const amountCents = inputToCents(row.amountInput)
+  // ค่าปรับที่ติ๊กเก็บจะกลายเป็นรายการบนบิลก่อนรับเงิน ยอดที่รับได้จึงเพิ่มขึ้นเท่าค่าปรับ
+  const maxCents = row.outstandingCents + feeCentsOf(row)
   // เกินยอดค้างฝั่ง main ก็ปฏิเสธอยู่แล้ว แต่บอกตั้งแต่ตอนพิมพ์ดีกว่าให้ไปเจอตอนกดบันทึก
   // แล้วทั้งชุดล้มเพราะห้องเดียว
-  const overpaid = !locked && amountCents > row.outstandingCents
+  const overpaid = !locked && amountCents > maxCents
   const emptyAmount = !locked && row.selected && amountCents === 0
 
   return (
@@ -306,12 +363,14 @@ function MultiPaymentCard({ row, onChange }) {
               id={`amount-${row.invoiceId}`}
               inputMode="decimal"
               value={row.amountInput}
-              onChange={(e) => onChange(row.invoiceId, { amountInput: e.target.value })}
+              onChange={(e) =>
+                onChange(row.invoiceId, { amountInput: e.target.value, amountTouched: true })
+              }
               disabled={!row.selected}
             />
             {overpaid && (
               <p className="field-hint field-hint-warn">
-                เกินยอดค้างชำระ — รับได้ไม่เกิน {formatBaht(row.outstandingCents)} บาท
+                เกินยอดค้างชำระ — รับได้ไม่เกิน {formatBaht(maxCents)} บาท
               </p>
             )}
             {emptyAmount && (
@@ -325,7 +384,18 @@ function MultiPaymentCard({ row, onChange }) {
               <input
                 type="checkbox"
                 checked={row.chargeLateFee}
-                onChange={(e) => onChange(row.invoiceId, { chargeLateFee: e.target.checked })}
+                onChange={(e) => {
+                  // ค่าปรับต้องบวกเข้ายอดรับเงินด้วย เพราะฝั่ง main เพิ่มค่าปรับเข้าบิลก่อน
+                  // แล้วออกใบเสร็จเท่ายอดรับเงินเท่านั้น ถ้าไม่บวก จะเก็บเงินสดมาครบแต่
+                  // ใบเสร็จขาดไปเท่าค่าปรับ และบิลค้างอยู่เท่าค่าปรับพอดี
+                  // (แบบเดียวกับหน้ารับเงินทีละบิลใน InvoiceDetailPage)
+                  const next = { ...row, chargeLateFee: e.target.checked }
+                  onChange(row.invoiceId, {
+                    chargeLateFee: next.chargeLateFee,
+                    amountInput: centsToInput(row.outstandingCents + feeCentsOf(next)),
+                    amountTouched: false
+                  })
+                }}
                 disabled={!row.selected}
               />
               <span>
