@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import { centsToInput, formatBaht } from '../format.js'
 import { FULL_MONTH_MOVE_IN_UNTIL_DAY, PRORATE_DAYS_PER_MONTH } from '../constants.js'
@@ -187,9 +188,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                   </select>
                   {/* ตัวเลขนี้เป็นตัวตัดสินเงินประกันตอนย้ายออก ไม่ใช่ข้อมูลประดับ
                       ต้องบอกให้คนกรอกรู้ ไม่งั้นจะถูกข้ามไปเพราะดูเหมือนไม่สำคัญ */}
-                  <p className="field-hint">
-                    ใช้ตัดสินว่าออกก่อนครบสัญญาหรือไม่ — ออกก่อนครบ = ริบเงินประกัน
-                  </p>
+                  <p className="field-hint">ออกก่อนครบสัญญา = ริบเงินประกัน</p>
                 </div>
               )}
             </div>
@@ -239,10 +238,19 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                   />
                   <span className="input-suffix">บาท</span>
                 </div>
-                <p className="field-hint">ระบุจำนวนเงิน หากผู้เช่าวางเงินจองไว้ก่อนเข้าพัก</p>
               </div>
               <div className="field">
-                <label htmlFor="bookingReceiptNo">เลขที่ใบจอง</label>
+                <label htmlFor="bookingReceiptNo">
+                  เลขที่ใบจอง
+                  <InfoTip
+                    title="เลขที่ใบจอง"
+                    points={
+                      booking
+                        ? ['ยกมาจากใบจองของผู้เช่ารายนี้ แก้ไม่ได้']
+                        : ['เว้นว่างได้ ระบบออกเลขให้เองเมื่อมีเงินจอง']
+                    }
+                  />
+                </label>
                 <input
                   id="bookingReceiptNo"
                   value={form.bookingReceiptNo}
@@ -252,11 +260,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                 />
                 {/* มาจากใบจองก็ล็อกไว้ ไม่ให้แก้ — ผู้เช่าถือใบที่มีเลขนี้อยู่แล้ว
                     ส่วนกรณีทำสัญญาตรงยังพิมพ์เองได้ เผื่อหอใช้เล่มใบเสร็จของตัวเอง */}
-                <p className="field-hint">
-                  {booking
-                    ? 'ยกมาจากใบจองของผู้เช่ารายนี้'
-                    : 'เว้นว่างไว้ได้ ระบบจะออกเลขให้เองเมื่อมีการวางเงินจอง'}
-                </p>
               </div>
             </div>
 
@@ -264,7 +267,13 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                 กรอกเมื่อวันนี้เก็บได้ไม่ครบ ส่วนที่ขาดจะไปขึ้นเป็นยอดค้างบนหน้าห้อง
                 ถ้าไม่มีช่องนี้ ระบบจะเหมาว่าเก็บครบเสมอ แล้วการเตือนยอดค้างก็ไม่มีวันทำงาน */}
             <div className="field">
-              <label htmlFor="depositReceived">รับเงินประกันวันนี้</label>
+              <label htmlFor="depositReceived">
+                รับเงินประกันวันนี้
+                <InfoTip
+                  title="เก็บได้ไม่ครบ?"
+                  points={['กรอกยอดที่รับจริงวันนี้', 'ส่วนที่ขาดจะขึ้นเป็นยอดค้างที่หน้าห้อง']}
+                />
+              </label>
               <div className="input-with-suffix">
                 <input
                   id="depositReceived"
@@ -275,10 +284,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                 />
                 <span className="input-suffix">บาท</span>
               </div>
-              <p className="field-hint">
-                เว้นว่างไว้ = เก็บครบ {formatBaht(dueToday)} บาทในวันนี้ ·
-                กรอกเมื่อเก็บได้ไม่ครบ แล้วส่วนที่ขาดจะขึ้นเป็นยอดค้างที่หน้าห้องจนกว่าจะเก็บครบ
-              </p>
+              <p className="field-hint">เว้นว่าง = เก็บครบ {formatBaht(dueToday)} บาท</p>
             </div>
 
             {/* กล่องสรุปสีฟ้าแบบต้นแบบ — เงินจองที่วางไว้แล้วถูกหักออกจากยอดที่ต้องเก็บเพิ่ม */}
@@ -334,10 +340,17 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
 
         {step === 1 && (
           <>
-            <h3 className="panel-title">ค่าเช่าล่วงหน้า</h3>
-            <p className="panel-subtitle">
-              เข้าพักกลางเดือนจ่ายเฉพาะวันที่เหลือของเดือนนั้น รอบบิลปกติเริ่มเดือนถัดไป
-            </p>
+            <h3 className="panel-title">
+              ค่าเช่าล่วงหน้า
+              <InfoTip
+                title="ค่าเช่าเดือนแรก"
+                points={[
+                  'เข้าพักกลางเดือน จ่ายเฉพาะวันที่เหลือของเดือนนั้น',
+                  'รอบบิลปกติเริ่มเดือนถัดไป',
+                  'ระบบคำนวณให้ ไม่ต้องกรอกเอง'
+                ]}
+              />
+            </h3>
 
             {rentType === 'monthly' ? (
               <div className="contract-summary">
@@ -360,18 +373,17 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
 
             {/* คิดให้เอง ไม่ให้กรอกมือ — คิดมือแล้วผิดคือเก็บเงินผิดตั้งแต่วันแรก
                 สูตรตัวจริงอยู่ฝั่ง main (db/contracts.js) ตรงนี้แค่แสดงให้ดูก่อนบันทึก */}
-            <p className="field-hint">
-              ระบบคำนวณให้อัตโนมัติจากจำนวนวันที่เหลือในเดือน ไม่ต้องกรอกเอง
-            </p>
           </>
         )}
 
         {step === 2 && (
           <>
-            <h3 className="panel-title">เลขมิเตอร์วันเข้าพัก</h3>
-            <p className="panel-subtitle">
-              ใช้เป็นเลขตั้งต้นของบิลแรก — จดจากหน้าปัดจริงในวันที่ผู้เช่าเข้าพัก
-            </p>
+            <h3 className="panel-title">
+              เลขมิเตอร์วันเข้าพัก
+              <InfoTip title="เลขตั้งต้น" points={['ใช้คิดค่าน้ำ/ค่าไฟบิลแรกของสัญญานี้']} />
+            </h3>
+            {/* ยังโชว์ตลอด — เลขที่ไม่ได้จดจากหน้าปัดจริง บิลแรกของผู้เช่าผิดทันที */}
+            <p className="panel-subtitle">จดจากหน้าปัดจริงในวันเข้าพัก</p>
 
             <div className="field-row">
               <div className="field field-required">
@@ -466,14 +478,12 @@ function TenantFields({ index, value, onChange, onRemove, canRemove }) {
             onChange={(e) => set('idCardNo', e.target.value)}
             inputMode="numeric"
           />
-          <p className="field-hint">เว้นว่างได้ ถ้ายังไม่ได้เอกสาร</p>
         </div>
       </div>
 
       <div className="field">
         <label>ที่อยู่</label>
         <input value={value.address} onChange={(e) => set('address', e.target.value)} />
-        <p className="field-hint">สำหรับแสดงบนใบแจ้งหนี้ / ใบเสร็จ</p>
       </div>
     </div>
   )

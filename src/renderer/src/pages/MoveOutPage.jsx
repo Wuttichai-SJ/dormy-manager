@@ -170,9 +170,8 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                     ระบบไม่หักจากเงินประกันให้เอง — ถ้าตกลงหักจริง ให้ไปกดรับเงินที่บิลใบนั้น
                     ตามปกติก่อน เงินก้อนนั้นจะได้มีใบเสร็จของตัวเอง */}
                 <Alert kind="warn">
-                  <strong>ต้องเคลียร์บิลค้างชำระให้ครบก่อนย้ายออก</strong> — ยังค้างอยู่{' '}
-                  {formatBaht(sheet.outstandingTotalCents)} บาท · ไปกดรับเงินที่ใบแจ้งหนี้เหล่านี้
-                  ก่อน แล้วกลับมาที่หน้านี้อีกครั้ง
+                  <strong>ยังค้างชำระ {formatBaht(sheet.outstandingTotalCents)} บาท</strong> —
+                  รับเงินที่ใบแจ้งหนี้ข้างบนให้ครบก่อนย้ายออก
                 </Alert>
 
                 {/* ผู้เช่าที่หนีไปเฉยๆ ยังต้องปิดสัญญาได้ ไม่งั้นห้องจะติดอยู่กับหนี้ที่ไม่มีวัน
@@ -204,7 +203,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                       placeholder="เช่น ผู้เช่าย้ายออกเองโดยไม่แจ้งและติดต่อไม่ได้"
                     />
                     <p className="field-hint">
-                      บิลจะยังค้างอยู่ในระบบให้ตามเก็บต่อ ไม่ได้ถูกปิดหรือหักจากเงินประกัน
+                      บิลยังค้างให้ตามเก็บต่อ ไม่หักจากเงินประกัน
                     </p>
                   </div>
                 )}
@@ -268,7 +267,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                 </label>
                 {!collectShortfall && (
                   <p className="field-hint">
-                    ไม่ออกใบเสร็จ — ยอดนี้จะขึ้นในใบสรุปการย้ายออกว่ายังค้างชำระ
+                    ไม่ออกใบเสร็จ · ใบสรุปจะขึ้นว่ายังค้างชำระ
                   </p>
                 )}
               </div>
@@ -546,8 +545,7 @@ function MoveOutResult({ result, room, onDone, signedBy }) {
 
       {result.unpaidBalanceCents > 0 && (
         <Alert kind="warn">
-          ยังไม่ได้รับเงินส่วนต่าง {formatBaht(result.unpaidBalanceCents)} บาท — ยอดนี้ขึ้นในใบสรุป
-          ว่ายังค้างชำระ และไม่มีใบเสร็จรับเงินออกให้
+          ยังไม่ได้รับเงินส่วนต่าง {formatBaht(result.unpaidBalanceCents)} บาท — ใบสรุปขึ้นว่ายังค้างชำระ
         </Alert>
       )}
 

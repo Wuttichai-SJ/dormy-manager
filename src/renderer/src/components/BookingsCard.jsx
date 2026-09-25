@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Alert from './Alert.jsx'
+import InfoTip from './InfoTip.jsx'
 import Modal from './Modal.jsx'
 import DateField from './DateField.jsx'
 import { showToast } from './Toast.jsx'
@@ -82,10 +83,7 @@ export default function BookingsCard({ room, onConvert }) {
   return (
     <section className="panel">
       <div className="panel-head-row">
-        <div>
-          <h3 className="panel-title">รายชื่อคนจองรอเข้าพัก</h3>
-          <p className="panel-subtitle">เพิ่มรายการจองก่อนเข้าพัก</p>
-        </div>
+        <h3 className="panel-title">รายชื่อคนจองรอเข้าพัก</h3>
         <button
           type="button"
           className="btn btn-sm"
@@ -265,13 +263,12 @@ function BookingDialog({ value, onChange, onClose, onSubmit, busy }) {
         <div className="field field-required">
           <label>
             เงินจอง <span className="required">* จำเป็น</span>
+            <InfoTip title="เงินจอง" points={['หักออกจากยอดที่เก็บเพิ่มตอนทำสัญญา']} />
           </label>
           <div className="input-with-suffix">
             <input value={value.bookingFee} onChange={(e) => set('bookingFee', e.target.value)} inputMode="decimal" />
             <span className="input-suffix">บาท</span>
           </div>
-          {/* เงินก้อนนี้จะถูกหักออกจากยอดที่ต้องเก็บเพิ่มตอนทำสัญญา */}
-          <p className="field-hint">จะถูกนำไปหักออกจากยอดที่เก็บเพิ่มตอนทำสัญญา</p>
         </div>
         <div className="field field-required">
           <label>
