@@ -457,22 +457,31 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
               )}
             </dl>
 
-            <h3 className="panel-subtitle">อาการที่แจ้ง</h3>
-            <p>{request.description}</p>
-
-            {request.repairDetails && (
-              <>
-                <h3 className="panel-subtitle">บันทึกการซ่อม</h3>
-                <p>{request.repairDetails}</p>
-              </>
-            )}
+            {/* หัวข้อเล็กสีจาง + ข้อความปกติ แบบเดียวกับ วันที่แจ้ง/ผู้เช่า ข้างบน
+                แยกจากแถวข้อมูลด้วยเส้นคั่น — เดิมหัวข้อหนาชิดแถวบนจนดูเป็นก้อนเดียวกัน */}
+            <div className="maintenance-notes">
+              <div>
+                <h3>อาการที่แจ้ง</h3>
+                <p>{request.description}</p>
+              </div>
+              {request.repairDetails && (
+                <div>
+                  <h3>บันทึกการซ่อม</h3>
+                  <p>{request.repairDetails}</p>
+                </div>
+              )}
+            </div>
 
             <div className="card-foot">
               {request.isOpen ? (
                 <>
-                  <button type="button" className="btn" onClick={() => setDialog('complete')}>
-                    <Icon name="check" />
-                    <span>ปิดงาน (ซ่อมเสร็จ)</span>
+                  {/* ปุ่มยกเลิกแยกไปซ้ายสุด ห่างจากปุ่มปกติ — ปุ่มหลักอยู่ขวาสุดเสมอ */}
+                  <button
+                    type="button"
+                    className="link-btn link-danger card-foot-start"
+                    onClick={() => setDialog('cancel')}
+                  >
+                    ยกเลิกงาน
                   </button>
                   <button
                     type="button"
@@ -481,23 +490,24 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
                   >
                     แก้ไข / นัดช่าง
                   </button>
-                  <button
-                    type="button"
-                    className="link-btn link-danger"
-                    onClick={() => setDialog('cancel')}
-                  >
-                    ยกเลิกงาน
+                  <button type="button" className="btn" onClick={() => setDialog('complete')}>
+                    <Icon name="check" />
+                    <span>ปิดงาน (ซ่อมเสร็จ)</span>
                   </button>
                 </>
               ) : (
                 <>
-                  <button type="button" className="btn btn-outline" onClick={reopen}>
-                    เปิดงานนี้ใหม่
-                  </button>
                   {/* ลบทิ้งจริงมีไว้สำหรับใบที่คีย์ผิดห้อง/คีย์ซ้ำ ไม่ใช่งานที่ทำเสร็จแล้ว —
                       ประวัติว่าห้องไหนซ่อมอะไรบ่อยคือของมีค่า */}
-                  <button type="button" className="link-btn link-danger" onClick={removeRequest}>
+                  <button
+                    type="button"
+                    className="link-btn link-danger card-foot-start"
+                    onClick={removeRequest}
+                  >
                     ลบรายการนี้ทิ้ง
+                  </button>
+                  <button type="button" className="btn btn-outline" onClick={reopen}>
+                    เปิดงานนี้ใหม่
                   </button>
                 </>
               )}

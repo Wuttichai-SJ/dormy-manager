@@ -291,11 +291,20 @@
 /* แถบล่างการ์ดที่มีแต่ปุ่มบันทึก — ต้นแบบใช้พื้นเทาอ่อนแยกจากเนื้อหาข้างบน */
 .card-foot {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  /* เดิมไม่มี gap ปุ่มหลายปุ่มในแถบนี้เลยติดกันเป็นพืด (โอ๊คเจอที่หน้างานซ่อม) */
+  gap: 8px;
   margin: 24px -24px -24px;
   padding: 14px 24px;
   background: #f8f7f6;
   border-top: 1px solid var(--border);
   border-radius: 0 0 12px 12px;
+}
+
+/* ปุ่มที่ต้องแยกไปซ้ายสุดของแถบ (มักเป็นปุ่มยกเลิก/ลบ) — ห่างจากกลุ่มปุ่มปกติทางขวา
+   จะได้ไม่กดพลาดตอนเล็งปุ่มหลัก */
+.card-foot-start {
+  margin-right: auto;
 }
 

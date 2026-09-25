@@ -412,6 +412,29 @@
   margin-left: 6px;
 }
 
+/* อาการที่แจ้ง / บันทึกการซ่อม — หัวข้อเล็กสีจางแบบเดียวกับ .detail-list dt ด้านบน */
+.maintenance-notes {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.maintenance-notes h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.maintenance-notes p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .maintenance-images {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
