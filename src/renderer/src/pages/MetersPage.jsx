@@ -359,6 +359,12 @@ function MeterSheet({ batchId, side, onBack }) {
                         newStartReading: row.newStartInput,
                         meterDigits: sheet?.meterDigits
                       })
+                  // ข้อความบอกว่าแถวนี้ผิดตรงไหน — ขึ้นใต้ช่องกรอกของแถวนั้นเลย ไม่ซ่อนใน title
+                  // (โอ๊คเลือก 2026-09-25) คนจดมือยังอยู่บนคีย์บอร์ด ต้องเห็นโดยไม่ต้องจับเมาส์
+                  // และเลขที่ผิดคือบิลที่ผิด จึงเข้ากติกา "เตือนเรื่องเงินต้องเห็นเลย"
+                  const problem =
+                    !pending && units === null ? meterProblem(row, sheet.meterDigits, overDial) : null
+                  const problemId = `meter-problem-${row.roomId}`
                   return (
                     <tr key={row.roomId}>
                       <td>{row.roomNumber}</td>
@@ -389,6 +395,8 @@ function MeterSheet({ batchId, side, onBack }) {
                           value={row.currentInput}
                           onChange={(e) => setRow(row.roomId, { currentInput: e.target.value })}
                           aria-label={`เลขมิเตอร์ปัจจุบัน ห้อง ${row.roomNumber}`}
+                          aria-invalid={problem ? true : undefined}
+                          aria-describedby={problem ? problemId : undefined}
                           ref={(el) => {
                             if (el) inputsRef.current.set(row.roomId, el)
                             else inputsRef.current.delete(row.roomId)
@@ -445,21 +453,19 @@ function MeterSheet({ batchId, side, onBack }) {
                             </label>
                           </div>
                         )}
+
+                        {problem && (
+                          <p id={problemId} className="meter-row-warn">
+                            {problem}
+                          </p>
+                        )}
                       </td>
                       <td className="align-right">
                         {pending ? (
                           <span className="muted">—</span>
                         ) : units === null ? (
-                          <span
-                            className="meter-units-bad"
-                            title={
-                              overDial
-                                ? `เลขที่กรอกเกินหน้าปัดมิเตอร์ ${sheet.meterDigits} หลัก ซึ่งอ่านได้สูงสุด ${10 ** sheet.meterDigits - 1}`
-                                : replaced
-                                  ? 'ยังกรอกเลขตอนถอดลูกเก่า/เลขเริ่มลูกใหม่ไม่ครบ หรือเลขไม่สมเหตุสมผล'
-                                  : 'เลขปัจจุบันน้อยกว่าครั้งก่อน — ถ้ามิเตอร์หมุนครบรอบ เลือก “เกินรอบมิเตอร์” ถ้าเปลี่ยนมิเตอร์ลูกใหม่ เลือก “เปลี่ยนมิเตอร์ใหม่”'
-                            }
-                          >
+                          // ไอคอนยังอยู่ไว้กวาดตาดูทั้งตาราง — ส่วนเหตุผลอยู่ใต้ช่องกรอกของแถวนี้
+                          <span className="meter-units-bad" role="img" aria-label="คำนวณหน่วยไม่ได้">
                             <Icon name="warning" />
                           </span>
                         ) : (
@@ -504,4 +510,16 @@ function formatDateTime(iso) {
   if (!iso) return '-'
   const at = new Date(iso)
   return `${pad2(at.getDate())}/${pad2(at.getMonth() + 1)}/${at.getFullYear()} ${pad2(at.getHours())}:${pad2(at.getMinutes())}`
+}
+
+// เหตุที่แถวนี้คำนวณหน่วยไม่ได้ — ไล่ตามลำดับเดียวกับ previewUnitsUsed (constants.js)
+// ข้อความต้องบอก "ต้องทำอะไร" ไม่ใช่แค่ว่าผิด
+function meterProblem(row, meterDigits, overDial) {
+  const current = Number(row.currentInput)
+  if (!Number.isFinite(current) || current < 0) return 'กรอกเป็นตัวเลขเท่านั้น'
+  if (overDial) {
+    return `เกินหน้าปัด ${meterDigits} หลัก (สูงสุด ${(10 ** meterDigits - 1).toLocaleString()})`
+  }
+  if (row.meterEvent === 'replaced') return 'กรอกเลขถอดลูกเก่าและเลขเริ่มลูกใหม่ให้ครบและถูกต้อง'
+  return 'เลขน้อยกว่าครั้งก่อน — เลือก “เกินรอบมิเตอร์” หรือ “เปลี่ยนมิเตอร์ใหม่”'
 }
