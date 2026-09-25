@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
 import { setupFirstUser } from '../services/authService.js'
@@ -86,7 +87,10 @@ export default function RegisterPage({ onReady }) {
 
         <div className="field-row">
           <div className="field">
-            <label htmlFor="phone">เบอร์โทรศัพท์</label>
+            <label htmlFor="phone">
+              เบอร์โทรศัพท์
+              <InfoTip title="ใช้เข้าสู่ระบบ" points={['เบอร์โทรหรืออีเมลใช้แทนชื่อผู้ใช้ได้']} />
+            </label>
             <input
               id="phone"
               value={form.phone}
@@ -94,7 +98,6 @@ export default function RegisterPage({ onReady }) {
               placeholder="08x-xxx-xxxx"
               inputMode="tel"
             />
-            <p className="field-hint">ใช้เข้าสู่ระบบได้</p>
           </div>
 
           <div className="field">
@@ -107,7 +110,6 @@ export default function RegisterPage({ onReady }) {
               onChange={(e) => set('email', e.target.value)}
               inputMode="email"
             />
-            <p className="field-hint">ถ้ากรอก จะใช้เข้าสู่ระบบได้อีกทาง</p>
           </div>
         </div>
 
@@ -137,8 +139,7 @@ export default function RegisterPage({ onReady }) {
             เพราะหน้านี้แสดงก็ต่อเมื่อยังไม่มีบัญชีในเครื่อง ลิงก์นั้นจะพาไปสู่หน้า
             เข้าสู่ระบบที่ล็อกอินไม่ได้แน่ๆ กลายเป็นทางตัน */}
         <p className="auth-footnote">
-          บัญชีนี้ถูกสร้างและเก็บไว้ในเครื่องนี้เท่านั้น ไม่ได้ส่งข้อมูลออกไปที่ใด
-          และหน้านี้จะแสดงเฉพาะครั้งแรกที่ยังไม่มีบัญชีในระบบ
+          ข้อมูลเก็บไว้ในเครื่องนี้เท่านั้น ไม่ส่งออกไปที่ใด
         </p>
       </form>
     </div>

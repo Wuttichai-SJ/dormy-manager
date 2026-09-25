@@ -129,7 +129,7 @@ export default function RecoveryCodeInput({ id, label, value, onChange, autoFocu
 
       {hasConfusable && (
         <p className="field-hint code-warn">
-          รหัสสำรองไม่มีตัว <b>0 1 O I L</b> เลย — ลองดูกระดาษอีกครั้งว่าเป็นตัวอื่นหรือเปล่า
+          รหัสสำรองไม่มีตัว <b>0 1 O I L</b> — ลองดูกระดาษอีกครั้ง
         </p>
       )}
     </div>

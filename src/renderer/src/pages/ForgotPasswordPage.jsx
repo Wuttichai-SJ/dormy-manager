@@ -65,7 +65,7 @@ export default function ForgotPasswordPage({ onCancel, onDone }) {
         <RecoveryCodeCard
           code={newCode}
           title="รหัสสำรองใบใหม่"
-          description="ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว รหัสสำรองใบเดิมถูกยกเลิกทันที กรุณาใช้ใบนี้แทน"
+          description="ตั้งรหัสผ่านใหม่แล้ว · รหัสสำรองใบเดิมใช้ไม่ได้อีก"
           doneLabel="กลับไปหน้าเข้าสู่ระบบ"
           onDone={onDone}
         />
@@ -83,7 +83,7 @@ export default function ForgotPasswordPage({ onCancel, onDone }) {
           <h2>{step === 'verify' ? 'กู้คืนด้วยรหัสสำรอง' : 'ตั้งรหัสผ่านใหม่'}</h2>
           <p className="muted">
             {step === 'verify'
-              ? 'กรอกรหัสสำรองที่ได้รับตอนสร้างบัญชี (พิมพ์มีขีดหรือไม่มีขีดก็ได้)'
+              ? 'กรอกรหัสสำรองที่ได้ตอนสร้างบัญชี'
               : `บัญชีของ ${fullName}`}
           </p>
         </div>
@@ -129,8 +129,7 @@ export default function ForgotPasswordPage({ onCancel, onDone }) {
               autoComplete="new-password"
             />
             <p className="field-hint">
-              เมื่อตั้งรหัสผ่านใหม่สำเร็จ ระบบจะออกรหัสสำรองใบใหม่ให้ทันที
-              และรหัสสำรองใบที่เพิ่งใช้ไปจะใช้ไม่ได้อีก
+              ตั้งสำเร็จแล้วจะได้รหัสสำรองใบใหม่ · ใบเดิมใช้ไม่ได้อีก
             </p>
           </>
         )}
