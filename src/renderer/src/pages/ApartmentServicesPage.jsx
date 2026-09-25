@@ -95,7 +95,7 @@ export default function ApartmentServicesPage({ apartment }) {
   return (
     <>
       <section className="panel">
-        <h2 className="panel-title">
+        <h2 className="panel-title page-title">
           ค่าบริการเพิ่มเติม
           <InfoTip
             title="ค่าบริการเพิ่มเติม"

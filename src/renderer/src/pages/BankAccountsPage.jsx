@@ -93,7 +93,7 @@ export default function BankAccountsPage({ apartment }) {
   return (
     <>
       <section className="panel">
-        <h2 className="panel-title">
+        <h2 className="panel-title page-title">
           บัญชีธนาคารสำหรับรับเงิน
           <InfoTip
             title="บัญชีรับเงิน"
