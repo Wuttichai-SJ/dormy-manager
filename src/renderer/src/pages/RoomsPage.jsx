@@ -74,7 +74,7 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
           <input
             value={tenant}
             onChange={(e) => setTenant(e.target.value)}
-            placeholder="ค้นหาชื่อหรือเบอร์ (ผู้เช่า / ผู้จอง)"
+            placeholder="ค้นหาชื่อหรือเบอร์โทร"
             aria-label="ค้นหาชื่อหรือเบอร์ของผู้เช่าหรือผู้จอง"
           />
         </div>

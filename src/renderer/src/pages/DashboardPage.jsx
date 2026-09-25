@@ -88,16 +88,12 @@ export default function DashboardPage({ apartment, onNavigate, onOpenInvoice }) 
 
       <section className="panel">
         <div className="panel-head-row">
-          <h2 className="panel-title">สิ่งที่ต้องทำ</h2>
+          <h2 className="panel-title">สิ่งที่ต้องทำเดือน {formatBillingMonth(summary.billingMonth)}</h2>
         </div>
 
         <ul className="dash-tasks">
-          <MeterTask task={tasks.meter} month={summary.billingMonth} onNavigate={onNavigate} />
-          <BillingTask
-            task={tasks.billing}
-            month={summary.billingMonth}
-            onNavigate={onNavigate}
-          />
+          <MeterTask task={tasks.meter} onNavigate={onNavigate} />
+          <BillingTask task={tasks.billing} onNavigate={onNavigate} />
 
           <TaskRow
             done={tasks.maintenance.openCount === 0}
@@ -209,15 +205,14 @@ function TaskRow({ done, icon, text, action, onAction }) {
 // `batchDate` = ใบของเดือนที่สรุป · `latestBatchDate` = ใบล่าสุดของหอไม่ว่าเดือนไหน
 // สองตัวนี้คนละใบกัน และใช้คนละสภาพกัน — ใบล่าสุดใช้เฉพาะตอนเดือนนี้ยังไม่มีใบ
 // (ฝั่ง main ค้นทั้งรายการ ไม่ได้ดูแค่ใบล่าสุด ดู findBatchForMonth)
-function MeterTask({ task, month, onNavigate }) {
+function MeterTask({ task, onNavigate }) {
   if (!task.hasBatchThisMonth) {
     return (
       <TaskRow
         done={false}
         icon="meters"
         text={
-          `ยังไม่ได้จดมิเตอร์เดือน ${formatBillingMonth(month)}` +
-          (task.latestBatchDate ? ` (ใบล่าสุด ${formatDate(task.latestBatchDate)})` : '')
+          'ยังไม่ได้จดมิเตอร์'
         }
         action="ไปจดมิเตอร์"
         onAction={() => onNavigate('meters')}
@@ -232,7 +227,7 @@ function MeterTask({ task, month, onNavigate }) {
       <TaskRow
         done={false}
         icon="meters"
-        text={`สร้างใบจดมิเตอร์ ${readable} ไว้แล้ว แต่ยังไม่ได้กรอกเลขห้องไหนเลย`}
+        text={`ใบจดมิเตอร์ ${readable} ยังไม่ได้กรอก`}
         action="ไปกรอกเลข"
         onAction={() => onNavigate('meters')}
       />
@@ -243,7 +238,7 @@ function MeterTask({ task, month, onNavigate }) {
     <TaskRow
       done
       icon="meters"
-      text={`จดมิเตอร์เดือนนี้แล้ว (ใบวันที่ ${readable} · ${task.roomCount} ห้อง)`}
+      text={`จดมิเตอร์แล้ว ${task.roomCount} ห้อง`}
       action="ดูใบจด"
       onAction={() => onNavigate('meters')}
     />
@@ -252,24 +247,24 @@ function MeterTask({ task, month, onNavigate }) {
 
 // "ครบ" หมายถึงครบเท่าที่ระบบจะออกให้ได้ — ห้องที่เพิ่งย้ายเข้าเดือนนี้ถูกนับออกจาก
 // ตัวหารแล้วฝั่ง main (จ่ายค่าเช่าเดือนแรกไปตอนย้ายเข้า ออกบิลอีกใบคือเก็บซ้ำ)
-function BillingTask({ task, month, onNavigate }) {
+function BillingTask({ task, onNavigate }) {
   if (task.expected === 0) {
     return (
       <TaskRow
         done
         icon="invoices"
-        text={`เดือน ${formatBillingMonth(month)} ยังไม่มีห้องที่ต้องออกบิล`}
+        text="ยังไม่มีห้องที่ต้องออกบิล"
       />
     )
   }
 
-  const label = `ออกบิลเดือน ${formatBillingMonth(month)} แล้ว ${task.issued}/${task.expected} ห้อง`
+  const label = `ออกบิลแล้ว ${task.issued}/${task.expected} ห้อง`
 
   return (
     <TaskRow
       done={task.remaining === 0}
       icon="invoices"
-      text={task.remaining === 0 ? `${label} — ครบทุกห้อง` : `${label} — เหลือ ${task.remaining} ห้อง`}
+      text={label}
       action={task.remaining === 0 ? 'ดูใบแจ้งหนี้' : 'ไปออกบิล'}
       onAction={() => onNavigate('invoices')}
     />

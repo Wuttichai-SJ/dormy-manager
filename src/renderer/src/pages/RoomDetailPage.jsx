@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { formatPhone } from '../components/TenantDialog.jsx'
 import { centsToInput, formatBaht } from '../format.js'
@@ -150,7 +151,7 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
             ) : (
               <section className="panel">
                 <h3 className="panel-title">รายละเอียดสัญญา</h3>
-                <p className="room-detail-empty">เพิ่มสัญญาประเภท</p>
+                <p className="room-detail-empty">ห้องว่าง · เลือกประเภทสัญญา</p>
                 {/* ปุ่มใหญ่สองใบตามต้นแบบ — เลือกประเภทก่อนแล้วค่อยเข้าตัวช่วยกรอก */}
                 <div className="contract-type-picker">
                   <button
@@ -357,9 +358,9 @@ function MoveOutNoticeDialog({ contract, onClose, onDone }) {
           วันที่แจ้งย้ายออก <span className="required">* จำเป็น</span>
         </label>
         <DateField id="noticeDate" value={noticeDate} onChange={setNoticeDate} />
+        {/* ยังโชว์ตลอด ไม่ซ่อนใน ⓘ — ใส่วันย้ายออกจริงแทนวันแจ้ง = ตัดสินเงินประกันผิด */}
         <p className="field-hint">
-          วันที่ผู้เช่ามาแจ้ง ไม่ใช่วันที่จะย้ายออกจริง — สัญญานี้กำหนดให้แจ้งล่วงหน้า{' '}
-          {contract.depositNoticeDays} วัน
+          วันที่มาแจ้ง ไม่ใช่วันย้ายออก · ต้องแจ้งล่วงหน้า {contract.depositNoticeDays} วัน
         </p>
       </div>
 
@@ -474,7 +475,11 @@ function formatDate(iso) {
 function MeterCard({ contract }) {
   return (
     <section className="panel">
-      <h3 className="panel-title">เลขมิเตอร์วันเข้าพัก</h3>
+      {/* เลขนี้เป็นจุดตั้งต้นของการคิดค่าน้ำ/ค่าไฟบิลแรก แก้ทีหลังแล้วบิลเพี้ยนทั้งสัญญา */}
+      <h3 className="panel-title">
+        เลขมิเตอร์วันเข้าพัก
+        <InfoTip text="เลขตั้งต้นสำหรับคิดค่าน้ำ/ค่าไฟบิลแรกของสัญญานี้" />
+      </h3>
       <div className="meter-start-grid">
         <div className="meter-start meter-start-water">
           <Icon name="water" />
@@ -487,8 +492,6 @@ function MeterCard({ contract }) {
           <span>ค่าไฟ</span>
         </div>
       </div>
-      {/* เลขนี้เป็นจุดตั้งต้นของการคิดค่าน้ำ/ค่าไฟบิลแรก แก้ทีหลังแล้วบิลเพี้ยนทั้งสัญญา */}
-      <p className="field-hint">ใช้เป็นเลขตั้งต้นสำหรับคิดค่าน้ำ/ค่าไฟบิลแรกของสัญญานี้</p>
     </section>
   )
 }
@@ -501,11 +504,19 @@ function ServicesCard({ contract, room }) {
 
   return (
     <section className="panel">
-      <h3 className="panel-title">บริการรายเดือน</h3>
-      <p className="panel-subtitle">ค่าบริการจะถูกเพิ่มในบิลรายเดือนอัตโนมัติ</p>
+      <h3 className="panel-title">
+        บริการรายเดือน
+        <InfoTip
+          text={
+            contract
+              ? 'เข้าบิลรายเดือนอัตโนมัติ · ราคาตรึงไว้ตั้งแต่วันทำสัญญา หอขึ้นราคาก็ไม่กระทบ'
+              : 'เข้าบิลรายเดือนอัตโนมัติ'
+          }
+        />
+      </h3>
 
       {items.length === 0 ? (
-        <p className="muted">ยังไม่มีค่าบริการผูกกับห้องนี้</p>
+        <p className="muted">ไม่มีบริการ</p>
       ) : (
         <table className="data-table">
           <thead>
@@ -526,12 +537,6 @@ function ServicesCard({ contract, room }) {
           </tbody>
         </table>
       )}
-
-      {contract && (
-        <p className="field-hint">
-          ราคานี้ถูกตรึงไว้ตั้งแต่วันทำสัญญา การขึ้นราคาค่าบริการของหอจะไม่กระทบสัญญานี้
-        </p>
-      )}
     </section>
   )
 }
@@ -540,7 +545,6 @@ function TenantsCard({ contract }) {
   return (
     <section className="panel">
       <h3 className="panel-title">ข้อมูลผู้เช่า</h3>
-      <p className="panel-subtitle">กรณีมีผู้เช่าหลายคน จะแสดงทุกคนที่อยู่ในสัญญานี้</p>
 
       <table className="data-table">
         <thead>
