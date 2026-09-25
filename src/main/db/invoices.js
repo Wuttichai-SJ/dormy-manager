@@ -809,10 +809,15 @@ export function addInvoiceItem(db, invoiceId, { itemType, description, amount, i
 
   if (!ITEM_TYPES.includes(itemType)) throw new Error(`ชนิดรายการไม่ถูกต้อง: ${itemType}`)
   const label = String(description ?? '').trim()
-  if (!label) throw new Error('กรุณากรอกชื่อรายการ')
+  if (!label) throw new FieldError({ description: 'กรุณากรอกชื่อรายการ' })
 
   // ส่วนลด/คืนเงินเก็บเป็นยอดติดลบ ผู้ใช้กรอกเป็นจำนวนบวกตามปกติ
-  const magnitude = toCents(amount, itemType === 'discount' ? 'ส่วนลด' : 'จำนวนเงิน')
+  let magnitude
+  try {
+    magnitude = toCents(amount, itemType === 'discount' ? 'ส่วนลด' : 'จำนวนเงิน')
+  } catch (err) {
+    throw new FieldError({ amount: err.message })
+  }
   const totalAmountCents = itemType === 'discount' ? -magnitude : magnitude
 
   const now = new Date().toISOString()

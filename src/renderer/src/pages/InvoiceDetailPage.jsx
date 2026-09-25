@@ -94,7 +94,6 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
                 showToast('เพิ่มรายการแล้ว')
                 load()
               }}
-              onError={setError}
             />
           )}
         </div>
@@ -109,7 +108,6 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
                 showToast(message)
                 load()
               }}
-              onError={setError}
             />
           )}
 
@@ -369,16 +367,18 @@ const ITEM_TABS = [
   }
 ]
 
-function AddItemPanel({ invoice, onDone, onError }) {
+// error ของการ์ดขึ้นในการ์ดเอง ใต้ช่องที่ผิด — ไม่ขึ้นบนสุดของหน้าที่อาจเลื่อนพ้นจอไปแล้ว
+function AddItemPanel({ invoice, onDone }) {
   const [tab, setTab] = useState(ITEM_TABS[0])
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [isTaxable, setIsTaxable] = useState(false)
   const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(['description', 'amount'])
 
   async function submit(e) {
     e.preventDefault()
-    onError('')
+    reset()
     setBusy(true)
     const res = await addInvoiceItem(invoice.invoiceId, {
       itemType: tab.itemType,
@@ -387,7 +387,7 @@ function AddItemPanel({ invoice, onDone, onError }) {
       isTaxable: tab.key === 'service' && isTaxable
     })
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     setDescription('')
     setAmount('')
     setIsTaxable(false)
@@ -416,21 +416,27 @@ function AddItemPanel({ invoice, onDone, onError }) {
 
       <form onSubmit={submit}>
         {tab.hint && <p className="field-hint invoice-tab-hint">{tab.hint}</p>}
+        <Alert>{formError}</Alert>
 
         <div className="field-row">
-          <div className="field field-required">
+          <div className={fieldClass('field field-required', errors.description)}>
             <label htmlFor="itemDescription">
               ชื่อรายการ <span className="required">* จำเป็น</span>
             </label>
             <input
               id="itemDescription"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value)
+                clear('description')
+              }}
               placeholder={tab.key === 'discount' ? 'เช่น ส่วนลดจ่ายตรงเวลา' : 'เช่น ค่าซ่อมประตู'}
+              {...invalidProps('itemDescription', errors.description)}
             />
+            <FieldError id="itemDescription-error" message={errors.description} />
           </div>
 
-          <div className="field field-required">
+          <div className={fieldClass('field field-required', errors.amount)}>
             <label htmlFor="itemAmount">
               จำนวนเงิน <span className="required">* จำเป็น</span>
             </label>
@@ -438,8 +444,13 @@ function AddItemPanel({ invoice, onDone, onError }) {
               id="itemAmount"
               inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                setAmount(e.target.value)
+                clear('amount')
+              }}
+              {...invalidProps('itemAmount', errors.amount)}
             />
+            <FieldError id="itemAmount-error" message={errors.amount} />
           </div>
         </div>
 
@@ -487,7 +498,7 @@ function OutstandingBox({ invoice }) {
 //
 // การคืนเงินประกันตอนย้ายออกเป็นคนละเรื่อง — ผูกกับสัญญาไม่ใช่กับบิล และยังอยู่ที่
 // recordContractPayment(isRefund) รอ Phase 4 ใช้
-function PaymentCard({ invoice, onDone, onError }) {
+function PaymentCard({ invoice, onDone }) {
   const [amount, setAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentDate, setPaymentDate] = useState(today())
@@ -499,6 +510,13 @@ function PaymentCard({ invoice, onDone, onError }) {
   const [lateFeeAmount, setLateFeeAmount] = useState('')
   // ผู้ใช้พิมพ์ยอดรับเงินเองแล้วหรือยัง — ถ้าพิมพ์แล้ว ห้ามเติมยอดทับ (ดู effect เติมยอดข้างล่าง)
   const [amountTouched, setAmountTouched] = useState(false)
+  // error ขึ้นในการ์ดใต้ช่องที่ผิด (ชื่อช่องตรงกับ recordInvoicePayment ใน db/payments.js)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors([
+    'amount',
+    'paymentMethod',
+    'paymentDate',
+    'lateFee'
+  ])
 
   // ต้องถามใหม่เมื่อยอดบิลเปลี่ยนด้วย ไม่ใช่แค่ตอนเปลี่ยนวันที่ — การ์ดนี้ไม่ถูกสร้างใหม่หลังรับเงิน
   // เดิมรับเงินงวดแรกพร้อมค่าปรับไปแล้ว งวดที่สองในหน้าเดิมยังเสนอค่าปรับเต็มจำนวนอยู่
@@ -536,7 +554,7 @@ function PaymentCard({ invoice, onDone, onError }) {
 
   async function submit(e) {
     e.preventDefault()
-    onError('')
+    reset()
     setBusy(true)
     const res = await receivePayment({
       invoiceId: invoice.invoiceId,
@@ -547,7 +565,7 @@ function PaymentCard({ invoice, onDone, onError }) {
       lateFee: feeCents > 0 ? lateFeeAmount : undefined
     })
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     setRemark('')
     // งวดถัดไปเริ่มจากยอดค้างใหม่ ไม่ใช่ยอดที่พิมพ์ไว้ของงวดที่เพิ่งรับไป
     setAmountTouched(false)
@@ -564,7 +582,9 @@ function PaymentCard({ invoice, onDone, onError }) {
         <p className="muted">บิลนี้ชำระครบแล้ว</p>
       ) : (
         <form onSubmit={submit}>
-          <div className="field field-required">
+          <Alert>{formError}</Alert>
+
+          <div className={fieldClass('field field-required', errors.amount)}>
             <label htmlFor="paymentAmount">
               จำนวนเงิน <span className="required">* จำเป็น</span>
             </label>
@@ -575,22 +595,32 @@ function PaymentCard({ invoice, onDone, onError }) {
               onChange={(e) => {
                 setAmount(e.target.value)
                 setAmountTouched(true)
+                clear('amount')
               }}
+              {...invalidProps('paymentAmount', errors.amount)}
             />
-            <p className="field-hint">
-              {/* ค่าปรับที่ติ๊กไว้จะเข้าบิลก่อนรับเงิน เพดานจึงรวมค่าปรับด้วย */}
-              รับได้ไม่เกิน {formatBaht(Math.max(invoice.outstandingCents, 0) + feeCents)} บาท
-            </p>
+            {errors.amount ? (
+              <FieldError id="paymentAmount-error" message={errors.amount} />
+            ) : (
+              <p className="field-hint">
+                {/* ค่าปรับที่ติ๊กไว้จะเข้าบิลก่อนรับเงิน เพดานจึงรวมค่าปรับด้วย */}
+                รับได้ไม่เกิน {formatBaht(Math.max(invoice.outstandingCents, 0) + feeCents)} บาท
+              </p>
+            )}
           </div>
 
-          <div className="field field-required">
+          <div className={fieldClass('field field-required', errors.paymentMethod)}>
             <label htmlFor="paymentMethod">
               ชำระเงินโดย <span className="required">* จำเป็น</span>
             </label>
             <select
               id="paymentMethod"
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
+              onChange={(e) => {
+                setPaymentMethod(e.target.value)
+                clear('paymentMethod')
+              }}
+              {...invalidProps('paymentMethod', errors.paymentMethod)}
             >
               {PAYMENT_METHODS.map((m) => (
                 <option key={m.key} value={m.key}>
@@ -598,13 +628,22 @@ function PaymentCard({ invoice, onDone, onError }) {
                 </option>
               ))}
             </select>
+            <FieldError id="paymentMethod-error" message={errors.paymentMethod} />
           </div>
 
-          <div className="field field-required">
+          <div className={fieldClass('field field-required', errors.paymentDate)}>
             <label htmlFor="paymentDate">
               วันที่รับเงิน <span className="required">* จำเป็น</span>
             </label>
-            <DateField id="paymentDate" value={paymentDate} onChange={setPaymentDate} />
+            <DateField
+              id="paymentDate"
+              value={paymentDate}
+              onChange={(v) => {
+                setPaymentDate(v)
+                clear('paymentDate')
+              }}
+            />
+            <FieldError id="paymentDate-error" message={errors.paymentDate} />
           </div>
 
           {/* ค่าปรับชำระล่าช้า — ระบบคำนวณให้และติ๊กไว้ให้ แต่ติ๊กออกได้และลดยอดได้
@@ -642,13 +681,19 @@ function PaymentCard({ invoice, onDone, onError }) {
 
               {chargeLateFee && (
                 <input
+                  id="lateFeeAmount"
                   className="late-fee-amount"
                   inputMode="decimal"
                   value={lateFeeAmount}
-                  onChange={(e) => setLateFeeAmount(e.target.value)}
+                  onChange={(e) => {
+                    setLateFeeAmount(e.target.value)
+                    clear('lateFee')
+                  }}
                   aria-label="ยอดค่าปรับที่เรียกเก็บ"
+                  {...invalidProps('lateFeeAmount', errors.lateFee)}
                 />
               )}
+              <FieldError id="lateFeeAmount-error" message={errors.lateFee} />
 
               {lateFee.alreadyChargedCents > 0 && (
                 <p className="field-hint">

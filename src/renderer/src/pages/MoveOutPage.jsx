@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { formatBaht } from '../format.js'
@@ -224,7 +225,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
             onAdd={(item) => setAdjustments((list) => [...list, item])}
             onRemove={(index) => setAdjustments((list) => list.filter((_, i) => i !== index))}
             totalCents={sheet.adjustmentsTotalCents}
-            onError={setError}
           />
 
           <section className="panel move-out-summary">
@@ -426,15 +426,20 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
 // ------------------------------------------------------------------
 // รายการเก็บเงิน/คืนเงินเพิ่มเติม — สามแท็บตามต้นแบบ
 // ------------------------------------------------------------------
-function AdjustmentsCard({ items, onAdd, onRemove, totalCents, onError }) {
+// รายการเหล่านี้ยังไม่ถูกส่งไป main จนกว่าจะกดยืนยันย้ายออก — จึงตรวจที่หน้าจอ
+// แล้วขึ้น error ใต้ช่องทั้งสองช่องพร้อมกัน (ไม่ใช่ทีละข้อบนสุดของหน้า)
+function AdjustmentsCard({ items, onAdd, onRemove, totalCents }) {
   const [tab, setTab] = useState(ITEM_TABS[0])
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
+  const { errors, fromResult, clear, reset } = useFormErrors(['description', 'amount'])
 
   function add() {
-    onError('')
-    if (!description.trim()) return onError('กรุณาระบุชื่อรายการ')
-    if (!(Number(amount) > 0)) return onError('จำนวนเงินต้องมากกว่า 0')
+    reset()
+    const fields = {}
+    if (!description.trim()) fields.description = 'กรุณาระบุชื่อรายการ'
+    if (!(Number(amount) > 0)) fields.amount = 'จำนวนเงินต้องมากกว่า 0'
+    if (Object.keys(fields).length > 0) return fromResult({ fields })
     onAdd({ itemType: tab.key, description, amount })
     setDescription('')
     setAmount('')
@@ -490,22 +495,32 @@ function AdjustmentsCard({ items, onAdd, onRemove, totalCents, onError }) {
       {tab.hint && <p className="field-hint invoice-tab-hint">{tab.hint}</p>}
 
       <div className="field-row">
-        <div className="field">
+        <div className={fieldClass('field', errors.description)}>
           <label htmlFor="adjustmentName">ชื่อรายการ</label>
           <input
             id="adjustmentName"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => {
+              setDescription(e.target.value)
+              clear('description')
+            }}
+            {...invalidProps('adjustmentName', errors.description)}
           />
+          <FieldError id="adjustmentName-error" message={errors.description} />
         </div>
-        <div className="field">
+        <div className={fieldClass('field', errors.amount)}>
           <label htmlFor="adjustmentAmount">จำนวนเงิน</label>
           <input
             id="adjustmentAmount"
             inputMode="decimal"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              setAmount(e.target.value)
+              clear('amount')
+            }}
+            {...invalidProps('adjustmentAmount', errors.amount)}
           />
+          <FieldError id="adjustmentAmount-error" message={errors.amount} />
         </div>
       </div>
 

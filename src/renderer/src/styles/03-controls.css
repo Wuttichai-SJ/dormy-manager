@@ -152,6 +152,11 @@
   box-shadow: 0 0 0 3px var(--err-weak);
 }
 
+/* ช่องที่ไม่ได้อยู่ใน .field (เช่นยอดค่าปรับในกล่องค่าปรับ) ใช้ aria-invalid แทน */
+.late-fee-amount[aria-invalid='true'] {
+  border-color: var(--err);
+}
+
 .field-error {
   display: flex;
   align-items: flex-start;
