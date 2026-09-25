@@ -23,8 +23,9 @@ import {
   updateRecoveryCodeHash,
   updateUserProfile,
   validateRole,
-  validateUserInput
+  validateUserFields
 } from './db/users.js'
+import { FieldError, throwIfFieldErrors } from './fieldError.js'
 
 const BCRYPT_COST = 10
 
@@ -87,8 +88,7 @@ export function setupFirstUser(db, { fullName, phone, email, password }) {
     throw new Error('ระบบมีบัญชีผู้ใช้อยู่แล้ว ไม่สามารถสร้างบัญชีแรกซ้ำได้')
   }
 
-  const errors = validateUserInput({ fullName, phone, email, password })
-  if (errors.length > 0) throw new Error(errors.join('\n'))
+  throwIfFieldErrors(validateUserFields({ fullName, phone, email, password }))
 
   const recoveryCode = generateRecoveryCode()
   const user = insertUser(db, {
@@ -111,8 +111,7 @@ export function setupFirstUser(db, { fullName, phone, email, password }) {
 // เจ้าของหอจ้างคนมาดูแลแทนได้ (ผู้ใช้ยืนยัน 2026-08-14) บัญชีที่สองขึ้นไปจึงเกิดที่นี่
 // ไม่ใช่ที่ setupFirstUser ซึ่งทำงานเฉพาะตอนระบบยังไม่มีใครเลย
 export function createUser(db, { fullName, phone, email, password, role }) {
-  const errors = validateUserInput({ fullName, phone, email, password })
-  if (errors.length > 0) throw new Error(errors.join('\n'))
+  throwIfFieldErrors(validateUserFields({ fullName, phone, email, password }))
   validateRole(role)
   assertIdentifiersFree(db, { phone, email })
 
@@ -136,8 +135,7 @@ export function updateUser(db, userId, { fullName, phone, email, role }) {
   const current = getUserById(db, userId)
   if (!current) throw new Error('ไม่พบบัญชีผู้ใช้')
 
-  const errors = validateUserInput({ fullName, phone, email }, { requirePassword: false })
-  if (errors.length > 0) throw new Error(errors.join('\n'))
+  throwIfFieldErrors(validateUserFields({ fullName, phone, email }, { requirePassword: false }))
   validateRole(role)
   assertIdentifiersFree(db, { phone, email, excludeUserId: userId })
   assertOwnerRemains(db, userId, { role })
@@ -185,7 +183,7 @@ export function resetUserPassword(db, { userId, newPassword, actorUserId }) {
     )
   }
   if (!newPassword || String(newPassword).length < PASSWORD_MIN_LENGTH) {
-    throw new Error(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+    throw new FieldError({ newPassword: `รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร` })
   }
 
   updatePassword(db, userId, hashSecret(newPassword))
@@ -197,9 +195,11 @@ export function resetUserPassword(db, { userId, newPassword, actorUserId }) {
 export function changeOwnPassword(db, { userId, currentPassword, newPassword }) {
   const row = getUserById(db, userId)
   if (!row) throw new Error('ไม่พบบัญชีผู้ใช้')
-  if (!verifySecret(currentPassword, row.password)) throw new Error('รหัสผ่านเดิมไม่ถูกต้อง')
+  if (!verifySecret(currentPassword, row.password)) {
+    throw new FieldError({ currentPassword: 'รหัสผ่านเดิมไม่ถูกต้อง' })
+  }
   if (!newPassword || String(newPassword).length < PASSWORD_MIN_LENGTH) {
-    throw new Error(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+    throw new FieldError({ newPassword: `รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร` })
   }
 
   updatePassword(db, userId, hashSecret(newPassword))
@@ -245,7 +245,7 @@ export function resetPasswordWithTicket(db, { ticket, newPassword }) {
     throw new Error('หมดเวลาตั้งรหัสผ่านใหม่ กรุณากรอกรหัสสำรองอีกครั้ง')
   }
   if (!newPassword || String(newPassword).length < PASSWORD_MIN_LENGTH) {
-    throw new Error(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+    throw new FieldError({ newPassword: `รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร` })
   }
 
   // rotate-on-use: รหัสสำรองใบเก่าต้องใช้ไม่ได้ทันทีที่รหัสใหม่ถูกเขียนลงไป

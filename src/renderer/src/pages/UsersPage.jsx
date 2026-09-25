@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import PasswordField from '../components/PasswordField.jsx'
@@ -213,6 +214,18 @@ export default function UsersPage({ user }) {
 // ------------------------------------------------------------------
 // ฟอร์มเดียวใช้ทั้งเพิ่มและแก้ไข — ต่างกันแค่ช่องรหัสผ่าน (ตอนแก้ไขไม่มี เพราะการตั้ง
 // รหัสผ่านใหม่เป็นคนละคำสั่ง และไม่ควรเผลอเปลี่ยนรหัสผ่านของคนอื่นตอนแก้เบอร์โทร)
+// ชื่อช่องต้องตรงกับ key ที่ main ส่งกลับใน fields (src/main/db/users.js / auth.js)
+const USER_FORM_FIELDS = ['fullName', 'phone', 'email', 'password', 'role']
+
+// ช่องที่มี error: กรอบแดง (.has-error) + ผูกข้อความ error ให้โปรแกรมอ่านหน้าจอ
+function fieldClass(base, error) {
+  return error ? `${base} has-error` : base
+}
+
+function invalidProps(id, error) {
+  return error ? { 'aria-invalid': true, 'aria-describedby': `${id}-error` } : {}
+}
+
 function UserFormDialog({ target, onClose, onSaved }) {
   const editing = Boolean(target)
   const [form, setForm] = useState(() => ({
@@ -223,21 +236,24 @@ function UserFormDialog({ target, onClose, onSaved }) {
     role: target?.role ?? 'staff'
   }))
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(USER_FORM_FIELDS)
 
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  // แก้ช่องไหน error ของช่องนั้นหายทันที
+  const set = (key) => (e) => {
+    setForm((f) => ({ ...f, [key]: e.target.value }))
+    clear(key)
+  }
 
   async function submit() {
-    setError('')
+    reset()
     setBusy(true)
     const res = editing
       ? await updateUser({ userId: target.userId, ...form })
       : await createUser(form)
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return fromResult(res)
     onSaved(res.data)
   }
-
 
   return (
     <Modal
@@ -245,31 +261,52 @@ function UserFormDialog({ target, onClose, onSaved }) {
       icon="account"
       submitLabel={editing ? 'บันทึก' : 'สร้างบัญชี'}
       busy={busy}
-      error={error}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.fullName)}>
         <label htmlFor="userFullName">
           ชื่อ-นามสกุล <span className="required">* จำเป็น</span>
         </label>
-        <input id="userFullName" type="text" value={form.fullName} onChange={set('fullName')} />
+        <input
+          id="userFullName"
+          type="text"
+          value={form.fullName}
+          onChange={set('fullName')}
+          {...invalidProps('userFullName', errors.fullName)}
+        />
+        <FieldError id="userFullName-error" message={errors.fullName} />
       </div>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.phone)}>
         <label htmlFor="userPhone">
           เบอร์โทรศัพท์ <span className="required">* จำเป็น</span>
           <InfoTip title="เบอร์โทรศัพท์" points={['ใช้เข้าสู่ระบบ', 'ต้องไม่ซ้ำกับบัญชีอื่น']} />
         </label>
-        <input id="userPhone" type="text" value={form.phone} onChange={set('phone')} />
+        <input
+          id="userPhone"
+          type="text"
+          value={form.phone}
+          onChange={set('phone')}
+          {...invalidProps('userPhone', errors.phone)}
+        />
+        <FieldError id="userPhone-error" message={errors.phone} />
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.email)}>
         <label htmlFor="userEmail">
           อีเมล
           <InfoTip title="อีเมล" points={['ไม่บังคับ', 'ใช้เข้าสู่ระบบแทนเบอร์โทรได้']} />
         </label>
-        <input id="userEmail" type="text" value={form.email} onChange={set('email')} />
+        <input
+          id="userEmail"
+          type="text"
+          value={form.email}
+          onChange={set('email')}
+          {...invalidProps('userEmail', errors.email)}
+        />
+        <FieldError id="userEmail-error" message={errors.email} />
       </div>
 
       {!editing && (
@@ -277,24 +314,34 @@ function UserFormDialog({ target, onClose, onSaved }) {
           id="userPassword"
           label="รหัสผ่านเริ่มต้น"
           value={form.password}
-          onChange={(v) => setForm((f) => ({ ...f, password: v }))}
+          onChange={(v) => {
+            setForm((f) => ({ ...f, password: v }))
+            clear('password')
+          }}
           autoComplete="new-password"
           hint="อย่างน้อย 8 ตัวอักษร"
+          error={errors.password}
         />
       )}
 
-      <div className="field">
+      <div className={fieldClass('field', errors.role)}>
         <label htmlFor="userRole">
           บทบาท
           <InfoTip title="เฉพาะเจ้าของหอทำได้" points={OWNER_ONLY_ACTIONS} />
         </label>
-        <select id="userRole" value={form.role} onChange={set('role')}>
+        <select
+          id="userRole"
+          value={form.role}
+          onChange={set('role')}
+          {...invalidProps('userRole', errors.role)}
+        >
           {USER_ROLES.map((r) => (
             <option key={r.key} value={r.key}>
               {r.label}
             </option>
           ))}
         </select>
+        <FieldError id="userRole-error" message={errors.role} />
       </div>
 
       {form.role === 'owner' && (
@@ -311,14 +358,14 @@ function UserFormDialog({ target, onClose, onSaved }) {
 function ResetPasswordDialog({ target, onClose, onSaved }) {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(['newPassword'])
 
   async function submit() {
-    setError('')
+    reset()
     setBusy(true)
     const res = await resetUserPassword(target.userId, password)
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return fromResult(res)
     onSaved(target)
   }
 
@@ -328,7 +375,7 @@ function ResetPasswordDialog({ target, onClose, onSaved }) {
       icon="lock"
       submitLabel="ตั้งรหัสผ่านใหม่"
       busy={busy}
-      error={error}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
@@ -340,10 +387,14 @@ function ResetPasswordDialog({ target, onClose, onSaved }) {
         id="resetPassword"
         label="รหัสผ่านใหม่"
         value={password}
-        onChange={setPassword}
+        onChange={(v) => {
+          setPassword(v)
+          clear('newPassword')
+        }}
         autoComplete="new-password"
         autoFocus
         hint="อย่างน้อย 8 ตัวอักษร"
+        error={errors.newPassword}
       />
     </Modal>
   )

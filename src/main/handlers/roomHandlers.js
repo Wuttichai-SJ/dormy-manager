@@ -26,7 +26,7 @@ function handle(channel, fn) {
       return { success: true, data: await fn(payload ?? {}) }
     } catch (err) {
       logError(`IPC ${channel} ล้มเหลว`, err)
-      return { success: false, error: err.message }
+      return { success: false, error: err.message, fields: err.fields }
     }
   })
 }

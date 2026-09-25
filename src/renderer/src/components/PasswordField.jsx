@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
+import FieldError from './FieldError.jsx'
 
 // ช่องรหัสผ่านที่กดดูตัวอักษรได้ — จำเป็นจริงในแอปนี้ เพราะรหัสผ่านและรหัสสำรอง
 // ถูกจดใส่กระดาษแล้วพิมพ์กลับเข้ามา การพิมพ์ผิดโดยมองไม่เห็นคือปัญหาที่พบบ่อยที่สุด
@@ -11,12 +12,13 @@ export default function PasswordField({
   placeholder = '',
   autoComplete = 'current-password',
   autoFocus = false,
-  hint = null
+  hint = null,
+  error = ''
 }) {
   const [shown, setShown] = useState(false)
 
   return (
-    <div className="field">
+    <div className={'field' + (error ? ' has-error' : '')}>
       <label htmlFor={id}>{label}</label>
       <div className="input-with-action">
         <input
@@ -27,6 +29,8 @@ export default function PasswordField({
           placeholder={placeholder}
           autoComplete={autoComplete}
           autoFocus={autoFocus}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
         />
         <button
           type="button"
@@ -40,7 +44,12 @@ export default function PasswordField({
           <Icon name={shown ? 'eyeOff' : 'eye'} />
         </button>
       </div>
-      {hint && <p className="field-hint">{hint}</p>}
+      {/* error แทนที่ hint — สองบรรทัดซ้อนกันใต้ช่องเดียวอ่านยาก และ hint มักพูดเรื่องเดียวกัน */}
+      {error ? (
+        <FieldError id={`${id}-error`} message={error} />
+      ) : (
+        hint && <p className="field-hint">{hint}</p>
+      )}
     </div>
   )
 }

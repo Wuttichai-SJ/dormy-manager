@@ -4,6 +4,8 @@
 // เพื่อให้ชุดทดสอบชี้ไปที่ฐานข้อมูลชั่วคราวของตัวเองได้ ส่วน handler ในแอปจริงเป็นฝ่าย
 // ส่ง getDatabase() เข้ามา — SQL ยังอยู่รวมที่ไฟล์นี้ที่เดียวเหมือนเดิม
 
+import { FieldError } from '../fieldError.js'
+
 // -----------------------------------------------------
 // การตรวจข้อมูลก่อนเขียนลงฟิลด์
 // -----------------------------------------------------
@@ -46,33 +48,38 @@ export function normalizeEmail(email) {
   return trimmed === '' ? null : trimmed
 }
 
-// คืนรายการข้อผิดพลาดทั้งหมดพร้อมกัน ไม่ใช่ throw ตัวแรกที่เจอ
+// คืนข้อผิดพลาดทั้งหมดพร้อมกันเป็น { ช่อง: ข้อความ } ไม่ใช่ throw ตัวแรกที่เจอ
 // เพื่อให้หน้าจอไฮไลต์ทุกช่องที่ผิดในครั้งเดียว ไม่ต้องให้ผู้ใช้กดบันทึกซ้ำทีละรอบ
 //
 // requirePassword = false ใช้ตอน "แก้ข้อมูลผู้ใช้" ซึ่งไม่ได้เปลี่ยนรหัสผ่านไปด้วย
 // (การเปลี่ยนรหัสผ่านเป็นคนละคำสั่ง เพราะต้องยืนยันตัวตนคนละแบบ)
-export function validateUserInput({ fullName, phone, email, password }, { requirePassword = true } = {}) {
-  const errors = []
+export function validateUserFields({ fullName, phone, email, password }, { requirePassword = true } = {}) {
+  const errors = {}
 
-  if (!String(fullName ?? '').trim()) errors.push('กรุณากรอกชื่อ-นามสกุล')
-  else if (String(fullName).trim().length > 255) errors.push('ชื่อ-นามสกุลยาวเกิน 255 ตัวอักษร')
+  if (!String(fullName ?? '').trim()) errors.fullName = 'กรุณากรอกชื่อ-นามสกุล'
+  else if (String(fullName).trim().length > 255) errors.fullName = 'ชื่อ-นามสกุลยาวเกิน 255 ตัวอักษร'
 
   const digits = normalizePhone(phone)
-  if (!digits) errors.push('กรุณากรอกเบอร์โทรศัพท์')
-  else if (digits.length < 9 || digits.length > 15) errors.push('เบอร์โทรศัพท์ต้องมี 9-15 หลัก')
+  if (!digits) errors.phone = 'กรุณากรอกเบอร์โทรศัพท์'
+  else if (digits.length < 9 || digits.length > 15) errors.phone = 'เบอร์โทรศัพท์ต้องมี 9-15 หลัก'
 
   const mail = normalizeEmail(email)
   // ตรวจแบบหลวมๆ โดยตั้งใจ: ต้องมี @ และมีอะไรอยู่สองข้าง เท่านั้น
   // regex อีเมลแบบเข้มมักปฏิเสธอีเมลที่ใช้งานได้จริง และแอปนี้ไม่ได้ส่งเมลอยู่แล้ว
-  if (mail !== null && !/^[^@\s]+@[^@\s]+$/.test(mail)) errors.push('รูปแบบอีเมลไม่ถูกต้อง')
+  if (mail !== null && !/^[^@\s]+@[^@\s]+$/.test(mail)) errors.email = 'รูปแบบอีเมลไม่ถูกต้อง'
 
   if (requirePassword || password !== undefined) {
-    if (!password) errors.push('กรุณากรอกรหัสผ่าน')
+    if (!password) errors.password = 'กรุณากรอกรหัสผ่าน'
     else if (String(password).length < PASSWORD_MIN_LENGTH)
-      errors.push(`รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
+      errors.password = `รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`
   }
 
   return errors
+}
+
+// รูปแบบเดิม (อาร์เรย์ข้อความ) — ชุดทดสอบยังเรียกอยู่ ลำดับข้อความเหมือนเดิม
+export function validateUserInput(input, options) {
+  return Object.values(validateUserFields(input, options))
 }
 
 // บทบาทต้องเป็นค่าที่รู้จักเท่านั้น — เก็บเป็น TEXT ใน SQLite จึงไม่มีอะไรกันค่าแปลกๆ
@@ -93,10 +100,10 @@ export function assertIdentifiersFree(db, { phone, email, excludeUserId = null }
   const clash = (row) => row && row.user_id !== excludeUserId
 
   if (digits && clash(db.prepare('SELECT user_id FROM users WHERE phone = ?').get(digits))) {
-    throw new Error('เบอร์โทรศัพท์นี้ถูกใช้กับบัญชีอื่นแล้ว')
+    throw new FieldError({ phone: 'เบอร์โทรศัพท์นี้ถูกใช้กับบัญชีอื่นแล้ว' })
   }
   if (mail && clash(db.prepare('SELECT user_id FROM users WHERE email = ?').get(mail))) {
-    throw new Error('อีเมลนี้ถูกใช้กับบัญชีอื่นแล้ว')
+    throw new FieldError({ email: 'อีเมลนี้ถูกใช้กับบัญชีอื่นแล้ว' })
   }
 }
 
@@ -182,10 +189,13 @@ export function assertOwnerRemains(db, userId, { role, isActive } = {}) {
   if (stillOwner && stillActive) return
 
   if (countActiveOwners(db, { excludeUserId: userId }) === 0) {
-    throw new Error(
-      'ต้องมีเจ้าของหอที่ใช้งานอยู่อย่างน้อยหนึ่งบัญชี — ' +
+    // ผูกกับช่อง role — ตอนแก้บทบาทจะขึ้นใต้ช่องบทบาท · ตอนปิดบัญชีไม่มีช่องนี้ หน้าจอจึง
+    // แสดงเป็น error รวมตามเดิม
+    throw new FieldError({
+      role:
+        'ต้องมีเจ้าของหอที่ใช้งานอยู่อย่างน้อยหนึ่งบัญชี — ' +
         'ถ้าเปลี่ยนบัญชีนี้จะไม่เหลือใครที่จัดการผู้ใช้ได้อีกเลย'
-    )
+    })
   }
 }
 

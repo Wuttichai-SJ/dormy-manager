@@ -136,6 +136,40 @@
   color: var(--text-muted);
 }
 
+/* ช่องที่กรอกผิด — ขอบแดง + ข้อความแดงใต้ช่อง (components/FieldError.jsx)
+   ตัวหนังสือใหญ่และหนากว่า field-hint ให้เห็นชัดกว่าคำอธิบายทั่วไป */
+/* :not(...) เพิ่มความจำเพาะให้ชนะ `.form-section-body .field select` (05) ที่มาทีหลังใน cascade */
+.field.has-error input:not([type='checkbox']),
+.field.has-error select:not([multiple]),
+.field.has-error textarea:not([disabled]) {
+  border-color: var(--err);
+}
+
+.field.has-error input:not([type='checkbox']):focus,
+.field.has-error select:not([multiple]):focus,
+.field.has-error textarea:not([disabled]):focus {
+  border-color: var(--err);
+  box-shadow: 0 0 0 3px var(--err-weak);
+}
+
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--err);
+}
+
+.field-error svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
 /* ช่องกรอกรหัสสำรอง — แยก 4 กลุ่มตามที่พิมพ์บนกระดาษ ผู้ใช้จะได้เห็นว่าคัดมาถึงกลุ่มไหน
    ตัวอักษรใช้ฟอนต์ monospace ตัวพิมพ์ใหญ่ เทียบกับกระดาษได้ตรงตัว */
 .code-segments {

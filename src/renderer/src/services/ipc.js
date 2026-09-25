@@ -1,5 +1,6 @@
 // สะพานเดียวที่ฝั่งหน้าจอใช้คุยกับ main process — ไฟล์ services/*.js อื่นเรียกผ่านที่นี่
-// ทุกช่องคืนซองเดียวกัน: { success: true, data } หรือ { success: false, error }
+// ทุกช่องคืนซองเดียวกัน: { success: true, data } หรือ { success: false, error, fields? }
+// fields = { ชื่อช่อง: ข้อความ } เมื่อ main รู้ว่าผิดที่ช่องไหน (ดู components/FieldError.jsx)
 
 // `npm run dev:web` เปิดหน้าจอในเบราว์เซอร์เปล่าๆ ที่ไม่มี preload ให้เรียก
 // ตรงนี้จึงต้องคืน error ที่อ่านรู้เรื่องแทนการ throw ให้ทั้งหน้าจอขาว

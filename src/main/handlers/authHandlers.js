@@ -80,7 +80,7 @@ function handle(channel, fn) {
     } catch (err) {
       // log ไว้เพื่อไล่ปัญหาย้อนหลังได้ แต่ข้อความที่ส่งกลับหน้าจอคือข้อความที่เขียนให้ผู้ใช้อ่าน
       logError(`IPC ${channel} ล้มเหลว`, err)
-      return { success: false, error: err.message }
+      return { success: false, error: err.message, fields: err.fields }
     }
   })
 }
