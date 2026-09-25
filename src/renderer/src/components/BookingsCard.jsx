@@ -195,8 +195,12 @@ export default function BookingsCard({ room, onConvert }) {
         <BookingDialog
           value={adding}
           busy={busy}
+          error={error}
           onChange={setAdding}
-          onClose={() => setAdding(null)}
+          onClose={() => {
+            setAdding(null)
+            setError('')
+          }}
           onSubmit={submit}
         />
       )}
@@ -204,11 +208,11 @@ export default function BookingsCard({ room, onConvert }) {
   )
 }
 
-function BookingDialog({ value, onChange, onClose, onSubmit, busy }) {
+function BookingDialog({ value, onChange, onClose, onSubmit, busy, error }) {
   const set = (key, v) => onChange({ ...value, [key]: v })
 
   return (
-    <Modal title="เพิ่มรายการจอง" busy={busy} onClose={onClose} onSubmit={onSubmit}>
+    <Modal title="เพิ่มรายการจอง" busy={busy} error={error} onClose={onClose} onSubmit={onSubmit}>
       <div className="field-row">
         <div className="field field-required">
           <label>

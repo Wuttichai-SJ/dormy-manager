@@ -220,7 +220,11 @@ export default function UtilitySettingsPage({ apartment }) {
           meta={SIDES[editing]}
           value={sides[editing]}
           busy={busy}
-          onClose={() => setEditing(null)}
+          error={error}
+          onClose={() => {
+            setEditing(null)
+            setError('')
+          }}
           onSave={async (side) => {
             const ok = await persist(editing, side)
             if (ok) setEditing(null)
@@ -232,7 +236,7 @@ export default function UtilitySettingsPage({ apartment }) {
 }
 
 // หน้าต่างซ้อน "ค่าน้ำ" / "ค่าไฟ" — ช่องที่ต้องกรอกเปลี่ยนตามประเภทการคิดเงินที่เลือก
-function UtilityDialog({ meta, value, onClose, onSave, busy }) {
+function UtilityDialog({ meta, value, onClose, onSave, busy, error }) {
   const [side, setSide] = useState(value)
   const set = (key, v) => setSide((s) => ({ ...s, [key]: v }))
 
@@ -241,6 +245,7 @@ function UtilityDialog({ meta, value, onClose, onSave, busy }) {
       title={meta.title}
       icon={meta.icon}
       busy={busy}
+      error={error}
       onClose={onClose}
       onSubmit={() => onSave(side)}
     >

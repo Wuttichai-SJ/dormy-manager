@@ -152,7 +152,11 @@ export default function MetersPage({ apartment }) {
           title="สร้างใบจดมิเตอร์"
           icon="meters"
           busy={busy}
-          onClose={() => setCreating(false)}
+          error={error}
+          onClose={() => {
+            setCreating(false)
+            setError('')
+          }}
           onSubmit={submitCreate}
         >
           <div className="field">

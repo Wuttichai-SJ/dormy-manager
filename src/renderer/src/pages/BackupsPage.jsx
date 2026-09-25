@@ -165,7 +165,11 @@ export default function BackupsPage({ user }) {
           title="สำรองข้อมูล"
           busy={busy}
           submitLabel="สำรองข้อมูล"
-          onClose={() => setLabelling(null)}
+          error={error}
+          onClose={() => {
+            setLabelling(null)
+            setError('')
+          }}
           onSubmit={() => make(labelling)}
         >
           <div className="field">

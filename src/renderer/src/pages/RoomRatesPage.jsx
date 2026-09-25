@@ -54,6 +54,12 @@ export default function RoomRatesPage({ apartment, only }) {
     load()
   }, [load])
 
+  // error ของหน้าต่างขึ้นในหน้าต่างเอง (ส่ง error ลงไป) — ปิดแล้วล้าง ไม่ให้ค้างบนหน้า
+  function closeDialog() {
+    setDialogOpen(false)
+    setError('')
+  }
+
   async function act(fn) {
     setError('')
     setBusy(true)
@@ -212,7 +218,8 @@ export default function RoomRatesPage({ apartment, only }) {
       {dialogOpen && mode === 'rate' && (
         <RateDialog
           busy={busy}
-          onClose={() => setDialogOpen(false)}
+          error={error}
+          onClose={closeDialog}
           onSubmit={(values) => act(() => setRoomRates(roomIds, values))}
         />
       )}
@@ -222,7 +229,8 @@ export default function RoomRatesPage({ apartment, only }) {
           catalogue={catalogue}
           rooms={floors.flatMap((f) => f.rooms).filter((r) => selected.has(r.roomId))}
           busy={busy}
-          onClose={() => setDialogOpen(false)}
+          error={error}
+          onClose={closeDialog}
           onSubmit={(serviceId) => act(() => attachServices(roomIds, [serviceId]))}
           onDetach={(serviceId) => act(() => detachServices(roomIds, [serviceId]))}
         />
@@ -268,7 +276,7 @@ function RoomCardDetail({ mode, room }) {
 // -----------------------------------------------------
 // หน้าต่างซ้อน
 // -----------------------------------------------------
-function RateDialog({ onClose, onSubmit, busy }) {
+function RateDialog({ onClose, onSubmit, busy, error }) {
   const [monthlyRent, setMonthlyRent] = useState('')
   const [dailyRent, setDailyRent] = useState('')
 
@@ -276,6 +284,7 @@ function RateDialog({ onClose, onSubmit, busy }) {
     <Modal
       title="ระบุค่าห้อง"
       busy={busy}
+      error={error}
       onClose={onClose}
       onSubmit={() => onSubmit({ monthlyRent, dailyRent })}
     >
@@ -322,7 +331,7 @@ function RateDialog({ onClose, onSubmit, busy }) {
 //   · มีแค่บางห้อง → ยังเลือกได้ (เติมให้ห้องที่ยังขาด) และบอกว่ามีแล้วกี่ห้อง
 // การนำออกย้ายมาเป็นปุ่มรายบริการในรายการ "ผูกอยู่แล้ว" — เดิมอาศัยช่องเลือกเดียวกัน
 // ถ้าซ่อนบริการที่มีครบแล้วจากช่องเลือก จะไม่มีทางนำออกได้เลย
-function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy }) {
+function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, error }) {
   const [serviceId, setServiceId] = useState('')
 
   const total = rooms.length
@@ -335,6 +344,7 @@ function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy }) 
     <Modal
       title="ระบุค่าบริการเพิ่มเติม"
       busy={busy}
+      error={error}
       onClose={onClose}
       onSubmit={() => serviceId && onSubmit(Number(serviceId))}
     >
