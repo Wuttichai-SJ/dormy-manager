@@ -252,9 +252,35 @@
 
 /* ช่องกรอกในตารางแคบกว่าช่องในฟอร์ม และชิดขวาให้หลักตรงกันทั้งคอลัมน์
    เลขมิเตอร์อ่านเทียบกันเป็นแนวตั้ง ถ้าชิดซ้ายจะเทียบหลักไม่ได้ */
+/* ช่องเลขมิเตอร์อยู่ในตาราง ไม่ได้อยู่ใน .field จึงไม่ได้สไตล์ช่องกรอกของแอปไปด้วย
+   (เดิมเป็นกรอบดำเหลี่ยมของเบราว์เซอร์) — ตั้งให้หน้าตาเหมือน .field input ทุกค่า */
+.meter-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .meter-input {
-  width: 110px;
+  width: 120px;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.meter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+.meter-input[aria-invalid='true'] {
+  border-color: var(--err);
 }
 
 /* เลขครั้งก่อนเป็นข้อความอ่านอย่างเดียว ไม่ใช่ช่องกรอก — ทำให้จางลงเพื่อไม่ให้ตาไปหยุด
@@ -282,18 +308,28 @@
 /* ตัวเลือกกรณีพิเศษของมิเตอร์อยู่ใต้ช่องเลขปัจจุบันของแถวนั้น ไม่ใช่คอลัมน์แยก
    เพราะมันขยายความช่องนั้นช่องเดียว และคอลัมน์แยกจะกินความกว้างทั้งตารางไปเปล่าๆ */
 .meter-event {
-  width: 110px;
-  margin-top: 5px;
-  padding: 2px 4px;
-  font-size: 11px;
+  width: 136px;
+  height: 36px;
+  padding: 0 8px;
+  font-size: 13px;
   color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   cursor: pointer;
+}
+
+.meter-event:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
 }
 
 /* ค่าปกติไม่ต้องเด่น มันคือทุกแถวในตาราง — แถวที่ผู้ใช้ตั้งใจเลือกกรณีพิเศษต่างหาก
    ที่ต้องมองเห็นตอนกวาดตาทบทวนก่อนกดบันทึก */
 .meter-event-special {
   color: var(--text);
+  background: var(--accent-weak);
   border-color: var(--accent);
 }
 
@@ -302,6 +338,13 @@
   flex-direction: column;
   gap: 4px;
   margin-top: 6px;
+}
+
+/* ช่องเลขถอดเก่า/เลขเริ่มใหม่เป็นช่องรอง เล็กกว่าช่องเลขหลักของแถว */
+.meter-replace-fields .meter-input {
+  width: 100px;
+  height: 30px;
+  font-size: 13px;
 }
 
 .meter-replace-fields label {

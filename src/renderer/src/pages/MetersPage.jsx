@@ -389,41 +389,44 @@ function MeterSheet({ batchId, side, onBack }) {
                           )}
                       </td>
                       <td className="align-right">
-                        <input
-                          className="meter-input"
-                          inputMode="decimal"
-                          value={row.currentInput}
-                          onChange={(e) => setRow(row.roomId, { currentInput: e.target.value })}
-                          aria-label={`เลขมิเตอร์ปัจจุบัน ห้อง ${row.roomNumber}`}
-                          aria-invalid={problem ? true : undefined}
-                          aria-describedby={problem ? problemId : undefined}
-                          ref={(el) => {
-                            if (el) inputsRef.current.set(row.roomId, el)
-                            else inputsRef.current.delete(row.roomId)
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key !== 'Enter') return
-                            e.preventDefault()
-                            focusNextRoom(row.roomId)
-                          }}
-                        />
-                        {/* สองเหตุการณ์ที่ทำให้เลขปัจจุบันน้อยกว่าครั้งก่อนได้โดยไม่ได้จดผิด
-                            และคิดหน่วยคนละสูตรกัน จึงเป็นตัวเลือกที่เลือกได้ทีละอย่าง
-                            ไม่ใช่ช่องติ๊กสองช่องที่ติ๊กพร้อมกันได้ */}
-                        <select
-                          className={
-                            row.meterEvent === 'normal'
-                              ? 'meter-event'
-                              : 'meter-event meter-event-special'
-                          }
-                          value={row.meterEvent}
-                          onChange={(e) => setRow(row.roomId, { meterEvent: e.target.value })}
-                          aria-label={`กรณีพิเศษของมิเตอร์ ห้อง ${row.roomNumber}`}
-                        >
-                          <option value="normal">มิเตอร์ปกติ</option>
-                          <option value="over_cycle">เกินรอบมิเตอร์</option>
-                          <option value="replaced">เปลี่ยนมิเตอร์ใหม่</option>
-                        </select>
+                        {/* ช่องเลข + ตัวเลือกกรณีอยู่แถวเดียวกัน สูงเท่ากัน — แถวตารางจะได้ไม่สูงขึ้น */}
+                        <div className="meter-entry">
+                          <input
+                            className="meter-input"
+                            inputMode="decimal"
+                            value={row.currentInput}
+                            onChange={(e) => setRow(row.roomId, { currentInput: e.target.value })}
+                            aria-label={`เลขมิเตอร์ปัจจุบัน ห้อง ${row.roomNumber}`}
+                            aria-invalid={problem ? true : undefined}
+                            aria-describedby={problem ? problemId : undefined}
+                            ref={(el) => {
+                              if (el) inputsRef.current.set(row.roomId, el)
+                              else inputsRef.current.delete(row.roomId)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'Enter') return
+                              e.preventDefault()
+                              focusNextRoom(row.roomId)
+                            }}
+                          />
+                          {/* สองเหตุการณ์ที่ทำให้เลขปัจจุบันน้อยกว่าครั้งก่อนได้โดยไม่ได้จดผิด
+                              และคิดหน่วยคนละสูตรกัน จึงเป็นตัวเลือกที่เลือกได้ทีละอย่าง
+                              ไม่ใช่ช่องติ๊กสองช่องที่ติ๊กพร้อมกันได้ */}
+                          <select
+                            className={
+                              row.meterEvent === 'normal'
+                                ? 'meter-event'
+                                : 'meter-event meter-event-special'
+                            }
+                            value={row.meterEvent}
+                            onChange={(e) => setRow(row.roomId, { meterEvent: e.target.value })}
+                            aria-label={`กรณีพิเศษของมิเตอร์ ห้อง ${row.roomNumber}`}
+                          >
+                            <option value="normal">มิเตอร์ปกติ</option>
+                            <option value="over_cycle">เกินรอบมิเตอร์</option>
+                            <option value="replaced">เปลี่ยนมิเตอร์ใหม่</option>
+                          </select>
+                        </div>
 
                         {/* เลขสองตัวนี้ต้องเก็บไว้ ไม่ใช่แค่ใช้คำนวณแล้วทิ้ง — ปีหน้ามีคนถามแน่
                             ว่าทำไมเลขมิเตอร์ห้องนี้กระโดด แล้วต้องตอบได้จากข้อมูลที่มี */}
