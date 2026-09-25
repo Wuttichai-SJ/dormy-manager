@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { MAX_FLOORS, MAX_ROOMS_PER_FLOOR } from '../constants.js'
 import {
@@ -62,20 +63,6 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>ผังห้องพัก</strong>
-        <p>
-          ระบุจำนวนชั้นและจำนวนห้องในแต่ละชั้น ระบบจะตั้งเลขห้องให้อัตโนมัติ (101, 102, 201, ...)
-          แก้ไขทีหลังได้ทุกห้อง
-          <br />
-          {/* หอหลายตึกต้องรู้เรื่องนี้ตั้งแต่ก่อนกรอก ไม่ใช่มารู้ตอนได้เลขห้องผิดทั้งหอ
-              แล้วต้องไล่แก้ทีละห้อง */}
-          <strong>หอที่มีหลายตึก:</strong> ใส่ป้ายตึกและ "เลขนำหน้า" ของแต่ละชั้นได้ — ตึก 1 ชั้น 2
-          ใส่เลขนำหน้า <strong>12</strong> จะได้ห้อง 1201, 1202 · ตึก 2 ชั้น 2 ใส่{' '}
-          <strong>22</strong> จะได้ห้อง 2201, 2202
-        </p>
-      </div>
-
       <Alert>{error}</Alert>
 
       {floors.length === 0 ? (
@@ -86,9 +73,7 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
         <section className="panel">
           <p className="muted">
             สร้างผังห้องแล้ว — {floors.length} ชั้น{' '}
-            {floors.reduce((sum, f) => sum + f.rooms.length, 0)} ห้อง
-            <br />
-            กด "ต่อไป" เพื่อตรวจและแก้ไขผังห้องรายห้อง
+            {floors.reduce((sum, f) => sum + f.rooms.length, 0)} ห้อง · กด "ต่อไป" เพื่อแก้รายห้อง
           </p>
         </section>
       ) : (
@@ -142,6 +127,10 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
         <div className="field field-narrow">
           <label htmlFor="floorCount">
             จำนวนชั้น <span className="required">* จำเป็น</span>
+            <InfoTip
+              title="ผังห้อง"
+              points={['ระบบตั้งเลขห้องให้อัตโนมัติ (101, 102, 201, ...)', 'แก้ไขทีหลังได้ทุกห้อง']}
+            />
           </label>
           <select id="floorCount" value={floorCount} onChange={(e) => changeFloorCount(e.target.value)}>
             <option value="">เลือกจำนวนชั้น</option>
@@ -162,7 +151,17 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
             <div className="floor-spec-head">
               <span>ชั้น</span>
               <span>ตึก (ถ้ามี)</span>
-              <span>เลขนำหน้า</span>
+              <span>
+                เลขนำหน้า
+                <InfoTip
+                  title="หอที่มีหลายตึก"
+                  points={[
+                    'ตึก 1 ชั้น 2 ใส่ 12 → ห้อง 1201, 1202',
+                    'ตึก 2 ชั้น 2 ใส่ 22 → ห้อง 2201, 2202',
+                    'เว้นว่าง = ใช้ลำดับชั้น'
+                  ]}
+                />
+              </span>
               <span>จำนวนห้อง</span>
             </div>
 
@@ -377,8 +376,7 @@ function FloorCard({ floor, act }) {
         {/* 🔴 บอกให้ชัดว่ามีผลกับห้องใหม่เท่านั้น — คนแก้ช่องนี้คาดว่าเลขห้องเดิมจะขยับตาม
             ซึ่งเราไม่ทำ เพราะเลขห้องอยู่บนบิลและใบเสร็จที่ยื่นให้ผู้เช่าไปแล้ว */}
         <p className="field-hint plan-floor-hint">
-          ห้องที่เพิ่มใหม่ในชั้นนี้จะได้เลขขึ้นต้นด้วย <strong>{floor.effectivePrefix}</strong>{' '}
-          (เช่น {floor.effectivePrefix}01) · ไม่กระทบเลขห้องที่มีอยู่แล้ว
+          ห้องใหม่จะขึ้นต้นด้วย <strong>{floor.effectivePrefix}</strong> · ไม่กระทบเลขห้องเดิม
         </p>
       </div>
 

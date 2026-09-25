@@ -77,14 +77,14 @@ export default function ApartmentsPage({ user, onOpen, onCreated, onSetup }) {
           {user?.isOwner ? (
             <>
               <p className="muted">
-                เริ่มต้นด้วยการเพิ่มหอพักแห่งแรก จากนั้นจึงตั้งค่าชั้น ห้องพัก และค่าบริการ
+                เพิ่มหอพักแห่งแรกเพื่อเริ่มต้น
               </p>
               <button type="button" className="btn" onClick={() => setView({ mode: 'create' })}>
                 เพิ่มหอพัก
               </button>
             </>
           ) : (
-            <p className="muted">รอเจ้าของหอเพิ่มหอพักและตั้งค่าให้เสร็จก่อน จึงจะเริ่มทำงานได้</p>
+            <p className="muted">รอเจ้าของหอเพิ่มหอพักก่อน</p>
           )}
         </section>
       ) : (

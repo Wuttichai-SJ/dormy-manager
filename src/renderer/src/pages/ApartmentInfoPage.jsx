@@ -44,8 +44,7 @@ export default function ApartmentInfoPage({ apartment, user, onDeleted }) {
           <Alert>{error}</Alert>
 
           <p className="muted">
-            หลังจากที่ลบหอพักแล้ว ข้อมูลที่เกี่ยวข้องจะไม่สามารถเข้าถึงได้อีก
-            กรุณาตรวจสอบให้แน่ใจก่อนทำการลบ
+            ลบแล้วเข้าถึงข้อมูลของหอนี้ไม่ได้อีก
           </p>
 
           {/* ยืนยันสองจังหวะในที่เดียว ไม่ใช้ window.confirm — กล่องของเบราว์เซอร์

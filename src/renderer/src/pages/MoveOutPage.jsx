@@ -18,13 +18,13 @@ import { completeTermination, getTerminationSheet } from '../services/terminatio
 // ส่วนหอนี้มีกฎริบที่ snapshot ไว้ที่สัญญาตั้งแต่ migration 004 จึงต้องบอกให้ชัดว่า
 // ตัดสินว่าอะไร เพราะอะไร ก่อนที่เจ้าของหอจะกดยืนยัน
 const ITEM_TABS = [
-  { key: 'service', label: 'ค่าบริการ', hint: 'ค่าใช้จ่ายที่เรียกเก็บเพิ่ม เช่น ค่า keycard หาย ค่าทำความสะอาด' },
+  { key: 'service', label: 'ค่าบริการ', hint: null },
   {
     key: 'meter',
     label: 'ค่ามิเตอร์',
-    hint: 'ค่าน้ำ-ค่าไฟงวดสุดท้ายที่ยังไม่เคยออกบิล (ย้ายออกก่อนถึงรอบจดมิเตอร์ถัดไป)'
+    hint: 'ค่าน้ำ-ค่าไฟงวดสุดท้ายที่ยังไม่ได้ออกบิล'
   },
-  { key: 'discount_refund', label: 'ส่วนลด / คืนเงิน', hint: 'กรอกเป็นจำนวนบวก ระบบจะบวกกลับเข้ายอดเงินคืนให้เอง' }
+  { key: 'discount_refund', label: 'ส่วนลด / คืนเงิน', hint: 'กรอกเป็นจำนวนบวก ระบบบวกคืนให้เอง' }
 ]
 
 export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }) {
@@ -487,7 +487,7 @@ function AdjustmentsCard({ items, onAdd, onRemove, totalCents, onError }) {
         ))}
       </div>
 
-      <p className="field-hint invoice-tab-hint">{tab.hint}</p>
+      {tab.hint && <p className="field-hint invoice-tab-hint">{tab.hint}</p>}
 
       <div className="field-row">
         <div className="field">

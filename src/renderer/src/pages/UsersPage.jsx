@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
@@ -74,19 +75,21 @@ export default function UsersPage({ user }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>ผู้ใช้งานระบบ</strong>
-        <p>
-          บัญชีทั้งหมดที่เข้าใช้โปรแกรมนี้ได้ · <strong>พนักงาน</strong>ทำงานประจำวันได้ทั้งหมด
-          แต่ {OWNER_ONLY_ACTIONS.join(' · ')} สงวนไว้สำหรับ<strong>เจ้าของหอ</strong>
-        </p>
-      </div>
-
       <section className="panel">
         <Alert>{error}</Alert>
 
         <div className="panel-head-row">
-          <h2 className="panel-title">บัญชีผู้ใช้ ({users.length})</h2>
+          <h2 className="panel-title">
+            บัญชีผู้ใช้ ({users.length})
+            <InfoTip
+              title="จัดการบัญชี"
+              points={[
+                'บัญชีที่ไม่ใช้แล้วให้ปิดการใช้งาน ไม่มีการลบ เพราะใบเสร็จเก่าอ้างชื่อผู้รับเงินไว้',
+                '“ตั้งรหัสผ่านใหม่” ใช้กับบัญชีของคนอื่นเท่านั้น',
+                'รหัสผ่านของคุณเองเปลี่ยนที่ ตั้งค่า › บัญชีผู้ใช้และความปลอดภัย'
+              ]}
+            />
+          </h2>
           <button type="button" className="btn btn-sm" onClick={() => setDialog({ mode: 'create' })}>
             <Icon name="plus" />
             <span>เพิ่มผู้ใช้</span>
@@ -159,16 +162,6 @@ export default function UsersPage({ user }) {
             </tbody>
           </table>
         )}
-
-        <p className="field-hint">
-          บัญชีที่ไม่ใช้แล้วให้ <strong>ปิดการใช้งาน</strong> ไม่มีการลบทิ้ง เพราะใบเสร็จที่ออกไปแล้ว
-          อ้างชื่อผู้รับเงินไว้ ถ้าลบบัญชี ช่องผู้รับเงินของเอกสารเก่าจะว่างย้อนหลังทั้งหมด
-        </p>
-        <p className="field-hint">
-          &ldquo;ตั้งรหัสผ่านใหม่&rdquo; ใช้ได้กับบัญชีของคนอื่นเท่านั้น เพราะไม่ต้องกรอกรหัสเดิม ·
-          รหัสผ่าน<strong>ของคุณเอง</strong>เปลี่ยนที่ ตั้งค่า ›{' '}
-          <strong>บัญชีผู้ใช้และความปลอดภัย</strong> ซึ่งต้องยืนยันรหัสเดิมก่อน
-        </p>
       </section>
 
       {dialog?.mode === 'create' && (
@@ -247,7 +240,6 @@ function UserFormDialog({ target, onClose, onSaved, onError }) {
     onSaved(res.data)
   }
 
-  const selectedRole = USER_ROLES.find((r) => r.key === form.role)
 
   return (
     <Modal
@@ -268,15 +260,17 @@ function UserFormDialog({ target, onClose, onSaved, onError }) {
       <div className="field field-required">
         <label htmlFor="userPhone">
           เบอร์โทรศัพท์ <span className="required">* จำเป็น</span>
+          <InfoTip title="เบอร์โทรศัพท์" points={['ใช้เข้าสู่ระบบ', 'ต้องไม่ซ้ำกับบัญชีอื่น']} />
         </label>
         <input id="userPhone" type="text" value={form.phone} onChange={set('phone')} />
-        <p className="field-hint">ใช้เข้าสู่ระบบได้ ต้องไม่ซ้ำกับบัญชีอื่น</p>
       </div>
 
       <div className="field">
-        <label htmlFor="userEmail">อีเมล</label>
+        <label htmlFor="userEmail">
+          อีเมล
+          <InfoTip title="อีเมล" points={['ไม่บังคับ', 'ใช้เข้าสู่ระบบแทนเบอร์โทรได้']} />
+        </label>
         <input id="userEmail" type="text" value={form.email} onChange={set('email')} />
-        <p className="field-hint">ไม่บังคับ · ถ้ากรอกไว้จะใช้เข้าสู่ระบบแทนเบอร์โทรได้</p>
       </div>
 
       {!editing && (
@@ -286,12 +280,15 @@ function UserFormDialog({ target, onClose, onSaved, onError }) {
           value={form.password}
           onChange={(v) => setForm((f) => ({ ...f, password: v }))}
           autoComplete="new-password"
-          hint="อย่างน้อย 8 ตัวอักษร · เจ้าของตั้งให้ก่อน แล้วเจ้าตัวไปเปลี่ยนเองได้ที่หน้าความปลอดภัย"
+          hint="อย่างน้อย 8 ตัวอักษร"
         />
       )}
 
       <div className="field">
-        <label htmlFor="userRole">บทบาท</label>
+        <label htmlFor="userRole">
+          บทบาท
+          <InfoTip title="เฉพาะเจ้าของหอทำได้" points={OWNER_ONLY_ACTIONS} />
+        </label>
         <select id="userRole" value={form.role} onChange={set('role')}>
           {USER_ROLES.map((r) => (
             <option key={r.key} value={r.key}>
@@ -299,14 +296,11 @@ function UserFormDialog({ target, onClose, onSaved, onError }) {
             </option>
           ))}
         </select>
-        <p className="field-hint">{selectedRole?.hint}</p>
       </div>
 
       {form.role === 'owner' && (
         <Alert kind="warn">
-          บัญชีเจ้าของหอจะได้ <strong>รหัสสำรอง</strong> ไว้กู้รหัสผ่านด้วยตัวเอง ระบบจะแสดง
-          ให้จดครั้งเดียวหลังกดบันทึก · ส่วนพนักงานไม่มีรหัสสำรอง ถ้าลืมรหัสผ่านให้เจ้าของ
-          ตั้งรหัสใหม่ให้จากหน้านี้
+          เจ้าของหอจะได้<strong>รหัสสำรอง</strong>ไว้กู้รหัสผ่าน · แสดงให้จดครั้งเดียวหลังบันทึก
         </Alert>
       )}
     </Modal>
@@ -338,8 +332,7 @@ function ResetPasswordDialog({ target, onClose, onSaved, onError }) {
       onSubmit={submit}
     >
       <Alert kind="warn">
-        รหัสผ่านเดิมของบัญชีนี้จะใช้ไม่ได้ทันที · แจ้งรหัสใหม่ให้เจ้าตัวทราบ แล้วบอกให้ไป
-        เปลี่ยนเป็นรหัสของตัวเองที่ ตั้งค่า › บัญชีผู้ใช้และความปลอดภัย
+        รหัสผ่านเดิมใช้ไม่ได้ทันที · แจ้งรหัสใหม่ให้เจ้าตัวทราบ
       </Alert>
 
       <PasswordField

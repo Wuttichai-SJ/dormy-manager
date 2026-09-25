@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import { showToast } from '../components/Toast.jsx'
 import {
@@ -63,18 +64,20 @@ export default function BackupsPage({ user }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>สำรองข้อมูล</strong>
-        <p>
-          ข้อมูลหอพักทั้งหมดอยู่ในไฟล์เดียวในเครื่องนี้ ไม่มีสำเนาบนอินเทอร์เน็ต
-          ควรสำรองก่อนทำอะไรที่ย้อนกลับไม่ได้ และคัดลอกไฟล์สำรองออกไปเก็บที่อื่นเสมอ
-        </p>
-      </div>
-
       <section className="form-section">
         <div className="form-section-head">
-          <h2>สร้างไฟล์สำรอง</h2>
-          <p>คัดลอกข้อมูล ณ ตอนนี้เก็บไว้เป็นไฟล์แยก ใช้เวลาไม่กี่วินาที</p>
+          <h2>
+            สร้างไฟล์สำรอง
+            <InfoTip
+              title="สำรองข้อมูล"
+              points={[
+                'ข้อมูลทั้งหมดอยู่ในเครื่องนี้ ไม่มีสำเนาบนอินเทอร์เน็ต',
+                'ควรสำรองก่อนทำอะไรที่ย้อนกลับไม่ได้',
+                'ใช้เวลาไม่กี่วินาที'
+              ]}
+            />
+          </h2>
+          <p>คัดลอกข้อมูล ณ ตอนนี้เก็บเป็นไฟล์แยก</p>
         </div>
 
         <div className="form-section-body">
@@ -84,8 +87,7 @@ export default function BackupsPage({ user }) {
           <div className="backup-warning">
             <Icon name="warning" />
             <p>
-              ไฟล์สำรองถูกเก็บไว้ในเครื่องเดียวกับข้อมูลจริง — <strong>ถ้าดิสก์พังจะหายไปพร้อมกัน</strong>{' '}
-              กด "เปิดโฟลเดอร์สำรอง" แล้วคัดลอกไฟล์ออกไปไว้ USB หรือไดรฟ์อื่นด้วย
+              <strong>ดิสก์พังจะหายไปพร้อมกัน</strong> — คัดลอกไฟล์สำรองไปไว้ USB หรือไดรฟ์อื่นด้วย
             </p>
           </div>
 
@@ -112,7 +114,7 @@ export default function BackupsPage({ user }) {
           {state === null ? (
             <p className="muted">กำลังโหลด...</p>
           ) : state.backups.length === 0 ? (
-            <p className="muted">ยังไม่มีไฟล์สำรอง — กด "สำรองข้อมูลตอนนี้" เพื่อสร้างไฟล์แรก</p>
+            <p className="muted">ยังไม่มีไฟล์สำรอง</p>
           ) : (
             <table className="data-table">
               <thead>
@@ -177,7 +179,6 @@ export default function BackupsPage({ user }) {
             />
             {/* วันที่อยู่ในชื่อไฟล์อยู่แล้ว ข้อความนี้ไว้บอก "ทำไมถึงสำรอง" ซึ่งสำคัญกว่า
                 ตอนต้องเลือกว่าจะกู้คืนไฟล์ไหนในอีกหลายเดือนข้างหน้า */}
-            <p className="field-hint">เว้นว่างได้ — ช่วยให้เลือกไฟล์ถูกตอนต้องกู้คืน</p>
           </div>
         </Modal>
       )}
