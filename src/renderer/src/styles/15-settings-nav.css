@@ -31,33 +31,40 @@
   font-weight: 600;
 }
 
+/* กลุ่มในเมนูตั้งค่า — ชื่อกลุ่มตัวหนาอยู่บน แล้วทุกรายการในกลุ่มมีเส้นแนวตั้งด้านซ้ายโยง
+   ต่อกันเป็นก้อนเดียว ตาเห็นทันทีว่ารายการไหนอยู่กลุ่มไหน ไม่ต้องไล่ขึ้นไปหาหัวกลุ่ม
+   (โอ๊คขอ 2026-09-25 "ดูง่ายๆ ไม่ต้องคิดซ้ำไปมา")
+   ไม่มี gap ระหว่างรายการ — เส้นซ้ายต้องต่อกันไม่ขาดเป็นช่วงๆ ระยะห่างใช้ padding แทน */
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 
-/* ป้ายกำกับกลุ่ม กดไม่ได้ จึงต้องดูต่างจากรายการที่กดได้ชัดเจน */
+/* ป้ายกำกับกลุ่ม กดไม่ได้ — ตัวเล็กแต่หนา สีเข้ม ต่างจากรายการที่กดได้ชัดเจน */
 .nav-group-label {
-  margin: 10px 0 2px;
-  padding-left: 40px;
-  font-size: 13px;
-  color: var(--text-muted);
+  margin: 14px 0 6px;
+  padding-left: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-soft);
 }
 
+/* ไม่มีลูกศร › นำหน้าแล้ว — เดิมทำให้ดูเหมือนกดแล้วจะกางออกได้อีกชั้น */
 .nav-subitem {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: 16px;
-  padding: 6px 6px 6px 8px;
+  margin-left: 28px;
+  padding: 7px 8px 7px 12px;
   text-align: left;
   font-size: 14px;
   color: var(--sidebar-text);
   background: none;
   border: none;
-  border-radius: 10px;
+  border-left: 2px solid var(--border);
+  border-radius: 0 8px 8px 0;
   cursor: pointer;
   transition: background 0.12s ease;
 }
@@ -70,15 +77,13 @@
   background: var(--sidebar-active);
   color: var(--brand-ink);
   font-weight: 600;
+  /* เส้นซ้ายของรายการที่เลือกเป็นสีน้ำตาลเข้ม — บนพื้นเหลืองยังเห็นชัด */
+  border-left-color: var(--accent);
 }
 
 .nav-subitem.disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.nav-subitem-mark {
-  color: var(--text-muted);
 }
 
 /* เนื้อหาตั้งค่ากินเต็มพื้นที่แล้ว (เมนูย้ายไปอยู่แถบซ้าย) จึงไม่ต้องมี .settings-layout */

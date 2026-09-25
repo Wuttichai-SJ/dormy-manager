@@ -123,7 +123,6 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
                     disabled={!item.ready}
                     title={item.ready ? undefined : 'ยังไม่ได้สร้าง'}
                   >
-                    <span className="nav-subitem-mark">›</span>
                     <span>{item.label}</span>
                     {!item.ready && <span className="settings-nav-soon">เร็วๆ นี้</span>}
                   </button>
