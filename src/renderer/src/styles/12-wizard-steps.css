@@ -486,3 +486,35 @@
   border-radius: var(--radius) 0 0 var(--radius);
 }
 
+/* หน้าต่างผูกค่าบริการ — รายการบริการที่ห้องที่เลือกมีอยู่แล้ว พร้อมปุ่มนำออกรายตัว */
+.service-attached {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.service-attached-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.service-attached-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.service-attached-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.service-attached-list li + li {
+  border-top: 1px solid var(--border);
+}

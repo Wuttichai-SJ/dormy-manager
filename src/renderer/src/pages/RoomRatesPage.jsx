@@ -220,6 +220,7 @@ export default function RoomRatesPage({ apartment, only }) {
       {dialogOpen && mode === 'services' && (
         <ServiceDialog
           catalogue={catalogue}
+          rooms={floors.flatMap((f) => f.rooms).filter((r) => selected.has(r.roomId))}
           busy={busy}
           onClose={() => setDialogOpen(false)}
           onSubmit={(serviceId) => act(() => attachServices(roomIds, [serviceId]))}
@@ -313,10 +314,22 @@ function RateDialog({ onClose, onSubmit, busy }) {
 // รายการในช่องเลือกมาจากค่าบริการที่กรอกไว้ในขั้นที่ 1 ของหอนี้ (apartment_services)
 // ไม่ใช่รายการตายตัว — ตั้งชื่ออะไรไว้ที่ขั้นแรกก็เห็นอันนั้นที่นี่
 //
-// ต้นแบบมีแค่ปุ่ม "บันทึก" (เพิ่มอย่างเดียว) แต่เราเพิ่มลิงก์ "นำออก" ไว้ด้วย ไม่งั้น
+// ต้นแบบมีแค่ปุ่ม "บันทึก" (เพิ่มอย่างเดียว) แต่เราเพิ่ม "นำออก" ไว้ด้วย ไม่งั้น
 // ผูกผิดห้องแล้วแก้ไม่ได้เลย — ยังไม่มีหน้าอื่นในระบบที่ถอดค่าบริการออกจากห้องได้
-function ServiceDialog({ catalogue, onClose, onSubmit, onDetach, busy }) {
+//
+// ช่องเลือกโชว์เฉพาะบริการที่ยัง "เพิ่มได้" (โอ๊คสั่ง 2026-09-25 ลดการกดซ้ำ)
+//   · ทุกห้องที่เลือกมีแล้ว → ไม่อยู่ในช่องเลือก ไปอยู่ในรายการ "ผูกอยู่แล้ว" ข้างล่างแทน
+//   · มีแค่บางห้อง → ยังเลือกได้ (เติมให้ห้องที่ยังขาด) และบอกว่ามีแล้วกี่ห้อง
+// การนำออกย้ายมาเป็นปุ่มรายบริการในรายการ "ผูกอยู่แล้ว" — เดิมอาศัยช่องเลือกเดียวกัน
+// ถ้าซ่อนบริการที่มีครบแล้วจากช่องเลือก จะไม่มีทางนำออกได้เลย
+function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy }) {
   const [serviceId, setServiceId] = useState('')
+
+  const total = rooms.length
+  const countOf = (id) => rooms.filter((r) => r.services.some((s) => s.serviceId === id)).length
+  const withCount = catalogue.map((s) => ({ ...s, count: countOf(s.serviceId) }))
+  const addable = withCount.filter((s) => s.count < total)
+  const attached = withCount.filter((s) => s.count > 0)
 
   return (
     <Modal
@@ -329,30 +342,52 @@ function ServiceDialog({ catalogue, onClose, onSubmit, onDetach, busy }) {
         <label htmlFor="serviceId">
           บริการ <span className="required">* จำเป็น</span>
         </label>
-        <select
-          id="serviceId"
-          value={serviceId}
-          onChange={(e) => setServiceId(e.target.value)}
-          autoFocus
-        >
-          <option value="">เลือกค่าบริการ</option>
-          {catalogue.map((s) => (
-            <option key={s.serviceId} value={s.serviceId}>
-              {s.name} ({formatBaht(s.priceCents)} บาท)
-            </option>
-          ))}
-        </select>
-        <p className="field-hint">
-          <button
-            type="button"
-            className="link-btn link-danger"
-            disabled={!serviceId || busy}
-            onClick={() => onDetach(Number(serviceId))}
+        {addable.length === 0 ? (
+          <p className="muted">ห้องที่เลือกมีครบทุกบริการแล้ว</p>
+        ) : (
+          <select
+            id="serviceId"
+            value={serviceId}
+            onChange={(e) => setServiceId(e.target.value)}
+            autoFocus
           >
-            นำค่าบริการนี้ออกจากห้องที่เลือกแทน
-          </button>
-        </p>
+            <option value="">เลือกค่าบริการ</option>
+            {addable.map((s) => (
+              // <option> รับได้แค่ข้อความล้วน — ประกอบเป็นสตริงเดียว ไม่ใช้ `cond && ...` ในนี้
+              <option key={s.serviceId} value={s.serviceId}>
+                {`${s.name} (${formatBaht(s.priceCents)} บาท)` +
+                  (s.count > 0 ? ` · มีแล้ว ${s.count}/${total} ห้อง` : '')}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
+
+      {attached.length > 0 && (
+        <div className="service-attached">
+          <h4 className="service-attached-title">ผูกอยู่แล้ว</h4>
+          <ul className="service-attached-list">
+            {attached.map((s) => (
+              <li key={s.serviceId}>
+                <span>
+                  {s.name}
+                  {s.count < total && (
+                    <span className="muted"> · {s.count}/{total} ห้อง</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="link-btn link-danger"
+                  disabled={busy}
+                  onClick={() => onDetach(s.serviceId)}
+                >
+                  นำออก
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Modal>
   )
 }
