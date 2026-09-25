@@ -68,6 +68,9 @@
 
 /* Content */
 .content {
+  /* กันไว้อีกชั้น: อะไรที่ absolute อยู่ในเนื้อหาต้องอยู่ในกรอบที่เลื่อนได้นี้ ไม่หลุดไป
+     ยืดความสูงของหน้าต่างทั้งบาน (ต้นเหตุจริงของบั๊กหน้าว่างอยู่ที่ .toggle-row) */
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
