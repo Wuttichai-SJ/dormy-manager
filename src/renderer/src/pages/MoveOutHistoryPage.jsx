@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
 import MoveOutDocument from '../components/MoveOutDocument.jsx'
@@ -377,7 +378,6 @@ function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
             setRecord(result)
             onChanged?.()
           }}
-          onError={setError}
         />
       )}
     </>
@@ -385,7 +385,10 @@ function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
 }
 
 // ------------------------------------------------------------------
-function CollectShortfallDialog({ record, onClose, onCollected, onError }) {
+// ชื่อช่องตรงกับ key ใน FieldError ของ collectTerminationShortfall (db/terminations.js)
+const SHORTFALL_FIELDS = ['amount', 'paymentDate']
+
+function CollectShortfallDialog({ record, onClose, onCollected }) {
   // เติมยอดค้างทั้งก้อนเป็นค่าตั้งต้น (เหมือนการ์ดรับเงินของใบแจ้งหนี้) แต่แก้ได้
   // เพราะผู้เช่าทยอยจ่ายบางส่วนได้
   const [amount, setAmount] = useState(() => centsToInput(record.unpaidBalanceCents))
@@ -393,9 +396,10 @@ function CollectShortfallDialog({ record, onClose, onCollected, onError }) {
   const [paymentDate, setPaymentDate] = useState(todayIso)
   const [remark, setRemark] = useState('')
   const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(SHORTFALL_FIELDS)
 
   async function submit() {
-    onError('')
+    reset()
     setBusy(true)
     const res = await collectShortfall({
       contractId: record.contractId,
@@ -405,7 +409,7 @@ function CollectShortfallDialog({ record, onClose, onCollected, onError }) {
       remark
     })
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     onCollected(res.data)
   }
 
@@ -415,6 +419,7 @@ function CollectShortfallDialog({ record, onClose, onCollected, onError }) {
       icon="payments"
       submitLabel="รับเงินและออกใบเสร็จ"
       busy={busy}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
@@ -433,7 +438,7 @@ function CollectShortfallDialog({ record, onClose, onCollected, onError }) {
         </div>
       </dl>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.amount)}>
         <label htmlFor="shortfallAmount">
           จำนวนเงินที่รับ <span className="required">* จำเป็น</span>
         </label>
@@ -442,9 +447,17 @@ function CollectShortfallDialog({ record, onClose, onCollected, onError }) {
           type="text"
           inputMode="decimal"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => {
+            setAmount(e.target.value)
+            clear('amount')
+          }}
+          {...invalidProps('shortfallAmount', errors.amount)}
         />
-        <p className="field-hint">รับเกินยอดที่ค้างอยู่ไม่ได้ · จ่ายบางส่วนก่อนได้</p>
+        {errors.amount ? (
+          <FieldError id="shortfallAmount-error" message={errors.amount} />
+        ) : (
+          <p className="field-hint">รับเกินยอดที่ค้างอยู่ไม่ได้ · จ่ายบางส่วนก่อนได้</p>
+        )}
       </div>
 
       <div className="field">
@@ -462,9 +475,17 @@ function CollectShortfallDialog({ record, onClose, onCollected, onError }) {
         </select>
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.paymentDate)}>
         <label htmlFor="shortfallDate">วันที่รับเงิน</label>
-        <DateField id="shortfallDate" value={paymentDate} onChange={setPaymentDate} />
+        <DateField
+          id="shortfallDate"
+          value={paymentDate}
+          onChange={(v) => {
+            setPaymentDate(v)
+            clear('paymentDate')
+          }}
+        />
+        <FieldError id="shortfallDate-error" message={errors.paymentDate} />
       </div>
 
       <div className="field">

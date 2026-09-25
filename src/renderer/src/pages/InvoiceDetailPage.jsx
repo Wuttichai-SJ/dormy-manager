@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -129,7 +130,6 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
             showToast(`ยกเลิกบิล ${invoice.invoiceNumber} แล้ว`)
             load()
           }}
-          onError={setError}
         />
       )}
 
@@ -145,7 +145,6 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
             )
             load()
           }}
-          onError={setError}
         />
       )}
     </>
@@ -285,18 +284,21 @@ function CancelledNotice({ invoice }) {
 //
 // ของเดิมเป็นแค่กล่องถาม "ใช่ไหม?" ที่กดผ่านได้ทันที ทั้งที่การยกเลิกบิลทำให้ยอดหนี้
 // ของห้องนั้นหายไปจากรายการค้างชำระ — หนักพอกันกับการลบ ซึ่งบังคับเหตุผลมาตั้งแต่แรก
-function CancelInvoiceDialog({ invoice, onClose, onCancelled, onError }) {
+function CancelInvoiceDialog({ invoice, onClose, onCancelled }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const ready = reason.trim().length > 0
+  // เหตุผลว่างถูกกันด้วยปุ่มที่กดไม่ได้อยู่แล้ว — error ที่มาถึงตรงนี้ส่วนใหญ่เป็นเรื่องสถานะ
+  // (เช่น ถูกยกเลิกไปแล้ว) ซึ่งขึ้นบนสุดของหน้าต่าง
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(['reason'])
 
   async function submit() {
     if (!ready) return
-    onError('')
+    reset()
     setBusy(true)
     const res = await cancelInvoice(invoice.invoiceId, reason)
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     onCancelled()
   }
 
@@ -306,6 +308,7 @@ function CancelInvoiceDialog({ invoice, onClose, onCancelled, onError }) {
       icon="trash"
       submitLabel="ยืนยันยกเลิกบิล"
       busy={busy || !ready}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
@@ -328,7 +331,7 @@ function CancelInvoiceDialog({ invoice, onClose, onCancelled, onError }) {
         </div>
       </dl>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.reason)}>
         <label htmlFor="cancelInvoiceReason">
           เหตุผลในการยกเลิก <span className="required">* จำเป็น</span>
         </label>
@@ -336,10 +339,18 @@ function CancelInvoiceDialog({ invoice, onClose, onCancelled, onError }) {
           id="cancelInvoiceReason"
           rows={3}
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => {
+            setReason(e.target.value)
+            clear('reason')
+          }}
+          {...invalidProps('cancelInvoiceReason', errors.reason)}
           placeholder="เช่น ออกบิลผิดห้อง / จดมิเตอร์ผิด / ผู้เช่าย้ายออกก่อนออกบิล"
         />
-        {!ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะยกเลิกได้</p>}
+        {errors.reason ? (
+          <FieldError id="cancelInvoiceReason-error" message={errors.reason} />
+        ) : (
+          !ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะยกเลิกได้</p>
+        )}
       </div>
     </Modal>
   )

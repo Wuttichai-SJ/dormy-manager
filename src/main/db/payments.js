@@ -12,6 +12,7 @@
 //
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
+import { FieldError } from '../fieldError.js'
 import {
   addLateFeeItem,
   getLateFeeForInvoice,
@@ -219,7 +220,7 @@ export function cancelPayment(db, paymentId, { reason, cancelledBy }) {
   if (row.cancelled_at) throw new Error('ใบเสร็จนี้ถูกยกเลิกไปแล้ว')
 
   const note = String(reason ?? '').trim()
-  if (!note) throw new Error('กรุณาระบุเหตุผลในการยกเลิกใบเสร็จ')
+  if (!note) throw new FieldError({ reason: 'กรุณาระบุเหตุผลในการยกเลิกใบเสร็จ' })
   if (!cancelledBy) throw new Error('ไม่ทราบผู้ยกเลิก กรุณาเข้าสู่ระบบใหม่')
 
   const now = new Date().toISOString()

@@ -11,6 +11,7 @@
 //
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
+import { FieldError } from '../fieldError.js'
 // ทั้ง invoices.js และ payments.js ไม่ได้นำเข้าไฟล์นี้กลับ ทิศทางจึงไม่เป็นวงกลม
 import { listInvoices } from './invoices.js'
 import { getDepositStatus, recordContractPayment } from './payments.js'
@@ -874,20 +875,28 @@ export function collectTerminationShortfall(
   }
 
   const date = paymentDate ?? todayIso()
-  if (!isDate(date)) throw new Error('กรุณาระบุวันที่รับเงิน')
+  if (!isDate(date)) throw new FieldError({ paymentDate: 'กรุณาระบุวันที่รับเงิน' })
   // รับเงินก่อนวันที่ย้ายออกไม่ได้ — เงินก้อนนี้เกิดจากการตรวจห้องตอนย้ายออก
   // วันที่ก่อนหน้านั้นคือวันที่พิมพ์ผิด และจะทำให้ใบเสร็จไปโผล่ผิดเดือนในรายงาน
   if (date < termination.moveOutDate) {
-    throw new Error(`วันที่รับเงินต้องไม่ก่อนวันที่ย้ายออก (${termination.moveOutDate})`)
+    throw new FieldError({
+      paymentDate: `วันที่รับเงินต้องไม่ก่อนวันที่ย้ายออก (${termination.moveOutDate})`
+    })
   }
 
-  const magnitude = toCents(amount, 'จำนวนเงิน')
-  if (magnitude <= 0) throw new Error('จำนวนเงินต้องมากกว่า 0')
+  // toCents โยน Error ธรรมดาเมื่อรูปแบบตัวเลขผิด — ห่อให้ผูกกับช่องจำนวนเงิน ข้อความเดิม
+  let magnitude
+  try {
+    magnitude = toCents(amount, 'จำนวนเงิน')
+  } catch (err) {
+    throw new FieldError({ amount: err.message })
+  }
+  if (magnitude <= 0) throw new FieldError({ amount: 'จำนวนเงินต้องมากกว่า 0' })
   // เก็บเกินยอดค้างไม่ได้ (กติกาเดียวกับการรับชำระบิล) — ทยอยจ่ายทีละส่วนได้ตามปกติ
   if (magnitude > termination.unpaidBalanceCents) {
-    throw new Error(
-      `รับเงินเกินยอดที่ค้างอยู่ (${formatBaht(termination.unpaidBalanceCents)} บาท) ไม่ได้`
-    )
+    throw new FieldError({
+      amount: `รับเงินเกินยอดที่ค้างอยู่ (${formatBaht(termination.unpaidBalanceCents)} บาท) ไม่ได้`
+    })
   }
 
   const receipt = recordContractPayment(db, {

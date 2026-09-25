@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Alert from './Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from './FieldError.jsx'
 import Modal from './Modal.jsx'
 import { formatBaht } from '../format.js'
 import { cancelPayment } from '../services/paymentService.js'
@@ -9,18 +10,21 @@ import { cancelPayment } from '../services/paymentService.js'
 //
 // เหตุผลบังคับกรอก และปุ่มถูกปิดไว้จนกว่าจะพิมพ์ — แบบเดียวกับหน้าต่างลบใบแจ้งหนี้
 // คนที่ตั้งใจจะยกเลิกจริงจะได้รู้ตั้งแต่เห็นหน้าต่างว่าต้องเขียนอะไรสักอย่างก่อน
-export default function CancelReceiptDialog({ receipt, onClose, onCancelled, onError }) {
+export default function CancelReceiptDialog({ receipt, onClose, onCancelled }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const ready = reason.trim().length > 0
+  // เหตุผลว่างถูกกันด้วยปุ่มที่กดไม่ได้อยู่แล้ว — error ที่มาถึงตรงนี้ส่วนใหญ่เป็นเรื่องสถานะ
+  // (เช่น ถูกยกเลิกไปแล้ว) ซึ่งขึ้นบนสุดของหน้าต่าง
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(['reason'])
 
   async function submit() {
     if (!ready) return
-    onError('')
+    reset()
     setBusy(true)
     const res = await cancelPayment(receipt.paymentId, reason)
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     onCancelled(res.data)
   }
 
@@ -30,12 +34,13 @@ export default function CancelReceiptDialog({ receipt, onClose, onCancelled, onE
       icon="close"
       submitLabel="ยืนยันยกเลิกใบเสร็จ"
       busy={busy || !ready}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
       <Alert kind="warn">
-        ใบเสร็จจะยังอยู่ในระบบแต่ถูกทำเครื่องหมายว่ายกเลิก และ<strong>ไม่ถูกนับเป็นเงินที่รับมา</strong>
-        อีกต่อไป — ยอดค้างของบิลจะกลับมาเท่าเดิม เลขที่ {receipt.receiptNumber} จะไม่ถูกนำไปใช้ซ้ำ
+        <strong>ไม่นับเป็นเงินที่รับแล้ว</strong> · ยอดค้างของบิลกลับมาเท่าเดิม · เลขที่{' '}
+        {receipt.receiptNumber} ไม่ถูกใช้ซ้ำ
       </Alert>
 
       <dl className="invoice-totals delete-summary">
@@ -53,7 +58,7 @@ export default function CancelReceiptDialog({ receipt, onClose, onCancelled, onE
         </div>
       </dl>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.reason)}>
         <label htmlFor="cancelReceiptReason">
           เหตุผลในการยกเลิก <span className="required">* จำเป็น</span>
         </label>
@@ -61,10 +66,18 @@ export default function CancelReceiptDialog({ receipt, onClose, onCancelled, onE
           id="cancelReceiptReason"
           rows={3}
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => {
+            setReason(e.target.value)
+            clear('reason')
+          }}
+          {...invalidProps('cancelReceiptReason', errors.reason)}
           placeholder="เช่น คีย์ยอดผิด / รับเงินผิดห้อง / กดรับเงินซ้ำ"
         />
-        {!ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะยกเลิกได้</p>}
+        {errors.reason ? (
+          <FieldError id="cancelReceiptReason-error" message={errors.reason} />
+        ) : (
+          !ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะยกเลิกได้</p>
+        )}
       </div>
     </Modal>
   )

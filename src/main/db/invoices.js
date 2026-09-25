@@ -8,6 +8,7 @@
 //
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
+import { FieldError } from '../fieldError.js'
 import { calculateUtilityCharge, isSideUnpriced, toUtilitySides } from './utilityDefaults.js'
 
 export const INVOICE_STATUSES = ['unpaid', 'partial_paid', 'paid', 'cancelled']
@@ -987,7 +988,7 @@ export function cancelInvoice(db, invoiceId, { reason, cancelledBy } = {}) {
   }
 
   const note = String(reason ?? '').trim()
-  if (!note) throw new Error('กรุณาระบุเหตุผลในการยกเลิกใบแจ้งหนี้')
+  if (!note) throw new FieldError({ reason: 'กรุณาระบุเหตุผลในการยกเลิกใบแจ้งหนี้' })
   if (!cancelledBy) throw new Error('ไม่ทราบผู้ยกเลิก กรุณาเข้าสู่ระบบใหม่')
 
   const now = new Date().toISOString()
@@ -1153,7 +1154,7 @@ export function deleteInvoice(db, invoiceId, { reason, deletedBy }) {
   }
 
   const note = String(reason ?? '').trim()
-  if (!note) throw new Error('กรุณาระบุเหตุผลในการลบใบแจ้งหนี้')
+  if (!note) throw new FieldError({ reason: 'กรุณาระบุเหตุผลในการลบใบแจ้งหนี้' })
   if (!deletedBy) throw new Error('ไม่ทราบผู้ลบ กรุณาเข้าสู่ระบบใหม่')
 
   // ใบที่ยกเลิกแล้วไม่ควรมีใบเสร็จผูกอยู่ (cancelInvoice กันไว้) แต่ตรวจซ้ำก่อนลบจริง

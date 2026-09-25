@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import DateField from '../components/DateField.jsx'
@@ -412,7 +413,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
             setDeleting(null)
             load()
           }}
-          onError={setError}
         />
       )}
     </>
@@ -423,18 +423,21 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
 //
 // ปุ่มลบถูกปิดไว้จนกว่าจะพิมพ์เหตุผล ไม่ใช่ปล่อยให้กดแล้วค่อยขึ้น error — คนที่ตั้งใจ
 // จะลบจริงจะได้รู้ตั้งแต่เห็นหน้าต่างว่าต้องเขียนอะไรสักอย่างก่อน
-function DeleteInvoiceDialog({ invoice, onClose, onDeleted, onError }) {
+function DeleteInvoiceDialog({ invoice, onClose, onDeleted }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const ready = reason.trim().length > 0
+  // เหตุผลว่างถูกกันด้วยปุ่มที่กดไม่ได้อยู่แล้ว — error ที่มาถึงตรงนี้ส่วนใหญ่เป็นเรื่องสถานะ
+  // (เช่น ถูกยกเลิกไปแล้ว) ซึ่งขึ้นบนสุดของหน้าต่าง
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(['reason'])
 
   async function submit() {
     if (!ready) return
-    onError('')
+    reset()
     setBusy(true)
     const res = await deleteInvoice(invoice.invoiceId, reason)
     setBusy(false)
-    if (!res.success) return onError(res.error)
+    if (!res.success) return fromResult(res)
     onDeleted()
   }
 
@@ -444,6 +447,7 @@ function DeleteInvoiceDialog({ invoice, onClose, onDeleted, onError }) {
       icon="trash"
       submitLabel="ลบถาวร"
       busy={busy || !ready}
+      error={formError}
       onClose={onClose}
       onSubmit={submit}
     >
@@ -466,7 +470,7 @@ function DeleteInvoiceDialog({ invoice, onClose, onDeleted, onError }) {
         </div>
       </dl>
 
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.reason)}>
         <label htmlFor="deleteReason">
           เหตุผลในการลบ <span className="required">* จำเป็น</span>
         </label>
@@ -474,10 +478,18 @@ function DeleteInvoiceDialog({ invoice, onClose, onDeleted, onError }) {
           id="deleteReason"
           rows={3}
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => {
+            setReason(e.target.value)
+            clear('reason')
+          }}
+          {...invalidProps('deleteReason', errors.reason)}
           placeholder="เช่น ออกบิลผิดห้อง / ออกซ้ำ / ทดลองใช้งาน"
         />
-        {!ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะลบได้</p>}
+        {errors.reason ? (
+          <FieldError id="deleteReason-error" message={errors.reason} />
+        ) : (
+          !ready && <p className="field-hint">ต้องกรอกเหตุผลก่อนจึงจะลบได้</p>
+        )}
       </div>
     </Modal>
   )
