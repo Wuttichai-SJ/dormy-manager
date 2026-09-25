@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import { centsToInput } from '../format.js'
 import { MAX_DUE_DATE_DAY, DEFAULT_VAT_RATE, MAX_VAT_RATE } from '../constants.js'
 import { createApartment, getApartment, updateApartment } from '../services/apartmentService.js'
@@ -182,7 +183,17 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
         </div>
         <div className="form-section-body">
           <div className="field">
-            <label htmlFor="meterDigits">จำนวนหลักของมิเตอร์</label>
+            <label htmlFor="meterDigits">
+              จำนวนหลักของมิเตอร์
+              <InfoTip
+                title="จำนวนหลักของมิเตอร์"
+                points={[
+                  'นับเฉพาะหลักบนหน้าปัด',
+                  'มิเตอร์ 5 หลักอ่านได้ถึง 99,999 แล้วหมุนกลับไป 0',
+                  'เลขที่จดเกินกว่านี้ระบบไม่รับ'
+                ]}
+              />
+            </label>
             <select
               id="meterDigits"
               value={form.meterDigits}
@@ -196,10 +207,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             </select>
             {/* บอกให้ชัดว่าตัวเลขนี้มีผลกับอะไร ไม่งั้นดูเหมือนช่องตกแต่งที่ไม่ต้องสนใจ
                 แล้วหอที่ใช้มิเตอร์คนละแบบจะปล่อยไว้ผิดโดยไม่รู้ตัว */}
-            <p className="field-hint">
-              นับเฉพาะหลักที่อยู่บนหน้าปัด — มิเตอร์ 5 หลักอ่านได้ถึง 99,999 แล้วหมุนกลับไป 0
-              · เลขที่จดเกินกว่านี้ระบบจะไม่รับ เพราะเป็นการพิมพ์เกินหลัก
-            </p>
           </div>
         </div>
       </section>
@@ -214,6 +221,14 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
           <div className="field field-required">
             <label htmlFor="dueDateDay">
               วันสุดท้ายของการชำระเงิน <Required />
+              <InfoTip
+                title="วันครบกำหนดชำระ"
+                points={[
+                  `เลือกได้ถึงวันที่ ${MAX_DUE_DATE_DAY} เพื่อให้มีวันนี้ครบทุกเดือน`,
+                  `ออกบิลก่อนวันที่ ${form.dueDateDay} → ครบกำหนดเดือนเดียวกัน`,
+                  `ออกบิลตั้งแต่วันที่ ${form.dueDateDay} → เลื่อนไปเดือนถัดไป`
+                ]}
+              />
             </label>
             <select
               id="dueDateDay"
@@ -229,14 +244,8 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             {/* ต้นแบบก็ให้เลือกได้ถึงวันที่ 28 เท่ากัน เหตุผลอยู่ใน db/apartments.js
                 (ก.พ. ไม่มีวันที่ 29-31) ต้นแบบไม่มีคำอธิบายบรรทัดนี้ เราใส่เพิ่มเอง
                 เพราะมีคนถามแล้วว่าทำไมเลื่อนต่อไม่ได้ */}
-            <p className="field-hint">เลือกได้ถึงวันที่ {MAX_DUE_DATE_DAY} เพื่อให้มีวันนี้ครบทุกเดือน</p>
             {/* ตัวเลขเฉยๆ ไม่บอกว่าเกิดอะไรขึ้นเมื่อออกบิลหลังวันนั้นไปแล้ว ยกตัวอย่างด้วยวันที่
                 ที่เลือกอยู่จริง จะได้ไม่ต้องออกบิลจริงแล้วมานั่งเดาว่าทำไมได้วันนั้น */}
-            <p className="field-hint">
-              ครบกำหนด = วันที่ {form.dueDateDay} ครั้งถัดไปหลังวันออกบิล — ออกบิลวันที่ 01
-              จะครบกำหนดวันที่ {form.dueDateDay} ของเดือนเดียวกัน · ออกบิลตั้งแต่วันที่{' '}
-              {form.dueDateDay} เป็นต้นไป จะเลื่อนไปวันที่ {form.dueDateDay} ของเดือนถัดไป
-            </p>
           </div>
 
           <div className="field field-required">
@@ -255,7 +264,13 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
           </div>
 
           <div className="field">
-            <label htmlFor="lateFeeGraceDays">ผ่อนผันก่อนเริ่มปรับ</label>
+            <label htmlFor="lateFeeGraceDays">
+              ผ่อนผันก่อนเริ่มปรับ
+              <InfoTip
+                title="วันผ่อนผัน"
+                points={['เกินกำหนดกี่วันจึงเริ่มคิดค่าปรับ', '0 = ปรับตั้งแต่วันถัดจากวันครบกำหนด']}
+              />
+            </label>
             <div className="input-with-suffix">
               <input
                 id="lateFeeGraceDays"
@@ -265,9 +280,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
               />
               <span className="input-suffix">วัน</span>
             </div>
-            <p className="field-hint">
-              เกินกำหนดกี่วันจึงเริ่มคิดค่าปรับ · 0 = ปรับตั้งแต่วันถัดจากวันครบกำหนดเลย
-            </p>
           </div>
 
           <div className="field checkbox-field">
@@ -285,13 +297,13 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             {/* เตือนตั้งแต่ในฟอร์ม ก่อนจะไปเจอ error ตอนกดบันทึก */}
             {form.isAutoLateFeeEnabled && Number(form.lateFeePerDay) === 0 ? (
               <p className="field-hint field-hint-warn">
-                ค่าปรับต่อวันยังเป็น 0 บาท — ต้องกรอกให้มากกว่า 0 ไม่งั้นระบบจะเก็บค่าปรับไม่ได้
+                ค่าปรับต่อวันยังเป็น 0 บาท — ระบบจะเก็บค่าปรับไม่ได้
               </p>
             ) : (
               <p className="field-hint">
                 {form.isAutoLateFeeEnabled
-                  ? 'เมื่อรับเงินบิลที่เกินกำหนด ระบบจะคำนวณค่าปรับให้และติ๊กไว้ให้ — ยกเลิกหรือลดยอดได้ทุกครั้ง'
-                  : 'ปิดอยู่ — ค่าปรับต่อวันและวันผ่อนผันที่กรอกไว้จะยังไม่ถูกนำมาใช้'}
+                  ? 'ระบบคำนวณค่าปรับให้ตอนรับเงิน · ยกเลิกหรือลดยอดได้'
+                  : 'ปิดอยู่ · ค่าปรับที่กรอกไว้ยังไม่ถูกใช้'}
               </p>
             )}
           </div>
@@ -316,7 +328,16 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
           {/* ปิดช่องไว้เมื่อยังไม่เปิดสวิตช์ — กรอกอัตราทิ้งไว้โดยที่ VAT ปิดอยู่ไม่มีความหมาย
               และทำให้เข้าใจผิดว่าระบบกำลังคิดภาษีให้ */}
           <div className="field">
-            <label htmlFor="vatRate">อัตรา VAT</label>
+            <label htmlFor="vatRate">
+              อัตรา VAT
+              <InfoTip
+                title="อัตรา VAT"
+                points={[
+                  `กรอกได้ 0-${MAX_VAT_RATE} ทศนิยมไม่เกิน 2 ตำแหน่ง`,
+                  'บิลที่ออกไปแล้วคิดที่อัตราเดิมเสมอ แม้ผู้เช่ามาจ่ายช้า'
+                ]}
+              />
+            </label>
             <div className="input-with-suffix">
               <input
                 id="vatRate"
@@ -327,13 +348,7 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
               />
               <span className="input-suffix">%</span>
             </div>
-            <p className="field-hint">
-              กรอกได้ 0-{MAX_VAT_RATE} ทศนิยมไม่เกิน 2 ตำแหน่ง ·{' '}
-              <strong>
-                อัตราที่เปลี่ยนใหม่มีผลกับบิลที่ออกในรอบถัดไปเท่านั้น บิลที่ออกไปแล้วยังคิดที่อัตราเดิม
-              </strong>{' '}
-              ต่อให้ผู้เช่ามาจ่ายช้าแล้วโดนค่าปรับก็ตาม
-            </p>
+            <p className="field-hint">เปลี่ยนอัตรามีผลกับบิลรอบถัดไปเท่านั้น</p>
           </div>
         </div>
       </section>

@@ -94,12 +94,14 @@ export default function ApartmentServicesPage({ apartment }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>ค่าบริการเพิ่มเติมที่เรียกเก็บ</strong>
-        <p>เช่น ค่าอินเทอร์เน็ต ค่าที่จอดรถ ค่าส่วนกลาง — จะนำไปผูกกับห้องพักในขั้นถัดไป</p>
-      </div>
-
       <section className="panel">
+        <h2 className="panel-title">
+          ค่าบริการเพิ่มเติม
+          <InfoTip
+            title="ค่าบริการเพิ่มเติม"
+            points={['เช่น ค่าอินเทอร์เน็ต ค่าที่จอดรถ ค่าส่วนกลาง', 'ผูกกับห้องได้ที่ ค่าบริการอื่น ๆ']}
+          />
+        </h2>
         <Alert>{error}</Alert>
 
         {/* ต้นแบบวางช่องกรอกเรียงเป็นแถวเดียว: ชื่อ | ราคา | คิด VAT
@@ -122,7 +124,6 @@ export default function ApartmentServicesPage({ apartment }) {
                   <option key={name} value={name} />
                 ))}
               </datalist>
-              <p className="field-hint">สามารถเลือกจากรายการที่มี หรือพิมพ์ชื่อค่าบริการเองได้</p>
             </div>
 
             <div className="field field-required service-form-price">

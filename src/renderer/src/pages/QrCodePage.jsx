@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { getQrImage, removeQrImage, uploadQrImage } from '../services/imageService.js'
 
@@ -54,15 +55,14 @@ export default function QrCodePage({ apartment }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>QR Code รับเงิน</strong>
-        <p>
-          อัปโหลดรูป QR พร้อมเพย์ที่ธนาคารสร้างให้ · รูปนี้จะไปแสดงบนใบแจ้งหนี้ ผู้เช่าที่ได้รับ
-          ไฟล์ทางแชตจะสแกนจ่ายได้เลยโดยไม่ต้องพิมพ์เลขบัญชี
-        </p>
-      </div>
-
       <section className="panel">
+        <h2 className="panel-title">
+          QR Code รับเงิน
+          <InfoTip
+            title="QR Code รับเงิน"
+            points={['ใช้รูป QR พร้อมเพย์ที่ธนาคารสร้างให้', 'แสดงบนใบแจ้งหนี้ ผู้เช่าสแกนจ่ายได้เลย']}
+          />
+        </h2>
         <Alert>{error}</Alert>
 
         {loading ? (
@@ -95,8 +95,7 @@ export default function QrCodePage({ apartment }) {
             </div>
 
             <p className="field-hint">
-              รองรับ png, jpg, webp, gif · ไม่เกิน 3 MB · แนะนำรูปสี่เหลี่ยมจัตุรัสที่คมพอให้
-              สแกนจากหน้าจอมือถือได้
+              png, jpg, webp, gif · ไม่เกิน 3 MB · รูปสี่เหลี่ยมจัตุรัส
             </p>
           </div>
         )}

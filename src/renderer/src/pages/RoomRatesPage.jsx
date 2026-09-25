@@ -90,7 +90,7 @@ export default function RoomRatesPage({ apartment, only }) {
     return (
       <section className="panel empty-state">
         <h2>ยังไม่มีผังห้อง</h2>
-        <p className="muted">กรุณาสร้างผังห้องที่ขั้นตอน "จัดการชั้น" ก่อน</p>
+        <p className="muted">สร้างผังห้องก่อนที่ ตั้งค่า → ผังห้อง</p>
       </section>
     )
   }
@@ -305,9 +305,6 @@ function RateDialog({ onClose, onSubmit, busy }) {
           />
           <span className="input-suffix">บาท / วัน</span>
         </div>
-        <p className="field-hint">
-          หากไม่มีราคาสำหรับรายวัน สามารถเว้นว่างไว้หรือกำหนดเป็น 0 บาท
-        </p>
       </div>
     </Modal>
   )

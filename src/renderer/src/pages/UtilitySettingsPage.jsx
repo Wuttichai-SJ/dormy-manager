@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { centsToInput } from '../format.js'
@@ -185,19 +186,26 @@ export default function UtilitySettingsPage({ apartment }) {
       </div>
 
       <p className="field-hint utility-footnote">
-        ค่าเหล่านี้เป็นค่าเริ่มต้นของหอพัก ห้องที่สร้างใหม่จะได้ค่านี้ไปใช้
-        ส่วนห้องที่มีอยู่แล้วจะไม่ถูกเปลี่ยนตาม — แก้รายห้องได้ที่หน้าห้องพัก
+        ใช้กับห้องที่สร้างใหม่ · ห้องที่มีอยู่แล้วไม่เปลี่ยนตาม
       </p>
 
       {/* ทางออกสำหรับห้องที่ถูกสร้างก่อนหอจะมีราคา — ห้องพวกนั้นถือ "ราคา 0" ติดตัวอยู่
           แล้วออกบิลมาเป็น 0 บาทอย่างเงียบๆ ต้องมีวิธีดันราคาลงไปให้ครบทุกห้อง
           ให้กดสั่งเอง ไม่ทำอัตโนมัติ เพราะมันทับราคาพิเศษที่ตั้งไว้รายห้องด้วย */}
       <section className="panel utility-apply">
-        <h3 className="panel-title">นำราคานี้ไปใช้กับห้องที่มีอยู่</h3>
+        <h3 className="panel-title">
+          นำราคานี้ไปใช้กับห้องที่มีอยู่
+          <InfoTip
+            title="ใช้เมื่อไหร่"
+            points={[
+              'แก้ราคาที่หน้านี้ไม่ย้อนไปเปลี่ยนห้องเดิม',
+              'ห้องที่สร้างก่อนตั้งราคาจะคิดเป็น 0 บาท'
+            ]}
+          />
+        </h3>
+        {/* ยังโชว์ตลอด — กดแล้วราคาพิเศษรายห้องหายหมด ย้อนไม่ได้ */}
         <p className="field-hint">
-          ห้องเก็บราคาของตัวเองไว้ตั้งแต่ตอนถูกสร้าง การแก้ราคาที่หน้านี้จึงไม่ย้อนไปเปลี่ยนห้องเดิม
-          — ถ้าห้องถูกสร้างไว้ก่อนจะตั้งราคา ห้องจะยังคิดเป็น 0 บาทอยู่ กดปุ่มนี้เพื่อทับราคาของ
-          <strong> ทุกห้อง</strong> ด้วยราคาปัจจุบัน (ราคาพิเศษที่ตั้งไว้รายห้องจะถูกทับไปด้วย)
+          ทับราคาของ<strong>ทุกห้อง</strong> รวมราคาพิเศษรายห้องด้วย
         </p>
 
         {applied !== null && (
@@ -291,7 +299,7 @@ function UtilityDialog({ meta, value, onClose, onSave, busy }) {
           </div>
           {/* ย้ำหน่วยให้ชัด เพราะคนมักเข้าใจว่าขั้นต่ำคือ "จำนวนหน่วย" */}
           <p className="field-hint">
-            เป็นจำนวน<strong>เงิน</strong>ขั้นต่ำ ไม่ใช่จำนวนหน่วย — ใช้น้อยกว่านี้ก็เก็บเท่านี้
+            เป็นจำนวน<strong>เงิน</strong> ไม่ใช่จำนวนหน่วย
           </p>
         </div>
       )}

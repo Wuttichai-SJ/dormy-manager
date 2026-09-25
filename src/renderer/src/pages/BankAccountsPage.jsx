@@ -92,15 +92,17 @@ export default function BankAccountsPage({ apartment }) {
 
   return (
     <>
-      <div className="info-banner">
-        <strong>บัญชีธนาคารสำหรับรับเงิน</strong>
-        <p>
-          รายชื่อบัญชีที่จะแสดงในใบแจ้งหนี้ — แนะนำไม่เกิน {RECOMMENDED_MAX_ACCOUNTS} บัญชี
-          เพื่อไม่ให้ผู้เช่าสับสนว่าควรโอนบัญชีไหน
-        </p>
-      </div>
-
       <section className="panel">
+        <h2 className="panel-title">
+          บัญชีธนาคารสำหรับรับเงิน
+          <InfoTip
+            title="บัญชีรับเงิน"
+            points={[
+              'แสดงในใบแจ้งหนี้ทุกใบ',
+              `แนะนำไม่เกิน ${RECOMMENDED_MAX_ACCOUNTS} บัญชี ผู้เช่าจะได้ไม่สับสน`
+            ]}
+          />
+        </h2>
         <Alert>{error}</Alert>
 
         <form className="bank-form" onSubmit={submitAccount}>
@@ -142,7 +144,6 @@ export default function BankAccountsPage({ apartment }) {
               inputMode="numeric"
             />
             {/* พร้อมเพย์ใช้เบอร์โทรหรือเลขบัตรได้ จึงไม่บังคับจำนวนหลักตายตัว */}
-            <p className="field-hint">พิมพ์มีขีดหรือไม่มีก็ได้ ระบบเก็บเป็นตัวเลขล้วน</p>
           </div>
 
           <div className="bank-form-submit">
@@ -159,8 +160,7 @@ export default function BankAccountsPage({ apartment }) {
 
         {accounts.length > RECOMMENDED_MAX_ACCOUNTS && (
           <Alert kind="warn">
-            มี {accounts.length} บัญชีแล้ว — ใบแจ้งหนี้มีพื้นที่จำกัด แนะนำให้เหลือไม่เกิน{' '}
-            {RECOMMENDED_MAX_ACCOUNTS} บัญชี
+            มี {accounts.length} บัญชี · แนะนำไม่เกิน {RECOMMENDED_MAX_ACCOUNTS} บัญชี
           </Alert>
         )}
 
@@ -231,18 +231,17 @@ export default function BankAccountsPage({ apartment }) {
         )}
       </section>
 
-      <div className="info-banner">
-        <strong>ขั้นตอนการแจ้งการชำระเงิน</strong>
-        <p>ข้อความนี้จะแสดงในใบแจ้งหนี้ เพื่อบอกผู้เช่าว่าโอนแล้วต้องแจ้งอย่างไร</p>
-      </div>
-
       <section className="panel">
+        <h2 className="panel-title">
+          ข้อความในใบแจ้งหนี้
+          <InfoTip title="ข้อความในใบแจ้งหนี้" points={['แสดงท้ายใบแจ้งหนี้ทุกใบ']} />
+        </h2>
         <form onSubmit={submitInstructions}>
           {instructionsSaved && <Alert kind="success">บันทึกข้อความเรียบร้อยแล้ว</Alert>}
 
           <div className="field">
             <label htmlFor="paymentInstructions">
-              ข้อความ <span className="required">* จำเป็น</span>
+              วิธีแจ้งเมื่อโอนแล้ว <span className="required">* จำเป็น</span>
             </label>
             <textarea
               id="paymentInstructions"
@@ -252,11 +251,8 @@ export default function BankAccountsPage({ apartment }) {
                 setInstructions(e.target.value)
                 setInstructionsSaved(false)
               }}
+              placeholder="เช่น ชำระแล้วส่งสลิปมาที่ Line: @apartment หรือโทร 08x-xxx-xxxx"
             />
-            <p className="field-hint">
-              ตัวอย่าง: เมื่อชำระเงินแล้ว กรุณาส่งหลักฐานการชำระเงินมาที่ Line: @apartment
-              หรือโทรแจ้ง 08x-xxx-xxxx
-            </p>
           </div>
 
           {/* ข้อความที่สองท้ายบิล — คนละหน้าที่กับข้างบน อันบนบอก "วิธีแจ้งเมื่อโอนแล้ว"
@@ -271,11 +267,8 @@ export default function BankAccountsPage({ apartment }) {
                 setInvoiceNote(e.target.value)
                 setInstructionsSaved(false)
               }}
+              placeholder="เช่น ชำระภายในวันที่ 25 ของทุกเดือน"
             />
-            <p className="field-hint">
-              ข้อความนี้จะติดไปกับใบแจ้งหนี้ทุกใบ · ไม่บังคับ เว้นว่างไว้ได้ ·
-              ตัวอย่าง: วันกำหนดชำระเงินวันที่ 25 ของทุกเดือน
-            </p>
           </div>
 
           {/* ปุ่มบันทึกอยู่ในแถบเทาท้ายการ์ดตามต้นแบบ ไม่ลอยอยู่กับเนื้อหา */}
