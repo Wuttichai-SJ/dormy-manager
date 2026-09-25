@@ -70,11 +70,13 @@ export function setMoveOutNotice(db, contractId, noticeDate) {
   const contract = requireActiveContract(db, contractId)
 
   if (noticeDate !== null && !isDate(noticeDate)) {
-    throw new Error('กรุณาระบุวันที่แจ้งย้ายออก')
+    throw new FieldError({ noticeDate: 'กรุณาระบุวันที่แจ้งย้ายออก' })
   }
   // แจ้งก่อนวันเริ่มสัญญาไม่ได้ — เป็นวันที่พิมพ์ผิด ไม่ใช่เหตุการณ์ที่เกิดได้จริง
   if (noticeDate !== null && noticeDate < contract.start_date) {
-    throw new Error(`วันที่แจ้งย้ายออกต้องไม่ก่อนวันเริ่มสัญญา (${contract.start_date})`)
+    throw new FieldError({
+      noticeDate: `วันที่แจ้งย้ายออกต้องไม่ก่อนวันเริ่มสัญญา (${contract.start_date})`
+    })
   }
 
   db.prepare('UPDATE contracts SET move_out_notice_date = ?, updated_at = ? WHERE contract_id = ?')

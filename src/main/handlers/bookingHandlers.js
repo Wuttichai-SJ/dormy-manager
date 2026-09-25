@@ -3,6 +3,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { throwIfErrors } from '../fieldError.js'
 import {
   convertBookingToContract,
   countOpenBookings,
@@ -41,8 +42,7 @@ export function registerBookingHandlers() {
   handleSession('booking:countOpen', ({ apartmentId }) => countOpenBookings(getDatabase(), apartmentId))
 
   handleSession('booking:create', (payload) => {
-    const errors = validateBookingInput(payload)
-    if (errors.length > 0) throw new Error(errors.join('\n'))
+    throwIfErrors(validateBookingInput(payload))
 
     const booking = createBooking(getDatabase(), payload)
     logInfo(`รับจองห้อง ${payload.roomId} โดย ${booking.customerName} (booking_id ${booking.bookingId})`)

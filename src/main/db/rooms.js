@@ -6,6 +6,7 @@
 //
 // หมายเหตุ: ไฟล์ใน db/ ห้าม import logger.js หรืออะไรที่ดึง electron เข้ามา
 // (เหตุผลอยู่ใน db/bankAccounts.js) — การ log เป็นหน้าที่ของชั้น handlers
+import { errorList } from '../fieldError.js'
 import { getUtilityDefaults } from './utilityDefaults.js'
 import { deleteOrphanImages } from './images.js'
 import { toCents } from '../money.js'
@@ -633,12 +634,12 @@ function assertRoomsBelongToSameApartment(db, roomIds) {
 }
 
 export function validateRoomRateInput({ monthlyRent, dailyRent }) {
-  const errors = []
+  const errors = errorList()
 
   try {
     toCents(monthlyRent, 'ค่าเช่ารายเดือน')
   } catch (err) {
-    errors.push(err.message)
+    errors.add('monthlyRent', err.message)
   }
 
   // ค่าเช่ารายวันไม่บังคับ — หอที่ไม่รับรายวันเว้นว่างไว้ได้ (ต้นแบบก็เขียนแบบนี้)
@@ -646,7 +647,7 @@ export function validateRoomRateInput({ monthlyRent, dailyRent }) {
     try {
       toCents(dailyRent, 'ค่าเช่ารายวัน')
     } catch (err) {
-      errors.push(err.message)
+      errors.add('dailyRent', err.message)
     }
   }
 

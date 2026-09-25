@@ -3,6 +3,7 @@
 // เป็น "ค่าตั้งต้น" ที่จะถูกคัดลอกลง room_utility_settings ตอนสร้างห้อง
 // การแก้ที่นี่ทีหลังจะ *ไม่* ย้อนไปเปลี่ยนห้องที่สร้างไว้แล้ว โดยตั้งใจ — ไม่งั้น
 // ห้องที่เจ้าของตั้งราคาพิเศษไว้จะถูกทับหายโดยไม่มีใครรู้ตัว
+import { errorList } from '../fieldError.js'
 import { centsToBaht, toCents } from '../money.js'
 
 // SQLite ไม่มี ENUM — เก็บเป็น TEXT แล้วตรวจค่าที่ JS ก่อนเขียนทุกครั้ง
@@ -28,7 +29,7 @@ function validateSide(input, label, errors) {
   if (input.billingType === undefined) return
 
   if (!BILLING_TYPES.includes(input.billingType)) {
-    errors.push(`กรุณาเลือกประเภทการคิด${label}`)
+    errors.add('billingType', `กรุณาเลือกประเภทการคิด${label}`)
     return
   }
 
@@ -38,7 +39,7 @@ function validateSide(input, label, errors) {
     try {
       toCents(input.unitPrice, `ราคา${label}ต่อหน่วย`)
     } catch (err) {
-      errors.push(err.message)
+      errors.add('unitPrice', err.message)
     }
   }
 
@@ -46,7 +47,7 @@ function validateSide(input, label, errors) {
     try {
       toCents(input.minCharge, `ขั้นต่ำเรียกเก็บ${label}`)
     } catch (err) {
-      errors.push(err.message)
+      errors.add('minCharge', err.message)
     }
   }
 
@@ -54,7 +55,7 @@ function validateSide(input, label, errors) {
     try {
       toCents(input.flatRate, `ค่า${label}เหมาจ่าย`)
     } catch (err) {
-      errors.push(err.message)
+      errors.add('flatRate', err.message)
     }
   }
 }
@@ -69,7 +70,8 @@ function validateSide(input, label, errors) {
 // ส่วนการสลับสวิตช์เปิด/ปิด ส่งมาแค่ enabled จึงบันทึกได้โดยไม่ต้องมีราคาก่อน
 // (ต้นแบบก็เปิดสวิตช์ได้ก่อนแล้วค่อยกดเข้าไประบุราคาทีหลัง)
 export function validateUtilityInput(input) {
-  const errors = []
+  // ชื่อช่องไม่แยกฝั่งน้ำ/ไฟ เพราะหน้าต่างตั้งค่าเปิดและส่งมาทีละฝั่งอยู่แล้ว
+  const errors = errorList()
   if (input?.water) validateSide(input.water, 'ค่าน้ำ', errors)
   if (input?.electric) validateSide(input.electric, 'ค่าไฟ', errors)
   return errors

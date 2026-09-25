@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Alert from './Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from './FieldError.jsx'
 import InfoTip from './InfoTip.jsx'
 import Modal from './Modal.jsx'
 import DateField from './DateField.jsx'
@@ -36,6 +37,7 @@ export default function BookingsCard({ room, onConvert }) {
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(null)
   const [busy, setBusy] = useState(false)
+  const addForm = useFormErrors(BOOKING_FIELDS)
   // ใบจองที่จบไปแล้วพับเก็บไว้ ไม่ได้ลบทิ้ง — ดูเหตุผลที่ตัวแปร past ด้านล่าง
   const [showPast, setShowPast] = useState(false)
 
@@ -59,11 +61,11 @@ export default function BookingsCard({ room, onConvert }) {
   }
 
   async function submit() {
-    setError('')
+    addForm.reset()
     setBusy(true)
     const res = await createBooking({ ...adding, roomId: room.roomId })
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return addForm.fromResult(res)
     showToast('เพิ่มข้อมูลสำเร็จ')
     setAdding(null)
     load()
@@ -195,11 +197,11 @@ export default function BookingsCard({ room, onConvert }) {
         <BookingDialog
           value={adding}
           busy={busy}
-          error={error}
+          form={addForm}
           onChange={setAdding}
           onClose={() => {
             setAdding(null)
-            setError('')
+            addForm.reset()
           }}
           onSubmit={submit}
         />
@@ -208,91 +210,156 @@ export default function BookingsCard({ room, onConvert }) {
   )
 }
 
-function BookingDialog({ value, onChange, onClose, onSubmit, busy, error }) {
-  const set = (key, v) => onChange({ ...value, [key]: v })
+// ชื่อช่องตรงกับ key ใน validateBookingInput (src/main/db/bookings.js)
+const BOOKING_FIELDS = [
+  'customerName',
+  'customerPhone',
+  'rentType',
+  'checkInDate',
+  'checkOutDate',
+  'rentPrice',
+  'bookingFee',
+  'paymentMethod'
+]
+
+function BookingDialog({ value, onChange, onClose, onSubmit, busy, form }) {
+  const { errors } = form
+  // แก้ช่องไหน error ของช่องนั้นหายทันที
+  const set = (key, v) => {
+    onChange({ ...value, [key]: v })
+    form.clear(key)
+  }
+  const err = (key) => <FieldError id={`booking-${key}-error`} message={errors[key]} />
+  const inv = (key) => invalidProps(`booking-${key}`, errors[key])
 
   return (
-    <Modal title="เพิ่มรายการจอง" busy={busy} error={error} onClose={onClose} onSubmit={onSubmit}>
+    <Modal title="เพิ่มรายการจอง" busy={busy} error={form.formError} onClose={onClose} onSubmit={onSubmit}>
       <div className="field-row">
-        <div className="field field-required">
-          <label>
+        <div className={fieldClass('field field-required', errors.customerName)}>
+          <label htmlFor="booking-customerName">
             ชื่อผู้จอง <span className="required">* จำเป็น</span>
           </label>
-          <input value={value.customerName} onChange={(e) => set('customerName', e.target.value)} autoFocus />
+          <input
+            id="booking-customerName"
+            value={value.customerName}
+            onChange={(e) => set('customerName', e.target.value)}
+            autoFocus
+            {...inv('customerName')}
+          />
+          {err('customerName')}
         </div>
-        <div className="field field-required">
-          <label>
+        <div className={fieldClass('field field-required', errors.customerPhone)}>
+          <label htmlFor="booking-customerPhone">
             เบอร์ติดต่อ <span className="required">* จำเป็น</span>
           </label>
           <input
+            id="booking-customerPhone"
             value={value.customerPhone}
             onChange={(e) => set('customerPhone', e.target.value)}
             inputMode="tel"
+            {...inv('customerPhone')}
           />
+          {err('customerPhone')}
         </div>
       </div>
 
       <div className="field-row">
-        <div className="field field-required">
-          <label>
+        <div className={fieldClass('field field-required', errors.rentType)}>
+          <label htmlFor="booking-rentType">
             ประเภทการเช่า <span className="required">* จำเป็น</span>
           </label>
-          <select value={value.rentType} onChange={(e) => set('rentType', e.target.value)}>
+          <select
+            id="booking-rentType"
+            value={value.rentType}
+            onChange={(e) => set('rentType', e.target.value)}
+            {...inv('rentType')}
+          >
             <option value="monthly">รายเดือน</option>
             <option value="daily">รายวัน</option>
           </select>
+          {err('rentType')}
         </div>
-        <div className="field field-required">
-          <label>
+        <div className={fieldClass('field field-required', errors.checkInDate)}>
+          <label htmlFor="booking-checkInDate">
             วันที่เข้าพัก <span className="required">* จำเป็น</span>
           </label>
-          <DateField value={value.checkInDate} onChange={(v) => set('checkInDate', v)} />
+          <DateField
+            id="booking-checkInDate"
+            value={value.checkInDate}
+            onChange={(v) => set('checkInDate', v)}
+          />
+          {err('checkInDate')}
         </div>
-        <div className="field">
-          <label>วันที่ออก</label>
-          <DateField value={value.checkOutDate} onChange={(v) => set('checkOutDate', v)} />
+        <div className={fieldClass('field', errors.checkOutDate)}>
+          <label htmlFor="booking-checkOutDate">วันที่ออก</label>
+          <DateField
+            id="booking-checkOutDate"
+            value={value.checkOutDate}
+            onChange={(v) => set('checkOutDate', v)}
+          />
+          {err('checkOutDate')}
         </div>
       </div>
 
       <div className="field-row">
-        <div className="field field-required">
-          <label>
+        <div className={fieldClass('field field-required', errors.rentPrice)}>
+          <label htmlFor="booking-rentPrice">
             ราคาห้อง <span className="required">* จำเป็น</span>
           </label>
           <div className="input-with-suffix">
-            <input value={value.rentPrice} onChange={(e) => set('rentPrice', e.target.value)} inputMode="decimal" />
+            <input
+              id="booking-rentPrice"
+              value={value.rentPrice}
+              onChange={(e) => set('rentPrice', e.target.value)}
+              inputMode="decimal"
+              {...inv('rentPrice')}
+            />
             <span className="input-suffix">บาท</span>
           </div>
+          {err('rentPrice')}
         </div>
-        <div className="field field-required">
-          <label>
+        <div className={fieldClass('field field-required', errors.bookingFee)}>
+          <label htmlFor="booking-bookingFee">
             เงินจอง <span className="required">* จำเป็น</span>
             <InfoTip title="เงินจอง" points={['หักออกจากยอดที่เก็บเพิ่มตอนทำสัญญา']} />
           </label>
           <div className="input-with-suffix">
-            <input value={value.bookingFee} onChange={(e) => set('bookingFee', e.target.value)} inputMode="decimal" />
+            <input
+              id="booking-bookingFee"
+              value={value.bookingFee}
+              onChange={(e) => set('bookingFee', e.target.value)}
+              inputMode="decimal"
+              {...inv('bookingFee')}
+            />
             <span className="input-suffix">บาท</span>
           </div>
+          {err('bookingFee')}
         </div>
-        <div className="field field-required">
-          <label>
+        <div className={fieldClass('field field-required', errors.paymentMethod)}>
+          <label htmlFor="booking-paymentMethod">
             ชำระโดย <span className="required">* จำเป็น</span>
           </label>
           {/* ต้องมาจาก PAYMENT_METHODS เหมือนอีก 6 หน้าที่มีช่องนี้ ไม่ใช่พิมพ์ <option> เอง
               เดิมพิมพ์เองแล้วคำเพี้ยน: ที่นี่ขึ้น "โอนเงิน" แต่ทุกหน้าอื่นขึ้น "เงินโอน" */}
-          <select value={value.paymentMethod} onChange={(e) => set('paymentMethod', e.target.value)}>
+          <select
+            id="booking-paymentMethod"
+            value={value.paymentMethod}
+            onChange={(e) => set('paymentMethod', e.target.value)}
+            {...inv('paymentMethod')}
+          >
             {PAYMENT_METHODS.map((method) => (
               <option key={method.key} value={method.key}>
                 {method.label}
               </option>
             ))}
           </select>
+          {err('paymentMethod')}
         </div>
       </div>
 
       <div className="field">
-        <label>หมายเหตุ</label>
-        <input value={value.note} onChange={(e) => set('note', e.target.value)} />
+        <label htmlFor="booking-note">หมายเหตุ</label>
+        <input id="booking-note" value={value.note} onChange={(e) => set('note', e.target.value)} />
       </div>
     </Modal>
   )

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
@@ -86,6 +87,8 @@ export default function UtilitySettingsPage({ apartment }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(null) // 'water' | 'electric' | null
+  // error ของหน้าต่างตั้งราคา แยกจาก error ของสวิตช์บนหน้า
+  const dialogForm = useFormErrors(['billingType', 'unitPrice', 'minCharge', 'flatRate'])
   // จำนวนห้องที่เพิ่งถูกทับราคา — null = ยังไม่ได้กดในรอบนี้
   const [applied, setApplied] = useState(null)
 
@@ -107,13 +110,17 @@ export default function UtilitySettingsPage({ apartment }) {
   //
   // ส่งไปเฉพาะ "ฝั่งที่แก้" และเฉพาะ "ช่องที่แก้" ฝั่ง main จะเอาไปผสมกับของเดิมเอง
   // ถ้าส่งทั้งก้อนทุกครั้ง ฝั่งที่ยังไม่ได้กรอกราคาจะทำให้การตรวจล้มแล้วบล็อกอีกฝั่ง
-  async function persist(key, patch) {
+  // fromDialog = บันทึกจากหน้าต่างตั้งราคา → error ขึ้นในหน้าต่างใต้ช่องที่ผิด
+  // ไม่ใช่ = สลับสวิตช์บนหน้า → error ขึ้นบนหน้า
+  async function persist(key, patch, { fromDialog = false } = {}) {
     setError('')
+    dialogForm.reset()
     setBusy(true)
     const res = await saveUtilityDefaults(apartment.apartmentId, { [key]: patch })
     setBusy(false)
     if (!res.success) {
-      setError(res.error)
+      if (fromDialog) dialogForm.fromResult(res)
+      else setError(res.error)
       return false
     }
     setSides({ water: toFormSide(res.data.water), electric: toFormSide(res.data.electric) })
@@ -220,13 +227,13 @@ export default function UtilitySettingsPage({ apartment }) {
           meta={SIDES[editing]}
           value={sides[editing]}
           busy={busy}
-          error={error}
+          form={dialogForm}
           onClose={() => {
             setEditing(null)
-            setError('')
+            dialogForm.reset()
           }}
           onSave={async (side) => {
-            const ok = await persist(editing, side)
+            const ok = await persist(editing, side, { fromDialog: true })
             if (ok) setEditing(null)
           }}
         />
@@ -236,20 +243,25 @@ export default function UtilitySettingsPage({ apartment }) {
 }
 
 // หน้าต่างซ้อน "ค่าน้ำ" / "ค่าไฟ" — ช่องที่ต้องกรอกเปลี่ยนตามประเภทการคิดเงินที่เลือก
-function UtilityDialog({ meta, value, onClose, onSave, busy, error }) {
+function UtilityDialog({ meta, value, onClose, onSave, busy, form }) {
   const [side, setSide] = useState(value)
-  const set = (key, v) => setSide((s) => ({ ...s, [key]: v }))
+  const { errors } = form
+  // แก้ช่องไหน error ของช่องนั้นหายทันที
+  const set = (key, v) => {
+    setSide((s) => ({ ...s, [key]: v }))
+    form.clear(key)
+  }
 
   return (
     <Modal
       title={meta.title}
       icon={meta.icon}
       busy={busy}
-      error={error}
+      error={form.formError}
       onClose={onClose}
       onSubmit={() => onSave(side)}
     >
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.billingType)}>
         <label htmlFor="billingType">
           ประเภทการคิดเงิน <span className="required">* จำเป็น</span>
         </label>
@@ -258,6 +270,7 @@ function UtilityDialog({ meta, value, onClose, onSave, busy, error }) {
           value={side.billingType}
           onChange={(e) => set('billingType', e.target.value)}
           autoFocus
+          {...invalidProps('billingType', errors.billingType)}
         >
           {BILLING_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -265,10 +278,11 @@ function UtilityDialog({ meta, value, onClose, onSave, busy, error }) {
             </option>
           ))}
         </select>
+        <FieldError id="billingType-error" message={errors.billingType} />
       </div>
 
       {(side.billingType === 'actual' || side.billingType === 'minimum') && (
-        <div className="field field-required">
+        <div className={fieldClass('field field-required', errors.unitPrice)}>
           <label htmlFor="unitPrice">
             ราคาต่อหน่วย <span className="required">* จำเป็น</span>
           </label>
@@ -278,14 +292,16 @@ function UtilityDialog({ meta, value, onClose, onSave, busy, error }) {
               value={side.unitPrice}
               onChange={(e) => set('unitPrice', e.target.value)}
               inputMode="decimal"
+              {...invalidProps('unitPrice', errors.unitPrice)}
             />
             <span className="input-suffix">บาท / {meta.unitLabel}</span>
           </div>
+          <FieldError id="unitPrice-error" message={errors.unitPrice} />
         </div>
       )}
 
       {side.billingType === 'minimum' && (
-        <div className="field field-required">
+        <div className={fieldClass('field field-required', errors.minCharge)}>
           <label htmlFor="minCharge">
             ขั้นต่ำเรียกเก็บ <span className="required">* จำเป็น</span>
           </label>
@@ -295,18 +311,23 @@ function UtilityDialog({ meta, value, onClose, onSave, busy, error }) {
               value={side.minCharge}
               onChange={(e) => set('minCharge', e.target.value)}
               inputMode="decimal"
+              {...invalidProps('minCharge', errors.minCharge)}
             />
             <span className="input-suffix">บาท</span>
           </div>
           {/* ย้ำหน่วยให้ชัด เพราะคนมักเข้าใจว่าขั้นต่ำคือ "จำนวนหน่วย" */}
-          <p className="field-hint">
-            เป็นจำนวน<strong>เงิน</strong> ไม่ใช่จำนวนหน่วย
-          </p>
+          {errors.minCharge ? (
+            <FieldError id="minCharge-error" message={errors.minCharge} />
+          ) : (
+            <p className="field-hint">
+              เป็นจำนวน<strong>เงิน</strong> ไม่ใช่จำนวนหน่วย
+            </p>
+          )}
         </div>
       )}
 
       {side.billingType === 'flat' && (
-        <div className="field field-required">
+        <div className={fieldClass('field field-required', errors.flatRate)}>
           <label htmlFor="flatRate">
             เหมาจ่ายต่อเดือน <span className="required">* จำเป็น</span>
           </label>
@@ -316,9 +337,11 @@ function UtilityDialog({ meta, value, onClose, onSave, busy, error }) {
               value={side.flatRate}
               onChange={(e) => set('flatRate', e.target.value)}
               inputMode="decimal"
+              {...invalidProps('flatRate', errors.flatRate)}
             />
             <span className="input-suffix">บาท / เดือน</span>
           </div>
+          <FieldError id="flatRate-error" message={errors.flatRate} />
         </div>
       )}
     </Modal>

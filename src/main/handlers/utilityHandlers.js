@@ -2,6 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { throwIfErrors } from '../fieldError.js'
 import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   applyDefaultsToRooms,
@@ -36,8 +37,7 @@ export function registerUtilityHandlers() {
   // ราคาน้ำ-ไฟเป็นของเจ้าของหอ · ช่อง get เปิดไว้ (หน้าจอกับการออกบิลต้องอ่าน)
   handle('utility:save', ({ apartmentId, water, electric }) => {
     requireOwnerUserId()
-    const errors = validateUtilityInput({ water, electric })
-    if (errors.length > 0) throw new Error(errors.join('\n'))
+    throwIfErrors(validateUtilityInput({ water, electric }))
 
     const saved = saveUtilityDefaults(getDatabase(), apartmentId, { water, electric })
     logInfo(`บันทึกวิธีคิดค่าน้ำ/ค่าไฟ (apartment_id ${apartmentId})`)

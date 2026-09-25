@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import Modal from '../components/Modal.jsx'
 import { formatBaht } from '../format.js'
 import { ROOM_STATUSES, ROOM_STATUS_LABELS } from '../constants.js'
@@ -38,6 +39,8 @@ export default function RoomRatesPage({ apartment, only }) {
   const [catalogue, setCatalogue] = useState([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  // error ของหน้าต่าง (ค่าห้อง / ค่าบริการ) แยกจาก error ของหน้า — ขึ้นในหน้าต่าง ใต้ช่องที่ผิด
+  const dialogForm = useFormErrors(['monthlyRent', 'dailyRent'])
 
   const load = useCallback(async () => {
     const [floorRes, serviceRes] = await Promise.all([
@@ -54,18 +57,21 @@ export default function RoomRatesPage({ apartment, only }) {
     load()
   }, [load])
 
-  // error ของหน้าต่างขึ้นในหน้าต่างเอง (ส่ง error ลงไป) — ปิดแล้วล้าง ไม่ให้ค้างบนหน้า
+  // ปิดหน้าต่าง = ล้าง error ของหน้าต่าง ไม่ให้ค้างไปถึงรอบเปิดถัดไป
   function closeDialog() {
     setDialogOpen(false)
-    setError('')
+    dialogForm.reset()
   }
 
+  // เปิดหน้าต่างอยู่ (ค่าห้อง / ค่าบริการ) → error ขึ้นในหน้าต่าง
+  // ไม่ได้เปิด (ปุ่มสถานะห้องบนหน้า) → error ขึ้นบนหน้า — ไม่งั้นหายไปเงียบๆ
   async function act(fn) {
     setError('')
+    dialogForm.reset()
     setBusy(true)
     const res = await fn()
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return dialogOpen ? dialogForm.fromResult(res) : setError(res.error)
     setFloors(res.data)
     setDialogOpen(false)
     // ล้างการเลือกหลังสั่งสำเร็จ กันการกดซ้ำโดยไม่ตั้งใจกับชุดเดิม
@@ -218,7 +224,7 @@ export default function RoomRatesPage({ apartment, only }) {
       {dialogOpen && mode === 'rate' && (
         <RateDialog
           busy={busy}
-          error={error}
+          form={dialogForm}
           onClose={closeDialog}
           onSubmit={(values) => act(() => setRoomRates(roomIds, values))}
         />
@@ -229,7 +235,7 @@ export default function RoomRatesPage({ apartment, only }) {
           catalogue={catalogue}
           rooms={floors.flatMap((f) => f.rooms).filter((r) => selected.has(r.roomId))}
           busy={busy}
-          error={error}
+          error={dialogForm.formError}
           onClose={closeDialog}
           onSubmit={(serviceId) => act(() => attachServices(roomIds, [serviceId]))}
           onDetach={(serviceId) => act(() => detachServices(roomIds, [serviceId]))}
@@ -276,19 +282,20 @@ function RoomCardDetail({ mode, room }) {
 // -----------------------------------------------------
 // หน้าต่างซ้อน
 // -----------------------------------------------------
-function RateDialog({ onClose, onSubmit, busy, error }) {
+function RateDialog({ onClose, onSubmit, busy, form }) {
   const [monthlyRent, setMonthlyRent] = useState('')
   const [dailyRent, setDailyRent] = useState('')
+  const { errors } = form
 
   return (
     <Modal
       title="ระบุค่าห้อง"
       busy={busy}
-      error={error}
+      error={form.formError}
       onClose={onClose}
       onSubmit={() => onSubmit({ monthlyRent, dailyRent })}
     >
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.monthlyRent)}>
         <label htmlFor="monthlyRent">
           ราคาค่าเช่ารายเดือน <span className="required">* จำเป็น</span>
         </label>
@@ -296,25 +303,35 @@ function RateDialog({ onClose, onSubmit, busy, error }) {
           <input
             id="monthlyRent"
             value={monthlyRent}
-            onChange={(e) => setMonthlyRent(e.target.value)}
+            onChange={(e) => {
+              setMonthlyRent(e.target.value)
+              form.clear('monthlyRent')
+            }}
             inputMode="decimal"
             autoFocus
+            {...invalidProps('monthlyRent', errors.monthlyRent)}
           />
           <span className="input-suffix">บาท / เดือน</span>
         </div>
+        <FieldError id="monthlyRent-error" message={errors.monthlyRent} />
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.dailyRent)}>
         <label htmlFor="dailyRent">ราคาค่าเช่ารายวัน</label>
         <div className="input-with-suffix">
           <input
             id="dailyRent"
             value={dailyRent}
-            onChange={(e) => setDailyRent(e.target.value)}
+            onChange={(e) => {
+              setDailyRent(e.target.value)
+              form.clear('dailyRent')
+            }}
             inputMode="decimal"
+            {...invalidProps('dailyRent', errors.dailyRent)}
           />
           <span className="input-suffix">บาท / วัน</span>
         </div>
+        <FieldError id="dailyRent-error" message={errors.dailyRent} />
       </div>
     </Modal>
   )

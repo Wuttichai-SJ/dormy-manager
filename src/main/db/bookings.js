@@ -8,6 +8,7 @@
 //
 // โครงตามการ์ด "รายชื่อคนจองรอเข้าพัก" ในหน้ารายละเอียดห้องของต้นแบบ:
 // เลขที่/วันที่จอง | ประเภท | ลูกค้า | วันที่เข้าพัก | ราคา | เงินจอง | สถานะ
+import { errorList } from '../fieldError.js'
 import { toCents } from '../money.js'
 import { createContract, RENT_TYPES } from './contracts.js'
 import { nextDocumentNumber } from './invoices.js'
@@ -29,23 +30,24 @@ export const PAYMENT_METHODS = ['cash', 'transfer', 'other']
 // ------------------------------------------------------------------
 // ตรวจข้อมูลก่อนเขียน
 // ------------------------------------------------------------------
+// คืน errorList() — อาร์เรย์ข้อความเดิม + จำว่าข้อความไหนเป็นของช่องไหน (ดู fieldError.js)
 export function validateBookingInput(input) {
-  const errors = []
+  const errors = errorList()
 
-  if (!RENT_TYPES.includes(input.rentType)) errors.push('ประเภทการเช่าต้องเป็นรายเดือนหรือรายวัน')
-  if (!isDate(input.checkInDate)) errors.push('กรุณาระบุวันที่เข้าพัก')
-  if (input.checkOutDate && !isDate(input.checkOutDate)) errors.push('วันที่ออกไม่ถูกต้อง')
+  if (!RENT_TYPES.includes(input.rentType)) errors.add('rentType', 'ประเภทการเช่าต้องเป็นรายเดือนหรือรายวัน')
+  if (!isDate(input.checkInDate)) errors.add('checkInDate', 'กรุณาระบุวันที่เข้าพัก')
+  if (input.checkOutDate && !isDate(input.checkOutDate)) errors.add('checkOutDate', 'วันที่ออกไม่ถูกต้อง')
   if (isDate(input.checkInDate) && isDate(input.checkOutDate) && input.checkOutDate < input.checkInDate) {
-    errors.push('วันที่ออกต้องไม่ก่อนวันที่เข้าพัก')
+    errors.add('checkOutDate', 'วันที่ออกต้องไม่ก่อนวันที่เข้าพัก')
   }
 
-  if (!String(input.customerName ?? '').trim()) errors.push('กรุณากรอกชื่อผู้จอง')
+  if (!String(input.customerName ?? '').trim()) errors.add('customerName', 'กรุณากรอกชื่อผู้จอง')
 
   const phone = String(input.customerPhone ?? '').replace(/\D/g, '')
-  if (!phone) errors.push('กรุณากรอกเบอร์โทรศัพท์ผู้จอง')
-  else if (phone.length < 9 || phone.length > 10) errors.push('เบอร์โทรศัพท์ต้องมี 9-10 หลัก')
+  if (!phone) errors.add('customerPhone', 'กรุณากรอกเบอร์โทรศัพท์ผู้จอง')
+  else if (phone.length < 9 || phone.length > 10) errors.add('customerPhone', 'เบอร์โทรศัพท์ต้องมี 9-10 หลัก')
 
-  if (!PAYMENT_METHODS.includes(input.paymentMethod)) errors.push('กรุณาเลือกวิธีชำระเงินจอง')
+  if (!PAYMENT_METHODS.includes(input.paymentMethod)) errors.add('paymentMethod', 'กรุณาเลือกวิธีชำระเงินจอง')
 
   for (const [key, label] of [
     ['rentPrice', 'ราคาห้อง'],
@@ -54,7 +56,7 @@ export function validateBookingInput(input) {
     try {
       toCents(input[key], label)
     } catch (err) {
-      errors.push(err.message)
+      errors.add(key, err.message)
     }
   }
 

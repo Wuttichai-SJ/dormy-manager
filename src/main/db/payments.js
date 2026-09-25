@@ -12,7 +12,7 @@
 //
 // ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
-import { FieldError } from '../fieldError.js'
+import { FieldError, errorList, throwIfErrors } from '../fieldError.js'
 import {
   addLateFeeItem,
   getLateFeeForInvoice,
@@ -49,9 +49,9 @@ export const PAYMENT_PURPOSE_LABELS = {
 // ตรวจข้อมูลก่อนเขียน
 // ------------------------------------------------------------------
 function validateCommon({ paymentMethod, paymentDate }) {
-  const errors = []
-  if (!PAYMENT_METHODS.includes(paymentMethod)) errors.push('กรุณาเลือกช่องทางการชำระเงิน')
-  if (!isDate(paymentDate)) errors.push('กรุณาระบุวันที่รับเงิน')
+  const errors = errorList()
+  if (!PAYMENT_METHODS.includes(paymentMethod)) errors.add('paymentMethod', 'กรุณาเลือกช่องทางการชำระเงิน')
+  if (!isDate(paymentDate)) errors.add('paymentDate', 'กรุณาระบุวันที่รับเงิน')
   return errors
 }
 
@@ -67,7 +67,7 @@ export function recordInvoicePayment(
   { invoiceId, amount, paymentMethod, paymentDate, remark, createdBy, lateFee }
 ) {
   const errors = validateCommon({ paymentMethod, paymentDate })
-  if (errors.length > 0) throw new Error(errors.join('\n'))
+  throwIfErrors(errors)
 
   // **ทั้งตัวรับเงินอยู่ในธุรกรรมเดียว** — `addLateFeeItem` ข้างล่างเขียนค่าปรับลงบิล *จริง*
   // และ commit ทันที ทั้งที่ด่านตรวจ "รับเงินได้ไม่เกินยอดค้างชำระ" ยังอยู่ถัดไปอีกหลายบรรทัด
@@ -143,7 +143,7 @@ export function recordInvoicePayments(
   { rows, paymentMethod, paymentDate, remark, createdBy }
 ) {
   const errors = validateCommon({ paymentMethod, paymentDate })
-  if (errors.length > 0) throw new Error(errors.join('\n'))
+  throwIfErrors(errors)
 
   const list = (Array.isArray(rows) ? rows : []).filter((row) => row?.invoiceId)
   if (list.length === 0) throw new Error('ยังไม่ได้เลือกห้องที่จะรับเงิน')
@@ -269,7 +269,7 @@ export function recordContractPayment(
   const kind = purpose ?? 'deposit'
   if (!PAYMENT_PURPOSES.includes(kind)) errors.push(`ประเภทเงินไม่ถูกต้อง: ${purpose}`)
   if (kind === 'invoice') errors.push('ใบเสร็จของสัญญาเป็นค่าบิลไม่ได้ — ค่าบิลต้องผูกกับใบแจ้งหนี้')
-  if (errors.length > 0) throw new Error(errors.join('\n'))
+  throwIfErrors(errors)
 
   const contract = db
     .prepare(
@@ -282,8 +282,13 @@ export function recordContractPayment(
     .get(contractId)
   if (!contract) throw new Error('ไม่พบสัญญาที่ต้องการออกใบเสร็จ')
 
-  const magnitude = toCents(amount, 'จำนวนเงิน')
-  if (magnitude === 0) throw new Error('จำนวนเงินต้องมากกว่า 0')
+  let magnitude
+  try {
+    magnitude = toCents(amount, 'จำนวนเงิน')
+  } catch (err) {
+    throw new FieldError({ amount: err.message })
+  }
+  if (magnitude === 0) throw new FieldError({ amount: 'จำนวนเงินต้องมากกว่า 0' })
 
   // **ใบเสร็จของสัญญาต้องมีข้อความบอกเสมอว่าเป็นเงินก้อนไหน** — remark เป็นช่องที่
   // เจ้าหน้าที่เว้นว่างได้ (เช่นตอนกด "รับเงินประกันเพิ่ม" แล้วไม่พิมพ์หมายเหตุ)

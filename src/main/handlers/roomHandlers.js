@@ -2,6 +2,7 @@
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
+import { throwIfErrors } from '../fieldError.js'
 import { requireOwnerUserId, requireSessionUserId } from './authHandlers.js'
 import {
   addFloor,
@@ -99,8 +100,7 @@ export function registerRoomHandlers() {
   })
 
   handleOwner('room:setRates', ({ roomIds, monthlyRent, dailyRent }) => {
-    const errors = validateRoomRateInput({ monthlyRent, dailyRent })
-    if (errors.length > 0) throw new Error(errors.join('\n'))
+    throwIfErrors(validateRoomRateInput({ monthlyRent, dailyRent }))
 
     const result = setRoomRates(getDatabase(), roomIds, { monthlyRent, dailyRent })
     logInfo(`ตั้งค่าห้อง ${roomIds.length} ห้อง`)

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { formatPhone } from '../components/TenantDialog.jsx'
@@ -330,15 +331,15 @@ function MoveOutNotice({ contract, onReload, onMoveOut }) {
 
 function MoveOutNoticeDialog({ contract, onClose, onDone }) {
   const [noticeDate, setNoticeDate] = useState(contract.moveOutNoticeDate ?? todayIso())
-  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(['noticeDate'])
 
   async function save(value) {
-    setError('')
+    reset()
     setBusy(true)
     const res = await setMoveOutNotice(contract.contractId, value)
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return fromResult(res)
     showToast(value ? 'บันทึกวันที่แจ้งย้ายออกแล้ว' : 'ยกเลิกการแจ้งย้ายออกแล้ว')
     onDone()
   }
@@ -348,17 +349,25 @@ function MoveOutNoticeDialog({ contract, onClose, onDone }) {
       title="แจ้งย้ายออก"
       icon="bookings"
       busy={busy}
+      error={formError}
       onClose={onClose}
       onSubmit={() => save(noticeDate)}
     >
-      <Alert>{error}</Alert>
-
-      <div className="field field-required">
+      <div className={fieldClass('field field-required', errors.noticeDate)}>
         <label htmlFor="noticeDate">
           วันที่แจ้งย้ายออก <span className="required">* จำเป็น</span>
         </label>
-        <DateField id="noticeDate" value={noticeDate} onChange={setNoticeDate} />
-        {/* ยังโชว์ตลอด ไม่ซ่อนใน ⓘ — ใส่วันย้ายออกจริงแทนวันแจ้ง = ตัดสินเงินประกันผิด */}
+        <DateField
+          id="noticeDate"
+          value={noticeDate}
+          onChange={(v) => {
+            setNoticeDate(v)
+            clear('noticeDate')
+          }}
+        />
+        <FieldError id="noticeDate-error" message={errors.noticeDate} />
+        {/* ยังโชว์ตลอด ไม่ซ่อนใน ⓘ — ใส่วันย้ายออกจริงแทนวันแจ้ง = ตัดสินเงินประกันผิด
+            (แม้มี error ก็ยังโชว์ เพราะเป็นกติกาที่ต้องเห็นตอนแก้วันที่) */}
         <p className="field-hint">
           วันที่มาแจ้ง ไม่ใช่วันย้ายออก · ต้องแจ้งล่วงหน้า {contract.depositNoticeDays} วัน
         </p>
@@ -387,11 +396,15 @@ function DepositPaymentDialog({ contract, outstandingCents, onClose, onDone }) {
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentDate, setPaymentDate] = useState(todayIso())
   const [remark, setRemark] = useState('')
-  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors([
+    'amount',
+    'paymentMethod',
+    'paymentDate'
+  ])
 
   async function submit() {
-    setError('')
+    reset()
     setBusy(true)
     const res = await receiveContractPayment({
       contractId: contract.contractId,
@@ -402,16 +415,21 @@ function DepositPaymentDialog({ contract, outstandingCents, onClose, onDone }) {
       purpose: 'deposit'
     })
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return fromResult(res)
     showToast(`รับเงินประกันแล้ว ออกใบเสร็จ ${res.data.receiptNumber}`)
     onDone()
   }
 
   return (
-    <Modal title="รับเงินประกันเพิ่ม" icon="payments" busy={busy} onClose={onClose} onSubmit={submit}>
-      <Alert>{error}</Alert>
-
-      <div className="field">
+    <Modal
+      title="รับเงินประกันเพิ่ม"
+      icon="payments"
+      busy={busy}
+      error={formError}
+      onClose={onClose}
+      onSubmit={submit}
+    >
+      <div className={fieldClass('field', errors.amount)}>
         <label htmlFor="depositAmount">
           จำนวนเงิน <span className="muted">(ค้างอยู่ {formatBaht(outstandingCents)})</span>
         </label>
@@ -419,16 +437,25 @@ function DepositPaymentDialog({ contract, outstandingCents, onClose, onDone }) {
           id="depositAmount"
           inputMode="decimal"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => {
+            setAmount(e.target.value)
+            clear('amount')
+          }}
+          {...invalidProps('depositAmount', errors.amount)}
         />
+        <FieldError id="depositAmount-error" message={errors.amount} />
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.paymentMethod)}>
         <label htmlFor="depositMethod">ชำระเงินโดย</label>
         <select
           id="depositMethod"
           value={paymentMethod}
-          onChange={(e) => setPaymentMethod(e.target.value)}
+          onChange={(e) => {
+            setPaymentMethod(e.target.value)
+            clear('paymentMethod')
+          }}
+          {...invalidProps('depositMethod', errors.paymentMethod)}
         >
           {PAYMENT_METHODS.map((m) => (
             <option key={m.key} value={m.key}>
@@ -436,13 +463,22 @@ function DepositPaymentDialog({ contract, outstandingCents, onClose, onDone }) {
             </option>
           ))}
         </select>
+        <FieldError id="depositMethod-error" message={errors.paymentMethod} />
       </div>
 
-      <div className="field">
+      <div className={fieldClass('field', errors.paymentDate)}>
         <label htmlFor="depositDate">
           วันที่รับเงิน <span className="required">* จำเป็น</span>
         </label>
-        <DateField id="depositDate" value={paymentDate} onChange={setPaymentDate} />
+        <DateField
+          id="depositDate"
+          value={paymentDate}
+          onChange={(v) => {
+            setPaymentDate(v)
+            clear('paymentDate')
+          }}
+        />
+        <FieldError id="depositDate-error" message={errors.paymentDate} />
       </div>
 
       <div className="field">

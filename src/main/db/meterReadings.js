@@ -5,6 +5,7 @@
 //
 // ห้ามให้ไฟล์นี้ import logger.js หรืออะไรที่ลาก electron เข้ามา — เทสต์รันใต้
 // ELECTRON_RUN_AS_NODE ซึ่ง electron เป็น CJS shim ที่ ESM import ไม่ได้
+import { FieldError } from '../fieldError.js'
 
 // ทั้งใบเก็บเลขน้ำและเลขไฟไว้แถวเดียวกันต่อห้อง (ตาม 001_init.sql) แต่หน้าจอกรอกทีละฝั่ง
 // จึงต้องมี "ฝั่ง" เป็นแนวคิดชัดๆ ไม่งั้นทุกฟังก์ชันต้องเขียนสองชุดที่ต่างกันแค่ชื่อคอลัมน์
@@ -215,13 +216,15 @@ function getMeterDigits(db, apartmentId) {
 }
 
 export function createBatch(db, apartmentId, readingDate) {
-  if (!isDate(readingDate)) throw new Error('กรุณาเลือกวันที่จดมิเตอร์')
+  if (!isDate(readingDate)) throw new FieldError({ readingDate: 'กรุณาเลือกวันที่จดมิเตอร์' })
 
   const exists = db
     .prepare('SELECT batch_id FROM meter_batches WHERE apartment_id = ? AND reading_date = ?')
     .get(apartmentId, readingDate)
   if (exists) {
-    throw new Error(`มีใบจดมิเตอร์ของวันที่ ${readingDate} อยู่แล้ว กรุณาเปิดใบเดิมเพื่อแก้ไข`)
+    throw new FieldError({
+      readingDate: `มีใบจดมิเตอร์ของวันที่ ${readingDate} อยู่แล้ว กรุณาเปิดใบเดิมเพื่อแก้ไข`
+    })
   }
 
   const now = new Date().toISOString()

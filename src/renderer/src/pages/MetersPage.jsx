@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import DateField from '../components/DateField.jsx'
@@ -26,6 +27,8 @@ export default function MetersPage({ apartment }) {
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
   const [readingDate, setReadingDate] = useState(today())
+  // error ของหน้าต่างสร้างใบจด แยกจาก error ของหน้า — ขึ้นใต้ช่องวันที่ในหน้าต่าง
+  const createForm = useFormErrors(['readingDate'])
   // ใบ+ฝั่งที่กำลังเปิดกรอกอยู่ — null = อยู่ที่รายการใบจด
   const [openSheet, setOpenSheet] = useState(null)
 
@@ -43,11 +46,11 @@ export default function MetersPage({ apartment }) {
   }, [load])
 
   async function submitCreate() {
-    setError('')
+    createForm.reset()
     setBusy(true)
     const res = await createMeterBatch(apartment.apartmentId, readingDate)
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return createForm.fromResult(res)
     setCreating(false)
     setReadingDate(today())
     showToast(`สร้างใบจดมิเตอร์วันที่ ${formatDate(res.data.readingDate)} แล้ว`)
@@ -152,19 +155,30 @@ export default function MetersPage({ apartment }) {
           title="สร้างใบจดมิเตอร์"
           icon="meters"
           busy={busy}
-          error={error}
+          error={createForm.formError}
           onClose={() => {
             setCreating(false)
-            setError('')
+            createForm.reset()
           }}
           onSubmit={submitCreate}
         >
-          <div className="field">
+          <div className={fieldClass('field', createForm.errors.readingDate)}>
             <label htmlFor="readingDate">
               วันที่จดมิเตอร์ <span className="required">* จำเป็น</span>
             </label>
-            <DateField id="readingDate" value={readingDate} onChange={setReadingDate} />
-            <p className="field-hint">หนึ่งวันมีใบจดได้ใบเดียว</p>
+            <DateField
+              id="readingDate"
+              value={readingDate}
+              onChange={(v) => {
+                setReadingDate(v)
+                createForm.clear('readingDate')
+              }}
+            />
+            {createForm.errors.readingDate ? (
+              <FieldError id="readingDate-error" message={createForm.errors.readingDate} />
+            ) : (
+              <p className="field-hint">หนึ่งวันมีใบจดได้ใบเดียว</p>
+            )}
           </div>
         </Modal>
       )}
