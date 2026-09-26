@@ -18,6 +18,7 @@ export default function Modal({
   busy,
   wide,
   error,
+  danger,
   children
 }) {
   // Esc ปิดได้ — ปุ่มกากบาทกับปุ่ม "ปิด" ทำงานเดียวกัน
@@ -64,7 +65,8 @@ export default function Modal({
             <button type="button" className="btn btn-outline" onClick={onClose}>
               ปิด
             </button>
-            <button type="submit" className="btn" disabled={busy}>
+            {/* danger = ปุ่มยืนยันสีแดง ใช้กับการลบที่ย้อนกลับไม่ได้ (ConfirmDialog) */}
+            <button type="submit" className={danger ? 'btn btn-danger' : 'btn'} disabled={busy}>
               {busy ? 'กำลังบันทึก...' : submitLabel}
             </button>
           </footer>

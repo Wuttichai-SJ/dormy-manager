@@ -5,6 +5,7 @@ import FieldError, { fieldClass, invalidProps, useFormErrors } from '../componen
 import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
+import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { MAINTENANCE_STATUS_FILTERS } from '../constants.js'
 import { centsToInput, formatBaht } from '../format.js'
@@ -354,7 +355,7 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [dialog, setDialog] = useState(null) // null | 'edit' | 'complete' | 'cancel'
+  const [dialog, setDialog] = useState(null) // null | 'edit' | 'complete' | 'cancel' | 'delete'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -414,10 +415,11 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
     onChanged?.()
   }
 
+  // เรียกจากหน้าต่างยืนยันเท่านั้น — ล้มเหลวคืนผลให้หน้าต่างแสดง error เอง
   async function removeRequest() {
-    setError('')
     const res = await deleteMaintenance(maintenanceId)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return res
+    setDialog(null)
     showToast('ลบงานแจ้งซ่อมแล้ว')
     onChanged?.()
     onBack()
@@ -519,7 +521,7 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
                   <button
                     type="button"
                     className="link-btn link-danger card-foot-start"
-                    onClick={removeRequest}
+                    onClick={() => setDialog('delete')}
                   >
                     ลบรายการนี้ทิ้ง
                   </button>
@@ -596,6 +598,16 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
             setRequest(updated)
             onChanged?.()
           }}
+        />
+      )}
+
+      {dialog === 'delete' && request && (
+        <ConfirmDialog
+          title={`ลบงานซ่อม ห้อง ${request.roomNumber}`}
+          message="ลบถาวร กู้คืนไม่ได้ · ใช้กับรายการที่คีย์ผิดหรือซ้ำเท่านั้น"
+          confirmLabel="ลบรายการ"
+          onConfirm={removeRequest}
+          onClose={() => setDialog(null)}
         />
       )}
 

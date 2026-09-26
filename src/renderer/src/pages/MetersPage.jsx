@@ -4,6 +4,7 @@ import Alert from '../components/Alert.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
+import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { METER_SIDES, ROOM_STATUS_LABELS, previewUnitsUsed } from '../constants.js'
@@ -26,6 +27,8 @@ export default function MetersPage({ apartment }) {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
+  // ใบจดที่กำลังถามยืนยันก่อนลบ — null = ไม่ได้ถามอยู่
+  const [deleting, setDeleting] = useState(null)
   const [readingDate, setReadingDate] = useState(today())
   // error ของหน้าต่างสร้างใบจด แยกจาก error ของหน้า — ขึ้นใต้ช่องวันที่ในหน้าต่าง
   const createForm = useFormErrors(['readingDate'])
@@ -57,12 +60,14 @@ export default function MetersPage({ apartment }) {
     load()
   }
 
+  // เรียกจากหน้าต่างยืนยันเท่านั้น — ล้มเหลวคืนผลให้หน้าต่างแสดง error เอง
   async function remove(batch) {
-    setError('')
     const res = await deleteMeterBatch(batch.batchId)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return res
+    setDeleting(null)
     showToast(`ลบใบจดมิเตอร์วันที่ ${formatDate(batch.readingDate)} แล้ว`)
     load()
+    return res
   }
 
   if (openSheet) {
@@ -137,7 +142,7 @@ export default function MetersPage({ apartment }) {
                     <button
                       type="button"
                       className="link-btn link-danger table-action icon-only"
-                      onClick={() => remove(batch)}
+                      onClick={() => setDeleting(batch)}
                       aria-label={`ลบใบจดมิเตอร์วันที่ ${formatDate(batch.readingDate)}`}
                     >
                       <Icon name="trash" />
@@ -149,6 +154,16 @@ export default function MetersPage({ apartment }) {
           </ul>
         )}
       </section>
+
+      {deleting && (
+        <ConfirmDialog
+          title={`ลบใบจดมิเตอร์วันที่ ${formatDate(deleting.readingDate)}`}
+          message="เลขมิเตอร์ที่จดไว้ในใบนี้ทุกห้องจะหายไป กู้คืนไม่ได้"
+          confirmLabel="ลบใบจด"
+          onConfirm={() => remove(deleting)}
+          onClose={() => setDeleting(null)}
+        />
+      )}
 
       {creating && (
         <Modal

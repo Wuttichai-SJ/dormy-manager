@@ -3,6 +3,7 @@ import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
+import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import { showToast } from '../components/Toast.jsx'
 import {
   createBackup,
@@ -22,6 +23,8 @@ export default function BackupsPage({ user }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [labelling, setLabelling] = useState(null)
+  // ไฟล์ที่กำลังถามยืนยันก่อนลบ — null = ไม่ได้ถามอยู่
+  const [deleting, setDeleting] = useState(null)
 
   const load = useCallback(async () => {
     const res = await listBackups()
@@ -54,12 +57,14 @@ export default function BackupsPage({ user }) {
     // ไม่ต้องทำอะไรต่อ (จะโชว์ toast ก็ไม่ทัน เพราะหน้าถูกโหลดใหม่)
   }
 
+  // เรียกจากหน้าต่างยืนยันเท่านั้น — ล้มเหลวคืนผลให้หน้าต่างแสดง error เอง
   async function remove(backup) {
-    setError('')
     const res = await deleteBackup(backup.fileName)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return res
+    setDeleting(null)
     showToast('ลบไฟล์สำรองแล้ว')
     load()
+    return res
   }
 
   return (
@@ -143,7 +148,7 @@ export default function BackupsPage({ user }) {
                           <button
                             type="button"
                             className="link-btn link-danger table-action"
-                            onClick={() => remove(b)}
+                            onClick={() => setDeleting(b)}
                           >
                             ลบ
                           </button>
@@ -159,6 +164,16 @@ export default function BackupsPage({ user }) {
           )}
         </div>
       </section>
+
+      {deleting && (
+        <ConfirmDialog
+          title="ลบไฟล์สำรอง"
+          message={`ลบ ${deleting.fileName} ถาวร กู้คืนไม่ได้`}
+          confirmLabel="ลบไฟล์"
+          onConfirm={() => remove(deleting)}
+          onClose={() => setDeleting(null)}
+        />
+      )}
 
       {labelling !== null && (
         <Modal
