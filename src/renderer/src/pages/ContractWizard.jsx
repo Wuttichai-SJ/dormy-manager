@@ -526,7 +526,8 @@ function advanceRentCents(rentCents, startDate) {
   const daysStaying = daysInMonth - dayOfMonth + 1
 
   // **หารด้วย 30 เสมอ ไม่ใช่ daysInMonth** — กติกาของหอนี้ (ยืนยันกับเจ้าของหอแล้ว)
-  return Math.round((rent * daysStaying) / PRORATE_DAYS_PER_MONTH)
+  // แล้วปัดเป็นบาทเต็ม (ตั้งแต่ 50 สตางค์ปัดขึ้น) — ต้องตรงกับ main ทุกตัวอักษร
+  return Math.round((rent * daysStaying) / (PRORATE_DAYS_PER_MONTH * 100)) * 100
 }
 
 // ใบจองเก็บชื่อเป็นข้อความก้อนเดียว — เดาให้แค่ "คำแรกคือชื่อ ที่เหลือคือนามสกุล"
