@@ -58,10 +58,6 @@ export default function MoveInReceiptDocument({
             <dt>วันที่ทำสัญญา</dt>
             <dd>{formatDocumentDate(contractStartDate)}</dd>
           </div>
-          <div>
-            <dt>จำนวนใบเสร็จ</dt>
-            <dd>{rows.length} ใบ</dd>
-          </div>
         </dl>
       </div>
 

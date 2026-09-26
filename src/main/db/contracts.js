@@ -227,10 +227,14 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
     tenantsByContract.set(row.contract_id, list)
   }
 
+  // services = ชื่ออย่างเดียว (หน้ารายการห้อง / หน้าภาพรวมใช้อยู่ ห้ามเปลี่ยนรูป)
+  // serviceItems = ชื่อ + ราคาปัจจุบันของหอ — หน้ารายละเอียดห้องว่างใช้แสดงราคา
+  // (ห้องที่มีสัญญาแล้วแสดงราคาที่ตรึงไว้ในสัญญาแทน ไม่ใช่ตัวนี้)
   const servicesByRoom = new Map()
+  const serviceItemsByRoom = new Map()
   for (const row of db
     .prepare(
-      `SELECT rs.room_id, s.name
+      `SELECT rs.room_id, s.name, s.price_cents
          FROM room_services rs
          JOIN apartment_services s ON s.service_id = rs.apartment_service_id
          JOIN rooms r ON r.room_id = rs.room_id
@@ -242,6 +246,10 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
     const list = servicesByRoom.get(row.room_id) ?? []
     list.push(row.name)
     servicesByRoom.set(row.room_id, list)
+
+    const items = serviceItemsByRoom.get(row.room_id) ?? []
+    items.push({ name: row.name, priceCents: row.price_cents })
+    serviceItemsByRoom.set(row.room_id, items)
   }
 
   const rooms = rows.map((row) => {
@@ -255,6 +263,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
       monthlyRentCents: row.monthly_rent_cents,
       dailyRentCents: row.daily_rent_cents,
       services: servicesByRoom.get(row.room_id) ?? [],
+      serviceItems: serviceItemsByRoom.get(row.room_id) ?? [],
       contractId: row.contract_id ?? null,
       rentType: row.rent_type ?? null,
       startDate: row.start_date ?? null,

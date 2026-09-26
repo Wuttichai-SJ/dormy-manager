@@ -30,6 +30,8 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   const [creating, setCreating] = useState(null) // 'monthly' | 'daily' | null
   // ใบจองที่กำลังแปลงเป็นสัญญา — ตัวช่วยจะเติมข้อมูลจากใบจองให้ก่อน
   const [converting, setConverting] = useState(null)
+  // เพิ่มขึ้นทีละหนึ่งทุกครั้งที่กด "บันทึกการจองไว้ก่อน" — BookingsCard เปิดหน้าต่างเพิ่มการจองเมื่อเลขเปลี่ยน
+  const [bookingRequest, setBookingRequest] = useState(0)
   // กำลังอยู่ในขั้นตอนย้ายออก (หน้าเต็ม เหมือนตัวช่วยทำสัญญา)
   const [movingOut, setMovingOut] = useState(false)
   // ใบเสร็จของสัญญาที่ดึงมาเพื่อพิมพ์ "ใบรับเงินแรกเข้า" — null = ยังไม่ได้กดพิมพ์
@@ -100,7 +102,9 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
             // เป็น { nameTh, addressTh } คนละรูป ส่งผิดตัวหัวเอกสารจะว่างเปล่าเงียบๆ
             apartment={moveInReceipts[0]?.apartment ?? {}}
             roomNumber={room.roomNumber}
-            tenantName={active.tenantName}
+            // สัญญาไม่มีช่อง tenantName (เคยส่งตัวนี้ไป ใบรับเงินเลยขึ้น "ผู้เช่า: -" ทุกใบ)
+            // ประกอบจากรายชื่อผู้เช่าในสัญญา ผู้เช่าหลักขึ้นก่อน
+            tenantName={tenantNamesOf(active)}
             contractStartDate={active.startDate}
             deposit={active.deposit}
             signedBy={user?.fullName}
@@ -172,6 +176,18 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
                     <span>รายวัน</span>
                   </button>
                 </div>
+                {/* การจองอยู่การ์ดขวาล่าง คนที่เปิดห้องว่างมาเห็นแต่ปุ่มทำสัญญา ไม่รู้ว่าจองได้ด้วย
+                    (เฟิสทักท้วง 2026-09-26) — บอกไว้ตรงที่ตาอยู่ แล้วเปิดหน้าต่างจองให้เลย */}
+                <p className="room-booking-hint">
+                  ยังไม่เข้าอยู่ตอนนี้?{' '}
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => setBookingRequest((n) => n + 1)}
+                  >
+                    บันทึกการจองไว้ก่อน
+                  </button>
+                </p>
               </section>
             )}
 
@@ -182,7 +198,7 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
             <ServicesCard contract={active} room={room} />
             {active && <TenantsCard contract={active} />}
             {/* ต้นแบบแสดงคิวจองไว้ในหน้าห้องเสมอ ไม่ว่าห้องจะว่างหรือไม่ */}
-            <BookingsCard room={room} onConvert={setConverting} />
+            <BookingsCard room={room} onConvert={setConverting} addRequest={bookingRequest} />
           </div>
         </div>
       )}
@@ -536,7 +552,7 @@ function ServicesCard({ contract, room }) {
   // มีสัญญาแล้ว = โชว์ราคาที่ตรึงไว้ในสัญญา ไม่ใช่ราคาปัจจุบันของหอ (ดู db/contracts.js)
   const items = contract
     ? contract.services.map((s) => ({ name: s.name, price: formatBaht(s.priceCents) }))
-    : room.services.map((name) => ({ name, price: null }))
+    : (room.serviceItems ?? []).map((s) => ({ name: s.name, price: formatBaht(s.priceCents) }))
 
   return (
     <section className="panel">
@@ -608,4 +624,10 @@ function TenantsCard({ contract }) {
       </table>
     </section>
   )
+}
+
+// ชื่อผู้เช่าทุกคนในสัญญา ผู้เช่าหลักก่อน — ใช้บนเอกสารที่ยื่นให้ผู้เช่า
+function tenantNamesOf(contract) {
+  const tenants = [...(contract?.tenants ?? [])].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+  return tenants.length > 0 ? tenants.map((t) => t.fullName).join(', ') : null
 }
