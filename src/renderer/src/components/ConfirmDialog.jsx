@@ -14,6 +14,8 @@ import Alert from './Alert.jsx'
 //   message      = ผลที่จะเกิดขึ้นจริง บรรทัดเดียว ไม่ใช่ "แน่ใจไหม" ซ้ำ
 //   dismissLabel = ปุ่มปิด ปกติ "ยกเลิก" — แต่ถ้าการกระทำเองคือ "ยกเลิก…" ต้องเปลี่ยน
 //                  ไม่งั้นมีสองปุ่มที่ขึ้นต้นว่า "ยกเลิก" (เช่น ยกเลิกการจอง → "เก็บการจองไว้")
+//   tone         = 'danger' (ค่าเริ่มต้น ปุ่มแดง) · 'primary' สำหรับงานที่ไม่ได้ทำลายอะไร
+//                  แต่ควรหยุดคิดก่อน เช่นออกบิลทั้งหอ — ปุ่มแดงจะทำให้ดูเหมือนกำลังลบของ
 //
 // ไม่ใช้ window.confirm() — กล่องของเบราว์เซอร์หน้าตาไม่เข้าชุดกับแอป และตัวอักษรไทยเล็กมาก
 // เปิดมาแล้วโฟกัสอยู่ที่ปุ่มปิด — กด Enter เผลอๆ จะไม่ทำอะไร ต้องตั้งใจกดปุ่มแดงเอง
@@ -26,6 +28,7 @@ export default function ConfirmDialog({
   busyLabel = 'กำลังลบ...',
   dismissLabel = 'ยกเลิก',
   icon = 'trash',
+  tone = 'danger',
   onConfirm,
   onClose
 }) {
@@ -65,7 +68,7 @@ export default function ConfirmDialog({
         aria-describedby="confirm-message"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <span className="confirm-icon" aria-hidden="true">
+        <span className={`confirm-icon confirm-icon-${tone}`} aria-hidden="true">
           <Icon name={icon} />
         </span>
         <h2 id="confirm-title" className="confirm-title">
@@ -87,7 +90,7 @@ export default function ConfirmDialog({
           >
             {dismissLabel}
           </button>
-          <button type="button" className="btn confirm-danger" onClick={confirm} disabled={busy}>
+          <button type="button" className={`btn confirm-${tone}`} onClick={confirm} disabled={busy}>
             {busy ? busyLabel : confirmLabel}
           </button>
         </div>

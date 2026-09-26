@@ -91,7 +91,14 @@
   border-color: #912018;
 }
 
+.confirm-icon-primary {
+  color: var(--accent);
+  background: var(--accent-weak);
+}
+
+/* ปุ่มยืนยันแบบ primary ใช้หน้าตาของ .btn ตามเดิม (น้ำตาลเข้ม) — คลาสนี้มีไว้ให้โฟกัสเห็นชัด */
 .confirm-danger:focus-visible,
+.confirm-primary:focus-visible,
 .confirm-actions .btn-outline:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

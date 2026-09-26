@@ -3,6 +3,7 @@ import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import Modal from '../components/Modal.jsx'
 import DateField from '../components/DateField.jsx'
 import PeriodBar, {
@@ -170,9 +171,12 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     return (
       <BillingWizard
         apartment={apartment}
-        onClose={() => {
+        onClose={(createdMonth) => {
           setWizard(false)
-          load()
+          // เพิ่งออกบิลทั้งหอ — พากลับไปที่รอบเดือนของบิลชุดนั้นเลย (ออกบิลล่วงหน้าเดือนถัดไป
+          // แล้วกลับมาเจอเดือนนี้ที่ว่างเปล่า จะนึกว่าออกไม่สำเร็จ)
+          if (createdMonth) changePeriod({ mode: 'month', month: createdMonth })
+          else load()
         }}
       />
     )
@@ -587,6 +591,7 @@ function BillingWizard({ apartment, onClose }) {
   const [billingMonth, setBillingMonth] = useState('')
   const [issueDate, setIssueDate] = useState('')
   const [preview, setPreview] = useState([])
+  const [confirmDialog, ask] = useConfirm()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -665,6 +670,21 @@ function BillingWizard({ apartment, onClose }) {
     refreshPreview()
   }
 
+  // ออกบิลทั้งหอเป็นเอกสารการเงินหลายสิบใบในคลิกเดียว (ยกเลิกได้ทีละใบเท่านั้น)
+  // จึงถามก่อนหนึ่งครั้ง พร้อมบอกรอบเดือนกับวันที่ออกบิล — จุดที่เลือกผิดบ่อยที่สุด
+  function confirmCreateAll() {
+    ask({
+      tone: 'primary',
+      icon: 'invoices',
+      title: `ออกใบแจ้งหนี้ ${pending.length} ห้อง?`,
+      message: `ค่าเช่าเดือน ${formatBillingMonth(billingMonth)} · ออกบิลวันที่ ${formatDate(issueDate)} — ออกแล้วต้องยกเลิกทีละใบ`,
+      confirmLabel: 'ออกใบแจ้งหนี้',
+      busyLabel: 'กำลังออกบิล...',
+      dismissLabel: 'ยังไม่ออก',
+      onConfirm: createAll
+    })
+  }
+
   async function createAll() {
     setError('')
     setBusy(true)
@@ -675,7 +695,7 @@ function BillingWizard({ apartment, onClose }) {
       issueDate
     })
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return res
 
     const { created, skipped, failed } = res.data
     // ต้องรายงานทั้งสามกอง ไม่ใช่บอกแค่ "สำเร็จ" — ห้องที่ข้ามกับห้องที่พังคนละเรื่องกัน
@@ -690,7 +710,10 @@ function BillingWizard({ apartment, onClose }) {
       `ออกบิลแล้ว ${created.length} ห้อง` + (skipped.length > 0 ? ` · ข้าม ${skipped.length} ห้องที่ออกไปแล้ว` : ''),
       failed.length > 0 ? 'error' : 'success'
     )
-    refreshPreview()
+    // สำเร็จครบ → กลับหน้ารายการ (ที่รอบเดือนนี้) · มีห้องที่พัง → อยู่ต่อให้เห็นว่าห้องไหน
+    if (failed.length > 0) refreshPreview()
+    else onClose(billingMonth)
+    return { success: true }
   }
 
   // ห้องที่จ่ายค่าเช่าเดือนแรกไปแล้วไม่นับเป็นห้องที่รอออกบิล ไม่งั้นปุ่ม "สร้างทุกห้อง"
@@ -700,8 +723,9 @@ function BillingWizard({ apartment, onClose }) {
 
   return (
     <>
+      {confirmDialog}
       <div className="page-back">
-        <button type="button" className="link-btn" onClick={onClose}>
+        <button type="button" className="link-btn" onClick={() => onClose()}>
           <Icon name="back" />
           <span>กลับไปรายการใบแจ้งหนี้</span>
         </button>
@@ -830,7 +854,7 @@ function BillingWizard({ apartment, onClose }) {
               <button
                 type="button"
                 className="btn"
-                onClick={createAll}
+                onClick={confirmCreateAll}
                 disabled={busy || pending.length === 0}
               >
                 {busy ? 'กำลังออกบิล...' : `สร้างใบแจ้งหนี้ทุกห้อง (${pending.length})`}
