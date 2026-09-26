@@ -1,51 +1,33 @@
-/* สารบัญของ CSS ทั้งระบบ — ไฟล์นี้ไม่มีกฎ CSS ของตัวเองเลย มีแต่รายชื่อไฟล์ย่อย
- *
- * เดิมทุกอย่างอยู่ในไฟล์นี้ไฟล์เดียว 5,118 บรรทัด ซึ่งหาของไม่เจอ — ตารางข้อมูล
- * ที่ 16 หน้าใช้ร่วมกันไปแอบอยู่ใต้หัวข้อ "ขั้นที่ 5 — ผังห้อง" และ @media print
- * กระจายอยู่ 3 ที่ห่างกันพันกว่าบรรทัด ตอนนี้แยกตามหัวข้อเดิมแล้ว หาจากชื่อไฟล์ได้เลย
- *
- * 🔴 **ลำดับของ @import ข้างล่างคือลำดับ cascade ของทั้งระบบ**
- *    เลขนำหน้าชื่อไฟล์คือลำดับนั้น — กฎสองข้อที่ความจำเพาะ (specificity) เท่ากัน
- *    ตัวที่อยู่ล่างกว่าจะชนะ ดังนั้น:
- *      · ห้ามสลับลำดับ ห้ามเรียงใหม่ตามตัวอักษร
- *      · ไฟล์ใหม่ให้ต่อท้าย ไม่ใช่แทรกกลาง (เว้นแต่ตั้งใจให้ของเดิมทับ)
- *      · ย้ายกฎข้ามไฟล์เมื่อไหร่ ให้ `npx vite build` แล้ว diff ไฟล์ CSS ที่ออกมา
- *        เทียบกับก่อนย้าย ถ้าไม่ว่างแปลว่ากฎนั้นพึ่งลำดับอยู่ ให้คืนที่เดิม
- *
- * ไฟล์นี้ต้องมีแค่ @import กับคอมเมนต์ ห้ามมีกฎ CSS ปน — สเปกบังคับว่า @import
- * ต้องอยู่บนสุดของไฟล์ ถ้ามีกฎมาคั่น @import ที่อยู่ใต้กฎนั้นจะถูกเมินทั้งหมด
- *
- * ฟอนต์ไม่ได้อยู่ในสารบัญนี้ — main.jsx import ฟอนต์ก่อนไฟล์นี้อยู่แล้ว อย่าย้ายเข้ามา
- */
+/* สารบัญ CSS — ลำดับ import มีผลกับ cascade ห้ามสลับ */
 
-/* ---- ฐาน: ใช้ทุกหน้า ---- */
-@import './styles/01-tokens.css';                     /* ธีมสี :root · reset · ฟอนต์ */
-@import './styles/02-shell.css';                      /* เมนูข้าง · พื้นที่เนื้อหา · การ์ด */
-@import './styles/03-controls.css';                   /* ปุ่ม · ฟอร์ม · ช่องรหัสสำรอง */
-@import './styles/04-hub.css';                        /* หน้ารวม · แถบบริบท · ปุ่มสลับหอ */
-@import './styles/05-apartment-form.css';             /* ฟอร์มหอพัก 2 คอลัมน์ */
-@import './styles/06-feedback.css';                   /* ข้อความแจ้งผล · แถบเตือน */
+/* ฐาน: ใช้ทุกหน้า */
+@import './styles/01-tokens.css'; /* ธีมสี :root · reset · ฟอนต์ */
+@import './styles/02-shell.css'; /* เมนูข้าง · พื้นที่เนื้อหา · การ์ด */
+@import './styles/03-controls.css'; /* ปุ่ม · ฟอร์ม · ช่องรหัสสำรอง */
+@import './styles/04-hub.css'; /* หน้ารวม · แถบบริบท · ปุ่มสลับหอ */
+@import './styles/05-apartment-form.css'; /* ฟอร์มหอพัก 2 คอลัมน์ */
+@import './styles/06-feedback.css'; /* ข้อความแจ้งผล · แถบเตือน */
 
-/* ---- ชิ้นส่วนและหน้าตั้งค่า ---- */
-@import './styles/07-select-field.css';               /* components/SelectField.jsx */
-@import './styles/08-apartments-settings.css';        /* รายการหอ · หน้าตั้งค่า · บัญชีธนาคาร */
-@import './styles/09-floor-plan.css';                 /* ผังชั้น */
-@import './styles/10-setup-wizard.css';               /* ตัวช่วยตั้งค่า · การ์ดห้อง · ป้ายสถานะห้อง */
-@import './styles/11-modal-toggle.css';               /* หน้าต่างซ้อน · สวิตช์เปิด/ปิด */
-@import './styles/12-wizard-steps.css';               /* ตัวช่วยตั้งค่า ขั้นที่ 2 / 4 / 5 */
-@import './styles/13-table-empty-callout.css';        /* ★ ตารางข้อมูล · จอว่างเปล่า · กล่องแจ้งเตือน */
-@import './styles/14-auth.css';                       /* หน้าก่อนเข้าระบบ · รหัสสำรอง · โซนลบหอ */
-@import './styles/15-settings-nav.css';               /* เมนูตั้งค่าในแถบซ้าย */
+/* ชิ้นส่วนและหน้าตั้งค่า */
+@import './styles/07-select-field.css'; /* components/SelectField.jsx */
+@import './styles/08-apartments-settings.css'; /* รายการหอ · หน้าตั้งค่า · บัญชีธนาคาร */
+@import './styles/09-floor-plan.css'; /* ผังชั้น */
+@import './styles/10-setup-wizard.css'; /* ตัวช่วยตั้งค่า · การ์ดห้อง · ป้ายสถานะห้อง */
+@import './styles/11-modal-toggle.css'; /* หน้าต่างซ้อน · สวิตช์เปิด/ปิด */
+@import './styles/12-wizard-steps.css'; /* ตัวช่วยตั้งค่า ขั้นที่ 2 / 4 / 5 */
+@import './styles/13-table-empty-callout.css'; /* ★ ตารางข้อมูล · จอว่างเปล่า · กล่องแจ้งเตือน */
+@import './styles/14-auth.css'; /* หน้าก่อนเข้าระบบ · รหัสสำรอง · โซนลบหอ */
+@import './styles/15-settings-nav.css'; /* เมนูตั้งค่าในแถบซ้าย */
 
-/* ---- หน้าทำงานประจำวัน ---- */
-@import './styles/16-tenants-rooms-dashboard.css';    /* หน้าผู้เช่า · ห้องพัก · ภาพรวม */
-@import './styles/17-room-detail.css';                /* หน้ารายละเอียดห้อง */
-@import './styles/18-contract-wizard.css';            /* ตัวช่วยทำสัญญา */
-@import './styles/19-payments-backups.css';           /* รับเงินหลายห้อง · สำรองข้อมูล */
-@import './styles/20-print.css';                      /* @page + @media print (1/3) · ช่องวันที่ */
-@import './styles/21-invoice.css';                    /* ใบแจ้งหนี้ · ตั้งค่า QR · บัญชีธนาคาร */
-@import './styles/22-receipts.css';                   /* ยอดค้าง · รับเงิน · ใบเสร็จที่ยกเลิก */
-@import './styles/23-move-out.css';                   /* ย้ายออก · ใบสรุป · @media print (2/3) */
-@import './styles/24-receipt-print.css';              /* ใบเสร็จ A5 · @media print (3/3) */
+/* หน้าทำงานประจำวัน */
+@import './styles/16-tenants-rooms-dashboard.css'; /* หน้าผู้เช่า · ห้องพัก · ภาพรวม */
+@import './styles/17-room-detail.css'; /* หน้ารายละเอียดห้อง */
+@import './styles/18-contract-wizard.css'; /* ตัวช่วยทำสัญญา */
+@import './styles/19-payments-backups.css'; /* รับเงินหลายห้อง · สำรองข้อมูล */
+@import './styles/20-print.css'; /* @page + @media print (1/3) · ช่องวันที่ */
+@import './styles/21-invoice.css'; /* ใบแจ้งหนี้ · ตั้งค่า QR · บัญชีธนาคาร */
+@import './styles/22-receipts.css'; /* ยอดค้าง · รับเงิน · ใบเสร็จที่ยกเลิก */
+@import './styles/23-move-out.css'; /* ย้ายออก · ใบสรุป · @media print (2/3) */
+@import './styles/24-receipt-print.css'; /* ใบเสร็จ A5 · @media print (3/3) */
 @import './styles/25-billing-meters-maintenance.css'; /* ออกบิล · จดมิเตอร์ · แจ้งซ่อม */
-@import './styles/26-move-in-receipt.css';            /* ใบรับเงินแรกเข้า + ปุ่มพิมพ์ในการ์ดสัญญา */
+@import './styles/26-move-in-receipt.css'; /* ใบรับเงินแรกเข้า + ปุ่มพิมพ์ในการ์ดสัญญา */

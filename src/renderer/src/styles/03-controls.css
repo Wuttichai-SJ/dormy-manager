@@ -1,6 +1,4 @@
-/* 03-controls — ปุ่มหลัก/รอง · ฟอร์มทั่วไป · ช่องกรอกรหัสสำรอง
-   ลำดับที่ 03 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 256-441 ของ styles.css
-   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+/* ปุ่มหลัก/รอง · ฟอร์มทั่วไป · ช่องกรอกรหัสสำรอง */
 
 /* ปุ่ม */
 .btn {
@@ -40,7 +38,6 @@
   padding: 11px 16px;
 }
 
-/* ปุ่มรอง — ต้องดูเป็น "ทางเลือก" ไม่ใช่ปุ่มหลักอีกใบ จึงไม่มีพื้นสีและไม่มีเงา */
 .btn-ghost {
   background: transparent;
   color: var(--text-soft);
@@ -136,9 +133,6 @@
   color: var(--text-muted);
 }
 
-/* ช่องที่กรอกผิด — ขอบแดง + ข้อความแดงใต้ช่อง (components/FieldError.jsx)
-   ตัวหนังสือใหญ่และหนากว่า field-hint ให้เห็นชัดกว่าคำอธิบายทั่วไป */
-/* :not(...) เพิ่มความจำเพาะให้ชนะ `.form-section-body .field select` (05) ที่มาทีหลังใน cascade */
 .field.has-error input:not([type='checkbox']),
 .field.has-error select:not([multiple]),
 .field.has-error textarea:not([disabled]) {
@@ -152,7 +146,6 @@
   box-shadow: 0 0 0 3px var(--err-weak);
 }
 
-/* ช่องที่ไม่ได้อยู่ใน .field (เช่นยอดค่าปรับในกล่องค่าปรับ) ใช้ aria-invalid แทน */
 .late-fee-amount[aria-invalid='true'] {
   border-color: var(--err);
 }
@@ -175,8 +168,6 @@
   margin-top: 1px;
 }
 
-/* ช่องกรอกรหัสสำรอง — แยก 4 กลุ่มตามที่พิมพ์บนกระดาษ ผู้ใช้จะได้เห็นว่าคัดมาถึงกลุ่มไหน
-   ตัวอักษรใช้ฟอนต์ monospace ตัวพิมพ์ใหญ่ เทียบกับกระดาษได้ตรงตัว */
 .code-segments {
   display: flex;
   align-items: center;

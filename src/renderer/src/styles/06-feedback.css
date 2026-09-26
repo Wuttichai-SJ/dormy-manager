@@ -1,8 +1,5 @@
-/* 06-feedback — ข้อความแจ้งผล (toast) · แถบเตือน · @keyframes
-   ลำดับที่ 06 ในสารบัญ (../styles.css) · เดิมคือบรรทัด 722-803 ของ styles.css
-   ลำดับไฟล์มีผลต่อ cascade — ห้ามย้ายกฎออกนอกไฟล์นี้โดยไม่ diff ผลลัพธ์ที่ build ออกมา */
+/* ข้อความแจ้งผล (toast) · แถบเตือน · @keyframes */
 
-/* ข้อความแจ้งผลลอยมุมขวาบน — ขนาด/สี/เงา วัดจากต้นแบบ */
 .toast-host {
   position: fixed;
   top: 24px;
@@ -33,7 +30,6 @@
   border: 1px solid #bffcd9;
 }
 
-/* แบบแดงใช้ตอนกันไม่ให้เข้าหอที่ยังตั้งค่าไม่ครบ (ต้นแบบใช้แถบนี้เหมือนกัน) */
 .toast-error {
   color: #b42318;
   background: #fef3f2;
@@ -45,8 +41,6 @@
   height: 20px;
 }
 
-/* ขาออกเลื่อนไปทางขวาเหมือนตอนเข้า ไม่ใช่จางหายอยู่กับที่
-   ต้องมี forwards ไม่งั้นพอเล่นจบเฟรมสุดท้ายจะเด้งกลับมาโผล่ให้เห็นอีกวูบก่อนถูกถอด */
 .toast.leaving {
   animation: toast-out 0.22s ease-in forwards;
 }
@@ -84,9 +78,6 @@
   box-shadow: 0 0 0 3px var(--accent-weak);
 }
 
-
-/* กล่องคำอธิบายของจุด ⓘ (components/InfoTip.jsx) — กดแล้วเปิด วาดลง body ด้วย fixed
-   z-index 200: สูงกว่าหน้าต่างซ้อน (100) จะได้ใช้ในหน้าต่างซ้อนได้ แต่ต่ำกว่าข้อความแจ้งผล (9999) */
 .info-tip {
   position: fixed;
   z-index: 200;
@@ -104,7 +95,6 @@
   animation: info-tip-in 0.12s ease;
 }
 
-/* หัวข้อตัวใหญ่ขาวเต็ม · ข้อย่อยตัวเล็กสีจางกว่า มีจุดนำ — กวาดตาอ่านทีละข้อได้ */
 .info-tip-title {
   display: block;
   font-size: 14px;
@@ -134,7 +124,6 @@
   }
 }
 
-/* ไอคอนเป็น <button> แล้ว (กดได้ + กด Tab มาถึง) — ล้างหน้าตาปุ่มออกให้เหลือแค่ไอคอน */
 button.hint-icon {
   vertical-align: middle;
   margin-left: 4px;
