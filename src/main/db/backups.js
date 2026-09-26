@@ -192,14 +192,39 @@ export function listKnownMigrations(migrationsDir) {
 // คืนค่าเป็น path ที่ต้องเอาไปทับ ให้ฝั่ง handler เป็นคนปิดฐานข้อมูล/ทับไฟล์/รีสตาร์ตแอป
 // เพราะโมดูลนี้ต้องไม่รู้จัก electron (ชุดทดสอบรันใต้ ELECTRON_RUN_AS_NODE ที่ import
 // electron ไม่ได้ — กฎเดียวกับ db/*.js ตัวอื่น)
+// 🔴 ชื่อไฟล์ที่หน้าจอส่งมาต้องชี้ไปที่ไฟล์สำรองในโฟลเดอร์สำรองเท่านั้น (รีวิวโค้ด 2026-09-25)
+// เดิม path.join ต่อชื่อที่ส่งมาตรงๆ — ส่ง "../dormy.sqlite" มาแล้ว "ลบไฟล์สำรอง" ไปลบ
+// ฐานข้อมูลตัวจริงได้ หรือ "กู้คืน" จากไฟล์ที่ไหนก็ได้ในเครื่อง ปุ่มบนหน้าจอส่งชื่อที่ถูกเสมอ
+// ตัวนี้จึงเป็นด่านเผื่อไว้สำหรับคำสั่งที่ไม่ได้มาจากปุ่ม
+//
+// ไม่บังคับรูปแบบชื่อ dormy-YYYY-MM-DD_… — ผู้ใช้อาจคัดลอกไฟล์สำรองกลับมาจาก USB แล้วตั้งชื่อเอง
+// ซึ่ง listBackups ก็แสดงไฟล์ .sqlite ทุกไฟล์ในโฟลเดอร์อยู่แล้ว ตรวจแค่ว่าเป็นชื่อไฟล์ล้วน
+// ลงท้าย .sqlite และปลายทางอยู่ในโฟลเดอร์สำรองจริง
+function resolveBackupFile(userDataPath, fileName, { isDev = false } = {}) {
+  const dir = path.resolve(resolveBackupDir(userDataPath, { isDev }))
+  const name = String(fileName ?? '')
+  const plainName =
+    name !== '' &&
+    name === path.basename(name) &&
+    !name.includes('/') &&
+    !name.includes('\\') &&
+    name !== '.' &&
+    name !== '..'
+  const full = path.resolve(dir, name)
+  if (!plainName || !name.endsWith('.sqlite') || path.dirname(full) !== dir) {
+    throw new Error('ชื่อไฟล์สำรองไม่ถูกต้อง')
+  }
+  return full
+}
+
 export function prepareRestore(userDataPath, fileName, migrationsDir = null, { isDev = false } = {}) {
-  const source = path.join(resolveBackupDir(userDataPath, { isDev }), fileName)
+  const source = resolveBackupFile(userDataPath, fileName, { isDev })
   const info = inspectBackup(source, migrationsDir ? listKnownMigrations(migrationsDir) : null)
   return { source, info }
 }
 
 export function deleteBackup(userDataPath, fileName, { isDev = false } = {}) {
-  const full = path.join(resolveBackupDir(userDataPath, { isDev }), fileName)
+  const full = resolveBackupFile(userDataPath, fileName, { isDev })
   if (!fs.existsSync(full)) throw new Error('ไม่พบไฟล์สำรองที่ต้องการลบ')
 
   fs.rmSync(full)

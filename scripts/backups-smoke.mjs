@@ -263,6 +263,44 @@ check('สร้างพร้อมกันสามคำขอ ได้ส
 fs.rmSync(sameSecondDir, { recursive: true, force: true })
 
 // -----------------------------------------------------
+// ชื่อไฟล์ที่ส่งมาต้องชี้อยู่ในโฟลเดอร์สำรองเท่านั้น (รีวิวโค้ด 2026-09-25)
+// เดิมส่ง "../dormy.sqlite" มาแล้วลบฐานข้อมูลตัวจริงได้
+group('กันชื่อไฟล์ที่หลุดออกนอกโฟลเดอร์สำรอง')
+
+// ไฟล์ข้างนอกโฟลเดอร์สำรอง แทนฐานข้อมูลตัวจริงที่อยู่ใน userData
+const live = path.join(userData, 'live.sqlite')
+fs.writeFileSync(live, 'ข้อมูลจริง')
+// กลุ่มก่อนหน้าลบไฟล์สำรองไปหมดแล้ว — สร้างใบของกลุ่มนี้เอง (มีป้ายกำกับ จึงมีไฟล์ .txt คู่กัน)
+const guarded = await backups.createBackup(db, userData, { label: 'ทดสอบชื่อไฟล์' })
+
+check('ลบด้วยชื่อ ../ ไม่ได้ และไฟล์ข้างนอกยังอยู่', () => {
+  throws(() => backups.deleteBackup(userData, '../live.sqlite'), 'ชื่อไฟล์สำรองไม่ถูกต้อง', 'ควรปฏิเสธ')
+  assert(fs.existsSync(live), 'ไฟล์ข้างนอกโฟลเดอร์สำรองถูกลบไปแล้ว')
+})
+
+check('ลบด้วย path เต็ม หรือ \\ ของ Windows ไม่ได้', () => {
+  throws(() => backups.deleteBackup(userData, live), 'ชื่อไฟล์สำรองไม่ถูกต้อง', 'path เต็มต้องถูกปฏิเสธ')
+  throws(() => backups.deleteBackup(userData, '..\\live.sqlite'), 'ชื่อไฟล์สำรองไม่ถูกต้อง', '..\\ ต้องถูกปฏิเสธ')
+  assert(fs.existsSync(live), 'ไฟล์ข้างนอกโฟลเดอร์สำรองถูกลบไปแล้ว')
+})
+
+check('กู้คืนจากไฟล์นอกโฟลเดอร์สำรองไม่ได้', () => {
+  throws(() => backups.prepareRestore(userData, '../live.sqlite'), 'ชื่อไฟล์สำรองไม่ถูกต้อง', 'ควรปฏิเสธ')
+})
+
+check('ไฟล์ที่ไม่ใช่ .sqlite ลบไม่ได้ แม้อยู่ในโฟลเดอร์สำรอง', () => {
+  // ป้ายกำกับ (.txt) อยู่คู่ไฟล์สำรองในโฟลเดอร์เดียวกัน ต้องลบผ่านไฟล์หลักเท่านั้น
+  throws(() => backups.deleteBackup(userData, `${guarded.fileName}.txt`), 'ชื่อไฟล์สำรองไม่ถูกต้อง', 'ควรปฏิเสธ')
+})
+
+check('ชื่อไฟล์ที่ผู้ใช้ตั้งเอง (ไม่ใช่รูปแบบของระบบ) ยังลบได้ตามปกติ', () => {
+  const dir = backups.resolveBackupDir(userData)
+  fs.copyFileSync(path.join(dir, guarded.fileName), path.join(dir, 'จาก USB.sqlite'))
+  backups.deleteBackup(userData, 'จาก USB.sqlite')
+  assert(!fs.existsSync(path.join(dir, 'จาก USB.sqlite')), 'ควรลบได้')
+})
+
+// -----------------------------------------------------
 cleanup()
 fs.rmSync(userData, { recursive: true, force: true })
 summarize('การสำรอง/กู้คืนข้อมูลทำงานครบทุกเส้นทาง')
