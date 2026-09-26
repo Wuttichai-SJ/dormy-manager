@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import SelectField from '../components/SelectField.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { BANKS, RECOMMENDED_MAX_ACCOUNTS } from '../constants.js'
@@ -20,6 +21,8 @@ import {
 const EMPTY = { bankName: '', accountName: '', accountNumber: '' }
 
 export default function BankAccountsPage({ apartment }) {
+  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
+  const [confirmDialog, ask] = useConfirm()
   const [accounts, setAccounts] = useState([])
   const [instructions, setInstructions] = useState('')
   const [invoiceNote, setInvoiceNote] = useState('')
@@ -92,6 +95,7 @@ export default function BankAccountsPage({ apartment }) {
 
   return (
     <>
+      {confirmDialog}
       <section className="panel">
         <h2 className="panel-title page-title">
           บัญชีธนาคารสำหรับรับเงิน
@@ -218,7 +222,18 @@ export default function BankAccountsPage({ apartment }) {
                     <button
                       type="button"
                       className="link-btn link-danger table-action icon-only"
-                      onClick={() => act(() => deleteBankAccount(a.bankAccountId))}
+                      onClick={() =>
+                        ask({
+                          title: `ลบบัญชี "${a.accountName}"?`,
+                          message: 'บัญชีนี้จะไม่แสดงในใบแจ้งหนี้อีก',
+                          confirmLabel: 'ลบบัญชี',
+                          onConfirm: async () => {
+                            const res = await deleteBankAccount(a.bankAccountId)
+                            if (res.success) load()
+                            return res
+                          }
+                        })
+                      }
                       aria-label={`ลบบัญชี ${a.accountName}`}
                     >
                       <Icon name="trash" />

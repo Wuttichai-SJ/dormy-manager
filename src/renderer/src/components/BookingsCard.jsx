@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Alert from './Alert.jsx'
+import { useConfirm } from './ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from './FieldError.jsx'
 import InfoTip from './InfoTip.jsx'
 import Modal from './Modal.jsx'
@@ -33,6 +34,8 @@ const EMPTY = {
 }
 
 export default function BookingsCard({ room, onConvert }) {
+  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
+  const [confirmDialog, ask] = useConfirm()
   const [bookings, setBookings] = useState(null)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(null)
@@ -51,6 +54,16 @@ export default function BookingsCard({ room, onConvert }) {
   useEffect(() => {
     load()
   }, [load])
+
+  // แบบเดียวกับ act แต่คืนผลเต็ม ให้หน้าต่างยืนยันแสดง error ในหน้าต่างเอง
+  async function actResult(fn, message) {
+    const res = await fn()
+    if (res.success) {
+      if (message) showToast(message)
+      load()
+    }
+    return res
+  }
 
   async function act(fn, message) {
     setError('')
@@ -84,6 +97,7 @@ export default function BookingsCard({ room, onConvert }) {
 
   return (
     <section className="panel">
+      {confirmDialog}
       <div className="panel-head-row">
         <h3 className="panel-title">รายชื่อคนจองรอเข้าพัก</h3>
         <button
@@ -157,7 +171,18 @@ export default function BookingsCard({ room, onConvert }) {
                       <button
                         type="button"
                         className="link-btn link-danger table-action"
-                        onClick={() => act(() => setBookingStatus(b.bookingId, 'cancelled'), 'ยกเลิกการจองแล้ว')}
+                        onClick={() =>
+                          ask({
+                            title: `ยกเลิกการจองของ ${b.customerName}?`,
+                            message: 'ห้องจะกลับเป็นห้องว่าง · เงินจองไม่คืนตามกติกาของหอ',
+                            confirmLabel: 'ยกเลิกการจอง',
+                            busyLabel: 'กำลังยกเลิก...',
+                            // ปุ่มยืนยันขึ้นต้นว่า "ยกเลิก" อยู่แล้ว ปุ่มปิดจึงต้องใช้คำอื่น
+                            dismissLabel: 'เก็บการจองไว้',
+                            icon: 'close',
+                            onConfirm: () => actResult(() => setBookingStatus(b.bookingId, 'cancelled'), 'ยกเลิกการจองแล้ว')
+                          })
+                        }
                       >
                         ยกเลิก
                       </button>
@@ -167,7 +192,14 @@ export default function BookingsCard({ room, onConvert }) {
                     <button
                       type="button"
                       className="link-btn link-danger"
-                      onClick={() => act(() => deleteBooking(b.bookingId), 'ลบรายการจองแล้ว')}
+                      onClick={() =>
+                        ask({
+                          title: `ลบรายการจองของ ${b.customerName}?`,
+                          message: 'รายการจะหายจากประวัติการจอง กู้คืนไม่ได้',
+                          confirmLabel: 'ลบรายการ',
+                          onConfirm: () => actResult(() => deleteBooking(b.bookingId), 'ลบรายการจองแล้ว')
+                        })
+                      }
                     >
                       ลบ
                     </button>

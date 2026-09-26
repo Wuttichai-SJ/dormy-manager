@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { MAX_FLOORS, MAX_ROOMS_PER_FLOOR } from '../constants.js'
@@ -52,6 +53,15 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
     return true
   }, [])
 
+  // แบบเดียวกับ act แต่คืนผลเต็มจาก IPC — หน้าต่างยืนยันเอา error ไปแสดงในหน้าต่างเอง
+  // (act คืนแค่ true/false ให้ปุ่ม "ต่อไป" ของ wizard และส่ง error ไปขึ้นบนหน้า)
+  const run = useCallback(async (fn) => {
+    setError('')
+    const res = await fn()
+    if (res.success) setFloors(res.data)
+    return res
+  }, [])
+
   // ห่อด้วย useCallback เพราะ FloorPlanBuilder เอาไปใส่ใน useEffect ที่ลงทะเบียนปุ่ม
   // "ต่อไป" — ถ้าฟังก์ชันเป็นตัวใหม่ทุก render effect จะวิ่งใหม่ทุกครั้งไม่จบ
   const generate = useCallback(
@@ -81,6 +91,7 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
           floors={floors}
           apartmentId={apartment.apartmentId}
           act={act}
+          run={run}
         />
       )}
     </>
@@ -226,7 +237,7 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
 // -----------------------------------------------------
 // โหมดแก้ไข
 // -----------------------------------------------------
-function FloorPlanEditor({ floors, apartmentId, act }) {
+function FloorPlanEditor({ floors, apartmentId, act, run }) {
   const totalRooms = floors.reduce((sum, f) => sum + f.rooms.length, 0)
   const groups = groupByBuilding(floors)
   // หอตึกเดียว (ไม่มีใครใส่ป้ายตึก) ต้องเห็นหน้าเดิมเป๊ะๆ ไม่มีหัวข้อกลุ่มโผล่มาเกะกะ
@@ -252,7 +263,7 @@ function FloorPlanEditor({ floors, apartmentId, act }) {
           )}
 
           {group.floors.map((floor) => (
-            <FloorCard key={floor.floorId} floor={floor} act={act} />
+            <FloorCard key={floor.floorId} floor={floor} act={act} run={run} />
           ))}
 
           {/* เพิ่มชั้นเข้าตึกนี้โดยตรง — ชั้นใหม่ได้ป้ายตึกเดียวกันติดมาให้เลย
@@ -312,7 +323,8 @@ function toFloorSpecs(specs) {
 
 // การ์ดหนึ่งใบต่อหนึ่งชั้น — หัวการ์ดพื้นเทาที่แก้ชื่อชั้นได้ในตัว แล้วห้องเรียงเป็นแถว
 // ห้องละบรรทัด (เลขห้อง / ประเภทห้อง / สวิตช์เปิดใช้งาน) ตามต้นแบบ
-function FloorCard({ floor, act }) {
+function FloorCard({ floor, act, run }) {
+  const [confirmDialog, ask] = useConfirm()
   const [name, setName] = useState(floor.floorName)
   const [building, setBuilding] = useState(floor.buildingName ?? '')
   const [prefix, setPrefix] = useState(floor.numberPrefix ?? '')
@@ -331,11 +343,19 @@ function FloorCard({ floor, act }) {
           }
         />
         {/* ปุ่มลบชั้นโผล่เฉพาะชั้นที่ไม่มีห้องแล้ว — ฝั่ง main กันไว้อีกชั้นพร้อมข้อความอธิบาย */}
+        {confirmDialog}
         {floor.rooms.length === 0 && (
           <button
             type="button"
             className="link-btn link-danger plan-floor-delete"
-            onClick={() => act(() => deleteFloor(floor.floorId))}
+            onClick={() =>
+              ask({
+                title: `ลบ${floor.floorName}?`,
+                message: 'ชั้นนี้ไม่มีห้องแล้ว จะหายจากผังห้อง',
+                confirmLabel: 'ลบชั้น',
+                onConfirm: () => run(() => deleteFloor(floor.floorId))
+              })
+            }
           >
             ลบชั้นนี้
           </button>
@@ -382,7 +402,7 @@ function FloorCard({ floor, act }) {
 
       <div className="plan-floor-body">
         {floor.rooms.map((room) => (
-          <RoomRow key={room.roomId} room={room} act={act} />
+          <RoomRow key={room.roomId} room={room} act={act} run={run} />
         ))}
 
         <hr className="divider" />
@@ -401,7 +421,8 @@ function FloorCard({ floor, act }) {
 
 // แก้ได้ในที่ ไม่ต้องกดเข้าโหมดแก้ไขก่อน — บันทึกตอนออกจากช่อง (onBlur) หรือตอนสลับสวิตช์
 // ต้นแบบก็ทำแบบนี้: ทั้งชั้นเป็นฟอร์มเดียวที่พิมพ์ทับได้เลย
-function RoomRow({ room, act }) {
+function RoomRow({ room, act, run }) {
+  const [confirmDialog, ask] = useConfirm()
   const [form, setForm] = useState({
     roomNumber: room.roomNumber,
     roomTypeName: room.roomTypeName ?? '',
@@ -443,10 +464,19 @@ function RoomRow({ room, act }) {
         onChange={(isActive) => save({ ...form, isActive })}
       />
 
+      {confirmDialog}
+      {/* ห้องที่เคยมีสัญญาลบไม่ได้ — main ปฏิเสธพร้อมบอกให้ปิดใช้งานแทน ข้อความขึ้นในหน้าต่างนี้ */}
       <button
         type="button"
         className="link-btn link-danger plan-room-delete"
-        onClick={() => act(() => deleteRoom(room.roomId))}
+        onClick={() =>
+          ask({
+            title: `ลบห้อง ${room.roomNumber}?`,
+            message: 'ห้องจะหายจากผังห้อง กู้คืนไม่ได้',
+            confirmLabel: 'ลบห้อง',
+            onConfirm: () => run(() => deleteRoom(room.roomId))
+          })
+        }
         aria-label={`ลบห้อง ${room.roomNumber}`}
       >
         <Icon name="trash" />

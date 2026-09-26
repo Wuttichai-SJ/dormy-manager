@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import InfoTip from '../components/InfoTip.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import { centsToInput, formatBaht } from '../format.js'
 import {
   createService,
@@ -31,6 +32,8 @@ const PRESET_NAMES = [
 const EMPTY = { name: '', price: '', isMeterBased: false, isVatEnabled: false }
 
 export default function ApartmentServicesPage({ apartment }) {
+  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
+  const [confirmDialog, ask] = useConfirm()
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -84,16 +87,26 @@ export default function ApartmentServicesPage({ apartment }) {
     })
   }
 
-  async function remove(service) {
-    setError('')
-    const res = await deleteService(service.serviceId)
-    if (!res.success) return setError(res.error)
-    if (editingId === service.serviceId) resetForm()
-    load()
+  // ลบไม่ได้ถ้ายังผูกกับห้องหรืออยู่ในสัญญา — main ปฏิเสธ แล้ว error ขึ้นในหน้าต่างยืนยัน
+  function remove(service) {
+    ask({
+      title: `ลบบริการ "${service.name}"?`,
+      message: 'ลบออกจากรายการบริการของหอ กู้คืนไม่ได้',
+      confirmLabel: 'ลบบริการ',
+      onConfirm: async () => {
+        const res = await deleteService(service.serviceId)
+        if (res.success) {
+          if (editingId === service.serviceId) resetForm()
+          load()
+        }
+        return res
+      }
+    })
   }
 
   return (
     <>
+      {confirmDialog}
       <section className="panel">
         <h2 className="panel-title page-title">
           ค่าบริการเพิ่มเติม

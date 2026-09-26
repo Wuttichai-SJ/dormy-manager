@@ -94,7 +94,7 @@ export default function BillDocument({ invoice, title, meta, tenants, footer, on
                   <button
                     type="button"
                     className="link-btn link-danger table-action icon-only"
-                    onClick={() => onRemoveItem(item.invoiceItemId)}
+                    onClick={() => onRemoveItem(item)}
                     aria-label={`ลบรายการ ${item.description}`}
                   >
                     <Icon name="trash" />

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
@@ -25,6 +26,8 @@ import {
 // **ไม่มีการลบผู้ใช้ มีแต่ปิดการใช้งาน** — ใบเสร็จทุกใบอ้าง created_by ไว้
 // ลบแถวผู้ใช้ = คอลัมน์ "ผู้รับเงิน" ของเอกสารเก่ากลายเป็นช่องว่างย้อนหลังทั้งระบบ
 export default function UsersPage({ user }) {
+  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
+  const [confirmDialog, ask] = useConfirm()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -46,12 +49,27 @@ export default function UsersPage({ user }) {
     load()
   }, [load])
 
-  async function toggleActive(target) {
-    setError('')
-    const res = await setUserActive(target.userId, !target.isActive)
-    if (!res.success) return setError(res.error)
-    showToast(`${target.isActive ? 'ปิด' : 'เปิด'}การใช้งานบัญชี ${target.fullName} แล้ว`)
-    load()
+  // ปิดการใช้งาน = คนนั้นเข้าระบบไม่ได้ทันที จึงถามก่อน · เปิดกลับไม่ต้องถาม (ไม่มีอะไรเสีย)
+  function toggleActive(target) {
+    const run = async () => {
+      const res = await setUserActive(target.userId, !target.isActive)
+      if (res.success) {
+        showToast(`${target.isActive ? 'ปิด' : 'เปิด'}การใช้งานบัญชี ${target.fullName} แล้ว`)
+        load()
+      }
+      return res
+    }
+    if (!target.isActive) {
+      return run().then((res) => !res.success && setError(res.error))
+    }
+    ask({
+      title: `ปิดการใช้งานบัญชี ${target.fullName}?`,
+      message: 'เข้าสู่ระบบไม่ได้จนกว่าจะเปิดใช้งานอีกครั้ง · ประวัติการทำรายการยังอยู่ครบ',
+      confirmLabel: 'ปิดการใช้งาน',
+      busyLabel: 'กำลังปิด...',
+      icon: 'lock',
+      onConfirm: run
+    })
   }
 
   // รหัสสำรองกินทั้งหน้าจอเพราะต้องจดก่อนไปต่อ — วางปนกับตารางแล้วจะถูกกดข้ามไป
@@ -76,6 +94,7 @@ export default function UsersPage({ user }) {
 
   return (
     <>
+      {confirmDialog}
       <section className="panel">
         <Alert>{error}</Alert>
 

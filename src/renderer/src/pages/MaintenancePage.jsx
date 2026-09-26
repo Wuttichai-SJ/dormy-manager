@@ -5,7 +5,7 @@ import FieldError, { fieldClass, invalidProps, useFormErrors } from '../componen
 import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
-import ConfirmDialog from '../components/ConfirmDialog.jsx'
+import ConfirmDialog, { useConfirm } from '../components/ConfirmDialog.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { MAINTENANCE_STATUS_FILTERS } from '../constants.js'
 import { centsToInput, formatBaht } from '../format.js'
@@ -350,6 +350,8 @@ function ReportDialog({ apartment, onClose, onCreated }) {
 // รายละเอียดงาน
 // ------------------------------------------------------------------
 function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
+  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
+  const [confirmDialog, ask] = useConfirm()
   const [request, setRequest] = useState(null)
   const [images, setImages] = useState({})
   const [loading, setLoading] = useState(true)
@@ -399,11 +401,17 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
     setRequest(res.data.request)
   }
 
-  async function detachImage(imageId) {
-    setError('')
-    const res = await removeMaintenanceImage(maintenanceId, imageId)
-    if (!res.success) return setError(res.error)
-    setRequest(res.data)
+  function detachImage(imageId) {
+    ask({
+      title: 'ลบรูปนี้?',
+      message: 'รูปจะหายจากงานซ่อมนี้ กู้คืนไม่ได้',
+      confirmLabel: 'ลบรูป',
+      onConfirm: async () => {
+        const res = await removeMaintenanceImage(maintenanceId, imageId)
+        if (res.success) setRequest(res.data)
+        return res
+      }
+    })
   }
 
   async function reopen() {
@@ -600,6 +608,8 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
           }}
         />
       )}
+
+      {confirmDialog}
 
       {dialog === 'delete' && request && (
         <ConfirmDialog

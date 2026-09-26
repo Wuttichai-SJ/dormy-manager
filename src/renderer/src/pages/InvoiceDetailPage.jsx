@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
@@ -28,6 +29,8 @@ import { revealPdf, savePdf } from '../services/printService.js'
 // ไม่ได้เดินด้วย URL แบบเว็บ การเปิดซ้อนจึงไม่ได้ประโยชน์เรื่องปุ่มย้อนกลับของเบราว์เซอร์
 // signedBy = ชื่อผู้ที่กำลังออก/พิมพ์เอกสารใบนี้ ไปขึ้นในช่อง "ลงชื่อ" ท้ายบิล
 export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCancelReceipt }) {
+  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
+  const [confirmDialog, ask] = useConfirm()
   const [invoice, setInvoice] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -69,6 +72,7 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
   return (
     <>
       <BackLink onBack={onBack} />
+      {confirmDialog}
       <Alert>{error}</Alert>
 
       <div className="invoice-layout">
@@ -77,13 +81,21 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
             invoice={invoice}
             signedBy={signedBy}
             onError={setError}
-            onRemoveItem={async (itemId) => {
-              setError('')
-              const res = await removeInvoiceItem(invoice.invoiceId, itemId)
-              if (!res.success) return setError(res.error)
-              showToast('ลบรายการแล้ว')
-              load()
-            }}
+            onRemoveItem={(item) =>
+              ask({
+                title: `ลบรายการ "${item.description}"?`,
+                message: 'ยอดรวมของบิลนี้จะถูกคิดใหม่',
+                confirmLabel: 'ลบรายการ',
+                onConfirm: async () => {
+                  const res = await removeInvoiceItem(invoice.invoiceId, item.invoiceItemId)
+                  if (res.success) {
+                    showToast('ลบรายการแล้ว')
+                    load()
+                  }
+                  return res
+                }
+              })
+            }
             onCancel={() => setCancellingInvoice(true)}
           />
 
