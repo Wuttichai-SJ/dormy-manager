@@ -910,12 +910,7 @@ function BillingWizard({ apartment, onClose }) {
                 </tbody>
               </table>
             )}
-
-            <div className="card-foot">
-              <button type="button" className="btn btn-outline" onClick={onClose}>
-                เสร็จสิ้น
-              </button>
-            </div>
+            {/* ไม่มีปุ่ม "เสร็จสิ้น" — เดิมแค่ปิดหน้า ซ้ำกับลิงก์ย้อนกลับด้านบน (เฟิสขอเอาออก 2026-09-26) */}
           </>
         )}
       </section>
