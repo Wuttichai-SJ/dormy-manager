@@ -70,6 +70,19 @@ function applyPackagedMenu() {
   )
 }
 
+// ปลายทางยังเป็นหน้าของแอปเองไหม — dev เทียบ origin (http://localhost:xxxx)
+// ตอนแพ็กเป็น file:// เทียบ path ของไฟล์ (origin ของ file:// เป็น "null" เทียบกันไม่ได้)
+function isAppUrl(target, current) {
+  try {
+    const next = new URL(target)
+    const now = new URL(current)
+    if (next.protocol === 'file:') return now.protocol === 'file:' && next.pathname === now.pathname
+    return next.origin === now.origin
+  } catch {
+    return false
+  }
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -133,6 +146,19 @@ function createWindow() {
 
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     logError(`โหลดหน้าจอไม่สำเร็จ: ${errorDescription} (${errorCode}) — ${validatedURL}`)
+  })
+
+  // 🔴 หน้าต่างนี้มี preload ที่เข้าถึงฐานข้อมูลได้ — ห้ามโหลดหน้าเว็บอื่นเข้ามาแทนที่
+  // และห้ามเปิดหน้าต่างใหม่ (เจอจากรีวิวโค้ด 2026-09-26) แอปไม่มีลิงก์ออกข้างนอกเลย
+  // จึงปฏิเสธทั้งหมด · การย้อนกลับไปหน้าเดิมของแอป (เช่น Vite รีโหลดตอน dev) ยังได้ตามปกติ
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    logError(`บล็อกการเปิดหน้าต่างใหม่: ${url}`)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    if (isAppUrl(url, win.webContents.getURL())) return
+    event.preventDefault()
+    logError(`บล็อกการเปลี่ยนหน้าไปที่: ${url}`)
   })
 
   // electron-vite sets ELECTRON_RENDERER_URL in dev; load the built file in production.
