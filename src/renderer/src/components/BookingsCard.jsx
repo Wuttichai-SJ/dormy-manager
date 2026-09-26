@@ -7,7 +7,6 @@ import InfoTip from './InfoTip.jsx'
 import Modal from './Modal.jsx'
 import DateField from './DateField.jsx'
 import { showToast } from './Toast.jsx'
-import { formatPhone } from './TenantDialog.jsx'
 import { formatBaht, centsToInput } from '../format.js'
 import { PAYMENT_METHODS } from '../constants.js'
 import {
@@ -61,7 +60,7 @@ export default function BookingsCard({ room, onConvert, onOpenBookingChange, add
     load()
   }, [load])
 
-  // แบบเดียวกับ act แต่คืนผลเต็ม ให้หน้าต่างยืนยันแสดง error ในหน้าต่างเอง
+  // คืนผลเต็มจาก IPC ให้หน้าต่างยืนยันแสดง error ในหน้าต่างเอง · สำเร็จ = แจ้งผล + โหลดใหม่
   async function actResult(fn, message) {
     const res = await fn()
     if (res.success) {
@@ -69,14 +68,6 @@ export default function BookingsCard({ room, onConvert, onOpenBookingChange, add
       load()
     }
     return res
-  }
-
-  async function act(fn, message) {
-    setError('')
-    const res = await fn()
-    if (!res.success) return setError(res.error)
-    if (message) showToast(message)
-    load()
   }
 
   async function submit() {
@@ -143,87 +134,59 @@ export default function BookingsCard({ room, onConvert, onOpenBookingChange, add
         // การ์ดละหนึ่งการจอง ไม่ใช่ตาราง 6 คอลัมน์ — การ์ดนี้อยู่คอลัมน์ขวาที่แคบ ตารางเดิมบีบจน
         // ชื่อ วันที่ และปุ่มหักเป็นหลายบรรทัด (เฟิสทักท้วง 2026-09-26)
         // บรรทัดบน = ใครจอง + สถานะ · กลาง = เข้าวันไหน จ่ายเท่าไหร่ · ล่าง = เลขที่ + ปุ่ม
-        <ul className="booking-list">
+        // รายการย่อ: ชื่อ + สถานะ + ปุ่ม (เฟิสขอ 2026-09-26) — รายละเอียดวันที่/เงินจองอยู่ที่
+        // การ์ดสัญญาด้านซ้ายแล้ว ไม่ต้องซ้ำที่นี่
+        // ไม่มีปุ่ม "ยืนยันการจอง" แล้ว — ฝั่ง main แค่เปลี่ยนป้าย ไม่มีผลกับอะไรเลย หอไม่ได้ใช้
+        <ul className="booking-rows">
           {shown.map((b) => (
-            <li key={b.bookingId} className={'booking-item' + (b.isOpen ? '' : ' booking-past')}>
-              <div className="booking-item-head">
-                <div>
-                  <strong className="booking-item-name">{b.customerName}</strong>
-                  <span className="booking-item-phone">{formatPhone(b.customerPhone)}</span>
-                </div>
-                <span className={`booking-status booking-${b.status}`}>{b.statusLabel}</span>
+            <li key={b.bookingId} className={'booking-row' + (b.isOpen ? '' : ' booking-past')}>
+              <div className="booking-row-who">
+                <strong>{b.customerName}</strong>
+                <span className={`booking-status ${bookingTone(b)}`}>{bookingLabel(b)}</span>
               </div>
 
-              <dl className="booking-item-facts">
-                <div>
-                  <dt>เข้าพัก</dt>
-                  <dd>{formatDate(b.checkInDate)}</dd>
-                </div>
-                <div>
-                  <dt>เงินจอง</dt>
-                  <dd>{formatBaht(b.bookingFeeCents)} บาท</dd>
-                </div>
-              </dl>
-
-              <div className="booking-item-foot">
-                {/* ใบที่จองไว้ก่อนระบบจะออกเลขให้ไม่มีเลข — ขึ้นขีดแทน ไม่ใช่ช่องว่างเปล่า */}
-                <span className="booking-item-ref">
-                  {b.bookingNumber ?? '—'} · จอง {formatDate(b.bookingDate)}
-                </span>
-
-                <div className="booking-item-actions">
-                  {/* ทำสัญญาได้เฉพาะใบที่ยังกันห้องอยู่ */}
-                  {b.isOpen && (
-                    <>
-                      <button
-                        type="button"
-                        className="link-btn link-danger"
-                        onClick={() =>
-                          ask({
-                            title: `ยกเลิกการจองของ ${b.customerName}?`,
-                            message: 'ห้องจะกลับเป็นห้องว่าง · เงินจองไม่คืนตามกติกาของหอ',
-                            confirmLabel: 'ยกเลิกการจอง',
-                            busyLabel: 'กำลังยกเลิก...',
-                            // ปุ่มยืนยันขึ้นต้นว่า "ยกเลิก" อยู่แล้ว ปุ่มปิดจึงต้องใช้คำอื่น
-                            dismissLabel: 'เก็บการจองไว้',
-                            icon: 'close',
-                            onConfirm: () => actResult(() => setBookingStatus(b.bookingId, 'cancelled'), 'ยกเลิกการจองแล้ว')
-                          })
-                        }
-                      >
-                        ยกเลิก
-                      </button>
-                      {b.status === 'pending' && (
-                        <button
-                          type="button"
-                          className="btn btn-outline btn-sm"
-                          onClick={() => act(() => setBookingStatus(b.bookingId, 'confirmed'), 'ยืนยันการจองแล้ว')}
-                        >
-                          ยืนยันการจอง
-                        </button>
-                      )}
-                      <button type="button" className="btn btn-sm" onClick={() => onConvert(b)}>
-                        ทำสัญญา
-                      </button>
-                    </>
-                  )}
-                  {b.status === 'cancelled' && (
+              <div className="booking-row-actions">
+                {b.isOpen && (
+                  <>
                     <button
                       type="button"
                       className="link-btn link-danger"
                       onClick={() =>
                         ask({
-                          title: `ลบรายการจองของ ${b.customerName}?`,
-                          message: 'รายการจะหายจากประวัติการจอง กู้คืนไม่ได้',
-                          confirmLabel: 'ลบรายการ',
-                          onConfirm: () => actResult(() => deleteBooking(b.bookingId), 'ลบรายการจองแล้ว')
+                          title: `ยกเลิกการจองของ ${b.customerName}?`,
+                          message: 'ห้องจะกลับเป็นห้องว่าง · เงินจองไม่คืนตามกติกาของหอ',
+                          confirmLabel: 'ยกเลิกการจอง',
+                          busyLabel: 'กำลังยกเลิก...',
+                          // ปุ่มยืนยันขึ้นต้นว่า "ยกเลิก" อยู่แล้ว ปุ่มปิดจึงต้องใช้คำอื่น
+                          dismissLabel: 'เก็บการจองไว้',
+                          icon: 'close',
+                          onConfirm: () => actResult(() => setBookingStatus(b.bookingId, 'cancelled'), 'ยกเลิกการจองแล้ว')
                         })
                       }
                     >
-                      ลบรายการ
+                      ยกเลิก
                     </button>
-                  )}
-                </div>
+                    <button type="button" className="btn btn-sm" onClick={() => onConvert(b)}>
+                      ทำสัญญา
+                    </button>
+                  </>
+                )}
+                {b.status === 'cancelled' && (
+                  <button
+                    type="button"
+                    className="link-btn link-danger"
+                    onClick={() =>
+                      ask({
+                        title: `ลบรายการจองของ ${b.customerName}?`,
+                        message: 'รายการจะหายจากประวัติการจอง กู้คืนไม่ได้',
+                        confirmLabel: 'ลบรายการ',
+                        onConfirm: () => actResult(() => deleteBooking(b.bookingId), 'ลบรายการจองแล้ว')
+                      })
+                    }
+                  >
+                    ลบรายการ
+                  </button>
+                )}
               </div>
             </li>
           ))}
@@ -444,4 +407,61 @@ function formatDate(iso) {
   if (!iso) return '-'
   const [y, m, d] = String(iso).split('-')
   return `${d}/${m}/${y}`
+}
+
+// ข้อมูลหลักของการจองเป็นกล่องเรียงแถว — วันเข้าพัก (พร้อมนับถอยหลัง) · วันที่ออก · เงินจอง · วันที่จอง
+// ใช้ทั้งในการ์ดการจองและในการ์ดสัญญาของห้องที่มีคนจอง (เฟิสขอให้เห็นวันที่ชัดๆ 2026-09-26)
+// วันที่ออกขึ้นเฉพาะตอนกรอกไว้ — ส่วนใหญ่จองรายเดือนไม่ได้กำหนดวันออก
+export function BookingFacts({ booking }) {
+  const countdown = daysUntilLabel(booking.checkInDate)
+  return (
+    <dl className="booking-facts">
+      <div className="booking-fact booking-fact-main">
+        <dt>วันเข้าพัก</dt>
+        <dd>{formatDate(booking.checkInDate)}</dd>
+        {countdown && <span className="booking-fact-sub">{countdown}</span>}
+      </div>
+      {booking.checkOutDate && (
+        <div className="booking-fact">
+          <dt>วันที่ออก</dt>
+          <dd>{formatDate(booking.checkOutDate)}</dd>
+        </div>
+      )}
+      <div className="booking-fact">
+        <dt>เงินจอง</dt>
+        <dd>{formatBaht(booking.bookingFeeCents)}</dd>
+        <span className="booking-fact-sub">บาท</span>
+      </div>
+      <div className="booking-fact">
+        <dt>วันที่จอง</dt>
+        <dd>{formatDate(booking.bookingDate)}</dd>
+      </div>
+    </dl>
+  )
+}
+
+// "อีก 5 วัน" / "เข้าพักวันนี้" / "เลยมา 2 วัน" — นับจากวันที่ในเครื่อง ไม่สนเวลา
+function daysUntilLabel(iso) {
+  if (!iso) return ''
+  const [y, m, d] = String(iso).split('-').map(Number)
+  const target = new Date(y, m - 1, d)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((target - today) / 86400000)
+  if (Number.isNaN(days)) return ''
+  if (days === 0) return 'เข้าพักวันนี้'
+  return days > 0 ? `อีก ${days} วัน` : `เลยมา ${-days} วัน`
+}
+
+// ป้ายสถานะที่หน้าจอ — "รอยืนยัน" กับ "ยืนยันแล้ว" รวมเป็น "รอเข้าพัก" เพราะเอาปุ่มยืนยันออกแล้ว
+// (สถานะในฐานข้อมูลยังเป็น pending/confirmed เหมือนเดิม ไม่ได้แตะ — ใบเก่าที่เคยยืนยันไว้ก็ยังถูก)
+function bookingLabel(b) {
+  if (b.isOpen) return 'รอเข้าพัก'
+  if (b.status === 'converted_to_contract') return 'ทำสัญญาแล้ว'
+  if (b.status === 'cancelled') return 'ยกเลิกแล้ว'
+  return b.statusLabel
+}
+
+function bookingTone(b) {
+  return b.isOpen ? 'booking-pending' : `booking-${b.status}`
 }

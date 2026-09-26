@@ -277,111 +277,148 @@
   color: var(--text-soft);
 }
 
-/* รายการจอง — การ์ดละหนึ่งการจอง (แทนตาราง 6 คอลัมน์ที่แคบเกินในคอลัมน์ขวา) */
-.booking-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* รายการจองแบบย่อ — แถวละหนึ่งการจอง: ชื่อ + ป้ายสถานะ ซ้าย · ปุ่ม ขวา */
+.booking-rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.booking-item {
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+.booking-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
 }
 
-.booking-item.booking-past {
+.booking-row + .booking-row {
+  border-top: 1px solid var(--border);
+}
+
+.booking-row.booking-past {
   opacity: 0.65;
 }
 
-.booking-item-head {
+.booking-row-who {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  min-width: 0;
 }
 
-.booking-item-name {
-  display: block;
+.booking-row-who strong {
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
 }
 
-.booking-item-phone {
-  font-size: 13px;
-  color: var(--text-muted);
+.booking-row .booking-status {
+  white-space: nowrap;
 }
 
-/* ป้ายสถานะห้ามหักบรรทัด — "รอยืนยัน" หักเป็นสองบรรทัดในตารางเดิม */
-.booking-item .booking-status {
+.booking-row-actions {
+  display: flex;
   flex-shrink: 0;
-  white-space: nowrap;
+  align-items: center;
+  gap: 14px;
 }
 
-.booking-item-facts {
+/* ห้องว่างที่มีคนจองค้าง — แทนปุ่มรายเดือน/รายวันในการ์ดสัญญา
+   ชิดซ้ายอ่านง่ายกว่าจัดกลาง: หัว (ไอคอน + ใคร) · กล่องวันที่ · ปุ่มเต็มความกว้าง */
+.room-booked-head {
   display: flex;
-  gap: 32px;
-  margin: 12px 0;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
-.booking-item-facts dt {
+.room-booked-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-radius: 50%;
+}
+
+.room-booked-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.room-booked-label {
+  margin: 0;
   font-size: 12px;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--accent);
 }
 
-.booking-item-facts dd {
+.room-booked-name {
   margin: 2px 0 0;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 17px;
+  font-weight: 600;
   color: var(--text);
 }
 
-.booking-item-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.booking-item-ref {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.booking-item-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  white-space: nowrap;
-}
-
-/* ห้องว่างที่มีคนจองค้าง — แทนปุ่มรายเดือน/รายวันในการ์ดสัญญา */
-.room-booked-notice {
-  padding: 8px 0 4px;
-  text-align: center;
-}
-
-.room-booked-title {
-  margin: 0 0 4px;
-  font-size: 15px;
-  color: var(--text);
-}
-
-.room-booked-meta {
-  margin: 0 0 16px;
+.room-booked-phone {
+  margin: 2px 0 0;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+.room-booked .booking-facts {
+  margin-bottom: 20px;
 }
 
 .room-booked-hint {
   margin: 12px 0 0;
   font-size: 13px;
+  text-align: center;
   color: var(--text-muted);
+}
+
+/* กล่องข้อมูลการจอง (BookingFacts) — กล่องละเรื่อง ตัวเลขใหญ่ ป้ายเล็กด้านบน
+   วันเข้าพักเป็นกล่องเด่น (ขอบสีแบรนด์) เพราะเป็นสิ่งแรกที่คนดูการจองอยากรู้ */
+.booking-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.booking-fact {
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.booking-fact-main {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+}
+
+.booking-fact dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.booking-fact dd {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.booking-fact-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-soft);
 }

@@ -152,7 +152,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                         <div>{room.booking.customerName}</div>
                         <div className="muted room-cell-sub">
                           เข้าพัก {formatDocumentDate(room.booking.checkInDate)}
-                          {room.booking.status === 'pending' && ' · รอยืนยัน'}
                         </div>
                       </>
                     ) : (

@@ -13,7 +13,7 @@ import Modal from '../components/Modal.jsx'
 import { listContractReceipts, receiveContractPayment } from '../services/paymentService.js'
 import MoveInReceiptDocument from '../components/MoveInReceiptDocument.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
-import BookingsCard from '../components/BookingsCard.jsx'
+import BookingsCard, { BookingFacts } from '../components/BookingsCard.jsx'
 import ContractWizard from './ContractWizard.jsx'
 import MoveOutPage from './MoveOutPage.jsx'
 import { setMoveOutNotice } from '../services/terminationService.js'
@@ -72,6 +72,19 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   }
 
   const active = data?.active ?? null
+
+  // ป้ายสถานะบนหัวหน้า — คิดจากสัญญา/การจองที่โหลดล่าสุด ไม่ใช่ room.status ที่ติดมาตอนเปิดหน้า
+  // เดิมย้ายออกเสร็จแล้วป้ายยังค้าง "ไม่ว่าง" จนกว่าจะกลับไปหน้ารายการแล้วเข้ามาใหม่
+  // ปิดปรับปรุงเป็นค่าที่ตั้งเอง ไม่ได้เกิดจากสัญญา จึงยังอ่านจาก room.status
+  const headerStatus = active
+    ? 'occupied'
+    : room.status === 'maintenance'
+      ? 'maintenance'
+      : openBooking
+        ? 'booked'
+        : 'vacant'
+  const headerLabel =
+    headerStatus === 'booked' ? 'จองแล้ว' : (ROOM_STATUS_LABELS[headerStatus] ?? headerStatus)
 
   if (movingOut && active) {
     return (
@@ -136,9 +149,7 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
 
       <h2 className="room-detail-title">
         ห้อง: {room.roomNumber}
-        <span className={`room-badge status-${active ? 'occupied' : room.status}`}>
-          {active ? ROOM_STATUS_LABELS.occupied : (ROOM_STATUS_LABELS[room.status] ?? room.status)}
-        </span>
+        <span className={`room-badge status-${headerStatus}`}>{headerLabel}</span>
       </h2>
 
       <Alert>{error}</Alert>
@@ -161,18 +172,24 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
                 {/* 🔴 มีคนจองค้าง = ทำสัญญาได้ทางเดียวคือจากการจอง (main ปฏิเสธการทำสัญญาตรงด้วย)
                     ซ่อนปุ่มรายเดือน/รายวัน แล้วพาไปทำสัญญาให้ผู้จองแทน — เงินจองจะถูกนับเข้าเงินประกัน */}
                 {openBooking ? (
-                  <div className="room-booked-notice">
-                    <p className="room-booked-title">
-                      ห้องนี้มีคนจองอยู่: <strong>{openBooking.customerName}</strong>
+                  <div className="room-booked">
+                    <div className="room-booked-head">
+                      <span className="room-booked-icon" aria-hidden="true">
+                        <Icon name="bookings" />
+                      </span>
+                      <div>
+                        <p className="room-booked-label">ห้องนี้มีคนจองแล้ว</p>
+                        <p className="room-booked-name">{openBooking.customerName}</p>
+                        <p className="room-booked-phone">{formatPhone(openBooking.customerPhone)}</p>
+                      </div>
+                    </div>
+
+                    <BookingFacts booking={openBooking} />
+
+                    {/* ปุ่มทำสัญญา/ยกเลิกอยู่ที่การ์ด "การจองห้อง" ที่เดียว (เฟิสขอ 2026-09-26) */}
+                    <p className="room-booked-hint">
+                      ทำสัญญาหรือยกเลิกการจองได้ที่ "การจองห้อง" ด้านขวา
                     </p>
-                    <p className="room-booked-meta">
-                      เข้าพัก {formatDate(openBooking.checkInDate)} · เงินจอง{' '}
-                      {formatBaht(openBooking.bookingFeeCents)} บาท
-                    </p>
-                    <button type="button" className="btn" onClick={() => setConverting(openBooking)}>
-                      ทำสัญญาให้ {openBooking.customerName}
-                    </button>
-                    <p className="room-booked-hint">ผู้จองไม่มาแล้ว? ยกเลิกการจองก่อน แล้วจึงทำสัญญาใหม่</p>
                   </div>
                 ) : (
                   <>
