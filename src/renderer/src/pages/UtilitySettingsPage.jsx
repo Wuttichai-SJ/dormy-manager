@@ -13,18 +13,7 @@ import {
   saveUtilityDefaults
 } from '../services/utilityService.js'
 
-// ขั้นที่ 2 ของการตั้งค่าหอ — วิธีคิดค่าน้ำและค่าไฟ
-//
-// ค่าที่ตั้งที่นี่เป็น "ค่าเริ่มต้นของหอ" ห้องที่สร้างใหม่จะได้ค่านี้ไป
-// การแก้ทีหลังไม่ย้อนไปเปลี่ยนห้องที่มีอยู่แล้ว (กันไม่ให้ราคาพิเศษรายห้องถูกทับหาย)
-//
-// น้ำกับไฟตั้งแยกกันได้อิสระ เพราะหอส่วนใหญ่คิดคนละแบบ
-// (น้ำเหมาจ่าย 100 บาท/เดือน แต่ไฟคิดตามมิเตอร์ เป็นรูปแบบที่พบบ่อยที่สุด)
-//
-// โครงหน้าจอตามต้นแบบ: สองคอลัมน์ ไอคอนใหญ่นำ แล้วเป็นสวิตช์เปิด/ปิดสองอัน
-// ส่วนราคาไปอยู่ในหน้าต่างซ้อนที่กดจากปุ่ม "ระบุการคิดค่าน้ำ / ค่าไฟ"
-// เหตุผลที่ต้นแบบซ่อนราคาไว้ในหน้าต่าง: ช่องราคาเปลี่ยนไปตามประเภทการคิดเงิน
-// ถ้าโชว์ทั้งหมดคาหน้าจอ สองคอลัมน์จะยาวไม่เท่ากันและอ่านยาก
+// ค่าตั้งต้นของหอ — ห้องใหม่ได้ค่านี้ แก้ทีหลังไม่ย้อนไปทับห้องเดิม
 const EMPTY_SIDE = {
   enabled: true,
   billingType: 'actual',
@@ -50,19 +39,13 @@ const SIDES = {
   electric: { title: 'ค่าไฟ', icon: 'electric', unitLabel: 'หน่วย' }
 }
 
-// "ระบุแล้ว" = ช่องราคาที่โหมดนั้นใช้จริงมีค่ามากกว่าศูนย์
+// ระบุแล้ว = ช่องราคาที่โหมดนั้นใช้มีค่ามากกว่า 0
 function hasPrice(side) {
   const filled = (value) => Number(value) > 0
   if (side.billingType === 'flat') return filled(side.flatRate)
   return filled(side.unitPrice)
 }
 
-// สรุปสิ่งที่กรอกไปแล้วเป็นสองบรรทัด แบบเดียวกับต้นแบบ — เจ้าของหอต้องเห็นได้ทันที
-// ว่าตัวเองตั้งอะไรไว้ โดยไม่ต้องกดเข้าหน้าต่างไปดู ต้องมีครบทั้งสามประเภทการคิดเงิน
-//
-//   ตามมิเตอร์ที่ใช้จริง        / 8 บาท/ยูนิต
-//   ตามมิเตอร์แบบมีขั้นต่ำ 120 บาท / 30 บาท/ยูนิต
-//   เหมาจ่ายรายเดือน           / 500 บาท/เดือน
 function summarize(side) {
   const amount = (value) => Number(value).toLocaleString('th-TH')
 
@@ -86,10 +69,9 @@ export default function UtilitySettingsPage({ apartment }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [editing, setEditing] = useState(null) // 'water' | 'electric' | null
-  // error ของหน้าต่างตั้งราคา แยกจาก error ของสวิตช์บนหน้า
+  const [editing, setEditing] = useState(null) /* 'water' | 'electric' | null */
   const dialogForm = useFormErrors(['billingType', 'unitPrice', 'minCharge', 'flatRate'])
-  // จำนวนห้องที่เพิ่งถูกทับราคา — null = ยังไม่ได้กดในรอบนี้
+  // null = ยังไม่ได้กดในรอบนี้
   const [applied, setApplied] = useState(null)
 
   const load = useCallback(async () => {
@@ -105,13 +87,7 @@ export default function UtilitySettingsPage({ apartment }) {
     load()
   }, [load])
 
-  // บันทึกทันทีที่สลับสวิตช์หรือกดบันทึกในหน้าต่างซ้อน — หน้านี้ไม่มีปุ่มบันทึกรวม
-  // (ต้นแบบก็ไม่มี) ถ้าเก็บไว้รอกดทีเดียว คนจะกด "ต่อไป" แล้วค่าหายโดยไม่รู้ตัว
-  //
-  // ส่งไปเฉพาะ "ฝั่งที่แก้" และเฉพาะ "ช่องที่แก้" ฝั่ง main จะเอาไปผสมกับของเดิมเอง
-  // ถ้าส่งทั้งก้อนทุกครั้ง ฝั่งที่ยังไม่ได้กรอกราคาจะทำให้การตรวจล้มแล้วบล็อกอีกฝั่ง
-  // fromDialog = บันทึกจากหน้าต่างตั้งราคา → error ขึ้นในหน้าต่างใต้ช่องที่ผิด
-  // ไม่ใช่ = สลับสวิตช์บนหน้า → error ขึ้นบนหน้า
+  // บันทึกทันทีเฉพาะฝั่งและช่องที่แก้ · fromDialog → error ขึ้นในหน้าต่าง
   async function persist(key, patch, { fromDialog = false } = {}) {
     setError('')
     dialogForm.reset()
@@ -163,8 +139,6 @@ export default function UtilitySettingsPage({ apartment }) {
               onChange={(showReadingInInvoice) => persist(key, { showReadingInInvoice })}
             />
 
-            {/* กรอกแล้ว = สรุปให้เห็นว่าตั้งอะไรไว้ / ยังไม่กรอก = เตือนว่าออกบิลจะได้ 0 บาท
-                ทั้งสองกรณีต้องเห็นตั้งแต่หน้านี้ ไม่ใช่ต้องกดเข้าหน้าต่างไปดูเอง */}
             {sides[key].enabled &&
               (hasPrice(sides[key]) ? (
                 <div className="utility-summary">
@@ -192,9 +166,7 @@ export default function UtilitySettingsPage({ apartment }) {
         ))}
       </div>
 
-      {/* ทางออกสำหรับห้องที่ถูกสร้างก่อนหอจะมีราคา — ห้องพวกนั้นถือ "ราคา 0" ติดตัวอยู่
-          แล้วออกบิลมาเป็น 0 บาทอย่างเงียบๆ ต้องมีวิธีดันราคาลงไปให้ครบทุกห้อง
-          ให้กดสั่งเอง ไม่ทำอัตโนมัติ เพราะมันทับราคาพิเศษที่ตั้งไว้รายห้องด้วย */}
+      {/* ดันราคาของหอลงทุกห้อง — ทับราคาพิเศษรายห้อง */}
       <section className="panel utility-apply">
         <h3 className="panel-title">
           นำราคานี้ไปใช้กับห้องที่มีอยู่
@@ -206,7 +178,6 @@ export default function UtilitySettingsPage({ apartment }) {
             ]}
           />
         </h3>
-        {/* ยังโชว์ตลอด — กดแล้วราคาพิเศษรายห้องหายหมด ย้อนไม่ได้ */}
         <p className="field-hint">
           ทับราคาของ<strong>ทุกห้อง</strong> รวมราคาพิเศษรายห้องด้วย
         </p>
@@ -242,11 +213,9 @@ export default function UtilitySettingsPage({ apartment }) {
   )
 }
 
-// หน้าต่างซ้อน "ค่าน้ำ" / "ค่าไฟ" — ช่องที่ต้องกรอกเปลี่ยนตามประเภทการคิดเงินที่เลือก
 function UtilityDialog({ meta, value, onClose, onSave, busy, form }) {
   const [side, setSide] = useState(value)
   const { errors } = form
-  // แก้ช่องไหน error ของช่องนั้นหายทันที
   const set = (key, v) => {
     setSide((s) => ({ ...s, [key]: v }))
     form.clear(key)
@@ -315,7 +284,6 @@ function UtilityDialog({ meta, value, onClose, onSave, busy, form }) {
             />
             <span className="input-suffix">บาท</span>
           </div>
-          {/* ย้ำหน่วยให้ชัด เพราะคนมักเข้าใจว่าขั้นต่ำคือ "จำนวนหน่วย" */}
           {errors.minCharge ? (
             <FieldError id="minCharge-error" message={errors.minCharge} />
           ) : (

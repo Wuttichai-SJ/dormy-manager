@@ -1,18 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 
-// ข้อความแจ้งผลลอยมุมขวาบน — ลอกจากต้นแบบ (แถบเขียวอ่อน ไอคอนวงกลมติ๊กถูก
-// กว้าง 356px ห่างขอบ 24px หายเองใน 4 วินาที)
-//
-// ทำไมต้องมีตัวเก็บสถานะนอก React: หน้าที่สั่งให้ขึ้นข้อความ (ฟอร์มเพิ่มหอพัก) ถูก
-// ถอดออกจากจอทันทีหลังบันทึกสำเร็จ เพราะระบบพาไปตัวช่วยตั้งค่าต่อ ถ้าผูกข้อความไว้
-// กับ state ของฟอร์ม ข้อความจะถูกถอดไปพร้อมกันจนไม่ทันเห็น จึงให้ <ToastHost /> อยู่
-// ระดับ App.jsx ตัวเดียวตลอดอายุแอป แล้วหน้าไหนก็เรียก showToast() เข้ามาได้
+// ToastHost อยู่ระดับบนตัวเดียว — เรียก showToast() ได้จากทุกหน้า
 const listeners = new Set()
 let nextId = 1
 
-// kind: 'success' (เขียว) | 'error' (แดง) — ต้นแบบใช้แถบแดงตัวเดียวกันนี้บอกว่า
-// "ยังติดตั้งค่าตั้งต้นไม่สมบูรณ์" ตอนพยายามเข้าหอที่ยังตั้งค่าไม่ครบ
+// kind: 'success' | 'error'
 export function showToast(message, kind = 'success') {
   const toast = { id: nextId++, message, kind }
   listeners.forEach((fn) => fn(toast))
@@ -42,9 +35,6 @@ export function ToastHost() {
   )
 }
 
-// อยู่ 4 วินาทีแล้วเลื่อนออกทางขวา = ทางเดียวกับที่เลื่อนเข้ามา
-// แยกเป็นสองจังหวะ (ตั้ง leaving ก่อน แล้วค่อยถอดออกจริง) เพราะถ้าถอด DOM ทิ้งเลย
-// อนิเมชันขาออกจะไม่มีโอกาสได้เล่น ข้อความจะหายวับไปเฉยๆ
 const LIFETIME_MS = 4000
 const LEAVE_MS = 220
 
@@ -58,7 +48,6 @@ function ToastItem({ toast, onDismiss }) {
       clearTimeout(start)
       clearTimeout(remove)
     }
-    // onDismiss ผูกกับ id ที่ไม่เปลี่ยน จึงตั้งเวลาครั้งเดียวพอ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

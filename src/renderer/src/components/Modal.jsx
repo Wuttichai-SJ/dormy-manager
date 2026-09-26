@@ -2,13 +2,7 @@ import React, { useEffect } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from './Alert.jsx'
 
-// หน้าต่างซ้อน — โครงตามต้นแบบ: หัวเรื่อง (มีไอคอนนำได้) + กากบาทปิดมุมขวา,
-// เนื้อหาตรงกลาง, แถบล่างสีเทาอ่อนที่มีปุ่ม "ปิด" (ขาวมีขอบ) และ "บันทึก" (น้ำตาล)
-//
-// ต้นแบบใช้หน้าต่างซ้อนกับงานที่ "สั่งทีเดียวหลายห้อง" (ระบุค่าห้อง / ระบุค่าบริการ /
-// ระบุการคิดค่าน้ำ-ค่าไฟ) เพราะฟอร์มพวกนี้ต้องรู้ก่อนว่าเลือกห้องไว้กี่ห้อง ถ้าวางไว้
-// ในหน้าตลอดเวลาจะกินที่และชวนกรอกทั้งที่ยังไม่ได้เลือกอะไร
-// wide = หน้าต่างกว้างเกือบเต็มจอ สำหรับเนื้อหาที่ต้องการพื้นที่จริงๆ (ตัวอย่างก่อนพิมพ์)
+// wide = กว้างเกือบเต็มจอ
 export default function Modal({
   title,
   icon,
@@ -20,7 +14,6 @@ export default function Modal({
   error,
   children
 }) {
-  // Esc ปิดได้ — ปุ่มกากบาทกับปุ่ม "ปิด" ทำงานเดียวกัน
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -28,7 +21,6 @@ export default function Modal({
   }, [onClose])
 
   return (
-    // คลิกพื้นหลังมืดเพื่อปิด แต่คลิกในกล่องต้องไม่ทะลุไปโดน (stopPropagation)
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
         className={'modal' + (wide ? ' modal-wide' : '')}
@@ -53,8 +45,6 @@ export default function Modal({
             onSubmit()
           }}
         >
-          {/* error ของการกดบันทึกต้องขึ้นในหน้าต่างนี้ ตรงหน้าคนกรอก — เดิมหลายหน้าต่างส่ง error
-              ออกไปขึ้นที่หน้าข้างหลัง ซึ่งถูกฉากมืดบังอยู่ มองไม่เห็น (โอ๊คเจอที่แก้ไขผู้ใช้ 2026-09-25) */}
           <div className="modal-body">
             <Alert>{error}</Alert>
             {children}

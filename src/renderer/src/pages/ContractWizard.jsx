@@ -10,12 +10,7 @@ import { createTenant, listTenants } from '../services/tenantService.js'
 import { createContract } from '../services/contractService.js'
 import { convertBookingToContract } from '../services/bookingService.js'
 
-// ตัวช่วยทำสัญญา 3 ขั้น — ลอกจากหน้าจริงของต้นแบบ `/rooms/{id}/agreements/create`
-//   1 สัญญา · 2 ค่าเช่าล่วงหน้า · 3 มิเตอร์น้ำ-ไฟ
-//
-// ทั้งสามขั้นเก็บไว้ในหน่วยความจำแล้วเขียนลงฐานข้อมูลครั้งเดียวตอนกด "บันทึก" ที่ขั้นสุดท้าย
-// เหตุผลอยู่ใน db/contracts.js — สัญญาที่มีแต่ขั้น 1 ออกบิลเดือนแรกไม่ได้ จึงไม่มีประโยชน์
-// ที่จะบันทึกค้างไว้ครึ่งทาง
+// 3 ขั้น: สัญญา · ค่าเช่าล่วงหน้า · มิเตอร์ — บันทึกครั้งเดียวตอนจบ
 const STEPS = ['สัญญา', 'ค่าเช่าล่วงหน้า', 'มิเตอร์น้ำ-ไฟ']
 
 const DEPOSIT_METHODS = [
@@ -30,36 +25,27 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // มาจากใบจอง = เติมสิ่งที่ตกลงกันไว้แล้วให้ก่อน (วันเข้าพัก ราคา เงินจอง)
-  // เจ้าหน้าที่จะได้ไม่ต้องเปิดใบจองอีกจอเพื่อลอกตัวเลข แล้วลอกผิด
+  // มาจากใบจอง = เติมวันเข้าพัก ราคา เงินจองให้
   const [form, setForm] = useState({
     startDate: booking?.checkInDate ?? today(),
     endDate: booking?.checkOutDate ?? '',
-    // เติมค่าเช่าจากราคาตั้งของห้องให้ก่อน (ต้นแบบก็ทำ) แต่แก้ได้ เพราะต่อรองราคากันได้
     rentAmount: centsToInput(
       booking?.rentPriceCents ?? (rentType === 'daily' ? room.dailyRentCents : room.monthlyRentCents)
     ),
     deposit: '',
     depositPaymentMethod: 'cash',
-    // **ระยะสัญญาคือตัวที่กฎเงินประกันใช้ตัดสินว่า "ออกก่อนครบหรือยัง"** (ดู 004 + 026)
-    // เจ้าของหอยืนยัน 2026-08-11 ว่าหอทำสัญญา 12 เดือน จึงตั้งเป็นค่าตั้งต้น
-    // เดิมไม่มีช่องนี้เลย สัญญาทุกใบจึงได้ NULL แล้วเงื่อนไข "ออกก่อนครบ" ไม่เคยทำงาน
+    // ระยะสัญญาใช้ตัดสินเงินประกันตอนย้ายออก (หอนี้ 12 เดือน)
     termMonths: rentType === 'daily' ? '' : '12',
-    // เว้นว่าง = เก็บส่วนที่เหลือครบวันนี้ (กรณีปกติ) — ฝั่ง main คิดยอดให้เอง
-    // กรอกเมื่อวันนี้เก็บได้ไม่ครบ ส่วนที่ขาดจะไปขึ้นเป็นยอดค้างบนหน้าห้อง
+    // ว่าง = เก็บครบวันนี้
     depositReceived: '',
     bookingFee: booking ? centsToInput(booking.bookingFeeCents) : '',
-    // มาจากใบจองก็เอาเลขของใบนั้นมาแสดง (ฝั่ง main ยกมาให้อยู่แล้ว ตรงนี้แค่ให้เห็นก่อนบันทึก)
     bookingReceiptNo: booking?.bookingNumber ?? '',
     note: booking?.note ?? '',
     waterMeterStart: '',
     electricMeterStart: ''
   })
 
-  // ผู้เช่าของสัญญานี้ — คนแรกคือผู้เช่าหลัก (ดู 010_contract_tenants.sql)
-  //
-  // ใบจองเก็บชื่อไว้เป็นข้อความก้อนเดียว ("สมชาย ใจดี") แยกชื่อ/นามสกุลอัตโนมัติแล้วผิดบ่อย
-  // (ชื่อสองพยางค์ นามสกุลมีเว้นวรรค) จึงเดาให้แค่คำแรก แล้วให้คนตรวจก่อนบันทึก
+  // คนแรกคือผู้เช่าหลัก
   const [tenants, setTenants] = useState([
     booking ? tenantFromBooking(booking) : { ...EMPTY_TENANT }
   ])
@@ -70,9 +56,8 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
   const bookingCents = toCentsSafe(form.bookingFee)
   const rentCents = toCentsSafe(form.rentAmount)
 
-  // ยอดที่ต้องเก็บเพิ่มวันนี้ = เงินประกัน − เงินจองที่วางไว้แล้ว
   const dueToday = Math.max(depositCents - bookingCents, 0)
-  // เว้นช่อง "รับวันนี้" ไว้ = เก็บครบ จึงไม่ค้าง — ต้องคิดแบบเดียวกับฝั่ง main
+  // ต้องคิดแบบเดียวกับ main
   const receivedToday = form.depositReceived.trim() === '' ? dueToday : toCentsSafe(form.depositReceived)
   const depositShort = Math.max(dueToday - receivedToday, 0)
 
@@ -80,9 +65,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
     setError('')
     setBusy(true)
 
-    // ผู้เช่าที่ยังไม่มีในระบบต้องถูกสร้างก่อน แล้วค่อยเอา id ไปผูกกับสัญญา
-    // ค้นด้วยเบอร์ก่อนสร้าง — เบอร์ซ้ำจะถูกฝั่ง main ปฏิเสธอยู่แล้ว แต่ถ้าเจอคนเดิม
-    // ควรใช้ระเบียนเดิมต่อ ไม่ใช่เด้ง error ใส่หน้าคนกรอก
+    // ค้นด้วยเบอร์ก่อนสร้าง — เจอคนเดิมใช้ระเบียนเดิม
     const tenantIds = []
     for (const person of tenants) {
       const found = await listTenants(person.phone)
@@ -112,8 +95,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
       tenants: tenantIds
     }
 
-    // มาจากใบจอง = ต้องปิดใบจองในธุรกรรมเดียวกับที่สร้างสัญญา ไม่ใช่สร้างสัญญาแล้วค่อยไป
-    // ปิดใบจองทีหลัง — ถ้าขั้นที่สองพลาด ห้องจะมีทั้งสัญญาและใบจองค้างพร้อมกัน
+    // มาจากใบจอง = ปิดใบจองในธุรกรรมเดียวกับสร้างสัญญา
     const res = booking
       ? await convertBookingToContract(booking.bookingId, payload)
       : await createContract(payload)
@@ -175,8 +157,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                 </div>
               </div>
 
-              {/* ระยะสัญญามีเฉพาะรายเดือน — สัญญารายวันไม่มีคำว่า "อยู่ครบสัญญา"
-                  และเงินประกันของมันไม่ได้ผูกกับเงื่อนไขนี้ */}
               {rentType === 'monthly' && (
                 <div className="field">
                   <label htmlFor="termMonths">ระยะสัญญา</label>
@@ -189,8 +169,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                     <option value="6">6 เดือน</option>
                     <option value="">ไม่กำหนดระยะ</option>
                   </select>
-                  {/* ตัวเลขนี้เป็นตัวตัดสินเงินประกันตอนย้ายออก ไม่ใช่ข้อมูลประดับ
-                      ต้องบอกให้คนกรอกรู้ ไม่งั้นจะถูกข้ามไปเพราะดูเหมือนไม่สำคัญ */}
                   <p className="field-hint">ออกก่อนครบสัญญา = ริบเงินประกัน</p>
                 </div>
               )}
@@ -261,14 +239,9 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                   placeholder={booking ? '' : 'ระบบออกเลขให้อัตโนมัติ'}
                   readOnly={Boolean(booking)}
                 />
-                {/* มาจากใบจองก็ล็อกไว้ ไม่ให้แก้ — ผู้เช่าถือใบที่มีเลขนี้อยู่แล้ว
-                    ส่วนกรณีทำสัญญาตรงยังพิมพ์เองได้ เผื่อหอใช้เล่มใบเสร็จของตัวเอง */}
               </div>
             </div>
 
-            {/* ยอดที่ต้องเก็บเพิ่มวันนี้ — เว้นว่างไว้ = เก็บครบตามนี้ ซึ่งเป็นกรณีปกติ
-                กรอกเมื่อวันนี้เก็บได้ไม่ครบ ส่วนที่ขาดจะไปขึ้นเป็นยอดค้างบนหน้าห้อง
-                ถ้าไม่มีช่องนี้ ระบบจะเหมาว่าเก็บครบเสมอ แล้วการเตือนยอดค้างก็ไม่มีวันทำงาน */}
             <div className="field">
               <label htmlFor="depositReceived">
                 รับเงินประกันวันนี้
@@ -290,7 +263,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               <p className="field-hint">เว้นว่าง = เก็บครบ {formatBaht(dueToday)} บาท</p>
             </div>
 
-            {/* กล่องสรุปสีฟ้าแบบต้นแบบ — เงินจองที่วางไว้แล้วถูกหักออกจากยอดที่ต้องเก็บเพิ่ม */}
             <div className="contract-summary">
               <h4>สรุป</h4>
               <div className="contract-summary-row">
@@ -305,7 +277,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                 <span>รวม (เก็บเพิ่ม)</span>
                 <span>{formatBaht(dueToday)} บาท</span>
               </div>
-              {/* บอกยอดค้างตั้งแต่ก่อนกดบันทึก ไม่ใช่ให้ไปเจอเอาทีหลังบนหน้าห้อง */}
               {depositShort > 0 && (
                 <div className="contract-summary-row contract-summary-warn">
                   <span>จะค้างเงินประกัน</span>
@@ -342,7 +313,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               />
             ))}
 
-            {/* ต้นแบบรองรับผู้เช่าหลายคนต่อสัญญา — ห้องนักศึกษาอยู่กัน 2 คนเป็นเรื่องปกติ */}
             <button
               type="button"
               className="btn-outline"
@@ -386,8 +356,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               <p className="muted">สัญญารายวันไม่มีค่าเช่าล่วงหน้า</p>
             )}
 
-            {/* คิดให้เอง ไม่ให้กรอกมือ — คิดมือแล้วผิดคือเก็บเงินผิดตั้งแต่วันแรก
-                สูตรตัวจริงอยู่ฝั่ง main (db/contracts.js) ตรงนี้แค่แสดงให้ดูก่อนบันทึก */}
           </>
         )}
 
@@ -397,7 +365,6 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               เลขมิเตอร์วันเข้าพัก
               <InfoTip title="เลขตั้งต้น" points={['ใช้คิดค่าน้ำ/ค่าไฟบิลแรกของสัญญานี้']} />
             </h3>
-            {/* ยังโชว์ตลอด — เลขที่ไม่ได้จดจากหน้าปัดจริง บิลแรกของผู้เช่าผิดทันที */}
             <p className="panel-subtitle">จดจากหน้าปัดจริงในวันเข้าพัก</p>
 
             <div className="field-row">
@@ -504,29 +471,19 @@ function TenantFields({ index, value, onChange, onRemove, canRemove }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ตัวช่วยเล็กๆ ของหน้านี้
-// ------------------------------------------------------------------
 function today() {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
-// แปลงบาทที่พิมพ์อยู่เป็นสตางค์เพื่อ "แสดงตัวอย่าง" เท่านั้น ตัวจริงคิดที่ฝั่ง main
-// ระหว่างพิมพ์ค่าจะยังไม่สมบูรณ์ ("12." / "" ) จึงต้องคืน 0 แทนที่จะโยน error
+// แสดงตัวอย่างเท่านั้น — ค่าไม่ครบคืน 0
 function toCentsSafe(value) {
   const n = Number(String(value ?? '').replace(/,/g, ''))
   return Number.isFinite(n) ? Math.round(n * 100) : 0
 }
 
-// สำเนาสูตรจาก calculateAdvanceRentCents ใน db/contracts.js ไว้แสดงตัวอย่างก่อนบันทึก
-// **ฝั่ง main เป็นตัวจริงเสมอ — ที่นี่ต้องให้คำตอบเท่ากันทุกกรณี** ไม่งั้นคนหน้าเคาน์เตอร์
-// จะเก็บเงินตามตัวเลขบนจอ แล้วระบบออกใบเสร็จเป็นอีกยอด (เคยเกิดมาแล้ว ดูคอมเมนต์ที่
-// FULL_MONTH_MOVE_IN_UNTIL_DAY ใน constants.js)
-//
-// ต่างจาก main ได้แค่เรื่องเดียว: วันที่ยังกรอกไม่เสร็จให้คืน 0 แทนการโยน error
-// เพราะที่นี่ถูกเรียกใหม่ทุกตัวอักษรที่พิมพ์ ไม่ใช่ตอนกดบันทึก
+// สำเนาของ calculateAdvanceRentCents ใน main/db/contracts.js — ต้องได้คำตอบเท่ากัน (ต่างแค่วันที่ไม่ครบคืน 0)
 function advanceRentCents(rentCents, startDate) {
   const date = new Date(`${startDate}T00:00:00`)
   if (Number.isNaN(date.getTime())) return 0
@@ -535,18 +492,15 @@ function advanceRentCents(rentCents, startDate) {
   const dayOfMonth = date.getDate()
   if (dayOfMonth <= FULL_MONTH_MOVE_IN_UNTIL_DAY) return rent
 
-  // วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้ (กันเดือน ก.พ. / ปีอธิกสุรทินเอง)
   const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  // นับวันเข้าพักเป็นวันแรกที่คิดเงินด้วย — เข้า 15 มิ.ย. = อยู่ 16 วัน (15 ถึง 30)
+  // นับวันเข้าพักเป็นวันแรกด้วย
   const daysStaying = daysInMonth - dayOfMonth + 1
 
-  // **หารด้วย 30 เสมอ ไม่ใช่ daysInMonth** — กติกาของหอนี้ (ยืนยันกับเจ้าของหอแล้ว)
-  // แล้วปัดเป็นบาทเต็ม (ตั้งแต่ 50 สตางค์ปัดขึ้น) — ต้องตรงกับ main ทุกตัวอักษร
+  // หาร 30 เสมอ แล้วปัดเป็นบาทเต็ม — ต้องตรงกับ main
   return Math.round((rent * daysStaying) / (PRORATE_DAYS_PER_MONTH * 100)) * 100
 }
 
-// ใบจองเก็บชื่อเป็นข้อความก้อนเดียว — เดาให้แค่ "คำแรกคือชื่อ ที่เหลือคือนามสกุล"
-// แล้วให้คนตรวจ ไม่ใช่บันทึกตามที่เดาไปเลย
+// เดาคำแรกเป็นชื่อ ที่เหลือเป็นนามสกุล ให้คนตรวจ
 function tenantFromBooking(booking) {
   const parts = String(booking.customerName ?? '').trim().split(/\s+/)
   return {

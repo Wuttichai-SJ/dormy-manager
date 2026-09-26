@@ -13,17 +13,11 @@ import {
   revealBackupFolder
 } from '../services/backupService.js'
 
-// ตั้งค่า > สำรองข้อมูล
-//
-// ข้อมูลทั้งระบบอยู่ในไฟล์เดียว ไม่มีเซิร์ฟเวอร์ให้ดึงกลับ (offline-first) การสำรองจึงเป็น
-// ตาข่ายนิรภัยชั้นเดียวที่มี — หน้านี้ต้องอธิบายให้ชัดว่า "สำรองไว้ในเครื่องเดียวกันยังไม่พอ"
-// เพราะดิสก์พังทีเดียวหายทั้งต้นฉบับและสำเนา
 export default function BackupsPage({ user }) {
   const [state, setState] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [labelling, setLabelling] = useState(null)
-  // ไฟล์ที่กำลังถามยืนยันก่อนลบ — null = ไม่ได้ถามอยู่
   const [deleting, setDeleting] = useState(null)
 
   const load = useCallback(async () => {
@@ -50,14 +44,11 @@ export default function BackupsPage({ user }) {
 
   async function restore(backup) {
     setError('')
-    // คำเตือนและการยืนยันเป็นกล่องของระบบที่ฝั่ง main เพราะกดตกลงแล้วหน้านี้จะถูก reload ทิ้ง
+    // ยืนยันกู้คืนด้วยกล่องของระบบฝั่ง main — หน้านี้จะถูก reload
     const res = await restoreBackup(backup.fileName)
     if (!res.success) return setError(res.error)
-    // สำเร็จ = ฝั่ง main สั่ง reload หน้าจอแล้ว และล้างเซสชันไว้ จะเด้งไปหน้าเข้าสู่ระบบเอง
-    // ไม่ต้องทำอะไรต่อ (จะโชว์ toast ก็ไม่ทัน เพราะหน้าถูกโหลดใหม่)
   }
 
-  // เรียกจากหน้าต่างยืนยันเท่านั้น — ล้มเหลวคืนผลให้หน้าต่างแสดง error เอง
   async function remove(backup) {
     const res = await deleteBackup(backup.fileName)
     if (!res.success) return res
@@ -88,7 +79,6 @@ export default function BackupsPage({ user }) {
         <div className="form-section-body">
           <Alert>{error}</Alert>
 
-          {/* เตือนเรื่องดิสก์เดียวกันให้ชัด เพราะเป็นความเข้าใจผิดที่ทำให้สำรองแล้วยังหายอยู่ดี */}
           <div className="backup-warning">
             <Icon name="warning" />
             <p>
@@ -136,9 +126,7 @@ export default function BackupsPage({ user }) {
                     <td>{formatDateTime(b.createdAt)}</td>
                     <td>{b.label ?? <span className="muted">—</span>}</td>
                     <td className="align-right">{formatSize(b.sizeBytes)}</td>
-                    {/* กู้คืน = ทับข้อมูลปัจจุบันทั้งฐาน · ลบ = ทิ้งตาข่ายนิรภัย
-                        ทั้งสองอย่างเป็นของเจ้าของหอเท่านั้น (main บังคับอีกชั้น)
-                        ส่วนการ "สร้าง" ไฟล์สำรอง พนักงานทำได้ตามปกติ ยิ่งมีสำเนายิ่งดี */}
+                    {/* กู้คืน/ลบ เฉพาะเจ้าของหอ · สร้างได้ทุกคน */}
                     <td className="align-right">
                       {user?.isOwner ? (
                         <>
@@ -196,8 +184,6 @@ export default function BackupsPage({ user }) {
               placeholder="เช่น ก่อนขึ้นค่าเช่าปี 2027"
               autoFocus
             />
-            {/* วันที่อยู่ในชื่อไฟล์อยู่แล้ว ข้อความนี้ไว้บอก "ทำไมถึงสำรอง" ซึ่งสำคัญกว่า
-                ตอนต้องเลือกว่าจะกู้คืนไฟล์ไหนในอีกหลายเดือนข้างหน้า */}
           </div>
         </Modal>
       )}

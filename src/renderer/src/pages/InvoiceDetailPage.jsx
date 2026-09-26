@@ -21,23 +21,14 @@ import PrintDialog from '../components/PrintDialog.jsx'
 import InvoiceBill from '../components/InvoiceBill.jsx'
 import { revealPdf, savePdf } from '../services/printService.js'
 
-// หน้าใบแจ้งหนี้ — โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "บิลค้างชำระ"): สองคอลัมน์
-// ซ้ายเป็นตัวเอกสาร ขวาเป็นยอดค้างกับการ์ดรับเงิน แล้วมี "เพิ่มรายการ" อยู่ใต้เอกสาร
-//
-// ต้นแบบทำเป็นหน้าต่างซ้อน แต่ที่นี่เป็นหน้าเต็ม เพราะเนื้อหายาวกว่าหน้าต่างซ้อนจะรับไหว
-// (เอกสาร + ฟอร์มรับเงิน + ประวัติการรับเงิน + ฟอร์มเพิ่มรายการ) และแอปนี้เดินด้วยหน้า
-// ไม่ได้เดินด้วย URL แบบเว็บ การเปิดซ้อนจึงไม่ได้ประโยชน์เรื่องปุ่มย้อนกลับของเบราว์เซอร์
-// signedBy = ชื่อผู้ที่กำลังออก/พิมพ์เอกสารใบนี้ ไปขึ้นในช่อง "ลงชื่อ" ท้ายบิล
+// สองคอลัมน์: เอกสาร + เพิ่มรายการ / ยอดค้าง + รับเงิน · signedBy = ชื่อในช่องลงชื่อ
 export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCancelReceipt }) {
-  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
   const [confirmDialog, ask] = useConfirm()
   const [invoice, setInvoice] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  // ใบเสร็จที่กำลังจะยกเลิก (null = ไม่ได้เปิดหน้าต่าง)
   const [cancellingReceipt, setCancellingReceipt] = useState(null)
-  // เปิดหน้าต่างกรอกเหตุผลยกเลิกบิลอยู่หรือไม่
   const [cancellingInvoice, setCancellingInvoice] = useState(false)
 
   const load = useCallback(async () => {
@@ -123,7 +114,7 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
             />
           )}
 
-          {/* ส่ง null ไปเมื่อผู้ใช้ไม่ใช่เจ้าของ = ไม่มีปุ่มยกเลิกใบเสร็จให้กด */}
+          {/* null = ไม่มีปุ่มยกเลิกใบเสร็จ (ไม่ใช่เจ้าของ) */}
           <PaymentHistory
             payments={payments}
             onCancelReceipt={canCancelReceipt ? setCancellingReceipt : null}
@@ -172,19 +163,12 @@ function BackLink({ onBack }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ตัวเอกสาร
-// ------------------------------------------------------------------
 function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy }) {
   const [busy, setBusy] = useState(false)
   const closed = invoice.status === 'cancelled'
 
-  // กล่องเลือกเครื่องพิมพ์ต้องเปิด "นอก" ตัวเอกสาร ไม่งั้นมันจะถูกซ่อนไปพร้อมกันตอนพิมพ์
-  // (แต่ Modal เรนเดอร์ทับทั้งหน้าอยู่แล้ว จึงไม่มีปัญหา)
   const [printing, setPrinting] = useState(false)
 
-  // ตั้งชื่อไฟล์เป็น "เลขที่บิล-ห้อง" เพื่อให้ผู้เช่าที่ได้รับทางแชตรู้ทันทีว่าเป็นบิลใบไหน
-  // ห้องไหน โดยไม่ต้องเปิดไฟล์ก่อน
   async function onSavePdf() {
     onError('')
     setBusy(true)
@@ -194,7 +178,6 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
     if (res.data.cancelled) return
 
     showToast('บันทึกไฟล์ PDF แล้ว')
-    // เปิดโฟลเดอร์ค้างไว้ให้ลากไฟล์ไปแนบส่งต่อได้เลย ไม่ต้องไปหาเอง
     revealPdf(res.data.filePath)
   }
 
@@ -208,11 +191,7 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
           </button>
         )}
 
-        {/* ปุ่มพิมพ์/บันทึก PDF อยู่ขวาตามต้นแบบ — และถูกซ่อนตอนพิมพ์ด้วย @media print
-            ไม่งั้นตัวปุ่มจะติดไปบนกระดาษด้วย
-
-            **บิลที่ยกเลิกแล้วพิมพ์ไม่ได้** เอกสารที่เป็นโมฆะแล้วต้องไม่ไปถึงมือผู้เช่า
-            (ปุ่ม "พิมพ์ใบแจ้งหนี้ทุกห้อง" กันไว้อยู่แล้ว ทางนี้เคยเป็นช่องที่เปิดค้างอยู่) */}
+        {/* บิลที่ยกเลิกพิมพ์ไม่ได้ · ปุ่มถูกซ่อนตอนพิมพ์ */}
         {!closed && (
           <div className="invoice-doc-actions">
             <button
@@ -232,16 +211,13 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         )}
       </div>
 
-      {/* เหตุผลที่ยกเลิกอยู่เหนือตัวเอกสาร ไม่ใช่ในตัวเอกสาร — มันเป็นบันทึกภายในของหอ
-          ไม่ใช่ข้อความที่ควรติดไปบนกระดาษถ้าวันหนึ่งมีการพิมพ์ใบนี้ออกมา */}
+      {/* เหตุผลยกเลิกอยู่นอกตัวเอกสาร — ไม่ติดไปบนกระดาษ */}
       {closed && <CancelledNotice invoice={invoice} />}
 
-      {/* ตัวเอกสารมาจาก InvoiceBill ตัวเดียวกับที่ปุ่ม "พิมพ์ใบแจ้งหนี้ทุกห้อง" ใช้
-          เปิดทีละใบกับพิมพ์ทั้งหอจึงได้กระดาษหน้าตาเดียวกันเสมอ */}
       <InvoiceBill
         invoice={invoice}
         signedBy={signedBy}
-        // บิลที่ยกเลิกแล้วแก้ไม่ได้ ไม่ส่ง onRemoveItem ไป คอลัมน์ปุ่มลบจึงหายไปเอง
+        // บิลที่ยกเลิกไม่ส่ง onRemoveItem — ไม่มีปุ่มลบ
         onRemoveItem={closed ? undefined : onRemoveItem}
       />
 
@@ -258,10 +234,6 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
   )
 }
 
-// แถบบอกว่าบิลใบนี้ถูกยกเลิก พร้อมเหตุผล/ผู้ยกเลิก/วันที่ (ผู้ใช้สั่ง 2026-08-11)
-//
-// เปิดบิลที่ยกเลิกแล้วเจอแค่ป้ายสถานะ ตอบไม่ได้ว่าเกิดอะไรขึ้น — คนที่เปิดดูส่วนใหญ่
-// เปิดมาเพราะสงสัยว่าทำไมห้องนี้ไม่มีบิลของเดือนนั้น คำตอบต้องอยู่ตรงหน้าเลย
 function CancelledNotice({ invoice }) {
   return (
     <Alert kind="warn">
@@ -269,8 +241,6 @@ function CancelledNotice({ invoice }) {
       <dl className="invoice-cancel-info">
         <div>
           <dt>เหตุผล</dt>
-          {/* บิลที่ยกเลิกก่อนที่ระบบจะบังคับกรอกไม่มีเหตุผลเก็บไว้ — บอกตรงๆ ว่าไม่มี
-              ไม่ใช่ปล่อยช่องว่างจนดูเหมือนคนกดยกเลิกลืมกรอก */}
           <dd>
             {invoice.cancelReason ?? (
               <span className="muted">ไม่ได้บันทึกไว้</span>
@@ -290,16 +260,10 @@ function CancelledNotice({ invoice }) {
   )
 }
 
-// หน้าต่างยกเลิกบิล — เหตุผลบังคับกรอก แบบเดียวกับลบใบแจ้งหนี้และยกเลิกใบเสร็จ
-//
-// ของเดิมเป็นแค่กล่องถาม "ใช่ไหม?" ที่กดผ่านได้ทันที ทั้งที่การยกเลิกบิลทำให้ยอดหนี้
-// ของห้องนั้นหายไปจากรายการค้างชำระ — หนักพอกันกับการลบ ซึ่งบังคับเหตุผลมาตั้งแต่แรก
 function CancelInvoiceDialog({ invoice, onClose, onCancelled }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const ready = reason.trim().length > 0
-  // เหตุผลว่างถูกกันด้วยปุ่มที่กดไม่ได้อยู่แล้ว — error ที่มาถึงตรงนี้ส่วนใหญ่เป็นเรื่องสถานะ
-  // (เช่น ถูกยกเลิกไปแล้ว) ซึ่งขึ้นบนสุดของหน้าต่าง
   const { errors, formError, fromResult, clear, reset } = useFormErrors(['reason'])
 
   async function submit() {
@@ -366,9 +330,6 @@ function CancelInvoiceDialog({ invoice, onClose, onCancelled }) {
   )
 }
 
-// ------------------------------------------------------------------
-// เพิ่มรายการเข้าบิลที่ออกไปแล้ว
-// ------------------------------------------------------------------
 const ITEM_TABS = [
   { key: 'service', label: 'ค่าบริการ', itemType: 'other', hint: null },
   {
@@ -379,7 +340,6 @@ const ITEM_TABS = [
   }
 ]
 
-// error ของการ์ดขึ้นในการ์ดเอง ใต้ช่องที่ผิด — ไม่ขึ้นบนสุดของหน้าที่อาจเลื่อนพ้นจอไปแล้ว
 function AddItemPanel({ invoice, onDone }) {
   const [tab, setTab] = useState(ITEM_TABS[0])
   const [description, setDescription] = useState('')
@@ -466,8 +426,6 @@ function AddItemPanel({ invoice, onDone }) {
           </div>
         </div>
 
-        {/* ช่องคิด VAT โผล่เฉพาะหอที่จดทะเบียน VAT และเฉพาะแท็บค่าบริการ
-            ส่วนลดไม่คิดภาษีต่อ (ฝั่ง main บังคับไว้อีกชั้นหนึ่งด้วย) */}
         {invoice.isVatEnabled && tab.key === 'service' && (
           <div className="field checkbox-row">
             <label>
@@ -491,9 +449,6 @@ function AddItemPanel({ invoice, onDone }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ยอดค้าง + รับเงิน + ประวัติ
-// ------------------------------------------------------------------
 function OutstandingBox({ invoice }) {
   const settled = invoice.outstandingCents <= 0
   return (
@@ -505,24 +460,19 @@ function OutstandingBox({ invoice }) {
   )
 }
 
-// การ์ดนี้รับเงินอย่างเดียว — **ไม่มีปุ่มคืนเงิน** (ผู้ใช้สั่งเอาออก 2026-08-08)
-// เหตุผล: หอพักไม่มีสถานการณ์ที่ต้องคืนเงินค่าบิลให้ผู้เช่า
-//
-// การคืนเงินประกันตอนย้ายออกเป็นคนละเรื่อง — ผูกกับสัญญาไม่ใช่กับบิล และยังอยู่ที่
-// recordContractPayment(isRefund) รอ Phase 4 ใช้
+// รับเงินอย่างเดียว — ไม่มีการคืนเงินค่าบิล
 function PaymentCard({ invoice, onDone }) {
   const [amount, setAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentDate, setPaymentDate] = useState(today())
   const [remark, setRemark] = useState('')
   const [busy, setBusy] = useState(false)
-  // ค่าปรับ ณ วันที่รับเงินที่เลือกอยู่ — ถามฝั่ง main ใหม่ทุกครั้งที่เปลี่ยนวันที่
   const [lateFee, setLateFee] = useState(null)
   const [chargeLateFee, setChargeLateFee] = useState(true)
   const [lateFeeAmount, setLateFeeAmount] = useState('')
-  // ผู้ใช้พิมพ์ยอดรับเงินเองแล้วหรือยัง — ถ้าพิมพ์แล้ว ห้ามเติมยอดทับ (ดู effect เติมยอดข้างล่าง)
+  // พิมพ์ยอดเองแล้ว ห้ามเติมทับ
   const [amountTouched, setAmountTouched] = useState(false)
-  // error ขึ้นในการ์ดใต้ช่องที่ผิด (ชื่อช่องตรงกับ recordInvoicePayment ใน db/payments.js)
+  // ชื่อช่องตรงกับ recordInvoicePayment
   const { errors, formError, fromResult, clear, reset } = useFormErrors([
     'amount',
     'paymentMethod',
@@ -530,10 +480,7 @@ function PaymentCard({ invoice, onDone }) {
     'lateFee'
   ])
 
-  // ต้องถามใหม่เมื่อยอดบิลเปลี่ยนด้วย ไม่ใช่แค่ตอนเปลี่ยนวันที่ — การ์ดนี้ไม่ถูกสร้างใหม่หลังรับเงิน
-  // เดิมรับเงินงวดแรกพร้อมค่าปรับไปแล้ว งวดที่สองในหน้าเดิมยังเสนอค่าปรับเต็มจำนวนอยู่
-  // แล้ว main ปฏิเสธว่าเกินเพดาน (main หักค่าปรับที่เก็บไปแล้วออกให้ แต่หน้าจอไม่ได้ถามใหม่)
-  // ยกเลิกใบเสร็จก็ถอดค่าปรับออกจากบิลได้ — ยอดรวมเปลี่ยน จึงดูทั้งยอดรวมและยอดค้าง
+  // ถามค่าปรับใหม่เมื่อยอดบิลเปลี่ยนด้วย ไม่ใช่แค่วันที่
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -551,14 +498,7 @@ function PaymentCard({ invoice, onDone }) {
   const feeDue = Boolean(lateFee?.enabled) && lateFee.suggestedCents > 0
   const feeCents = feeDue && chargeLateFee ? Math.round(Number(lateFeeAmount || 0) * 100) : 0
 
-  // เติมยอดที่ค้างอยู่ให้เป็นค่าตั้งต้น — คนส่วนใหญ่จ่ายเต็มจำนวน จะได้กดบันทึกได้เลย
-  // แต่ยังแก้เป็นยอดบางส่วนได้ (ต้นแบบก็เติมมาให้เหมือนกัน)
-  //
-  // ค่าปรับที่จะเก็บต้องบวกเข้าไปด้วย เพราะมันจะกลายเป็นรายการบนบิลตอนกดบันทึก
-  // ถ้าไม่บวก ผู้ใช้จะกดบันทึกแล้วเหลือยอดค้างเท่าค่าปรับพอดีโดยไม่ได้ตั้งใจ
-  //
-  // เติมเฉพาะตอนผู้ใช้ยังไม่ได้พิมพ์ยอดเอง — เดิมเติมทับทุกครั้งที่ค่าปรับขยับ พิมพ์ยอด
-  // รับบางส่วนไว้แล้วไปแก้วันที่ ยอดที่พิมพ์ก็กลับเป็นยอดเต็มโดยไม่รู้ตัว
+  // เติมยอดค้าง + ค่าปรับให้ก่อน — เฉพาะตอนผู้ใช้ยังไม่พิมพ์เอง
   useEffect(() => {
     if (amountTouched) return
     setAmount(centsToInput(Math.max(invoice.outstandingCents, 0) + feeCents))
@@ -579,7 +519,6 @@ function PaymentCard({ invoice, onDone }) {
     setBusy(false)
     if (!res.success) return fromResult(res)
     setRemark('')
-    // งวดถัดไปเริ่มจากยอดค้างใหม่ ไม่ใช่ยอดที่พิมพ์ไว้ของงวดที่เพิ่งรับไป
     setAmountTouched(false)
     onDone(`รับชำระแล้ว ใบเสร็จ ${res.data.receiptNumber}`)
   }
@@ -615,7 +554,6 @@ function PaymentCard({ invoice, onDone }) {
               <FieldError id="paymentAmount-error" message={errors.amount} />
             ) : (
               <p className="field-hint">
-                {/* ค่าปรับที่ติ๊กไว้จะเข้าบิลก่อนรับเงิน เพดานจึงรวมค่าปรับด้วย */}
                 รับได้ไม่เกิน {formatBaht(Math.max(invoice.outstandingCents, 0) + feeCents)} บาท
               </p>
             )}
@@ -658,10 +596,7 @@ function PaymentCard({ invoice, onDone }) {
             <FieldError id="paymentDate-error" message={errors.paymentDate} />
           </div>
 
-          {/* ค่าปรับชำระล่าช้า — ระบบคำนวณให้และติ๊กไว้ให้ แต่ติ๊กออกได้และลดยอดได้
-              เจ้าของหอลดหย่อนให้ผู้เช่าที่ดีได้ ส่วนเพดานบังคับที่ฝั่ง main */}
-          {/* เปิดสวิตช์เก็บค่าปรับไว้แต่ยังไม่ได้ตั้งอัตรา — บอกตรงๆ ว่าทำไมไม่มีค่าปรับ
-              ไม่ปล่อยให้เงียบจนดูเหมือนระบบไม่ทำงาน */}
+          {/* ค่าปรับติ๊กไว้ให้ ติ๊กออกหรือลดได้ — เพดานบังคับที่ main */}
           {lateFee?.misconfigured && lateFee.overdueDays > 0 && (
             <Alert kind="warn">
               เกินกำหนด {lateFee.overdueDays} วัน แต่ค่าปรับต่อวันตั้งไว้ 0 บาท — แก้ที่ ตั้งค่า ›
@@ -683,8 +618,7 @@ function PaymentCard({ invoice, onDone }) {
                   checked={chargeLateFee}
                   onChange={(e) => {
                     setChargeLateFee(e.target.checked)
-                    // ติ๊กหรือเอาติ๊กออก = ตั้งใจเปลี่ยนยอด ให้เติมยอดใหม่แม้เคยพิมพ์เองไว้
-                    // (แบบเดียวกับหน้ารับเงินหลายห้อง)
+                    // ติ๊กเปลี่ยน = เติมยอดใหม่
                     setAmountTouched(false)
                   }}
                 />
@@ -734,8 +668,6 @@ function PaymentCard({ invoice, onDone }) {
   )
 }
 
-// ใบที่ยกเลิกแล้วยังอยู่ในรายการ ไม่ได้หายไป — เจ้าของหอที่ถือกระดาษใบนั้นอยู่ในมือ
-// ต้องหาเจอว่าเลขที่นี้เป็นอะไรและถูกยกเลิกเพราะอะไร
 function PaymentHistory({ payments, onCancelReceipt }) {
   return (
     <section className="panel">
@@ -791,7 +723,6 @@ function PaymentHistory({ payments, onCancelReceipt }) {
   )
 }
 
-// ------------------------------------------------------------------
 function today() {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')

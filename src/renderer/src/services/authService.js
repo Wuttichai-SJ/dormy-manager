@@ -1,6 +1,3 @@
-// ตัวห่อ IPC ของระบบเข้าสู่ระบบ — คอมโพเนนต์ห้ามเรียก window.electron.invoke เอง
-// ทุกฟังก์ชันคืนซองเดียวกันเสมอ: { success: true, data } หรือ { success: false, error }
-// (ช่องทั้งหมดอยู่ที่ src/main/handlers/authHandlers.js)
 import { invoke } from './ipc.js'
 
 export function getAuthStatus() {

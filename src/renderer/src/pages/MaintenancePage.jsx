@@ -24,21 +24,13 @@ import {
   updateMaintenance
 } from '../services/maintenanceService.js'
 
-// หน้าแจ้งซ่อม — รายการงานของทั้งหอ + ทางเข้ารับแจ้งงานใหม่
-//
-// **งานซ่อมผูกกับ "ห้อง" ไม่ใช่สัญญา** — ห้องว่างก็แจ้งซ่อมได้ และควรแจ้งด้วยซ้ำ
-// (ซ่อมตอนว่างคือช่วงเดียวที่ซ่อมได้โดยไม่รบกวนใคร) ชื่อผู้เช่าที่แสดงจึงเป็นคนที่อยู่
-// ในห้องนั้น *ตอนนี้* เอาไว้ให้ติดต่อได้ ไม่ใช่ส่วนหนึ่งของตัวงาน
-//
-// **ค่าซ่อมที่บันทึกยังเป็นแค่บันทึกว่าหอจ่ายอะไรไป ยังไม่ไหลไปเป็นเงินที่ไหน** —
-// รอคำตอบจากเจ้าของหอว่าค่าซ่อมระหว่างผู้เช่ายังอยู่ เรียกเก็บจากผู้เช่าได้ไหม
+// งานซ่อมผูกกับห้อง ไม่ใช่สัญญา · ค่าซ่อมยังไม่เข้าบิล
 export default function MaintenancePage({ apartment }) {
   const [filters, setFilters] = useState({ status: 'open', search: '' })
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
-  // งานที่กำลังเปิดดูรายละเอียด — null = อยู่ที่ตาราง
   const [openId, setOpenId] = useState(null)
 
   const load = useCallback(async () => {
@@ -174,8 +166,6 @@ export default function MaintenancePage({ apartment }) {
                       <span className="room-badge">รูป {row.imageCount}</span>
                     )}
                   </td>
-                  {/* "—" ไม่ได้แปลว่าไม่มีวันนัด แต่แปลว่า "ยังไม่ได้นัด" ซึ่งคือสิ่งที่
-                      ต้องไปทำต่อ (migration 028 ทำให้ช่องนี้ว่างได้ด้วยเหตุผลนี้) */}
                   <td>{row.appointmentDate ? formatDate(row.appointmentDate) : '—'}</td>
                   <td>{row.statusLabel}</td>
                   <td className="align-right">
@@ -217,10 +207,7 @@ export default function MaintenancePage({ apartment }) {
   )
 }
 
-// ------------------------------------------------------------------
-// รับแจ้งงานใหม่
-// ------------------------------------------------------------------
-// ชื่อช่องตรงกับ key ใน FieldError ของ src/main/db/maintenance.js
+// ชื่อช่องตรงกับ FieldError ใน main/db/maintenance.js
 const REPORT_FIELDS = ['roomId', 'reportedDate', 'description', 'appointmentDate']
 
 function ReportDialog({ apartment, onClose, onCreated }) {
@@ -234,7 +221,6 @@ function ReportDialog({ apartment, onClose, onCreated }) {
   const [busy, setBusy] = useState(false)
   const { errors, formError, fromResult, clear, reset } = useFormErrors(REPORT_FIELDS)
 
-  // แก้ช่องไหน error ของช่องนั้นหายทันที
   const set = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }))
     clear(key)
@@ -245,7 +231,6 @@ function ReportDialog({ apartment, onClose, onCreated }) {
     listFloors(apartment.apartmentId).then((res) => {
       if (cancelled) return
       if (!res.success) return fromResult(res)
-      // แบนชั้นทั้งหมดเป็นรายการห้องเดียว — คนแจ้งรู้เลขห้อง ไม่ได้คิดเป็นชั้น
       setRooms(res.data.flatMap((floor) => floor.rooms.map((r) => ({ ...r, floor: floor.floorName }))))
     })
     return () => {
@@ -346,18 +331,14 @@ function ReportDialog({ apartment, onClose, onCreated }) {
   )
 }
 
-// ------------------------------------------------------------------
-// รายละเอียดงาน
-// ------------------------------------------------------------------
 function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
-  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
   const [confirmDialog, ask] = useConfirm()
   const [request, setRequest] = useState(null)
   const [images, setImages] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [dialog, setDialog] = useState(null) // null | 'edit' | 'complete' | 'cancel' | 'delete'
+  const [dialog, setDialog] = useState(null) /* null | 'edit' | 'complete' | 'cancel' | 'delete' */
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -372,8 +353,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
     load()
   }, [load])
 
-  // ดึงรูปทีละใบหลังรู้ว่ามี image_id อะไรบ้าง — ไม่ได้ส่งไบต์มากับตัวงาน
-  // เพราะตารางรายการไม่ต้องใช้รูป และรูปหกใบต่องานคือข้อมูลก้อนใหญ่ที่สุดของหน้านี้
   useEffect(() => {
     if (!request) return
     let cancelled = false
@@ -423,7 +402,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
     onChanged?.()
   }
 
-  // เรียกจากหน้าต่างยืนยันเท่านั้น — ล้มเหลวคืนผลให้หน้าต่างแสดง error เอง
   async function removeRequest() {
     const res = await deleteMaintenance(maintenanceId)
     if (!res.success) return res
@@ -484,8 +462,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
               )}
             </dl>
 
-            {/* หัวข้อเล็กสีจาง + ข้อความปกติ แบบเดียวกับ วันที่แจ้ง/ผู้เช่า ข้างบน
-                แยกจากแถวข้อมูลด้วยเส้นคั่น — เดิมหัวข้อหนาชิดแถวบนจนดูเป็นก้อนเดียวกัน */}
             <div className="maintenance-notes">
               <div>
                 <h3>อาการที่แจ้ง</h3>
@@ -502,7 +478,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
             <div className="card-foot">
               {request.isOpen ? (
                 <>
-                  {/* ปุ่มยกเลิกแยกไปซ้ายสุด ห่างจากปุ่มปกติ — ปุ่มหลักอยู่ขวาสุดเสมอ */}
                   <button
                     type="button"
                     className="link-btn link-danger card-foot-start"
@@ -524,8 +499,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
                 </>
               ) : (
                 <>
-                  {/* ลบทิ้งจริงมีไว้สำหรับใบที่คีย์ผิดห้อง/คีย์ซ้ำ ไม่ใช่งานที่ทำเสร็จแล้ว —
-                      ประวัติว่าห้องไหนซ่อมอะไรบ่อยคือของมีค่า */}
                   <button
                     type="button"
                     className="link-btn link-danger card-foot-start"
@@ -637,7 +610,6 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
   )
 }
 
-// ------------------------------------------------------------------
 const EDIT_FIELDS = ['reportedDate', 'description', 'appointmentDate']
 
 function EditDialog({ request, onClose, onSaved }) {
@@ -722,7 +694,6 @@ function EditDialog({ request, onClose, onSaved }) {
   )
 }
 
-// ------------------------------------------------------------------
 const COMPLETE_FIELDS = ['repairedDate', 'repairCost']
 
 function CompleteDialog({ request, onClose, onSaved }) {
@@ -792,8 +763,7 @@ function CompleteDialog({ request, onClose, onSaved }) {
           {...invalidProps('repairCost', errors.repairCost)}
         />
         <FieldError id="repairCost-error" message={errors.repairCost} />
-        {/* เว้นว่าง ≠ 0 — ช่องว่างแปลว่ายังไม่รู้ค่าซ่อม ส่วน 0 แปลว่าซ่อมแล้วไม่เสียเงิน
-            ถ้าเหมาช่องว่างเป็น 0 ยอดรวมค่าซ่อมของหอจะดูน้อยกว่าความจริงตลอดไป */}
+        {/* ว่าง = ยังไม่รู้ค่าซ่อม · 0 = ไม่เสียเงิน */}
       </div>
 
       <div className="field">
@@ -810,8 +780,6 @@ function CompleteDialog({ request, onClose, onSaved }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ไม่มีช่องไหนที่ main ตรวจ — error ทุกตัว (เช่น งานถูกปิดไปแล้ว) ขึ้นบนสุดของหน้าต่าง
 function CancelDialog({ request, onClose, onSaved }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
@@ -854,7 +822,6 @@ function CancelDialog({ request, onClose, onSaved }) {
   )
 }
 
-// ------------------------------------------------------------------
 function formatDate(value) {
   if (!value) return '-'
   const [y, m, d] = String(value).split('-')

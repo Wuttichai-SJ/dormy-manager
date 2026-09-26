@@ -16,24 +16,13 @@ import {
   listTerminations
 } from '../services/terminationService.js'
 
-// ประวัติการย้ายออก — ผู้เช่าที่ย้ายออกไปแล้วทั้งหมดของหอ
-//
-// ต้นแบบเก็บผู้เช่าเก่าไว้ให้เปิดดูย้อนหลังได้เสมอ ส่วนของเราพอกดยืนยันย้ายออกแล้ว
-// ห้องกลับไปเป็นห้องว่าง และคนที่เพิ่งออกไปก็หายจากทุกหน้าจอ ทั้งที่ข้อมูลยังอยู่ครบ —
-// เจ้าของหอไม่มีทางกลับไปดูว่าคืนเงินประกันไปเท่าไหร่ หรือริบเพราะอะไร
-//
-// **หน้านี้ยังเป็นที่เดียวที่จะไปถึงยอด "ยังเก็บไม่ได้" ของการย้ายออกเก่าๆ ด้วย** —
-// ตอนย้ายออกถ้าติ๊กว่ายังเก็บเงินส่วนต่างไม่ได้ เดิมไม่มีที่ให้บันทึกตอนผู้เช่าเอาเงินมาให้
-// ทีหลังเลย ยอดค้างจึงค้างอยู่อย่างนั้นตลอดไปทั้งที่เก็บได้แล้ว
 export default function MoveOutHistoryPage({ apartment, user }) {
   const [filters, setFilters] = useState({ search: '', from: '', to: '' })
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  // สัญญาที่กำลังเปิดดูรายละเอียด — null = อยู่ที่ตารางประวัติ
   const [openContractId, setOpenContractId] = useState(null)
 
-  // ช่วงวันที่กลับหัว = ผลลัพธ์ว่างเสมอ ต้องบอกว่าทำไม ไม่ใช่ปล่อยให้คิดว่าไม่มีข้อมูล
   const rangeReversed = Boolean(filters.from && filters.to && filters.from > filters.to)
 
   const load = useCallback(async () => {
@@ -59,7 +48,6 @@ export default function MoveOutHistoryPage({ apartment, user }) {
         contractId={openContractId}
         signedBy={user?.fullName}
         onBack={() => setOpenContractId(null)}
-        // เก็บเงินส่วนต่างแล้วยอดค้างในตารางต้องเปลี่ยนตาม ไม่ใช่รอให้ผู้ใช้กดรีเฟรชเอง
         onChanged={load}
       />
     )
@@ -75,8 +63,6 @@ export default function MoveOutHistoryPage({ apartment, user }) {
         {rangeReversed && (
           <Alert kind="warn">วันที่เริ่มต้นอยู่หลังวันที่สิ้นสุด</Alert>
         )}
-        {/* ปกติต้องไม่ขึ้นเลย — ขึ้นเมื่อไหร่แปลว่ามีใบที่ตัดสินไว้ด้วยสูตรคนละรุ่นกับที่ใช้อยู่
-            ต้องเห็นตั้งแต่หน้ารายการ ไม่ใช่รอให้บังเอิญเปิดใบนั้นเจอ */}
         {(report?.mismatchCount ?? 0) > 0 && (
           <Alert kind="warn">
             มี {report.mismatchCount} ใบ (⚠) ที่ยอดสุทธิไม่ตรงกับสูตรปัจจุบัน — เปิดดูเพื่อเทียบตัวเลข
@@ -133,8 +119,6 @@ export default function MoveOutHistoryPage({ apartment, user }) {
               <div className="stat-card-label">ริบเงินประกัน (ราย)</div>
             </div>
           )}
-          {/* การ์ดนี้ขึ้นเฉพาะตอนมีของค้างจริง — ช่องที่เขียน 0 ค้างไว้ตลอดจะถูกมองข้าม
-              จนถึงวันที่มันขึ้นเป็นเลขจริง (กติกาเดียวกับการ์ด "ยกเลิกแล้ว" ของรายงานใบเสร็จ) */}
           {(report?.unpaidCount ?? 0) > 0 && (
             <div className="stat-card highlight">
               <div className="stat-card-value">{formatBaht(report.unpaidTotalCents)}</div>
@@ -184,7 +168,6 @@ export default function MoveOutHistoryPage({ apartment, user }) {
                     {t.isDepositRefundable ? (
                       'คืนเงินประกัน'
                     ) : (
-                      // เหตุผลอยู่ใน title — คอลัมน์แคบ และคนที่เปิดหน้านี้ส่วนใหญ่มาหายอด
                       <span className="negative" title={t.forfeitReasonLabel ?? ''}>
                         ริบเงินประกัน
                       </span>
@@ -192,7 +175,7 @@ export default function MoveOutHistoryPage({ apartment, user }) {
                     {t.isManualOverride && <span className="room-badge">ตัดสินเอง</span>}
                   </td>
                   <td className="align-right">
-                    {/* บวก = หอคืนให้ผู้เช่า · ลบ = ผู้เช่าจ่ายเพิ่มให้หอ (ทิศเดียวกับใบสรุป) */}
+                    {/* บวก = หอคืนให้ผู้เช่า · ลบ = ผู้เช่าจ่ายเพิ่ม */}
                     <span className={t.netRefundCents < 0 ? 'negative' : undefined}>
                       {formatBaht(t.netRefundCents)}
                     </span>
@@ -232,11 +215,7 @@ export default function MoveOutHistoryPage({ apartment, user }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ใบสรุปการย้ายออกย้อนหลัง (+ ตามเก็บเงินส่วนต่าง)
-// ------------------------------------------------------------------
-// ใช้ MoveOutDocument ตัวเดียวกับที่พิมพ์ตอนย้ายออก — ใบที่เปิดดูย้อนหลังกับใบที่ยื่นให้
-// ผู้เช่าในวันนั้นจึงเป็นเอกสารเดียวกันเสมอ (ตัวเลขมาจาก summariseMoney ตัวเดียวกันด้วย)
+// ใช้ MoveOutDocument ตัวเดียวกับตอนย้ายออก
 function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
   const [record, setRecord] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -269,7 +248,7 @@ function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
     revealPdf(res.data.filePath)
   }
 
-  // ระหว่างพิมพ์ หน้าจอเหลือแต่ตัวเอกสาร เพราะ printToPDF จับภาพหน้าที่กำลังแสดงอยู่
+  // ระหว่างพิมพ์แสดงแค่เอกสาร — printToPDF จับภาพหน้าที่แสดงอยู่
   if (printing && record) {
     return (
       <>
@@ -309,8 +288,6 @@ function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
             รายละเอียดการย้ายออก — ห้อง {record.roomNumber}
           </h2>
 
-          {/* ใบที่ตัดสินด้วยสูตรคนละรุ่น — ต้องกางตัวเลขทั้งสองชุดให้เห็น ไม่ใช่บอกแค่ว่า
-              "ไม่ตรงกัน" เพราะคนอ่านต้องตัดสินใจได้ว่าจะยึดอันไหน */}
           {record.hasNetRefundMismatch && (
             <section className="panel">
               <Alert kind="warn">
@@ -344,7 +321,6 @@ function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
           )}
 
           <section className="panel invoice-doc">
-            {/* ปุ่มถูกซ่อนตอนพิมพ์ด้วย @media print (คลาส invoice-doc-tools) */}
             <div className="invoice-doc-tools">
               <div className="invoice-doc-actions">
                 <button
@@ -384,13 +360,10 @@ function MoveOutRecord({ contractId, signedBy, onBack, onChanged }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ชื่อช่องตรงกับ key ใน FieldError ของ collectTerminationShortfall (db/terminations.js)
+// ชื่อช่องตรงกับ collectTerminationShortfall
 const SHORTFALL_FIELDS = ['amount', 'paymentDate']
 
 function CollectShortfallDialog({ record, onClose, onCollected }) {
-  // เติมยอดค้างทั้งก้อนเป็นค่าตั้งต้น (เหมือนการ์ดรับเงินของใบแจ้งหนี้) แต่แก้ได้
-  // เพราะผู้เช่าทยอยจ่ายบางส่วนได้
   const [amount, setAmount] = useState(() => centsToInput(record.unpaidBalanceCents))
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentDate, setPaymentDate] = useState(todayIso)
@@ -502,9 +475,6 @@ function CollectShortfallDialog({ record, onClose, onCollected }) {
   )
 }
 
-// ------------------------------------------------------------------
-// วันที่ในตารางบนหน้าจอเป็น ค.ศ. เหมือนทุกหน้าในแอป — ปี พ.ศ. ใช้เฉพาะบนเอกสาร
-// ที่ยื่นให้ผู้เช่า (ดู format.js) ซึ่ง MoveOutDocument จัดการเองอยู่แล้ว
 function formatDate(value) {
   if (!value) return '-'
   const [y, m, d] = String(value).split('-')

@@ -1,15 +1,7 @@
 import React from 'react'
 import Icon from '../Icon.jsx'
 
-// แถบเลือกช่วงเวลาของหน้ารายการ (เฟิสขอ 2026-09-26 — ข้อมูลงอกทุกเดือน เลื่อนหาลำบาก
-// และดูไม่ออกว่าแถวไหนของเดือนไหน)
-//
-// งานหอพักเป็นรอบรายเดือน จึงใช้ "เดือน" เป็นตัวแบ่งหลักแทนการแบ่งหน้า (pagination)
-// — หน้า 3 ไม่บอกว่าเป็นเดือนอะไร และการเลือกหลายใบเพื่อพิมพ์จะขาดตอนข้ามหน้า
-//
-// period = { mode: 'month' | 'year' | 'all', month: 'YYYY-MM' }
-//   · month เก็บไว้แม้อยู่โหมดปี/ทั้งหมด — สลับกลับมาโหมดเดือนแล้วยังอยู่เดือนเดิม
-//   · ปีของโหมด "ปี" = 4 ตัวแรกของ month
+// แบ่งตามเดือนแทนการแบ่งหน้า · period = { mode: 'month' | 'year' | 'all', month: 'YYYY-MM' }
 const MODES = [
   { key: 'month', label: 'รายเดือน' },
   { key: 'year', label: 'รายปี' },
@@ -30,7 +22,7 @@ export function initialPeriod() {
   return { mode: 'month', month: currentMonth() }
 }
 
-// 'YYYY-MM' -> 'ตุลาคม 2026' (ปี ค.ศ. เหมือนวันที่อื่นบนหน้าจอ — พ.ศ. ใช้เฉพาะบนเอกสาร)
+// 'YYYY-MM' -> 'ตุลาคม 2026' (ค.ศ. เหมือนวันที่อื่นบนจอ)
 export function formatMonthName(month) {
   const [y, m] = String(month ?? '').split('-').map(Number)
   if (!y || !m) return '-'
@@ -43,14 +35,14 @@ function shiftMonth(month, delta) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-// ช่วงเวลา -> ตัวกรองรอบเดือนที่ main เข้าใจ ({ billingMonth } / { billingYear } / {})
+// -> { billingMonth } / { billingYear } / {}
 export function billingPeriodFilter(period) {
   if (period.mode === 'month') return { billingMonth: period.month }
   if (period.mode === 'year') return { billingYear: period.month.slice(0, 4) }
   return {}
 }
 
-// ช่วงเวลา -> ช่วงวันที่ 'YYYY-MM-DD' (สำหรับหน้าที่กรองตามวันที่ เช่นใบเสร็จ)
+// -> { from, to } แบบ 'YYYY-MM-DD'
 export function periodDateRange(period) {
   if (period.mode === 'all') return { from: '', to: '' }
   const [y, m] = period.month.split('-').map(Number)
@@ -60,7 +52,6 @@ export function periodDateRange(period) {
   return { from: `${y}-${mm}-01`, to: `${y}-${mm}-${last}` }
 }
 
-// ป้ายของช่วงที่กำลังดู — ใช้ในข้อความ "ไม่มีข้อมูลของ…"
 export function periodLabel(period) {
   if (period.mode === 'month') return `เดือน${formatMonthName(period.month)}`
   if (period.mode === 'year') return `ปี ${period.month.slice(0, 4)}`
@@ -129,7 +120,6 @@ export default function PeriodBar({ period, onChange }) {
   )
 }
 
-// จัดแถวเป็นกลุ่มตามเดือน เรียงเดือนล่าสุดก่อน — ลำดับแถวในกลุ่มคงตามที่ส่งมา
 export function groupByMonth(rows, monthOf) {
   const groups = new Map()
   for (const row of rows) {

@@ -3,12 +3,7 @@ import Icon from '../Icon.jsx'
 import ApartmentsPage from '../pages/ApartmentsPage.jsx'
 import UsersPage from '../pages/UsersPage.jsx'
 
-// หน้าแรกหลังเข้าสู่ระบบ — ยังไม่มีเมนูด้านข้าง
-//
-// โครงนี้ลอกจากต้นแบบโดยตั้งใจ: เข้าระบบมาแล้วต้อง "เลือกหอพักก่อน" จึงจะเข้าไปทำงานได้
-// เหตุผลที่แยกสองระดับแทนที่จะยัดทุกอย่างไว้ในเมนูเดียว: เจ้าของหอมีหลายหอ และเกือบทุก
-// หน้าจอในระบบ (ห้อง สัญญา บิล มิเตอร์) ล้วนต้องรู้ว่า "ของหอไหน" ถ้าไม่บังคับเลือกก่อน
-// ทุกหน้าจะต้องมี dropdown เลือกหอของตัวเอง แล้วมีโอกาสที่คนกดผิดหอโดยไม่รู้ตัว
+// หน้าแรกหลังเข้าสู่ระบบ — ต้องเลือกหอก่อนเข้าทำงาน
 export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartment }) {
   const [tab, setTab] = useState('apartments')
 
@@ -36,10 +31,7 @@ export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartm
           <Icon name="apartments" />
           <span>จัดการหอพัก</span>
         </button>
-        {/* บัญชีผู้ใช้เป็นของ "ทั้งระบบ" ไม่ได้ผูกกับหอใดหอหนึ่ง (ตาราง users ไม่มี
-            apartment_id) จึงอยู่ที่หน้ารวมนี้ ไม่ใช่ในเมนูตั้งค่าของหอ — วางไว้ในหอจะสื่อ
-            ผิดว่าพนักงานคนหนึ่งผูกกับหอเดียว และกลายเป็นสองทางเข้าไปเรื่องเดียวกัน
-            · พนักงานไม่เห็นแท็บนี้เลย */}
+        {/* บัญชีผู้ใช้เป็นของทั้งระบบ ไม่ผูกหอ · พนักงานไม่เห็นแท็บนี้ */}
         {user.isOwner && (
           <button
             className={'hub-tab' + (tab === 'users' ? ' active' : '')}

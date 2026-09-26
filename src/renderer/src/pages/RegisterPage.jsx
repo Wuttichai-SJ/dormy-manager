@@ -5,13 +5,7 @@ import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
 import { setupFirstUser } from '../services/authService.js'
 
-// หน้า "ลงทะเบียน" — วางหน้าตาให้ตรงกับหน้าลงทะเบียนของต้นแบบ (app.yeeraf.com)
-// เพราะผู้ใช้เคยใช้เว็บนั้นมาก่อน จะได้ไม่ต้องเรียนรู้ใหม่
-//
-// แต่เบื้องหลังไม่เหมือนกัน และห้ามลืมข้อนี้: นี่ไม่ใช่การสมัครสมาชิกกับบริการออนไลน์
-// บัญชีถูกสร้างลงไฟล์ในเครื่องนี้เครื่องเดียว และหน้านี้จะโผล่มาแค่ครั้งเดียวตลอดการติดตั้ง
-// คือตอนที่ยังไม่มีบัญชีใดๆ ในฐานข้อมูล (main กันซ้ำไว้อีกชั้นด้วย isInitialized)
-// ผู้ใช้คนถัดๆ ไปเกิดจากหน้าจัดการผู้ใช้ ไม่ใช่จากหน้านี้
+// แสดงครั้งเดียวตอนยังไม่มีบัญชีในเครื่อง
 export default function RegisterPage({ onReady }) {
   const [form, setForm] = useState({
     fullName: '',
@@ -22,7 +16,7 @@ export default function RegisterPage({ onReady }) {
   })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState(null) // { user, recoveryCode }
+  const [result, setResult] = useState(null) /* { user, recoveryCode } */
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -32,7 +26,7 @@ export default function RegisterPage({ onReady }) {
     e.preventDefault()
     setError('')
 
-    // ช่องยืนยันรหัสผ่านมีอยู่แค่ฝั่งหน้าจอ ฝั่ง main ไม่รู้จัก จึงต้องตรวจที่นี่
+    // ช่องยืนยันรหัสผ่านตรวจที่หน้าจอเท่านั้น
     if (form.password !== form.confirmPassword) {
       setError('รหัสผ่านทั้งสองช่องไม่ตรงกัน')
       return
@@ -46,7 +40,6 @@ export default function RegisterPage({ onReady }) {
       setError(res.error)
       return
     }
-    // main สร้างเซสชันให้แล้วตั้งแต่ตอนสร้างบัญชี แต่ยังไม่พาเข้าแอปจนกว่าจะจดรหัสสำรอง
     setResult(res.data)
   }
 
@@ -135,9 +128,6 @@ export default function RegisterPage({ onReady }) {
           {busy ? 'กำลังลงทะเบียน...' : 'ลงทะเบียน'}
         </button>
 
-        {/* ต้นแบบมีลิงก์ "มีบัญชีอยู่แล้ว? เข้าสู่ระบบ" ตรงนี้ — ที่นี่ไม่ใส่โดยตั้งใจ
-            เพราะหน้านี้แสดงก็ต่อเมื่อยังไม่มีบัญชีในเครื่อง ลิงก์นั้นจะพาไปสู่หน้า
-            เข้าสู่ระบบที่ล็อกอินไม่ได้แน่ๆ กลายเป็นทางตัน */}
         <p className="auth-footnote">
           ข้อมูลเก็บไว้ในเครื่องนี้เท่านั้น ไม่ส่งออกไปที่ใด
         </p>

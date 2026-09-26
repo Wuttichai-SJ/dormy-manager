@@ -1,17 +1,9 @@
-// ค่าคงที่ที่ฝั่งหน้าจอกับฝั่ง main ต้องตรงกัน
-//
-// ทำไมไม่ import จาก src/main โดยตรง: renderer ถูก bundle แยกและรันในกระบวนการที่
-// ไม่มีสิทธิ์แตะ Node/Electron API ถ้าลาก db/apartments.js เข้ามาจะพา better-sqlite3
-// ติดเข้า bundle ฝั่งหน้าจอไปด้วย — ที่นี่จึงคัดลอกเฉพาะ "ตัวเลข" มาไว้
-//
-// ค่าเหล่านี้ต้องตรงกับต้นทางเสมอ ถ้าแก้ที่ main ต้องแก้ที่นี่ด้วย
-// (main เป็นฝ่ายตรวจสอบจริงอยู่แล้ว ที่นี่มีไว้เพื่อไม่ให้หน้าจอเสนอค่าที่ main จะปฏิเสธ)
+// ค่าที่ต้องตรงกับฝั่ง main — แก้ที่ main ต้องแก้ที่นี่ด้วย (main เป็นฝ่ายตรวจจริง)
 
-// ต้องตรงกับ MAX_DUE_DATE_DAY ใน src/main/db/apartments.js
+// = MAX_DUE_DATE_DAY ใน main/db/apartments.js
 export const MAX_DUE_DATE_DAY = 28
 
-// ต้องตรงกับ BILLING_TYPES / BILLING_TYPE_LABELS ใน src/main/db/utilityDefaults.js
-// และกับค่าที่ 001_init.sql ระบุไว้สำหรับ room_utility_settings.water_billing_type
+// = BILLING_TYPES / BILLING_TYPE_LABELS ใน main/db/utilityDefaults.js
 export const BILLING_TYPES = ['actual', 'minimum', 'flat']
 
 export const BILLING_TYPE_LABELS = {
@@ -20,7 +12,7 @@ export const BILLING_TYPE_LABELS = {
   flat: 'เหมาจ่ายรายเดือน'
 }
 
-// ต้องตรงกับ BANKS ใน src/main/db/bankAccounts.js (main เป็นฝ่ายตรวจว่าค่าที่ส่งมาถูกต้อง)
+// = BANKS ใน main/db/bankAccounts.js
 export const BANKS = [
   'กรุงเทพ (Bangkok Bank)',
   'กสิกรไทย (Kasikorn)',
@@ -42,15 +34,14 @@ export const BANKS = [
   'ธกส (BAAC)'
 ]
 
-// ต้องตรงกับ RECOMMENDED_MAX_ACCOUNTS ใน src/main/db/bankAccounts.js
+// = RECOMMENDED_MAX_ACCOUNTS ใน main/db/bankAccounts.js
 export const RECOMMENDED_MAX_ACCOUNTS = 2
 
-// ต้องตรงกับ MAX_FLOORS / MAX_ROOMS_PER_FLOOR ใน src/main/db/rooms.js
+// = MAX_FLOORS / MAX_ROOMS_PER_FLOOR ใน main/db/rooms.js
 export const MAX_FLOORS = 30
 export const MAX_ROOMS_PER_FLOOR = 50
 
-// ต้องตรงกับ ROOM_STATUSES / ROOM_STATUS_LABELS ใน src/main/db/rooms.js
-// และกับค่าที่ 001_init.sql ระบุไว้สำหรับ rooms.status
+// = ROOM_STATUSES / ROOM_STATUS_LABELS ใน main/db/rooms.js
 export const ROOM_STATUSES = ['vacant', 'occupied', 'maintenance']
 
 export const ROOM_STATUS_LABELS = {
@@ -59,15 +50,14 @@ export const ROOM_STATUS_LABELS = {
   maintenance: 'ปิดปรับปรุง'
 }
 
-// ต้องตรงกับ PAYMENT_METHODS / PAYMENT_METHOD_LABELS ใน src/main/db/payments.js
+// = PAYMENT_METHODS / PAYMENT_METHOD_LABELS ใน main/db/payments.js
 export const PAYMENT_METHODS = [
   { key: 'cash', label: 'เงินสด' },
   { key: 'transfer', label: 'เงินโอน' },
   { key: 'other', label: 'อื่นๆ' }
 ]
 
-// ต้องตรงกับ USER_ROLES / USER_ROLE_LABELS ใน src/main/db/users.js (ดู migration 027)
-// สองบทบาทตายตัว ไม่ใช่เมทริกซ์สิทธิ์ที่ตั้งค่าได้
+// = USER_ROLES / USER_ROLE_LABELS ใน main/db/users.js
 export const USER_ROLES = [
   {
     key: 'owner',
@@ -85,8 +75,7 @@ export const USER_ROLES = [
   }
 ]
 
-// สิ่งที่พนักงานทำไม่ได้ — ต้องตรงกับ OWNER_ONLY_ACTIONS ใน src/main/db/users.js
-// **main เป็นฝ่ายบังคับจริงทุกช่อง** ที่นี่มีไว้อธิบายให้คนอ่านเข้าใจตรงกันเท่านั้น
+// = OWNER_ONLY_ACTIONS ใน main/db/users.js
 export const OWNER_ONLY_ACTIONS = [
   'แก้ไขบัญชีธนาคารและข้อความแจ้งชำระเงิน',
   'เปลี่ยน QR Code รับเงิน',
@@ -97,8 +86,7 @@ export const OWNER_ONLY_ACTIONS = [
   'จัดการผู้ใช้งานระบบ'
 ]
 
-// ต้องตรงกับ DEPOSIT_REFUND_POLICIES / DEPOSIT_REFUND_POLICY_LABELS ใน src/main/db/apartments.js
-// (ดู migration 004 + 029) — main เป็นฝ่ายตรวจค่าจริงเสมอ
+// = DEPOSIT_REFUND_POLICIES / LABELS ใน main/db/apartments.js
 export const DEPOSIT_REFUND_POLICIES = [
   {
     key: 'on_full_term',
@@ -117,9 +105,7 @@ export const DEPOSIT_REFUND_POLICIES = [
   }
 ]
 
-// ต้องตรงกับ MAINTENANCE_STATUSES / MAINTENANCE_STATUS_LABELS ใน src/main/db/maintenance.js
-// (ดู migration 028) · 'open' ไม่ใช่สถานะจริงในฐานข้อมูล แต่เป็นตัวกรอง "งานที่ยังต้องตามต่อ"
-// ซึ่งเป็นคำถามที่คนเปิดหน้านี้ถามบ่อยที่สุด จึงเป็นค่าตั้งต้นของตัวกรอง
+// = MAINTENANCE_STATUSES / LABELS ใน main/db/maintenance.js · 'open' เป็นตัวกรอง ไม่ใช่สถานะจริง
 export const MAINTENANCE_STATUS_FILTERS = [
   { key: 'open', label: 'ที่ยังค้างอยู่' },
   { key: 'pending', label: 'รอดำเนินการ' },
@@ -129,31 +115,16 @@ export const MAINTENANCE_STATUS_FILTERS = [
   { key: '', label: 'ทั้งหมด' }
 ]
 
-// ต้องตรงกับ MIN_VAT_RATE / MAX_VAT_RATE / DEFAULT_VAT_RATE ใน src/main/db/apartments.js
-//
-// 🔴 **อัตรา VAT ไม่ใช่ค่าคงที่แล้ว** เจ้าของหอกรอกเองได้ (migration 031) ค่าพวกนี้มีไว้
-// ทำช่องกรอกกับเป็นค่าถอยเท่านั้น
-//
-// **ป้าย "VAT x%" บนใบแจ้งหนี้ต้องอ่านจาก `invoice.vatRate` ของบิลใบนั้น ห้ามใช้ค่านี้**
-// เพราะบิลที่ออกตอนอัตรา 7% ต้องพิมพ์ว่า 7% ตลอดไป ต่อให้หอเปลี่ยนเป็น 10% แล้วก็ตาม
-// (ยอดเงินในบิลก็ยังคิดที่ 7% เหมือนกัน — ฝั่ง main ตรึงไว้ที่ invoices.vat_rate)
+// = MIN/MAX/DEFAULT_VAT_RATE ใน main/db/apartments.js · ป้าย VAT บนบิลต้องใช้ invoice.vatRate
 export const MIN_VAT_RATE = 0
 export const MAX_VAT_RATE = 100
 export const DEFAULT_VAT_RATE = 7
 
-// ต้องตรงกับ FULL_MONTH_MOVE_IN_UNTIL_DAY / PRORATE_DAYS_PER_MONTH ใน src/main/db/contracts.js
-// ใช้คิด "ค่าเช่าล่วงหน้าที่ต้องเก็บ" ให้เห็นก่อนกดบันทึกในตัวช่วยทำสัญญา
-//
-// 🔴 **เคยเพี้ยนมาแล้วจริง อย่าปล่อยให้เกิดซ้ำ** — ตอนแก้สูตรฝั่ง main ให้หารด้วย 30
-// และเพิ่มกฎ "เข้าวันที่ 1-3 คิดเต็มเดือน" สำเนาที่ ContractWizard.jsx ไม่ได้ถูกแก้ตาม
-// ยังหารด้วยจำนวนวันจริงของเดือนอยู่ ผลคือตัวเลขที่คนหน้าเคาน์เตอร์อ่านแล้วเก็บเงินสด
-// ไม่ตรงกับใบเสร็จที่ระบบออกให้ (เข้า 15 ก.ค. ค่าเช่า 5,000 → จอโชว์ 2,741.94
-// แต่ระบบเก็บ 2,833.33) ตรงกันเฉพาะเดือนที่มี 30 วันเท่านั้น
-// และการปัดเป็นบาทเต็ม (เพิ่ม 2026-09-26) ก็ต้องแก้สองที่พร้อมกันด้วยเหตุผลเดียวกัน
+// = FULL_MONTH_MOVE_IN_UNTIL_DAY / PRORATE_DAYS_PER_MONTH ใน main/db/contracts.js — แก้สูตรต้องแก้สองที่
 export const FULL_MONTH_MOVE_IN_UNTIL_DAY = 3
 export const PRORATE_DAYS_PER_MONTH = 30
 
-// ต้องตรงกับ INVOICE_STATUSES / INVOICE_STATUS_LABELS ใน src/main/db/invoices.js
+// = INVOICE_STATUSES / LABELS ใน main/db/invoices.js
 export const INVOICE_STATUS_LABELS = {
   unpaid: 'ค้างชำระ',
   partial_paid: 'ชำระบางส่วน',
@@ -161,26 +132,16 @@ export const INVOICE_STATUS_LABELS = {
   cancelled: 'ยกเลิก'
 }
 
-// ต้องตรงกับ METER_SIDES / METER_SIDE_LABELS ใน src/main/db/meterReadings.js
-// หน้าจอกรอกเลขมิเตอร์ทีละฝั่งตามต้นแบบ จึงต้องมีชื่อกับไอคอนของแต่ละฝั่งไว้ทำปุ่ม
+// = METER_SIDES / LABELS ใน main/db/meterReadings.js
 export const METER_SIDES = [
   { key: 'water', label: 'ค่าน้ำ', icon: 'water' },
   { key: 'electric', label: 'ค่าไฟ', icon: 'electric' }
 ]
 
-// เงาของ calculateUnitsUsed ใน src/main/db/meterReadings.js — **ต้องแก้ทั้งสองที่พร้อมกัน**
-//
-// ทำไมต้องมีสำเนา: ตัวเลขหน่วยต้องขยับทันทีที่พิมพ์ ยิง IPC ทุกตัวอักษรไม่ไหว
-// ที่นี่ใช้ "แสดงผลระหว่างพิมพ์" อย่างเดียว ค่าที่เข้าฐานข้อมูลคำนวณใหม่ฝั่ง main เสมอ
-// จึงไม่มีทางที่เลขบนจอจะกลายเป็นเลขที่ถูกบันทึกโดยไม่ผ่านการตรวจ
-//
-// คืน null เมื่อคำนวณไม่ได้ (เลขลดลงโดยไม่ได้ติ๊กเกินรอบ) เพื่อให้หน้าจอขึ้นเครื่องหมาย
-// เตือนแทนตัวเลข — ฝั่ง main จะโยน error ข้อความเดียวกันนี้ตอนกดบันทึก
+// สำเนาของ calculateUnitsUsed ใน main/db/meterReadings.js (แสดงผลระหว่างพิมพ์) — แก้สองที่พร้อมกัน · null = คำนวณไม่ได้
 export function previewUnitsUsed(previous, current, options = {}) {
   const { isOverCycle, isMeterReplaced, removedReading, newStartReading, meterDigits } = options
 
-  // จำนวนหลักของหน้าปัดมาจากค่าตั้งค่าของหอ ส่งมากับใบจดมิเตอร์ (ไม่ได้เดาจากเลขครั้งก่อน
-  // แล้ว) — ต้องเป็นตัวเดียวกับที่ main ใช้ ไม่งั้นเลขบนจอกับเลขที่บันทึกจะคนละตัว
   const digits = Number.isInteger(Number(meterDigits)) ? Number(meterDigits) : 5
   const rollover = 10 ** digits
 
@@ -188,10 +149,9 @@ export function previewUnitsUsed(previous, current, options = {}) {
   const curr = Number(current)
   if (!Number.isFinite(prev) || !Number.isFinite(curr) || prev < 0 || curr < 0) return null
   if (String(current).trim() === '') return null
-  // เกินหน้าปัด = พิมพ์เกินหลัก ขึ้นเครื่องหมายเตือนตั้งแต่ระหว่างพิมพ์ ไม่ต้องรอกดบันทึก
   if (curr >= rollover) return null
 
-  // เปลี่ยนมิเตอร์ลูกใหม่ — (เลขถอดเก่า − ครั้งก่อน) + (ปัจจุบัน − เลขเริ่มลูกใหม่)
+  // (เลขถอดเก่า − ครั้งก่อน) + (ปัจจุบัน − เลขเริ่มลูกใหม่)
   if (isMeterReplaced) {
     if (isOverCycle) return null
     if (String(removedReading ?? '').trim() === '') return null

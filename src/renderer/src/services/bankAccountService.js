@@ -1,5 +1,3 @@
-// ตัวห่อ IPC ของบัญชีธนาคารและข้อความแจ้งชำระเงิน
-// ช่องทั้งหมดอยู่ที่ src/main/handlers/bankAccountHandlers.js
 import { invoke } from './ipc.js'
 
 export function listBankAccounts(apartmentId) {
@@ -26,7 +24,6 @@ export function savePaymentInstructions(apartmentId, text) {
   return invoke('bankAccount:savePaymentInstructions', { apartmentId, text })
 }
 
-// ข้อความประจำที่ติดท้ายบิลทุกใบ ("Note:") — ไม่บังคับ ล้างเป็นค่าว่างได้
 export function saveInvoiceNote(apartmentId, text) {
   return invoke('bankAccount:saveInvoiceNote', { apartmentId, text })
 }

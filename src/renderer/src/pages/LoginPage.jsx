@@ -3,9 +3,6 @@ import Alert from '../components/Alert.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import { login } from '../services/authService.js'
 
-// หน้าเข้าสู่ระบบ — โครงหน้าตามต้นแบบ (ช่องเดียวรับได้ทั้งอีเมลและเบอร์โทร, จดจำฉัน,
-// ลืมรหัสผ่าน) ต่างกันตรงที่ต้นแบบยิง OTP ต่อหลังกรอกรหัสผ่าน ส่วนแอปนี้เข้าระบบทันที
-// เพราะเป็นเครื่องเดี่ยวในสำนักงานหอพักที่อาจไม่มีอินเทอร์เน็ตเลย
 export default function LoginPage({ lastIdentifier = '', onSuccess, onForgotPassword }) {
   const [identifier, setIdentifier] = useState(lastIdentifier)
   const [password, setPassword] = useState('')
@@ -21,7 +18,6 @@ export default function LoginPage({ lastIdentifier = '', onSuccess, onForgotPass
     setBusy(false)
 
     if (!res.success) {
-      // ล้างเฉพาะรหัสผ่าน ปล่อยช่องชื่อผู้ใช้ไว้ให้พิมพ์ซ้ำน้อยที่สุด
       setPassword('')
       setError(res.error)
       return
@@ -66,7 +62,6 @@ export default function LoginPage({ lastIdentifier = '', onSuccess, onForgotPass
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
             />
-            {/* จำแค่ชื่อผู้ใช้ ไม่ใช่การคงสถานะเข้าสู่ระบบ — ข้อความต้องไม่ทำให้เข้าใจผิด */}
             <span>จดจำชื่อผู้ใช้</span>
           </label>
 

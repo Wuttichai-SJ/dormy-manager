@@ -4,14 +4,7 @@ import InfoTip from '../components/InfoTip.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { getQrImage, removeQrImage, uploadQrImage } from '../services/imageService.js'
 
-// ตั้งค่า → QR Code รับเงิน
-//
-// **ผู้ใช้อัปโหลดรูป QR ที่ธนาคารสร้างให้ ระบบไม่ได้สร้าง QR เอง** (ตัดสินใจตั้งแต่วางขอบเขต)
-// การสร้าง QR พร้อมเพย์ให้ถูกต้องต้องเข้ารหัสตามมาตรฐาน EMVCo + CRC ซึ่งต้องพึ่งไลบรารี
-// เพิ่มอีกตัว ขัดกับนโยบาย dependency ขั้นต่ำ — และธนาคารทุกแห่งสร้างรูปให้ดาวน์โหลดอยู่แล้ว
-//
-// รูปเก็บเป็น BLOB ในตาราง images (ดู migration 011) จึงติดไปกับไฟล์สำรองข้อมูลด้วย
-// ไม่ใช่ path ที่ชี้ไปไฟล์นอกฐานข้อมูลซึ่งจะหายไปเวลาย้ายเครื่อง
+// อัปโหลดรูป QR จากธนาคาร — ระบบไม่สร้าง QR เอง
 export default function QrCodePage({ apartment }) {
   const [dataUrl, setDataUrl] = useState(null)
   const [loading, setLoading] = useState(true)

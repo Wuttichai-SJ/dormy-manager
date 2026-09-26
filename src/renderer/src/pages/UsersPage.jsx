@@ -17,23 +17,14 @@ import {
   updateUser
 } from '../services/userService.js'
 
-// หน้าจัดการผู้ใช้งานระบบ — เจ้าของหอเท่านั้นที่เข้าถึงได้
-//
-// ที่มา: ระบบเคยสร้างผู้ใช้ได้คนเดียวทั้งระบบ (auth:setup ทำงานเฉพาะตอนยังไม่มีใคร)
-// ไม่มีช่องสร้างคนที่สองเลย · เจ้าของหออาจจ้างคนมาดูแลแทนในอนาคต (ผู้ใช้ยืนยัน 2026-08-14)
-// จึงต้องมีที่ให้เพิ่มบัญชี และต้องแยกได้ว่าใครทำอะไรได้บ้าง
-//
-// **ไม่มีการลบผู้ใช้ มีแต่ปิดการใช้งาน** — ใบเสร็จทุกใบอ้าง created_by ไว้
-// ลบแถวผู้ใช้ = คอลัมน์ "ผู้รับเงิน" ของเอกสารเก่ากลายเป็นช่องว่างย้อนหลังทั้งระบบ
+// เฉพาะเจ้าของหอ · ไม่มีการลบผู้ใช้ มีแต่ปิดการใช้งาน
 export default function UsersPage({ user }) {
-  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
   const [confirmDialog, ask] = useConfirm()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  // ฟอร์มที่เปิดอยู่: null | { mode: 'create' } | { mode: 'edit', target } | { mode: 'password', target }
+  // null | { mode: 'create' } | { mode: 'edit', target } | { mode: 'password', target }
   const [dialog, setDialog] = useState(null)
-  // รหัสสำรองที่เพิ่งออกให้ — แสดงครั้งเดียว ไม่มีทางเรียกดูอีก
   const [issuedCode, setIssuedCode] = useState(null)
 
   const load = useCallback(async () => {
@@ -49,7 +40,6 @@ export default function UsersPage({ user }) {
     load()
   }, [load])
 
-  // ปิดการใช้งาน = คนนั้นเข้าระบบไม่ได้ทันที จึงถามก่อน · เปิดกลับไม่ต้องถาม (ไม่มีอะไรเสีย)
   function toggleActive(target) {
     const run = async () => {
       const res = await setUserActive(target.userId, !target.isActive)
@@ -72,7 +62,6 @@ export default function UsersPage({ user }) {
     })
   }
 
-  // รหัสสำรองกินทั้งหน้าจอเพราะต้องจดก่อนไปต่อ — วางปนกับตารางแล้วจะถูกกดข้ามไป
   if (issuedCode) {
     return (
       <RecoveryCodeCard
@@ -151,10 +140,7 @@ export default function UsersPage({ user }) {
                     >
                       แก้ไข
                     </button>{' '}
-                    {/* ปุ่มนี้ไม่ถามรหัสเดิม จึงมีไว้ตั้งให้ "คนอื่น" เท่านั้น
-                        รหัสของตัวเองเปลี่ยนที่ ตั้งค่า › บัญชีผู้ใช้และความปลอดภัย ซึ่งบังคับ
-                        กรอกรหัสเดิม — ถ้ายื่นปุ่มนี้ให้กดใส่ตัวเอง ด่านนั้นก็ไร้ความหมาย
-                        (main ก็ปฏิเสธเหมือนกัน ที่นี่แค่ไม่ยื่นปุ่มให้กด) */}
+                    {/* ตั้งรหัสให้คนอื่นเท่านั้น — ของตัวเองต้องยืนยันรหัสเดิมที่หน้าความปลอดภัย */}
                     {row.userId !== user?.userId && (
                       <>
                         <button
@@ -166,7 +152,6 @@ export default function UsersPage({ user }) {
                         </button>{' '}
                       </>
                     )}
-                    {/* ปิดบัญชีตัวเองไม่ได้ — กดพลาดแล้วออกจากระบบไม่ได้กลับเข้ามาอีก */}
                     {row.userId !== user?.userId && (
                       <button
                         type="button"
@@ -206,7 +191,6 @@ export default function UsersPage({ user }) {
           onSaved={(result) => {
             setDialog(null)
             showToast(`บันทึกข้อมูลของ ${result.user.fullName} แล้ว`)
-            // เลื่อนพนักงานขึ้นเป็นเจ้าของ = ได้รหัสสำรองใบแรก ต้องให้จดทันที
             if (result.recoveryCode) {
               setIssuedCode({ code: result.recoveryCode, fullName: result.user.fullName })
             } else {
@@ -230,10 +214,7 @@ export default function UsersPage({ user }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ฟอร์มเดียวใช้ทั้งเพิ่มและแก้ไข — ต่างกันแค่ช่องรหัสผ่าน (ตอนแก้ไขไม่มี เพราะการตั้ง
-// รหัสผ่านใหม่เป็นคนละคำสั่ง และไม่ควรเผลอเปลี่ยนรหัสผ่านของคนอื่นตอนแก้เบอร์โทร)
-// ชื่อช่องต้องตรงกับ key ที่ main ส่งกลับใน fields (src/main/db/users.js / auth.js)
+// ตอนแก้ไขไม่มีช่องรหัสผ่าน · ชื่อช่องตรงกับ fields ของ main
 const USER_FORM_FIELDS = ['fullName', 'phone', 'email', 'password', 'role']
 
 function UserFormDialog({ target, onClose, onSaved }) {
@@ -248,7 +229,6 @@ function UserFormDialog({ target, onClose, onSaved }) {
   const [busy, setBusy] = useState(false)
   const { errors, formError, fromResult, clear, reset } = useFormErrors(USER_FORM_FIELDS)
 
-  // แก้ช่องไหน error ของช่องนั้นหายทันที
   const set = (key) => (e) => {
     setForm((f) => ({ ...f, [key]: e.target.value }))
     clear(key)
@@ -363,8 +343,6 @@ function UserFormDialog({ target, onClose, onSaved }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ทางกู้คืนของพนักงาน — พนักงานไม่มีรหัสสำรอง เจ้าของจึงเป็นคนตั้งรหัสผ่านใหม่ให้
 function ResetPasswordDialog({ target, onClose, onSaved }) {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)

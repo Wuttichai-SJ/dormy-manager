@@ -6,9 +6,6 @@ import { showToast } from '../components/Toast.jsx'
 import { regenerateRecoveryCode } from '../services/authService.js'
 import { changeOwnPassword } from '../services/userService.js'
 
-// ส่วน "ความปลอดภัย" ในหน้าตั้งค่า — ตอนนี้มีเรื่องเดียวคือออกรหัสสำรองใบใหม่
-// สำหรับกรณีที่กระดาษที่จดไว้หาย/หลุดไปถึงคนอื่น จะได้ไม่ต้องรอให้ลืมรหัสผ่านก่อน
-// (หน้าอื่นๆ ของโมดูลตั้งค่า เช่น ข้อมูลหอพัก/ผู้ใช้งาน จะมาในเฟสถัดไป)
 export default function SecuritySettingsPage({ user }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -74,8 +71,6 @@ export default function SecuritySettingsPage({ user }) {
       <hr className="divider" />
 
       <h3 className="panel-subtitle">รหัสสำรอง</h3>
-      {/* พนักงานไม่มีรหัสสำรองโดยการออกแบบ — ลืมรหัสผ่านให้เจ้าของตั้งใหม่ให้
-          ถ้าไม่บอกไว้ตรงนี้ คนจะกดปุ่มแล้วงงว่าทำไมไม่มีอะไรให้ทำ */}
       {user.isOwner === false ? (
         <p className="muted">
           บัญชีพนักงานไม่มีรหัสสำรอง · ลืมรหัสผ่านให้เจ้าของหอตั้งใหม่ให้
@@ -89,7 +84,6 @@ export default function SecuritySettingsPage({ user }) {
       {asking ? (
         <form className="inline-form" onSubmit={submit}>
           <Alert>{error}</Alert>
-          {/* ต้องยืนยันรหัสผ่านก่อน ไม่งั้นใครเดินมาที่เครื่องที่เปิดค้างไว้ก็กดออกรหัสใหม่ได้ */}
           <PasswordField
             id="currentPassword"
             label="ยืนยันรหัสผ่านปัจจุบัน"
@@ -125,13 +119,6 @@ export default function SecuritySettingsPage({ user }) {
   )
 }
 
-// ------------------------------------------------------------------
-// เปลี่ยนรหัสผ่านของตัวเอง
-// ------------------------------------------------------------------
-// ต้องมี ไม่งั้นพนักงานจะใช้รหัสที่เจ้าของตั้งให้ตอนเปิดบัญชีไปตลอด และเจ้าของจะรู้
-// รหัสผ่านของลูกน้องทุกคนตลอดกาล ซึ่งทำให้คอลัมน์ "ผู้ทำรายการ" ของทุกเอกสารเชื่อไม่ได้
-//
-// บัญชีที่ถูกเปลี่ยนคือบัญชีในเซสชันฝั่ง main เสมอ หน้าจอระบุคนอื่นไม่ได้
 function ChangePasswordSection() {
   const [form, setForm] = useState({ currentPassword: '', newPassword: '' })
   const [error, setError] = useState('')

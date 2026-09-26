@@ -1,5 +1,3 @@
-// ตัวห่อ IPC ของค่าบริการหอพัก
-// ช่องทั้งหมดอยู่ที่ src/main/handlers/apartmentServiceHandlers.js
 import { invoke } from './ipc.js'
 
 export function listServices(apartmentId) {

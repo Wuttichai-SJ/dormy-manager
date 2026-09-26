@@ -16,15 +16,7 @@ import {
   updateRoom
 } from '../services/roomService.js'
 
-// ขั้นที่ 4-5 ของการตั้งค่าหอ — จัดการชั้น แล้วได้ผังห้องออกมา
-//
-// หอที่ยังไม่มีชั้นเลยจะเห็น "ตัวสร้างผังห้อง" (เลือกจำนวนชั้น แล้วกรอกจำนวนห้องต่อชั้น)
-// ระบบสร้างเลขห้องให้อัตโนมัติ 101/102/201/202 — เจ้าของหอ 40 ห้องไม่ต้องพิมพ์ทีละห้อง
-// พอมีผังแล้วหน้าจะเปลี่ยนเป็นโหมดแก้ไข เพิ่ม/ลบ/แก้รายห้องได้
-// stage: ใช้ตอนอยู่ใน wizard ที่แยกขั้น "จัดการชั้น" กับ "ผังห้อง" ออกจากกันตามต้นแบบ
-//   builder = ขั้นกำหนดจำนวนชั้น/ห้อง (ถ้าสร้างไปแล้วแสดงสรุปแทน)
-//   editor  = ขั้นแก้ผังห้องที่ได้มา
-//   ไม่ระบุ = แสดงตามสถานะจริง (ใช้ในหน้าตั้งค่าปกติ)
+// ขั้น 4-5: ยังไม่มีชั้น = ตัวสร้างผัง · มีแล้ว = โหมดแก้ไข · stage: builder | editor | ไม่ระบุ
 export default function FloorPlanPage({ apartment, stage, registerNext }) {
   const [floors, setFloors] = useState(null)
   const [error, setError] = useState('')
@@ -40,8 +32,7 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
     load()
   }, [load])
 
-  // ทุกคำสั่งคืนผังทั้งก้อนกลับมา จึงเอามาแทนของเดิมได้เลย ไม่ต้องโหลดใหม่
-  // คืน false เมื่อทำไม่สำเร็จ เพื่อให้ปุ่ม "ต่อไป" ของ wizard รู้ว่าห้ามเลื่อนขั้น
+  // คืนผังทั้งก้อนมาแทนของเดิม · คืน false = wizard ห้ามเลื่อนขั้น
   const act = useCallback(async (fn) => {
     setError('')
     const res = await fn()
@@ -53,8 +44,7 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
     return true
   }, [])
 
-  // แบบเดียวกับ act แต่คืนผลเต็มจาก IPC — หน้าต่างยืนยันเอา error ไปแสดงในหน้าต่างเอง
-  // (act คืนแค่ true/false ให้ปุ่ม "ต่อไป" ของ wizard และส่ง error ไปขึ้นบนหน้า)
+  // เหมือน act แต่คืนผลเต็มให้หน้าต่างยืนยัน
   const run = useCallback(async (fn) => {
     setError('')
     const res = await fn()
@@ -62,8 +52,7 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
     return res
   }, [])
 
-  // ห่อด้วย useCallback เพราะ FloorPlanBuilder เอาไปใส่ใน useEffect ที่ลงทะเบียนปุ่ม
-  // "ต่อไป" — ถ้าฟังก์ชันเป็นตัวใหม่ทุก render effect จะวิ่งใหม่ทุกครั้งไม่จบ
+  // useCallback — ใช้ใน useEffect ที่ลงทะเบียนปุ่ม "ต่อไป"
   const generate = useCallback(
     (specs) => act(() => generateFloorPlan(apartment.apartmentId, specs)),
     [act, apartment.apartmentId]
@@ -78,8 +67,6 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
       {floors.length === 0 ? (
         <FloorPlanBuilder registerNext={registerNext} onGenerate={generate} />
       ) : stage === 'builder' ? (
-        // ขั้น "จัดการชั้น" ที่สร้างผังไปแล้ว — สรุปให้ดูแล้วให้กดต่อไป
-        // ไม่แสดงตัวสร้างซ้ำ เพราะสร้างได้ครั้งเดียว (ฝั่ง main กันไว้)
         <section className="panel">
           <p className="muted">
             สร้างผังห้องแล้ว — {floors.length} ชั้น{' '}
@@ -98,9 +85,6 @@ export default function FloorPlanPage({ apartment, stage, registerNext }) {
   )
 }
 
-// -----------------------------------------------------
-// โหมดสร้างครั้งแรก
-// -----------------------------------------------------
 const EMPTY_SPEC = { buildingName: '', numberPrefix: '', roomCount: '' }
 
 function FloorPlanBuilder({ onGenerate, registerNext }) {
@@ -112,7 +96,6 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
     setFloorCount(value)
     const count = Number(value)
     if (!Number.isInteger(count) || count < 1) return setSpecs([])
-    // คงค่าที่กรอกไว้แล้วเมื่อเพิ่ม/ลดจำนวนชั้น ไม่ล้างทิ้งทั้งหมด
     setSpecs((prev) => Array.from({ length: count }, (_, i) => prev[i] ?? { ...EMPTY_SPEC }))
   }
 
@@ -120,10 +103,7 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
     setSpecs((prev) => prev.map((spec, i) => (i === index ? { ...spec, [key]: value } : spec)))
   }
 
-  // ไม่มีปุ่ม "สร้างผังห้อง" ของตัวเอง — ปุ่ม "ต่อไป" ของ wizard เป็นคนสั่งสร้าง
-  // แล้วพาไปขั้น "ผังห้อง" ต่อในจังหวะเดียว (ต้นแบบก็มีแค่ปุ่มต่อไปปุ่มเดียว)
-  //
-  // ลงทะเบียนใหม่ทุกครั้งที่ค่าเปลี่ยน เพราะ closure ต้องเห็น roomCounts ล่าสุด
+  // ปุ่ม "ต่อไป" ของ wizard เป็นคนสั่งสร้างผัง
   useEffect(() => {
     if (!registerNext) return
     registerNext(async () => {
@@ -157,8 +137,6 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
           <>
             <hr className="divider" />
 
-            {/* หัวคอลัมน์ครั้งเดียวด้านบน ไม่ใช่ label ซ้ำทุกแถว — สามช่องต่อชั้นคูณสิบชั้น
-                จะกลายเป็นข้อความสามสิบชิ้นที่อ่านแล้วหาแถวของตัวเองไม่เจอ */}
             <div className="floor-spec-head">
               <span>ชั้น</span>
               <span>ตึก (ถ้ามี)</span>
@@ -188,8 +166,7 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
                   />
                   <input
                     aria-label={`เลขนำหน้าห้องของชั้นที่ ${index + 1}`}
-                    // ว่างไว้ = ใช้ลำดับที่ของชั้น ซึ่งเป็นพฤติกรรมเดิม จึงเอาลำดับที่
-                    // มาโชว์เป็น placeholder ให้เห็นว่าถ้าไม่กรอกจะได้อะไร
+                    // ว่าง = ใช้ลำดับที่ของชั้น
                     placeholder={String(index + 1)}
                     value={spec.numberPrefix}
                     onChange={(e) => setSpec(index, 'numberPrefix', e.target.value)}
@@ -200,7 +177,6 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
                     inputMode="numeric"
                     onChange={(e) => setSpec(index, 'roomCount', e.target.value)}
                   />
-                  {/* ตัวอย่างเลขห้องจริงของแถวนี้ — เห็นผลก่อนกด ไม่ต้องเดาว่ากฎทำงานยังไง */}
                   <span className="unit floor-spec-sample">
                     {spec.roomCount ? `เช่น ${(spec.numberPrefix || index + 1)}01` : 'ห้อง'}
                   </span>
@@ -209,8 +185,6 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
             </div>
             <p className="field-hint">สูงสุด {MAX_ROOMS_PER_FLOOR} ห้องต่อชั้น</p>
 
-            {/* ในตัวช่วยตั้งค่าไม่มีปุ่มนี้ ปุ่ม "ต่อไป" เป็นคนสั่งสร้างให้
-                แต่ตอนเปิดหน้านี้เดี่ยวๆ จากเมนูตั้งค่าไม่มีปุ่มต่อไป จึงต้องมีปุ่มของตัวเอง */}
             {!registerNext && (
               <div className="form-actions">
                 <button
@@ -234,13 +208,9 @@ function FloorPlanBuilder({ onGenerate, registerNext }) {
   )
 }
 
-// -----------------------------------------------------
-// โหมดแก้ไข
-// -----------------------------------------------------
 function FloorPlanEditor({ floors, apartmentId, act, run }) {
   const totalRooms = floors.reduce((sum, f) => sum + f.rooms.length, 0)
   const groups = groupByBuilding(floors)
-  // หอตึกเดียว (ไม่มีใครใส่ป้ายตึก) ต้องเห็นหน้าเดิมเป๊ะๆ ไม่มีหัวข้อกลุ่มโผล่มาเกะกะ
   const showBuildings = floors.some((floor) => floor.buildingName)
 
   return (
@@ -266,9 +236,6 @@ function FloorPlanEditor({ floors, apartmentId, act, run }) {
             <FloorCard key={floor.floorId} floor={floor} act={act} run={run} />
           ))}
 
-          {/* เพิ่มชั้นเข้าตึกนี้โดยตรง — ชั้นใหม่ได้ป้ายตึกเดียวกันติดมาให้เลย
-              ไม่ต้องมาพิมพ์ป้ายตึกซ้ำทุกครั้งแล้วเสี่ยงพิมพ์ไม่เหมือนเดิม ("ตึก1" vs "ตึก 1")
-              ซึ่งจะกลายเป็นสองตึกในสายตาระบบ */}
           {showBuildings && group.name && (
             <button
               type="button"
@@ -284,8 +251,6 @@ function FloorPlanEditor({ floors, apartmentId, act, run }) {
         </React.Fragment>
       ))}
 
-      {/* ปุ่มเต็มความกว้างปิดท้ายรายการชั้น ตามต้นแบบ — ชั้นใหม่เกิดมาว่างเปล่า
-          แล้วค่อยกด "เพิ่มห้อง" ในชั้นนั้น ไม่ต้องกรอกจำนวนห้องล่วงหน้า */}
       <button
         type="button"
         className="btn btn-block plan-add-floor"
@@ -297,9 +262,7 @@ function FloorPlanEditor({ floors, apartmentId, act, run }) {
   )
 }
 
-// จัดกลุ่มตามป้ายตึก **โดยไม่เรียงลำดับใหม่** — ชั้นเรียงตามลำดับที่สร้าง (floor_id) ซึ่งเป็น
-// ลำดับที่เจ้าของหอเห็นมาตลอด ถ้าจับกลุ่มด้วยการเรียงใหม่ ชั้นจะสลับที่ต่อหน้าโดยไม่มีใครสั่ง
-// สลับตึกไปมาจะได้หัวข้อเดิมซ้ำสองครั้ง ซึ่งตรงกับความจริงว่ากรอกสลับกันไว้
+// จัดกลุ่มตามป้ายตึกโดยไม่เรียงใหม่
 function groupByBuilding(floors) {
   const groups = []
   for (const floor of floors) {
@@ -311,8 +274,6 @@ function groupByBuilding(floors) {
   return groups
 }
 
-// ช่องที่เว้นว่างต้องไม่ถูกส่งเป็นสตริงว่าง — ฝั่ง main แปลงว่างเป็น null ให้อยู่แล้ว
-// แต่ส่ง undefined ชัดกว่าในความหมาย "ไม่ได้ตั้ง"
 function toFloorSpecs(specs) {
   return specs.map((spec) => ({
     roomCount: Number(spec.roomCount),
@@ -321,8 +282,6 @@ function toFloorSpecs(specs) {
   }))
 }
 
-// การ์ดหนึ่งใบต่อหนึ่งชั้น — หัวการ์ดพื้นเทาที่แก้ชื่อชั้นได้ในตัว แล้วห้องเรียงเป็นแถว
-// ห้องละบรรทัด (เลขห้อง / ประเภทห้อง / สวิตช์เปิดใช้งาน) ตามต้นแบบ
 function FloorCard({ floor, act, run }) {
   const [confirmDialog, ask] = useConfirm()
   const [name, setName] = useState(floor.floorName)
@@ -342,7 +301,6 @@ function FloorCard({ floor, act, run }) {
             name !== floor.floorName && act(() => updateFloor(floor.floorId, { floorName: name }))
           }
         />
-        {/* ปุ่มลบชั้นโผล่เฉพาะชั้นที่ไม่มีห้องแล้ว — ฝั่ง main กันไว้อีกชั้นพร้อมข้อความอธิบาย */}
         {confirmDialog}
         {floor.rooms.length === 0 && (
           <button
@@ -362,8 +320,6 @@ function FloorCard({ floor, act, run }) {
         )}
       </header>
 
-      {/* บรรทัดที่สองของหัวการ์ด: ตึกกับเลขนำหน้า — แยกจากบรรทัดชื่อชั้นเพราะเป็นเรื่อง
-          "ห้องใหม่จะได้เลขอะไร" ไม่ใช่ชื่อที่แสดง และหอตึกเดียวไม่ต้องแตะสองช่องนี้เลย */}
       <div className="plan-floor-meta">
         <div className="field">
           <label htmlFor={`floor-building-${floor.floorId}`}>ตึก</label>
@@ -393,8 +349,7 @@ function FloorCard({ floor, act, run }) {
           />
         </div>
 
-        {/* 🔴 บอกให้ชัดว่ามีผลกับห้องใหม่เท่านั้น — คนแก้ช่องนี้คาดว่าเลขห้องเดิมจะขยับตาม
-            ซึ่งเราไม่ทำ เพราะเลขห้องอยู่บนบิลและใบเสร็จที่ยื่นให้ผู้เช่าไปแล้ว */}
+        {/* มีผลกับห้องใหม่เท่านั้น */}
         <p className="field-hint plan-floor-hint">
           ห้องใหม่จะขึ้นต้นด้วย <strong>{floor.effectivePrefix}</strong> · ไม่กระทบเลขห้องเดิม
         </p>
@@ -419,8 +374,6 @@ function FloorCard({ floor, act, run }) {
   )
 }
 
-// แก้ได้ในที่ ไม่ต้องกดเข้าโหมดแก้ไขก่อน — บันทึกตอนออกจากช่อง (onBlur) หรือตอนสลับสวิตช์
-// ต้นแบบก็ทำแบบนี้: ทั้งชั้นเป็นฟอร์มเดียวที่พิมพ์ทับได้เลย
 function RoomRow({ room, act, run }) {
   const [confirmDialog, ask] = useConfirm()
   const [form, setForm] = useState({
@@ -465,7 +418,6 @@ function RoomRow({ room, act, run }) {
       />
 
       {confirmDialog}
-      {/* ห้องที่เคยมีสัญญาลบไม่ได้ — main ปฏิเสธพร้อมบอกให้ปิดใช้งานแทน ข้อความขึ้นในหน้าต่างนี้ */}
       <button
         type="button"
         className="link-btn link-danger plan-room-delete"

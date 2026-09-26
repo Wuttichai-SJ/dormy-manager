@@ -1,9 +1,7 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
 
-// จอที่แสดง "รหัสสำรอง" ซึ่งเป็นครั้งเดียวที่รหัสตัวจริงออกมาจาก main process
-// ในฐานข้อมูลเก็บแต่ hash เพราะฉะนั้นถ้าผู้ใช้ปิดจอนี้ไปโดยไม่จด = ไม่มีใครกู้คืนให้ได้อีก
-// จอนี้จึงบังคับติ๊กยืนยันก่อนไปต่อ โดยตั้งใจให้เสียเวลาเล็กน้อยตรงนี้ดีกว่าเสียบัญชีทั้งใบ
+// รหัสสำรองแสดงครั้งเดียว — ต้องติ๊กยืนยันก่อนไปต่อ
 export default function RecoveryCodeCard({ code, title, description, doneLabel, onDone }) {
   const [acknowledged, setAcknowledged] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -14,7 +12,6 @@ export default function RecoveryCodeCard({ code, title, description, doneLabel, 
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // คลิปบอร์ดถูกปฏิเสธไม่ใช่เรื่องคอขาดบาดตาย — รหัสยังอยู่บนจอให้จดด้วยมือได้
       setCopied(false)
     }
   }
@@ -41,7 +38,6 @@ export default function RecoveryCodeCard({ code, title, description, doneLabel, 
         <Icon name="warning" />
         <div>
           <strong>จดรหัสนี้เก็บไว้ทันที — แสดงครั้งเดียว</strong>
-          {/* ยังโชว์ตลอด — ระบบออฟไลน์ ไม่มี SMS/อีเมลกู้บัญชี ทำหายคือจบ */}
           <p>
             ลืมรหัสผ่านและทำรหัสนี้หาย = <b>เข้าบัญชีนี้ไม่ได้อีกเลย</b>
           </p>

@@ -12,12 +12,7 @@ import { exportCsv, revealExport } from '../services/exportService.js'
 import { getInvoice } from '../services/invoiceService.js'
 import { listReceipts } from '../services/paymentService.js'
 
-// รายงานใบเสร็จรับเงิน — โครงตามหน้า "รายงาน › ใบเสร็จรับเงิน" ของต้นแบบ:
-// ช่วงวันที่รับเงิน + ตัวเลือกด่วน · การ์ดสรุป · ตารางที่ติ๊กเลือกเพื่อพิมพ์ได้ · ปุ่มส่งออก
-//
-// รายงานนี้ตอบคำถามเดียว: "ช่วงนี้หอได้เงินเข้ามาเท่าไหร่ จากใครบ้าง"
-// จึงรวมใบเสร็จของ *สัญญา* (เงินประกัน/เงินล่วงหน้า) ไว้ด้วย ไม่ใช่เฉพาะที่มาจากบิล
-// — เงินก้อนนั้นก็เข้าหอจริงเหมือนกัน ถ้าตัดออกรายงานจะไม่ตรงกับยอดในบัญชีธนาคาร
+// รวมใบเสร็จของสัญญาด้วย (เงินประกัน/ล่วงหน้า)
 const CSV_COLUMNS = [
   { key: 'receiptNumber', label: 'เลขใบเสร็จ' },
   { key: 'paymentDate', label: 'วันที่' },
@@ -27,8 +22,7 @@ const CSV_COLUMNS = [
   { key: 'amountBaht', label: 'ยอดรับเงิน' },
   { key: 'sourceLabel', label: 'ประเภท' },
   { key: 'createdByName', label: 'ผู้รับเงิน' },
-  // ใบที่ยกเลิกออกไปในไฟล์ด้วย แต่ต้องมีคอลัมน์บอก ไม่งั้นคนที่เปิดไฟล์ใน Excel
-  // จะรวมยอดทั้งคอลัมน์แล้วได้ตัวเลขที่ไม่ตรงกับที่หอรับมาจริง
+  // ส่งออกใบที่ยกเลิกด้วย แต่มีคอลัมน์บอก
   { key: 'statusLabel', label: 'สถานะ' },
   { key: 'cancelReason', label: 'เหตุผลที่ยกเลิก' },
   { key: 'remark', label: 'หมายเหตุ' }
@@ -40,16 +34,12 @@ export default function ReceiptsPage({ apartment, user }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  // paymentId ที่ติ๊กไว้ — Set เพื่อให้เช็ค/สลับได้เร็วโดยไม่ต้องไล่อาร์เรย์
   const [selected, setSelected] = useState(() => new Set())
   const [printing, setPrinting] = useState(false)
-  // บิลของใบเสร็จที่เลือกไว้ ดึงมาตอนกดพิมพ์เท่านั้น — ตารางรายงานไม่ได้ใช้
   const [invoicesById, setInvoicesById] = useState({})
-  // ใบเสร็จที่กำลังจะยกเลิก (null = ไม่ได้เปิดหน้าต่าง)
   const [cancelling, setCancelling] = useState(null)
 
-  // เตรียมเอกสารก่อนเปิดกล่องพิมพ์ ไม่ใช่ระหว่างที่กล่องเปิดอยู่ — ถ้าดึงทีหลัง
-  // printToPDF อาจจับภาพตอนที่เอกสารยังไม่มีรายการ แล้วได้ใบเสร็จเปล่า
+  // เตรียมเอกสารก่อนเปิดกล่องพิมพ์
   async function startPrinting() {
     setError('')
     setBusy(true)
@@ -78,8 +68,7 @@ export default function ReceiptsPage({ apartment, user }) {
     if (!res.success) return setError(res.error)
     setError('')
     setReport(res.data)
-    // เปลี่ยนช่วงวันที่แล้วรายการที่ติ๊กไว้อาจไม่อยู่ในผลลัพธ์ใหม่ ล้างทิ้งเสมอ
-    // ไม่งั้นปุ่ม "พิมพ์ (3)" จะนับใบที่มองไม่เห็นอยู่บนจอ
+    // เปลี่ยนช่วงวันที่แล้วล้างรายการที่ติ๊กไว้
     setSelected(new Set())
   }, [apartment.apartmentId, range])
 
@@ -89,8 +78,7 @@ export default function ReceiptsPage({ apartment, user }) {
 
   const receipts = report?.receipts ?? []
   const chosen = receipts.filter((r) => selected.has(r.paymentId))
-  // ใบที่ยกเลิกแล้วติ๊กเพื่อพิมพ์ไม่ได้ — พิมพ์ออกมาก็เป็นเอกสารที่ไม่มีผลแล้ว
-  // ถ้ายื่นให้ผู้เช่าจะกลายเป็นหลักฐานการรับเงินที่ไม่เคยเกิดขึ้น
+  // ใบที่ยกเลิกติ๊กพิมพ์ไม่ได้
   const printable = receipts.filter((r) => !r.isCancelled)
   const allChecked = printable.length > 0 && chosen.length === printable.length
 
@@ -113,7 +101,6 @@ export default function ReceiptsPage({ apartment, user }) {
     const res = await exportCsv({
       fileName: `ใบเสร็จรับเงิน ${range.from || 'ทั้งหมด'} ถึง ${range.to || 'ปัจจุบัน'}`,
       columns: CSV_COLUMNS,
-      // แปลงสตางค์เป็นบาทก่อนส่งออก เพื่อให้ Excel บวกลบในไฟล์ได้ตรงกับที่เห็นบนจอ
       rows: receipts.map((r) => ({
         ...r,
         amountBaht: (r.amountCents / 100).toFixed(2),
@@ -128,8 +115,7 @@ export default function ReceiptsPage({ apartment, user }) {
     revealExport(res.data.filePath)
   }
 
-  // ระหว่างพิมพ์ หน้าจอแสดงเฉพาะใบเสร็จที่เลือก เพราะ printToPDF จับภาพหน้าที่กำลังแสดงอยู่
-  // (กล่องพิมพ์เองถูกซ่อนด้วย @media print อยู่แล้ว)
+  // ระหว่างพิมพ์แสดงแค่เอกสาร — printToPDF จับภาพหน้าที่แสดงอยู่
   if (printing) {
     return (
       <>
@@ -138,16 +124,12 @@ export default function ReceiptsPage({ apartment, user }) {
             <ReceiptDocument
               key={r.paymentId}
               receipt={r}
-              // ใบเสร็จของบิลแสดงรายการของบิลใบนั้น จึงต้องดึงบิลมาด้วย
-              // ใบเสร็จของสัญญาไม่มีบิล ส่ง null ไป ReceiptDocument ประกอบเอกสารเอง
               invoice={invoicesById[r.invoiceId] ?? null}
             />
           ))}
         </div>
 
-        {/* ใบเสร็จเป็น A5 แนวนอน **สองใบต่อกระดาษหนึ่งแผ่น** จำนวนหน้าที่เอกสารควรมี
-            จึงเป็นครึ่งหนึ่งของจำนวนใบ ไม่ใช่เท่ากัน — ถ้าส่งจำนวนใบไปตรงๆ ตัวย่อ
-            ฝั่ง main จะคิดว่ายังไม่ล้น ทั้งที่ล้นไปแผ่นละใบแล้ว */}
+        {/* ใบเสร็จ 2 ใบต่อแผ่น — maxPages = ครึ่งของจำนวนใบ */}
         <PrintDialog
           title={`พิมพ์ใบเสร็จ ${chosen.length} ใบ (${Math.ceil(chosen.length / 2)} แผ่น)`}
           maxPages={Math.ceil(chosen.length / 2)}
@@ -184,7 +166,6 @@ export default function ReceiptsPage({ apartment, user }) {
             />
           </div>
 
-          {/* ตัวเลือกด่วนตามต้นแบบ — ช่วงที่ถูกถามบ่อยที่สุดไม่ควรต้องกรอกวันที่เอง */}
           <div className="field quick-ranges">
             <label>ตัวเลือกด่วน</label>
             <div className="quick-range-buttons">
@@ -201,15 +182,12 @@ export default function ReceiptsPage({ apartment, user }) {
           </div>
         </div>
 
-        {/* ยอดรวมคือ "เงินที่เข้าหอจริง" — หักใบคืนเงินออกแล้ว ไม่นับใบที่ยกเลิก
-            ไม่ใช่ผลบวกของใบที่ออก */}
+        {/* ยอดรวม = เงินที่เข้าหอจริง (หักใบคืนเงิน ไม่นับใบที่ยกเลิก) */}
         <div className="room-stats">
           <div className="stat-card">
             <div className="stat-card-value">{report?.receiptCount ?? 0}</div>
             <div className="stat-card-label">จำนวนใบเสร็จ</div>
           </div>
-          {/* การ์ดนี้โผล่เฉพาะตอนมีใบที่ยกเลิกจริง — ช่องว่างที่เขียน 0 ค้างไว้ทุกเดือน
-              ทำให้คนอ่านชินตาจนไม่เห็นตอนที่มันขึ้นเป็นเลขจริง */}
           {(report?.cancelledCount ?? 0) > 0 && (
             <div className="stat-card">
               <div className="stat-card-value">{report.cancelledCount}</div>
@@ -314,14 +292,11 @@ export default function ReceiptsPage({ apartment, user }) {
                   <td>{r.createdByName ?? '-'}</td>
                   <td className="align-right">
                     {r.isCancelled ? (
-                      // เหตุผลอยู่ใน title ไม่ได้กางบนตาราง — คอลัมน์นี้แคบ และคนที่เข้ามา
-                      // อ่านรายงานส่วนใหญ่มาดูยอด ไม่ได้มาสอบสวนใบที่ยกเลิก
                       <span className="receipt-cancelled-tag" title={r.cancelReason ?? ''}>
                         ยกเลิกแล้ว
                       </span>
                     ) : (
-                      // ยกเลิกใบเสร็จ = เจ้าของหอเท่านั้น (main บังคับที่ payment:cancel)
-                      // พนักงานไม่เห็นปุ่มนี้เลย ดีกว่าให้กดแล้วเจอข้อความปฏิเสธ
+                      // เฉพาะเจ้าของหอ
                       user?.isOwner && (
                         <button
                           type="button"
@@ -358,7 +333,6 @@ export default function ReceiptsPage({ apartment, user }) {
   )
 }
 
-// ------------------------------------------------------------------
 function iso(date) {
   const pad = (n) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`

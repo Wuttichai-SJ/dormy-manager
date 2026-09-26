@@ -10,14 +10,7 @@ import {
   updateService
 } from '../services/apartmentServiceService.js'
 
-// ค่าบริการของหอ — ขั้นแรกของการตั้งค่าหอพัก (ตามลำดับของต้นแบบ)
-//
-// รายการที่นี่เป็นแค่ "แคตตาล็อก" ยังไม่ผูกกับห้องไหน การเลือกว่าห้องไหนใช้บริการอะไร
-// เป็นอีกหน้าหนึ่ง (ค่าบริการรายห้อง) — แยกกันเพราะหอส่วนใหญ่มีบริการไม่กี่รายการ
-// แต่มีหลายสิบห้อง ถ้าให้กรอกรายห้องตั้งแต่แรกจะพิมพ์ชื่อเดิมซ้ำหลายสิบรอบ
-
-// ต้นแบบเขียนว่า "เลือกจากรายการที่มี หรือพิมพ์ชื่อค่าบริการเองได้"
-// ใช้ datalist เพื่อให้ได้ทั้งสองอย่างในช่องเดียว โดยไม่ต้องเพิ่ม dependency dropdown
+// datalist = เลือกจากรายการหรือพิมพ์เองได้
 const PRESET_NAMES = [
   'ค่าอินเทอร์เน็ต',
   'ค่าที่จอดรถ',
@@ -32,7 +25,6 @@ const PRESET_NAMES = [
 const EMPTY = { name: '', price: '', isMeterBased: false, isVatEnabled: false }
 
 export default function ApartmentServicesPage({ apartment }) {
-  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
   const [confirmDialog, ask] = useConfirm()
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -87,7 +79,6 @@ export default function ApartmentServicesPage({ apartment }) {
     })
   }
 
-  // ลบไม่ได้ถ้ายังผูกกับห้องหรืออยู่ในสัญญา — main ปฏิเสธ แล้ว error ขึ้นในหน้าต่างยืนยัน
   function remove(service) {
     ask({
       title: `ลบบริการ "${service.name}"?`,
@@ -117,8 +108,6 @@ export default function ApartmentServicesPage({ apartment }) {
         </h2>
         <Alert>{error}</Alert>
 
-        {/* ต้นแบบวางช่องกรอกเรียงเป็นแถวเดียว: ชื่อ | ราคา | คิด VAT
-            แล้วค่อยเป็นตัวเลือก "แปรผันตามมิเตอร์" กับปุ่มเพิ่มด้านล่าง */}
         <form className="service-form" onSubmit={submit}>
           <div className="service-form-row">
             <div className="field field-required service-form-name">
@@ -155,7 +144,7 @@ export default function ApartmentServicesPage({ apartment }) {
               </div>
             </div>
 
-            {/* ช่อง VAT โผล่เฉพาะหอที่เปิด VAT ไว้ — หอที่ไม่ได้จด VAT ไม่ต้องเห็นตัวเลือกนี้ */}
+            {/* ช่อง VAT แสดงเฉพาะหอที่เปิด VAT */}
             {apartment.isVatEnabled && (
               <div className="field service-form-vat">
                 <label htmlFor="serviceVat">คำนวณ VAT</label>

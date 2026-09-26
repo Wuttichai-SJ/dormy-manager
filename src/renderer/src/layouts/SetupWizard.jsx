@@ -8,20 +8,7 @@ import BankAccountsPage from '../pages/BankAccountsPage.jsx'
 import FloorPlanPage from '../pages/FloorPlanPage.jsx'
 import RoomRatesPage from '../pages/RoomRatesPage.jsx'
 
-// ตัวช่วยตั้งค่าหอพักหลังสร้างใหม่ — ลอกลำดับ 8 ขั้นมาจากต้นแบบ
-//
-// ทำไมต้องเป็น wizard ไม่ใช่เมนูให้เลือกเอง:
-// การตั้งค่าหอมีลำดับที่ขึ้นต่อกันจริงๆ — ต้องมีค่าน้ำ/ค่าไฟก่อน ห้องที่สร้างทีหลัง
-// ถึงจะคัดลอกค่าไปได้ ต้องมีห้องก่อนถึงจะตั้งราคาห้องได้ ต้องมีค่าบริการก่อนถึงจะ
-// ผูกเข้าห้องได้ ถ้าปล่อยให้กดเข้าหัวข้อไหนก่อนก็ได้ เจ้าของหอที่ทำครั้งแรกจะตั้งผิดลำดับ
-// แล้วได้ห้อง 40 ห้องที่ไม่มีค่าน้ำค่าไฟติดมา โดยไม่มีอะไรเตือน
-//
-// หลังตั้งครบแล้ว การกลับมาแก้ทีละเรื่องใช้เมนู "ตั้งค่า" ในหน้าทำงานแทน (ไม่ต้องเดิน
-// ผ่าน wizard ใหม่ทุกครั้ง) — ต้นแบบก็แยกสองทางแบบนี้เหมือนกัน
-//
-// `brief` = แถบครีมหัวการ์ดที่ต้นแบบใช้บอกว่าขั้นนี้ต้องทำอะไร (หัวข้อ + ข้อย่อย หรือ
-// ประโยคเดียวถ้าอธิบายจบในบรรทัดเดียว) ข้อความเป็นของเราเอง เพราะบางขั้นทำงานไม่เหมือน
-// ต้นแบบเป๊ะ — ยกเว้นขั้น "ค่าบริการ" กับ "จัดการชั้น" ที่ลอกคำของต้นแบบมาตรงๆ
+// ตัวช่วยตั้งค่า 8 ขั้น — ลำดับขึ้นต่อกัน (ค่าน้ำไฟก่อนห้อง ห้องก่อนราคา)
 const STEPS = [
   {
     key: 'services',
@@ -106,21 +93,15 @@ const STEPS = [
 
 export default function SetupWizard({ apartment, onFinish, onExit }) {
   const [index, setIndex] = useState(0)
-  // บางขั้นต้อง "ลงมือ" ก่อนถึงจะไปขั้นถัดไปได้ (ขั้นจัดการชั้น: กด "ต่อไป" = สร้างผังห้อง
-  // แล้วค่อยเด้งไปขั้นผังห้อง) ต้นแบบไม่มีปุ่มลงมือแยกในขั้นพวกนั้น มีแต่ "ต่อไป"
-  //
-  // หน้าไหนต้องการแบบนั้นให้เรียก registerNext(fn) ไว้ — fn คืน false เมื่อทำไม่สำเร็จ
-  // แล้ว wizard จะไม่เลื่อนขั้น เก็บใน ref ไม่ใช่ state เพราะเปลี่ยนทุกครั้งที่ผู้ใช้พิมพ์
-  // ถ้าเป็น state จะ re-render ทั้งขั้นตอนทุกตัวอักษร
+  // registerNext(fn): fn คืน false = ไม่เลื่อนขั้น · เก็บใน ref ไม่ใช่ state
   const nextHandler = useRef(null)
-  const [done, setDone] = useState(null) // หอที่ตั้งค่าเสร็จแล้ว (มี setupCompletedAt)
+  const [done, setDone] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   const step = STEPS[index]
   const isLast = index === STEPS.length - 1
 
-  // ไปขั้นถัดไป — ถ้าขั้นนี้ลงทะเบียนงานที่ต้องทำก่อนไว้ ต้องทำให้สำเร็จก่อนถึงจะเลื่อน
   async function goNext() {
     setError('')
     const handler = nextHandler.current
@@ -134,8 +115,7 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
     setIndex((i) => i + 1)
   }
 
-  // ปิดงานตั้งค่าที่ฝั่ง main ก่อน แล้วค่อยขึ้นจอ "พร้อมใช้งาน"
-  // ถ้าขึ้นจอก่อนแล้วบันทึกพลาด เจ้าของหอจะเห็นติ๊กถูกทั้งที่หอยังไม่ถูกปลดล็อก
+  // ปิดงานตั้งค่าที่ main ก่อน แล้วค่อยแสดงจอพร้อมใช้งาน
   async function finish() {
     setError('')
     setBusy(true)
@@ -188,8 +168,7 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
                   (i < index ? ' done' : '') +
                   (i > index ? ' future' : '')
                 }
-                // ย้อนกลับไปแก้ขั้นที่ผ่านมาแล้วได้ แต่กระโดดข้ามไปข้างหน้าไม่ได้
-                // (ต้นแบบก็เด้งกลับถ้าพยายามข้าม — ลองมาแล้ว)
+                // ย้อนกลับได้ ข้ามไปข้างหน้าไม่ได้
                 onClick={() => {
                   if (i >= index) return
                   nextHandler.current = null
@@ -197,8 +176,6 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
                 }}
                 disabled={i > index}
               >
-                {/* ต้นแบบคงเลขลำดับไว้ทุกขั้น ไม่ได้เปลี่ยนขั้นที่ผ่านแล้วเป็นเครื่องหมายถูก
-                    — ใช้สีของวงกลมบอกแทนว่าผ่านไปแล้ว */}
                 <span className="wizard-step-number">{i + 1}</span>
                 <span>{s.label}</span>
               </button>
@@ -221,10 +198,7 @@ export default function SetupWizard({ apartment, onFinish, onExit }) {
               )}
             </div>
 
-            {/* key = ขั้นที่กำลังอยู่ บังคับให้ React สร้างหน้าใหม่ทุกครั้งที่เปลี่ยนขั้น
-                ขั้น 6/7/8 ใช้คอมโพเนนต์ตัวเดียวกัน (RoomRatesPage) ถ้าไม่มี key React จะ
-                มองว่าเป็นตัวเดิมแล้วแค่ส่ง prop ใหม่ — state ที่ตั้งต้นจาก prop จะไม่อัปเดต
-                กลายเป็นกดไปขั้นอื่นแล้วยังเห็นหน้าเดิม */}
+            {/* key = ขั้น — ขั้น 6/7/8 ใช้คอมโพเนนต์เดียวกัน ต้องสร้างใหม่ทุกขั้น */}
             <div className="wizard-card-body">
               <StepContent
                 key={step.key}
@@ -257,8 +231,7 @@ function WizardTopbar({ apartment, onExit }) {
       <div className="brand-mark">Dormy Manager</div>
       <div className="topbar-user">
         <span>{apartment.nameTh}</span>
-        {/* ออกกลางคันได้ ค่าที่บันทึกไปแล้วไม่หาย — แต่ละขั้นบันทึกทันทีอยู่แล้ว
-            ไม่ได้รอกด "เสร็จสิ้น" ทีเดียว */}
+        {/* แต่ละขั้นบันทึกทันที ออกกลางคันไม่หาย */}
         <button type="button" className="btn btn-ghost btn-sm" onClick={onExit}>
           ตั้งค่าต่อภายหลัง
         </button>

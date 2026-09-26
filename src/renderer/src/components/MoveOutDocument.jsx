@@ -2,29 +2,11 @@ import React from 'react'
 import { BillSignature } from './BillDocument.jsx'
 import { formatBaht, formatDocumentDate } from '../format.js'
 
-// ใบสรุปการย้ายออก — เอกสารที่ยื่นให้ผู้เช่าตอนคืนห้อง (ต้นแบบเรียก "พิมพ์ใบสรุปการย้ายออก")
-//
-// **หน้าที่เดียวของเอกสารนี้คือตอบว่า "เงินหายไปไหนบ้าง"** ผู้เช่าวางเงินประกันไว้ก้อนหนึ่ง
-// แล้ววันย้ายออกได้คืนไม่เท่าเดิม (หรือต้องจ่ายเพิ่ม) — ถ้าไม่มีกระดาษแจกแจง ข้อพิพาท
-// จะเกิดตรงนี้เสมอ และหอไม่มีอะไรยืนยันว่าหักอะไรไปบ้างด้วยเหตุผลอะไร
-//
-// ไม่ได้ใช้ BillDocument เพราะนี่ไม่ใช่ใบแจ้งหนี้ (ไม่มีรายการ × ราคาต่อหน่วย ไม่มี VAT)
-// แต่ใช้คลาสชุดเดียวกับเอกสารอื่น เพื่อให้กระดาษที่ออกมาหน้าตาเป็นตระกูลเดียวกัน
 export default function MoveOutDocument({ termination, signedBy }) {
   const t = termination
   const apartment = t.apartment ?? {}
 
-  // **กลุ่มที่ 1 — เงินประกันกับความเสียหาย** เงินประกันมีไว้รองรับความเสียหายของห้อง
-  // ค่าซ่อมจึงหักจากก้อนนี้เสมอ แล้วการริบมีผลกับ "ส่วนที่เหลือ" ไม่ใช่กับทั้งก้อน
-  //
-  // แจกแจงทีละบรรทัด ไม่ใช่ยอดรวมก้อนเดียว — "หักไป 800 บาท" ที่อธิบายไม่ได้
-  // คือคำตอบที่ผู้เช่าไม่ยอมรับ
-  // **โครงตารางเหมือนกันทั้งสามกรณี** (ผู้ใช้กำหนดรูปแบบนี้ 2026-08-11) — คงเหลือติดลบได้
-  // และแถว "ริบเงินประกัน" ขึ้นเสมอแม้เป็น 0.00
-  //
-  // เหตุผลที่ไม่ซ่อนแถวที่เป็น 0: คนที่อ่านใบนี้ซ้ำๆ จำตำแหน่งบรรทัดได้ และการที่
-  // "ริบเงินประกัน 0.00" ปรากฏอยู่ แปลว่าระบบตัดสินแล้วว่าไม่ริบ — ต่างจากแถวที่หายไป
-  // ซึ่งแยกไม่ออกว่าไม่ริบหรือระบบลืมคิด (หลักเดียวกับแถว VAT บนใบแจ้งหนี้)
+  // กลุ่ม 1 — เงินประกันหักค่าเสียหาย · แสดงทุกแถวแม้เป็น 0
   const depositRows = [{ label: 'เงินประกันที่รับไว้', amount: t.depositSnapshotCents }]
 
   for (const item of t.items.filter((i) => i.itemType === 'service')) {
@@ -37,7 +19,6 @@ export default function MoveOutDocument({ termination, signedBy }) {
     subtotal: true
   })
 
-  // คงเหลือติดลบ = เงินประกันไม่พอกับความเสียหาย ต้องบอกเป็นคำ ไม่ใช่ให้อ่านเครื่องหมายลบเอง
   if (t.excessDamageCents > 0) {
     depositRows.push({ label: 'ผู้เช่าจ่ายเพิ่ม', amount: t.excessDamageCents })
   }
@@ -53,12 +34,12 @@ export default function MoveOutDocument({ termination, signedBy }) {
     subtotal: true
   })
 
-  // **กลุ่มที่ 2 — เงินที่ต้องชำระแยก** ไม่แตะเงินประกัน เพราะไม่ใช่ความเสียหาย
+  // กลุ่ม 2 — ชำระแยก ไม่แตะเงินประกัน
   const chargeRows = t.items
     .filter((i) => i.itemType === 'meter')
     .map((item) => ({ label: item.description, amount: Math.abs(item.amountCents) }))
 
-  // **กลุ่มที่ 3 — เงินที่หอต้องคืน** คนละก้อนกับเงินประกัน จึงคืนแม้เงินประกันถูกริบ
+  // กลุ่ม 3 — หอต้องคืน แม้เงินประกันถูกริบ
   const returnRows = t.items
     .filter((i) => i.itemType === 'discount_refund')
     .map((item) => ({ label: item.description, amount: Math.abs(item.amountCents) }))
@@ -94,8 +75,6 @@ export default function MoveOutDocument({ termination, signedBy }) {
         </dl>
       </div>
 
-      {/* เงื่อนไขที่ใช้ตัดสิน — ต้องอยู่บนกระดาษด้วย ไม่ใช่แค่บนจอของเจ้าของหอ
-          ผู้เช่าที่ถูกริบเงินประกันมีสิทธิ์เห็นว่าตัดสินจากตัวเลขอะไร */}
       <dl className="invoice-tenant move-out-doc-terms">
         <div>
           <dt>อยู่มาแล้ว</dt>
@@ -128,8 +107,6 @@ export default function MoveOutDocument({ termination, signedBy }) {
 
       {returnRows.length > 0 && <MoneyTable title="เงินที่หอพักคืนให้" rows={returnRows} />}
 
-      {/* บิลค้างไม่เข้าสูตรสุทธิ — เงินประกันไม่ใช่ของสำหรับจ่ายบิล แต่ต้องเห็นบนกระดาษ
-          ว่ายังค้างอยู่ ไม่ใช่หายไปเงียบๆ */}
       {t.outstandingTotalCents > 0 && (
         <p className="move-out-doc-unpaid">
           <strong>ใบแจ้งหนี้ค้างชำระ {formatBaht(t.outstandingTotalCents)} บาท</strong> —
@@ -156,8 +133,6 @@ export default function MoveOutDocument({ termination, signedBy }) {
         </div>
       </dl>
 
-      {/* ใบเสร็จที่ออกจริงในวันนั้น — เส้นทางเงินต้องตามได้จากกระดาษใบนี้ไปถึงใบเสร็จ
-          ใบตัวอย่างก่อนยืนยันยังไม่มีใบเสร็จ ตารางนี้จึงหายไปเอง */}
       {(t.receipts ?? []).length > 0 && (
         <table className="data-table invoice-items move-out-doc-receipts">
           <thead>
@@ -183,17 +158,13 @@ export default function MoveOutDocument({ termination, signedBy }) {
         </table>
       )}
 
-      {/* ยังเก็บเงินส่วนต่างไม่ได้ ต้องเขียนไว้บนกระดาษ ไม่ใช่ปล่อยให้ทั้งสองฝ่าย
-          เข้าใจว่าจบกันแล้ว */}
       {t.unpaidBalanceCents > 0 && (
         <p className="move-out-doc-unpaid">
           <strong>ยังค้างชำระ {formatBaht(t.unpaidBalanceCents)} บาท</strong> — ยังไม่ได้รับเงินส่วนนี้
         </p>
       )}
 
-      {/* ใบที่ตัดสินไว้ตอนที่สูตรยังเป็นอีกรุ่น — รายการแจกแจงข้างบนคิดด้วยกฎปัจจุบัน
-          แต่ยอดสุทธิเป็นยอดที่ตกลงกันไว้ในวันนั้น สองตัวเลขจึงไม่ตรงกัน
-          **ต้องเขียนไว้บนกระดาษ** ไม่ใช่ให้คนอ่านนั่งหาเองว่าส่วนต่างมาจากไหน */}
+      {/* ใบที่คำนวณด้วยสูตรรุ่นเก่า — แจ้งบนกระดาษว่ายอดไม่ตรง */}
       {t.hasNetRefundMismatch && (
         <p className="move-out-doc-note">
           หมายเหตุ: ยอดสุทธิของใบนี้เป็นยอดที่บันทึกไว้ ณ วันย้ายออก ตามกติกาที่ใช้อยู่ในวันนั้น ·
@@ -203,8 +174,7 @@ export default function MoveOutDocument({ termination, signedBy }) {
         </p>
       )}
 
-      {/* ยังไม่ได้กดยืนยัน = ใบนี้เป็นตัวอย่างที่ยื่นให้ผู้เช่าดูก่อน ต้องบอกไว้บนกระดาษ
-          ไม่งั้นสองใบที่หน้าตาเหมือนกันจะแยกไม่ออกว่าใบไหนเป็นฉบับจริง */}
+      {/* ยังไม่ยืนยัน = ใบตัวอย่าง */}
       {t.isDraft && <p className="move-out-doc-note">** เอกสารตัวอย่าง ยังไม่ได้บันทึกการย้ายออก **</p>}
 
       {t.isManualOverride && t.overrideReason && (
@@ -218,8 +188,6 @@ export default function MoveOutDocument({ termination, signedBy }) {
   )
 }
 
-// ตารางเงินหนึ่งกลุ่ม — สามกลุ่มบนเอกสารนี้มีความหมายทางบัญชีคนละอย่าง จึงต้องแยกตาราง
-// ไม่ใช่ไล่เป็นบรรทัดต่อกันจนอ่านไม่ออกว่าอะไรหักจากอะไร
 function MoneyTable({ title, rows }) {
   return (
     <>

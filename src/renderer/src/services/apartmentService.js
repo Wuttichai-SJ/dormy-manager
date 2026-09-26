@@ -1,5 +1,3 @@
-// ตัวห่อ IPC ของโมดูลหอพัก — คอมโพเนนต์ห้ามเรียก window.electron.invoke เอง
-// ช่องทั้งหมดอยู่ที่ src/main/handlers/apartmentHandlers.js
 import { invoke } from './ipc.js'
 
 export function listApartments() {
@@ -30,13 +28,12 @@ export function completeApartmentSetup(apartmentId) {
   return invoke('apartment:completeSetup', { apartmentId })
 }
 
-// นโยบายคืนเงินประกัน — ค่าตั้งต้นที่จะถูกสำเนาลง "สัญญาใบใหม่" เท่านั้น
-// สัญญาที่เซ็นไปแล้วยังใช้กฎที่ตกลงกันในวันนั้น (สำเนาไว้ที่ตัวสัญญาตั้งแต่ migration 004)
+// ค่าตั้งต้นของสัญญาใหม่เท่านั้น
 export function getDepositPolicy(apartmentId) {
   return invoke('apartment:getDepositPolicy', { apartmentId })
 }
 
-// minStayMonths เว้นว่าง (null) = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
+// minStayMonths ว่าง = ใช้ระยะสัญญาของแต่ละใบ
 export function saveDepositPolicy(apartmentId, { policy, noticeDays, minStayMonths }) {
   return invoke('apartment:saveDepositPolicy', {
     apartmentId,

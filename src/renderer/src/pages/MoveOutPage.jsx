@@ -12,13 +12,7 @@ import PrintDialog from '../components/PrintDialog.jsx'
 import { revealPdf, savePdf } from '../services/printService.js'
 import { completeTermination, getTerminationSheet } from '../services/terminationService.js'
 
-// หน้าสรุปย้ายออก — โครงตามคู่มือต้นแบบ (yeeraf "ยกเลิกสัญญาเช่า / ย้ายออก" ขั้น 5-7):
-//   กล่อง 1 ใบแจ้งหนี้ค้างชำระ · กล่อง 2 เงินประกัน · กล่อง 3 รายการเก็บเงิน/คืนเงินเพิ่มเติม
-//   → สรุปค่าใช้จ่าย + วันที่ออก + ยืนยัน → หน้ารายละเอียดการย้ายออก
-//
-// **สิ่งที่ต้นแบบไม่มี: กล่อง "ผลการตัดสิน"** — ต้นแบบคืนเงินประกันเสมอ (เงินประกัน − หนี้)
-// ส่วนหอนี้มีกฎริบที่ snapshot ไว้ที่สัญญาตั้งแต่ migration 004 จึงต้องบอกให้ชัดว่า
-// ตัดสินว่าอะไร เพราะอะไร ก่อนที่เจ้าของหอจะกดยืนยัน
+// หน้าสรุปย้ายออก — มีกล่อง "ผลการตัดสิน" ตามกฎเงินประกันของหอ
 const ITEM_TABS = [
   { key: 'service', label: 'ค่าบริการ', hint: null },
   {
@@ -30,44 +24,32 @@ const ITEM_TABS = [
 ]
 
 export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }) {
-  // ยืนยันย้ายออก = ปิดสัญญา + ออกใบเสร็จ + คืนห้อง ย้อนกลับไม่ได้ จึงถามก่อนเสมอ (เฟิสขอ 2026-09-26)
   const [confirmDialog, ask] = useConfirm()
   const [moveOutDate, setMoveOutDate] = useState(todayIso())
   const [adjustments, setAdjustments] = useState([])
   const [sheet, setSheet] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  // ผลลัพธ์หลังยืนยัน — มีค่าเมื่อไหร่แปลว่าย้ายออกเสร็จแล้ว หน้าเปลี่ยนเป็นใบสรุป
   const [result, setResult] = useState(null)
 
-  // เจ้าของกดข้ามผลการตัดสินของระบบ — null = ใช้ตามกฎ
+  // null = ใช้ตามกฎ
   const [override, setOverride] = useState(null)
   const [overrideReason, setOverrideReason] = useState('')
 
-  // ยอมให้ย้ายออกทั้งที่ยังมีบิลค้าง (ผู้เช่าหนีไป) — ต้องมีเหตุผลเสมอ
+  // ย้ายออกทั้งที่มีบิลค้าง (ผู้เช่าหนี) — ต้องมีเหตุผล
   const [allowOutstanding, setAllowOutstanding] = useState(false)
   const [outstandingReason, setOutstandingReason] = useState('')
 
-  // ช่องทางของเงินที่เคลื่อนในวันย้ายออก (คืนให้ผู้เช่า หรือรับส่วนต่างจากผู้เช่า)
   const [paymentMethod, setPaymentMethod] = useState('cash')
-  // ยอดสุทธิติดลบ = ผู้เช่าต้องจ่ายเพิ่ม · ค่าตั้งต้นคือเก็บได้แล้ว เพราะเจ้าของหอตรวจห้อง
-  // แล้วบอกผู้เช่าตรงนั้น ผู้เช่าจ่ายก่อนออกจากหอ — เก็บไม่ได้เป็นกรณียกเว้น
+  // ยอดติดลบ = ผู้เช่าต้องจ่ายเพิ่ม · ค่าเริ่มต้นคือเก็บได้แล้ว
   const [collectShortfall, setCollectShortfall] = useState(true)
 
-  // พิมพ์ใบสรุปตัวอย่างก่อนกดยืนยัน — ผู้ใช้สั่ง 2026-08-11: ต้องยื่นให้ผู้เช่าดูก่อนเขา
-  // ออกจากหอ ไม่ใช่พิมพ์ได้หลังปิดสัญญาไปแล้วซึ่งผู้เช่าเดินไปแล้ว
   const [previewing, setPreviewing] = useState(false)
 
-  // คำนวณใบสรุปครั้งล่าสุดไม่ผ่าน = ตัวเลขบนจอเป็นของรอบก่อน (ยังไม่รวมสิ่งที่เพิ่งแก้)
-  // เดิมโชว์ error แต่ตัวเลขเก่ายังค้าง + ปุ่มพิมพ์/ยืนยันกดได้ → พิมพ์ใบสรุปผิดยื่นให้ผู้เช่า
-  // แยกจาก `error` (ของการกดยืนยัน) เพราะอันนี้ต้องล็อกปุ่มจนกว่าจะคำนวณผ่านอีกครั้ง
+  // คำนวณล่าสุดไม่ผ่าน = ล็อกปุ่มพิมพ์/ยืนยันจนกว่าจะคำนวณผ่าน
   const [sheetError, setSheetError] = useState('')
 
-  // ดึงใหม่ทุกครั้งที่วันที่ออก รายการ **หรือช่องติ๊กข้ามกฎ** เปลี่ยน
-  // (สูตรอยู่ฝั่ง main ที่เดียว หน้าจอไม่คำนวณเองเด็ดขาด)
-  //
-  // 🔴 เดิม `override` ไม่ได้อยู่ในรายการนี้ และ API ก็ไม่รับมันด้วย ยอดสรุปจึงค้างเป็นของ
-  // "ตามกฎ" ตลอด ต่อให้ติ๊กว่าจะคืนเงินให้ ตัวเลขที่ถูกไปโผล่ตอนกดยืนยันซึ่งสายไปแล้ว
+  // ดึงใหม่เมื่อวันที่ออก รายการ หรือการข้ามกฎเปลี่ยน — ไม่คำนวณเองที่หน้าจอ
   const load = useCallback(async () => {
     const res = await getTerminationSheet({
       contractId: contract.contractId,
@@ -84,7 +66,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
     load()
   }, [load])
 
-  // คืนผลให้หน้าต่างยืนยัน — ล้มเหลว error ขึ้นในหน้าต่าง · สำเร็จหน้านี้เปลี่ยนเป็นใบสรุปเอง
   async function submit() {
     setError('')
     setBusy(true)
@@ -106,7 +87,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
     return res
   }
 
-  // สรุปเงินก้อนสุดท้ายไว้ในคำถาม — คนกดจะได้ทวนตัวเลขอีกรอบก่อนปิดสัญญา
   function confirmMoveOut() {
     const net = sheet.netRefundCents
     const money =
@@ -131,8 +111,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
     return <MoveOutResult result={result} room={room} onDone={onDone} signedBy={signedBy} />
   }
 
-  // ระหว่างพิมพ์ตัวอย่าง หน้าจอแสดงเฉพาะตัวเอกสาร เพราะ printToPDF จับภาพหน้าที่แสดงอยู่
-  // (วิธีเดียวกับหน้ารายงานใบเสร็จและการพิมพ์ใบแจ้งหนี้ทั้งหอ)
+  // ระหว่างพิมพ์แสดงแค่เอกสาร — printToPDF จับภาพหน้าที่แสดงอยู่
   if (previewing && sheet) {
     return (
       <>
@@ -151,8 +130,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
 
   const needsReason = override !== null && sheet && override !== sheet.isDepositRefundable
 
-  // ด่านทั้งสองต้องผ่านก่อนปุ่มยืนยันจะกดได้ — ปิดปุ่มไว้ดีกว่าปล่อยให้กดแล้วเจอ error
-  // (ฝั่ง main บังคับซ้ำอยู่แล้ว ล็อกที่หน้าจออย่างเดียวไม่เคยพอ)
   const stale = Boolean(sheetError)
 
   const canConfirm =
@@ -208,16 +185,11 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                   </tbody>
                 </table>
 
-                {/* กติกาของหอ (เจ้าของหอยืนยัน 2026-08-11): ต้องเคลียร์บิลให้หมดก่อนย้ายออก
-                    ระบบไม่หักจากเงินประกันให้เอง — ถ้าตกลงหักจริง ให้ไปกดรับเงินที่บิลใบนั้น
-                    ตามปกติก่อน เงินก้อนนั้นจะได้มีใบเสร็จของตัวเอง */}
                 <Alert kind="warn">
                   <strong>ยังค้างชำระ {formatBaht(sheet.outstandingTotalCents)} บาท</strong> —
                   รับเงินที่ใบแจ้งหนี้ข้างบนให้ครบก่อนย้ายออก
                 </Alert>
 
-                {/* ผู้เช่าที่หนีไปเฉยๆ ยังต้องปิดสัญญาได้ ไม่งั้นห้องจะติดอยู่กับหนี้ที่ไม่มีวัน
-                    ได้คืนตลอดไป แล้วปล่อยห้องใหม่ไม่ได้ */}
                 <div className="field checkbox-row">
                   <label>
                     <input
@@ -261,9 +233,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
             onOverrideReason={setOverrideReason}
           />
 
-          {/* รายการในการ์ดนี้มาจากสิ่งที่ผู้ใช้กดเพิ่มไว้ (adjustments) ไม่ใช่จากผลคำนวณ —
-              เดิมใช้ sheet.items รายการที่คำนวณไม่ผ่านจึงไม่ขึ้นในตาราง ไม่มีปุ่มลบ แต่ยังค้างใน
-              state ทำให้ทุกการคำนวณล้มซ้ำ หน้าย้ายออกติดอยู่แบบนั้นจนกว่าจะออกจากหน้า */}
+          {/* แสดงจาก adjustments ที่ผู้ใช้เพิ่ม ไม่ใช่จากผลคำนวณ (ลบได้เสมอ) */}
           <AdjustmentsCard
             items={adjustments}
             onAdd={(item) => setAdjustments((list) => [...list, item])}
@@ -281,8 +251,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                 </strong>
               )}
             </p>
-            {/* สูตรเขียนไว้ตรงหน้าคนกด — เงินประกันมีไว้รองรับความเสียหาย ค่าซ่อมจึงหักจาก
-                ก้อนนี้เสมอ ส่วนค่ามิเตอร์กับบิลเป็นคนละเรื่อง ไม่แตะเงินประกัน */}
             <p className="field-hint move-out-formula">
               เงินประกัน {formatBaht(sheet.depositReceivedCents)} − ค่าเสียหาย{' '}
               {formatBaht(sheet.damageTotalCents)}
@@ -292,9 +260,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                 ` + คืนให้ผู้เช่า ${formatBaht(sheet.refundItemsTotalCents)}`}
             </p>
 
-            {/* 🔴 ยอดติดลบ = **เงินไหลเข้าหอ** ไม่ใช่ "ไม่มีอะไรเกิดขึ้น" — ต้องออกใบเสร็จให้
-                ไม่งั้นระบบไม่รู้ว่าเก็บมาแล้วหรือยัง และผู้เช่าไม่ได้หลักฐานว่าจ่ายอะไรไป
-                (ผู้ใช้เจอตอนทดสอบจริง 2026-08-11) */}
+            {/* ยอดติดลบต้องออกใบเสร็จรับเงินส่วนต่าง */}
             {sheet.netRefundCents < 0 && (
               <div className="move-out-shortfall">
                 <label className="checkbox-row">
@@ -322,7 +288,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                 <DateField id="moveOutDate" value={moveOutDate} onChange={setMoveOutDate} />
               </div>
 
-              {/* ช่องทางโผล่เฉพาะเมื่อมีเงินเคลื่อนจริง — ยอดสุทธิเป็น 0 ไม่มีใบเสร็จให้ออก */}
               {(sheet.netRefundCents > 0 || (sheet.netRefundCents < 0 && collectShortfall)) && (
                 <div className="field">
                   <label htmlFor="moveOutMethod">
@@ -341,8 +306,6 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                   </select>
                 </div>
               )}
-              {/* ยื่นใบสรุปให้ผู้เช่าดูก่อนกดยืนยัน — หลังยืนยันแล้วผู้เช่าเดินไปแล้ว
-                  และการทักท้วงตัวเลขหลังปิดสัญญาไปแล้วแก้อะไรไม่ได้ */}
               <button
                 type="button"
                 className="btn btn-outline"
@@ -381,14 +344,8 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
   )
 }
 
-// ------------------------------------------------------------------
-// ผลการตัดสินเรื่องเงินประกัน — กล่องที่ต้นแบบไม่มี
-// ------------------------------------------------------------------
-// แสดง "ตัวเลขที่ใช้ตัดสิน" ให้เห็นครบ ไม่ใช่บอกแค่ผลลัพธ์ — เจ้าของหอต้องตรวจได้เองว่า
-// ระบบนับเดือนถูกไหม ก่อนจะบอกผู้เช่าว่าไม่ได้เงินคืน
 function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrideReason }) {
   const systemSaysRefund = sheet.isDepositRefundable
-  // ผลที่ใช้จริงมาจากฝั่ง main แล้ว (sheet คิดใหม่เมื่อติ๊กช่องนี้) ไม่ต้องเดาเองบนหน้าจอ
   const current = sheet.appliedRefundable
   const isOverriding = override !== null && override !== systemSaysRefund
 
@@ -406,8 +363,6 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
           <dd>
             {sheet.monthsStayed} เดือน
             {sheet.requiredMonths ? ` (สัญญากำหนด ${sheet.requiredMonths} เดือน)` : ' (ไม่กำหนดระยะ)'}
-            {/* ต่อสัญญามาต้องบอก ไม่งั้น "อยู่มาแล้ว 14 เดือน" ของสัญญาที่เพิ่งเริ่มสองเดือนก่อน
-                จะดูเหมือนคำนวณผิด ทั้งที่นับทั้งสายการต่อสัญญามาถูกแล้ว */}
             {sheet.isRenewal && (
               <span className="field-hint"> นับต่อเนื่องจากสัญญาใบแรก ({sheet.chainStartDate})</span>
             )}
@@ -426,7 +381,6 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
 
       <div className={'verdict-box' + (current ? ' verdict-refund' : ' verdict-forfeit')}>
         <strong>
-          {/* บอกยอดจริงหลังหักค่าเสียหายแล้ว ไม่ใช่คำว่า "เต็มจำนวน" ซึ่งไม่จริงเมื่อมีค่าซ่อม */}
           {current
             ? `คืนเงินประกัน ${formatBaht(sheet.depositRefundCents)} บาท`
             : `ริบเงินประกัน ${formatBaht(sheet.forfeitedCents)} บาท`}
@@ -436,8 +390,6 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
         {systemSaysRefund && <span>ตามกฎของสัญญา: อยู่ครบกำหนดและแจ้งล่วงหน้าครบ</span>}
       </div>
 
-      {/* เปิดช่องนี้ไว้เพราะถ้าไม่เปิด เจ้าของจะเลี่ยงไปพิมพ์เป็น "รายการคืนเงินเพิ่มเติม" แทน
-          แล้วเหตุผลจริงจะหายไปจากประวัติ กลายเป็นตัวเลขลอยๆ ที่ไม่มีใครอธิบายได้ (ดู 004) */}
       <div className="field checkbox-row">
         <label>
           <input
@@ -470,12 +422,7 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
   )
 }
 
-// ------------------------------------------------------------------
-// รายการเก็บเงิน/คืนเงินเพิ่มเติม — สามแท็บตามต้นแบบ
-// ------------------------------------------------------------------
-// รายการเหล่านี้ยังไม่ถูกส่งไป main จนกว่าจะกดยืนยันย้ายออก — จึงตรวจที่หน้าจอ
-// แล้วขึ้น error ใต้ช่องทั้งสองช่องพร้อมกัน (ไม่ใช่ทีละข้อบนสุดของหน้า)
-// items = รายการที่ผู้ใช้เพิ่ม ({ itemType, description, amount } — amount เป็นข้อความบาท)
+// ยังไม่ส่งไป main จนกว่าจะยืนยัน — ตรวจที่หน้าจอ · amount เป็นข้อความบาท
 function AdjustmentsCard({ items, onAdd, onRemove }) {
   const [confirmDialog, ask] = useConfirm()
   const [tab, setTab] = useState(ITEM_TABS[0])
@@ -487,8 +434,7 @@ function AdjustmentsCard({ items, onAdd, onRemove }) {
     reset()
     const fields = {}
     if (!description.trim()) fields.description = 'กรุณาระบุชื่อรายการ'
-    // กติกาเดียวกับ toCents ฝั่ง main — เดิมเช็กแค่ Number(amount) > 0 ปล่อย 12.345 / 1e3 ผ่าน
-    // แล้ว main คำนวณใบสรุปไม่ได้
+    // กติกาเดียวกับ toCents ฝั่ง main
     const cents = bahtInputToCents(amount)
     if (cents === null) fields.amount = 'จำนวนเงินต้องเป็นตัวเลขไม่ติดลบ ทศนิยมไม่เกิน 2 ตำแหน่ง'
     else if (cents === 0) fields.amount = 'จำนวนเงินต้องมากกว่า 0'
@@ -600,9 +546,6 @@ function AdjustmentsCard({ items, onAdd, onRemove }) {
   )
 }
 
-// ------------------------------------------------------------------
-// หลังยืนยัน — ตรงกับหน้า "รายละเอียดการย้ายออก" ของต้นแบบ
-// ------------------------------------------------------------------
 function MoveOutResult({ result, room, onDone, signedBy }) {
   const [printing, setPrinting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -631,7 +574,6 @@ function MoveOutResult({ result, room, onDone, signedBy }) {
       )}
 
       <section className="panel invoice-doc">
-        {/* ปุ่มถูกซ่อนตอนพิมพ์ด้วย @media print (คลาส invoice-doc-tools) ไม่ติดไปบนกระดาษ */}
         <div className="invoice-doc-tools">
           <div className="invoice-doc-actions">
             <button
@@ -673,15 +615,13 @@ function MoveOutResult({ result, room, onDone, signedBy }) {
   )
 }
 
-// ------------------------------------------------------------------
 function todayIso() {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
-// บาทที่พิมพ์ → สตางค์ ตามกติกาเดียวกับ toCents ใน src/main/money.js
-// (ตัวเลขไม่ติดลบ คั่นหลักพันได้ ทศนิยมไม่เกิน 2 ตำแหน่ง) · ผิดรูปแบบ = null
+// กติกาเดียวกับ toCents ใน main/money.js · ผิดรูปแบบ = null
 function bahtInputToCents(value) {
   const cleaned = String(value ?? '').replace(/,/g, '').trim()
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null
@@ -690,7 +630,7 @@ function bahtInputToCents(value) {
   return Number.isSafeInteger(cents) ? cents : null
 }
 
-// ส่วนลด/คืนเงินแสดงเป็นลบ แบบเดียวกับที่ main เก็บ (ผู้ใช้กรอกเป็นบวกเสมอ)
+// ส่วนลดแสดงเป็นลบ (ผู้ใช้กรอกเป็นบวก)
 function signedCents(item) {
   const cents = bahtInputToCents(item.amount) ?? 0
   return item.itemType === 'discount_refund' ? -cents : cents

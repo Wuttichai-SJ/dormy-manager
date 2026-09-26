@@ -33,14 +33,7 @@ import {
 
 const EMPTY_FILTERS = { roomNumber: '', invoiceNumber: '' }
 
-// แท็บกรองตามการชำระ — `settlement` ต้องตรงกับ SETTLEMENT_STATUSES ใน db/invoices.js
-//
-// "ค้างชำระ" รวมบิลที่จ่ายมาบางส่วนด้วย เพราะยังเป็นหนี้ที่ต้องตามเก็บอยู่
-//
-// "ยกเลิกแล้ว" เป็นแท็บของตัวเอง (ผู้ใช้ขอ 2026-08-11) — เดิมบิลที่ยกเลิกไม่เข้าแท็บไหนเลย
-// ต้องไปหาเอาใน "ทั้งหมด" ปนกับบิลที่ยังต้องตามเก็บเงิน · **"ทั้งหมด" ยังหมายถึงทั้งหมดจริงๆ
-// คือเห็นบิลที่ยกเลิกด้วย** แท็บใหม่เป็นทางลัดไปหาเฉพาะกลุ่ม ไม่ได้ย้ายมันออกจากทั้งหมด
-// (ป้ายที่เขียนว่า "ทั้งหมด" แล้วซ่อนของบางอย่างไว้ คือป้ายที่โกหก)
+// settlement ต้องตรงกับ SETTLEMENT_STATUSES ใน main/db/invoices.js · "ทั้งหมด" รวมบิลที่ยกเลิก
 const SETTLEMENT_TABS = [
   { key: '', label: 'ทั้งหมด' },
   { key: 'outstanding', label: 'ค้างชำระ' },
@@ -48,34 +41,22 @@ const SETTLEMENT_TABS = [
   { key: 'cancelled', label: 'ยกเลิกแล้ว' }
 ]
 
-// หน้าใบแจ้งหนี้ — รายการบิลที่ออกไปแล้ว + ทางเข้าไปออกบิลรอบใหม่
-//
-// โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "ออกบิลรายเดือน"): กดปุ่มออกบิล → ตัวช่วย 2 ขั้น
-// (เลือกใบจดมิเตอร์+เดือน → ตารางพรีวิวทุกห้องแล้วกดสร้าง) ไม่ใช่กรอกทีละห้องเอง
-// `initialInvoiceId` = เปิดหน้านี้พร้อมกางบิลใบนั้นให้เลย (หน้าภาพรวมกดจากตารางบิลค้าง)
-// **ผู้เรียกต้องใส่ `key` ที่เปลี่ยนตามค่านี้** ไม่งั้นการกดบิลใบที่สองจากหน้าภาพรวมจะไม่มี
-// อะไรเกิดขึ้น เพราะ useState อ่าน prop แค่ตอน mount ครั้งแรก (บทเรียนเดียวกับ
-// RoomRatesPage ที่เอา prop ไปตั้งเป็นค่าเริ่มต้นแล้วขั้น 6/7/8 ค้างหน้าเดิม)
+// initialInvoiceId = เปิดพร้อมกางบิลใบนั้น — ผู้เรียกต้องใส่ key ที่เปลี่ยนตามค่านี้
 export default function InvoicesPage({ apartment, user, initialInvoiceId = null }) {
   const [wizard, setWizard] = useState(false)
   const [multiPay, setMultiPay] = useState(false)
-  // บิลที่กำลังเปิดดูอยู่ — null = อยู่ที่ตารางรายการ
   const [openInvoiceId, setOpenInvoiceId] = useState(initialInvoiceId)
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState(EMPTY_FILTERS)
-  // '' = ทั้งหมด · แยกจาก filters ตัวอื่นเพราะปุ่ม "รีเซ็ต" ของแถบค้นหาไม่ควรเด้งแท็บกลับด้วย
-  // — แท็บคือ "กำลังดูอะไรอยู่" ส่วนแถบค้นหาคือ "หาอะไรในสิ่งที่ดูอยู่"
+  // '' = ทั้งหมด · แยกจาก filters (รีเซ็ตไม่เด้งแท็บ)
   const [settlement, setSettlement] = useState('')
-  // ช่วงเวลาที่ดู — เปิดมาเป็นเดือนนี้ (บิลออกวันที่ 1 รอบเดือนของบิล = เดือนที่ออก)
-  // เดิมเปิดมาเห็นบิลทุกเดือนต่อกันยาว ดูไม่ออกว่าแถวไหนของเดือนไหน (เฟิสขอ 2026-09-26)
+  // เปิดมาเป็นเดือนนี้
   const [period, setPeriod] = useState(initialPeriod)
-  // เดือนที่ผู้ใช้กดพับ/กางเอง (สลับจากค่าเริ่มต้น) — ล้างทุกครั้งที่เปลี่ยนช่วงเวลา
+  // เดือนที่ผู้ใช้พับ/กางเอง — ล้างเมื่อเปลี่ยนช่วงเวลา
   const [toggled, setToggled] = useState(() => new Set())
-  // บิลที่กำลังยืนยันจะลบอยู่ — null = ไม่มีหน้าต่างเปิดค้าง
   const [deleting, setDeleting] = useState(null)
-  // ชุดเอกสารที่เตรียมไว้พิมพ์ทีเดียวทั้งหอ — null = ไม่ได้อยู่ในโหมดพิมพ์
   const [printSet, setPrintSet] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -101,7 +82,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     setToggled(new Set())
   }
 
-  // ดูหลายเดือน: เดือนล่าสุดกางไว้ เดือนเก่าพับ · กำลังค้นหา = กางหมด (จะได้เห็นที่หาเจอทันที)
+  // ดูหลายเดือน: เดือนล่าสุดกาง เดือนเก่าพับ · ค้นหาอยู่ = กางหมด
   const groups = groupByMonth(invoices, (inv) => inv.billingMonth)
   const multiMonth = period.mode !== 'month'
   const isOpen = (month, index) => {
@@ -120,17 +101,14 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     load()
   }, [load])
 
-  // บิลที่ยกเลิกแล้วไม่เข้าชุดพิมพ์ — เอกสารที่ไม่มีผลแล้วต้องไม่หลุดไปถึงมือผู้เช่า
-  // ที่เหลือคือ "ทุกใบที่เห็นอยู่ในตารางตอนนี้" จริงๆ ตัวกรองด้านบนจึงเป็นตัวเลือกชุด
+  // พิมพ์ทุกใบในตารางยกเว้นใบที่ยกเลิก
   const printable = invoices.filter((inv) => inv.status !== 'cancelled')
 
-  // เตรียมเอกสารให้ครบก่อนเปิดกล่องพิมพ์ ไม่ใช่ระหว่างที่กล่องเปิดอยู่ — ถ้าดึงทีหลัง
-  // printToPDF อาจจับภาพตอนที่เอกสารยังไม่มีรายการ แล้วได้บิลเปล่า (เหมือนหน้ารายงานใบเสร็จ)
+  // เตรียมเอกสารก่อนเปิดกล่องพิมพ์
   async function startBulkPrint() {
     setError('')
     setBusy(true)
 
-    // รายการบิลในตารางมีแต่ยอดรวม ตัวเอกสารต้องการรายการ ผู้เช่า บัญชีธนาคาร ครบทั้งใบ
     const results = await Promise.all(printable.map((inv) => getInvoice(inv.invoiceId)))
     const failed = results.find((res) => !res.success)
     if (failed) {
@@ -139,8 +117,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     }
     const bills = results.map((res) => res.data)
 
-    // QR เป็นรูปเดียวกันทั้งหอ โหลดครั้งเดียวแล้วส่งต่อให้ทุกใบ — ปล่อยให้แต่ละใบโหลดเอง
-    // คือลากไบต์รูปเดิมข้ามสะพาน IPC ซ้ำเท่าจำนวนบิล
+    // โหลด QR ครั้งเดียวแล้วใช้ทุกใบ
     const qrImageId = bills[0]?.apartment?.qrCodeImageId
     let qrDataUrl = null
     if (qrImageId) {
@@ -157,7 +134,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
       <InvoiceDetailPage
         invoiceId={openInvoiceId}
         signedBy={user?.fullName}
-        // ยกเลิกใบเสร็จเป็นของเจ้าของหอเท่านั้น (main บังคับที่ payment:cancel)
         canCancelReceipt={Boolean(user?.isOwner)}
         onBack={() => {
           setOpenInvoiceId(null)
@@ -173,8 +149,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
         apartment={apartment}
         onClose={(createdMonth) => {
           setWizard(false)
-          // เพิ่งออกบิลทั้งหอ — พากลับไปที่รอบเดือนของบิลชุดนั้นเลย (ออกบิลล่วงหน้าเดือนถัดไป
-          // แล้วกลับมาเจอเดือนนี้ที่ว่างเปล่า จะนึกว่าออกไม่สำเร็จ)
+          // ออกบิลเสร็จ — ไปที่รอบเดือนของบิลชุดนั้น
           if (createdMonth) changePeriod({ mode: 'month', month: createdMonth })
           else load()
         }}
@@ -194,16 +169,13 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     )
   }
 
-  // ระหว่างพิมพ์ หน้าจอแสดงเฉพาะตัวเอกสาร เพราะ printToPDF จับภาพหน้าที่กำลังแสดงอยู่
-  // (กล่องพิมพ์เองถูกซ่อนด้วย @media print อยู่แล้ว) — วิธีเดียวกับหน้ารายงานใบเสร็จ
+  // ระหว่างพิมพ์แสดงแค่เอกสาร — printToPDF จับภาพหน้าที่แสดงอยู่
   if (printSet) {
     return (
       <>
         <div className="invoice-sheets">
           {printSet.bills.map((bill) => (
             <article key={bill.invoiceId} className="invoice-sheet">
-              {/* เอกสารตัวเดียวกับที่เปิดทีละใบจากปุ่ม "รายละเอียด" — ไม่ส่ง onRemoveItem
-                  คอลัมน์ปุ่มลบจึงหายไปเอง */}
               <InvoiceBill
                 invoice={bill}
                 signedBy={user?.fullName}
@@ -213,8 +185,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           ))}
         </div>
 
-        {/* ใบแจ้งหนี้เป็น A4 เต็มแผ่นใบละหน้า (ต่างจากใบเสร็จที่สองใบต่อแผ่น)
-            จำนวนหน้าที่ควรมีจึงเท่ากับจำนวนใบพอดี */}
         <PrintDialog
           title={`พิมพ์ใบแจ้งหนี้ ${printSet.bills.length} ใบ`}
           maxPages={printSet.bills.length}
@@ -245,12 +215,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
               ]}
             />
           </h2>
-          {/* สองปุ่มนี้คือสองงานที่ทำบ่อยที่สุดของหน้านี้: ออกบิลต้นเดือน แล้วตามเก็บเงิน
-              รับเงินหลายห้องเป็นปุ่มรอง เพราะออกบิลต้องเกิดก่อนเสมอ */}
           <div className="panel-head-actions">
-            {/* พิมพ์ทั้งชุดในคราวเดียว — เดิมต้องเข้าไปกด "รายละเอียด" ทีละใบแล้วสั่งพิมพ์
-                ซึ่งหอสี่สิบห้องคือสี่สิบรอบ · พิมพ์ "ทุกใบที่เห็นในตารางตอนนี้"
-                ตัวกรองกับแท็บด้านล่างจึงเป็นตัวเลือกชุดไปในตัว (เช่น แท็บค้างชำระ) */}
             <button
               type="button"
               className="btn btn-outline"
@@ -273,8 +238,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           </div>
         </div>
 
-        {/* แท็บกรองตามการชำระ อยู่เหนือแถบค้นหา เพราะเป็นการเลือก "ชุดข้อมูล" ที่จะดู
-            ส่วนแถบค้นหาคือการหาของในชุดนั้น สองอย่างนี้ทำงานร่วมกัน ไม่ได้แทนกัน */}
         <div className="settlement-tabs" role="tablist">
           {SETTLEMENT_TABS.map((tab) => (
             <button
@@ -292,13 +255,10 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           ))}
         </div>
 
-        {/* แท็บนี้เป็นที่เดียวที่ปุ่มลบถาวรโผล่ (ลบได้เฉพาะใบที่ยกเลิกแล้ว) จึงต้องบอกไว้
-            ว่ากดแล้วเกิดอะไร ก่อนที่จะมีคนกดเพราะเห็นถังขยะแล้วคิดว่าเป็นการเก็บกวาดเฉยๆ */}
         {settlement === 'cancelled' && (
           <p className="field-hint">ใบที่ยกเลิกพิมพ์ไม่ได้ · ลบถาวรต้องกรอกเหตุผล</p>
         )}
 
-        {/* ช่วงเวลา (เลือกชุดตามเดือน) + ค้นหาในชุดนั้น — ใช้ร่วมกับแท็บการชำระด้านบนได้ */}
         <div className="invoice-filters">
           <PeriodBar period={period} onChange={changePeriod} />
 
@@ -335,9 +295,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
         ) : invoices.length === 0 ? (
-          // ตารางว่างเพราะไม่มีบิลเลย กับว่างเพราะแท็บ/คำค้นกรองจนไม่เหลือ เป็นคนละเรื่อง
-          // บอกผิดแล้วผู้ใช้จะเข้าใจว่าออกบิลไม่สำเร็จ ทั้งที่แค่ดูอยู่ผิดแท็บ
-          // บอกช่วงเวลาไปด้วย — ว่างเพราะดูอยู่เดือนที่ยังไม่ออกบิล คนละเรื่องกับไม่มีบิลเลย
           <p className="muted table-empty">
             {hasFilters
               ? 'ไม่พบใบแจ้งหนี้ตามเงื่อนไขที่ค้นหา'
@@ -395,7 +352,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
                           <span className={`invoice-status invoice-${inv.status}`}>
                             {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
                           </span>
-                          {/* เกินกำหนดกี่วัน — หอต้องรู้ว่าใครค้างนานแค่ไหน ไม่ว่าจะเก็บค่าปรับหรือไม่ */}
                           {inv.overdueDays > 0 && (
                             <span className="invoice-overdue">เกิน {inv.overdueDays} วัน</span>
                           )}
@@ -416,10 +372,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
                           >
                             รายละเอียด
                           </button>
-                          {/* ลบได้เฉพาะใบที่ยกเลิกแล้ว — ใบที่ยังใช้งานอยู่ต้องยกเลิกก่อน
-                              เป็นด่านที่บังคับให้ตัดสินใจสองครั้งก่อนเอกสารการเงินจะหายไป */}
-                          {/* และเจ้าของหอเท่านั้น — แถวถูกลบจริง เลขที่ที่ยื่นให้ผู้เช่าไปแล้ว
-                              จะชี้ไปที่ความว่างเปล่า (main บังคับที่ invoice:delete) */}
+                          {/* ลบได้เฉพาะใบที่ยกเลิกแล้ว และเจ้าของหอเท่านั้น */}
                           {inv.status === 'cancelled' && user?.isOwner && (
                             <button
                               type="button"
@@ -455,9 +408,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
   )
 }
 
-// หัวกลุ่มเดือนในตาราง — ค้างอยู่ใต้หัวตารางตอนเลื่อน จะรู้ตลอดว่ากำลังดูเดือนไหน
-// บอกจำนวนใบ ยอดรวม และยอดค้างของเดือนนั้น (ไม่นับใบที่ยกเลิก — ไม่มีผลเป็นเงินแล้ว)
-// โหมดรายเดือนมีกลุ่มเดียว จึงไม่ต้องพับได้
+// หัวกลุ่มเดือน (ค้างจอตอนเลื่อน) — ยอดไม่นับใบที่ยกเลิก
 const INVOICE_COLUMNS = 7
 
 function MonthGroupRow({ group, open, collapsible, onToggle }) {
@@ -500,16 +451,11 @@ function MonthGroupRow({ group, open, collapsible, onToggle }) {
   )
 }
 
-// หน้าต่างยืนยันการลบ — เหตุผลบังคับกรอกเสมอ (ผู้ใช้สั่ง 2026-08-07)
-//
-// ปุ่มลบถูกปิดไว้จนกว่าจะพิมพ์เหตุผล ไม่ใช่ปล่อยให้กดแล้วค่อยขึ้น error — คนที่ตั้งใจ
-// จะลบจริงจะได้รู้ตั้งแต่เห็นหน้าต่างว่าต้องเขียนอะไรสักอย่างก่อน
+// ต้องกรอกเหตุผลก่อนลบ
 function DeleteInvoiceDialog({ invoice, onClose, onDeleted }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const ready = reason.trim().length > 0
-  // เหตุผลว่างถูกกันด้วยปุ่มที่กดไม่ได้อยู่แล้ว — error ที่มาถึงตรงนี้ส่วนใหญ่เป็นเรื่องสถานะ
-  // (เช่น ถูกยกเลิกไปแล้ว) ซึ่งขึ้นบนสุดของหน้าต่าง
   const { errors, formError, fromResult, clear, reset } = useFormErrors(['reason'])
 
   async function submit() {
@@ -576,9 +522,6 @@ function DeleteInvoiceDialog({ invoice, onClose, onDeleted }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ตัวช่วยออกบิล 2 ขั้น
-// ------------------------------------------------------------------
 const STEPS = [
   { key: 'pick', label: 'เลือกวันจดมิเตอร์' },
   { key: 'create', label: 'สร้างใบแจ้งหนี้' }
@@ -602,26 +545,20 @@ function BillingWizard({ apartment, onClose }) {
       setLoading(false)
       if (!res.success) return setError(res.error)
       setBatches(res.data)
-      // ใบจดล่าสุดคือใบที่จะออกบิลเกือบทุกครั้ง เลือกให้เลยจะได้ไม่ต้องกดซ้ำ
       if (res.data.length > 0) applyBatch(res.data[0])
     })()
   }, [apartment.apartmentId])
 
   const batch = batches.find((b) => String(b.batchId) === String(batchId))
 
-  // **หอจดมิเตอร์วันที่ 1 แล้วออกบิลวันเดียวกัน** (ยืนยันกับเจ้าของหอ 2026-08-10
-  // — ถ้าติดธุระก็เลื่อนเป็นวันที่ 2-3 แต่ยังเป็นเดือนเดิม)
-  //
-  // วันจดมิเตอร์จึงเป็นค่าตั้งต้นที่ดีกว่า "วันนี้" เพราะมาจากข้อมูลที่กรอกไว้แล้ว
-  // ไม่ใช่นาฬิกาเครื่อง — ออกบิลย้อนหลังหรือทดลองด้วยวันที่สมมติก็ยังได้เดือนที่ถูก
+  // วันออกบิลตั้งต้น = วันจดมิเตอร์ (หอจดและออกบิลวันเดียวกัน)
   function applyBatch(nextBatch) {
     setBatchId(String(nextBatch.batchId))
     setIssueDate(nextBatch.readingDate)
     setBillingMonth(billingMonthOf(nextBatch.readingDate))
   }
 
-  // เดือนค่าเช่าเดินตามวันที่ออกบิล ไม่ใช่ตามใบจดมิเตอร์ — แก้วันที่แล้วเดือนขยับตามเอง
-  // (เลือกเดือนเองทีหลังได้ ไม่ถูกทับ เพราะทับเฉพาะตอนที่วันที่เปลี่ยน)
+  // เดือนค่าเช่าเดินตามวันที่ออกบิล
   function changeIssueDate(next) {
     setIssueDate(next)
     if (next) setBillingMonth(billingMonthOf(next))
@@ -630,7 +567,6 @@ function BillingWizard({ apartment, onClose }) {
   async function goToPreview() {
     if (!batch) return setError('กรุณาเลือกใบจดมิเตอร์')
     if (!billingMonth) return setError('กรุณาเลือกเดือนที่ต้องการออกบิล')
-    // DateField คืน '' จนกว่าจะกรอกครบและเป็นวันที่ที่มีอยู่จริง
     if (!issueDate) return setError('กรุณาระบุวันที่ออกบิลให้ถูกต้อง')
 
     setError('')
@@ -670,8 +606,7 @@ function BillingWizard({ apartment, onClose }) {
     refreshPreview()
   }
 
-  // ออกบิลทั้งหอเป็นเอกสารการเงินหลายสิบใบในคลิกเดียว (ยกเลิกได้ทีละใบเท่านั้น)
-  // จึงถามก่อนหนึ่งครั้ง พร้อมบอกรอบเดือนกับวันที่ออกบิล — จุดที่เลือกผิดบ่อยที่สุด
+  // ถามยืนยันก่อนออกบิลทั้งหอ
   function confirmCreateAll() {
     ask({
       tone: 'primary',
@@ -698,8 +633,7 @@ function BillingWizard({ apartment, onClose }) {
     if (!res.success) return res
 
     const { created, skipped, failed } = res.data
-    // ต้องรายงานทั้งสามกอง ไม่ใช่บอกแค่ "สำเร็จ" — ห้องที่ข้ามกับห้องที่พังคนละเรื่องกัน
-    // และห้องที่พังต้องเห็นว่าเป็นห้องไหนเพราะอีกสี่สิบห้องออกไปแล้ว
+    // รายงานทั้ง created / skipped / failed
     if (failed.length > 0) {
       setError(
         `ออกบิลไม่สำเร็จ ${failed.length} ห้อง:\n` +
@@ -710,14 +644,13 @@ function BillingWizard({ apartment, onClose }) {
       `ออกบิลแล้ว ${created.length} ห้อง` + (skipped.length > 0 ? ` · ข้าม ${skipped.length} ห้องที่ออกไปแล้ว` : ''),
       failed.length > 0 ? 'error' : 'success'
     )
-    // สำเร็จครบ → กลับหน้ารายการ (ที่รอบเดือนนี้) · มีห้องที่พัง → อยู่ต่อให้เห็นว่าห้องไหน
+    // สำเร็จครบ → กลับหน้ารายการ · มีห้องพัง → อยู่ต่อ
     if (failed.length > 0) refreshPreview()
     else onClose(billingMonth)
     return { success: true }
   }
 
-  // ห้องที่จ่ายค่าเช่าเดือนแรกไปแล้วไม่นับเป็นห้องที่รอออกบิล ไม่งั้นปุ่ม "สร้างทุกห้อง"
-  // จะบอกจำนวนเกินจริงแล้วผู้ใช้จะสงสัยว่าทำไมสร้างได้ไม่ครบ
+  // ไม่นับห้องที่จ่ายค่าเช่าเดือนแรกแล้ว
   const pending = preview.filter((row) => !row.existingInvoiceId && !row.startsThisMonth)
   const unpriced = preview.filter((row) => row.unpricedSides?.length > 0 && !row.existingInvoiceId)
 
@@ -731,7 +664,6 @@ function BillingWizard({ apartment, onClose }) {
         </button>
       </div>
 
-      {/* แถบขั้นตอนแนวนอนตามต้นแบบ — ขั้นที่ผ่านแล้วกดย้อนกลับได้ ขั้นที่ยังไม่ถึงกดไม่ได้ */}
       <div className="billing-steps">
         {STEPS.map((s, index) => (
           <button
@@ -791,8 +723,6 @@ function BillingWizard({ apartment, onClose }) {
                 </select>
               </div>
 
-              {/* วันที่ออกบิลมาก่อนเดือนค่าเช่า เพราะเดือนค่าเช่าเดินตามวันนี้
-                  (หอออกบิลวันที่ 1 เสมอ — วันจดมิเตอร์เป็นคนละวันและไม่แน่นอน) */}
               <div className="field">
                 <label htmlFor="issueDate">
                   วันที่ออกบิล <span className="required">* จำเป็น</span>
@@ -802,8 +732,6 @@ function BillingWizard({ apartment, onClose }) {
                   />
                 </label>
                 <DateField id="issueDate" value={issueDate} onChange={changeIssueDate} />
-                {/* วันที่นี้ไม่ได้เป็นแค่ตัวเลขบนหัวบิล — เลขที่บิลใช้ปี-เดือนของวันนี้
-                    (I2569 02 0001) วันครบกำหนดนับต่อจากวันนี้ และเดือนค่าเช่าก็มาจากวันนี้ */}
               </div>
 
               <div className="field">
@@ -828,8 +756,6 @@ function BillingWizard({ apartment, onClose }) {
                     </option>
                   ))}
                 </select>
-                {/* บิลใบเดียวมีสองเดือนอยู่ในนั้น — ต้องเขียนให้ชัดตั้งแต่ตอนเลือก ไม่ใช่ให้ไป
-                    เจอเอาตอนบิลออกไปถึงมือผู้เช่าแล้ว */}
                 <p className="field-hint">
                   ค่าน้ำ-ค่าไฟเป็นของเดือน{' '}
                   <strong>{formatBillingMonth(utilityMonthOf(billingMonth))}</strong>
@@ -861,8 +787,6 @@ function BillingWizard({ apartment, onClose }) {
               </button>
             </div>
 
-            {/* ห้องที่ใช้น้ำ/ไฟจริงแต่ไม่มีราคาให้คิด — ถ้าไม่บอกตรงนี้ บิล 0 บาทจะหลุดไปถึง
-                มือผู้เช่าโดยไม่มีใครสังเกต (เกิดกับห้องที่ถูกสร้างก่อนหอจะตั้งราคาค่าน้ำ/ค่าไฟ) */}
             {unpriced.length > 0 && (
               <Alert kind="warn">
                 <strong>
@@ -915,8 +839,6 @@ function BillingWizard({ apartment, onClose }) {
                             <span>{row.existingInvoiceNumber}</span>
                           </span>
                         ) : row.startsThisMonth ? (
-                          /* เพิ่งย้ายเข้าเดือนนี้ = จ่ายค่าเช่าเดือนแรกไปแล้วตอนทำสัญญา
-                             ต้องบอกว่าทำไมกดไม่ได้ ไม่ใช่ปุ่มหายไปเฉยๆ */
                           <span className="muted billing-skip">จ่ายค่าเช่าเดือนแรกแล้ว</span>
                         ) : (
                           <button
@@ -934,7 +856,6 @@ function BillingWizard({ apartment, onClose }) {
                 </tbody>
               </table>
             )}
-            {/* ไม่มีปุ่ม "เสร็จสิ้น" — เดิมแค่ปิดหน้า ซ้ำกับลิงก์ย้อนกลับด้านบน (เฟิสขอเอาออก 2026-09-26) */}
           </>
         )}
       </section>
@@ -942,25 +863,12 @@ function BillingWizard({ apartment, onClose }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ตัวเลือกเดือนที่ออกบิล — เดือนของใบจดเป็นหลัก แล้วให้เลือกย้อนหลังได้อีก 5 เดือน
-// กับล่วงหน้า 1 เดือน (หอที่เก็บค่าเช่าล่วงหน้าจะออกบิลของเดือนถัดไป)
-// เดือนที่ค่าเช่าบนบิลเป็นของ = **เดือนของวันที่ออกบิล**
-//
-// ยืนยันกับใบเสร็จจริงของหอแล้ว: ออกวันที่ 1 ก.พ. → ค่าเช่า (1 - 28 ก.พ.) + ค่าน้ำ-ไฟ (ม.ค.)
-//
-// เคยคิดจากวันจดมิเตอร์ (วันถัดไป / วันก่อนหน้า) ซึ่งใช้ได้เฉพาะหอที่จดวันสุดท้ายของเดือน
-// หรือวันที่ 1 เท่านั้น — หอที่จดวันที่ 28 จะได้เดือนค่าเช่าย้อนไปหนึ่งเดือนทุกครั้ง
-// และผู้ใช้ยืนยัน 2026-08-10 ว่า **ไม่รู้ว่าหอจดมิเตอร์วันไหน แต่รู้แน่ว่าออกบิลวันที่ 1 เสมอ**
-// วันจดมิเตอร์จึงเป็นหลักยึดที่เชื่อไม่ได้ ส่วนวันออกบิลเชื่อได้
+// เดือนค่าเช่า = เดือนของวันที่ออกบิล (บิล 1 ก.พ. = ค่าเช่า ก.พ. + น้ำไฟ ม.ค.)
 function billingMonthOf(issueDate) {
   return String(issueDate ?? '').slice(0, 7)
 }
 
-
-// เดือนที่ค่าน้ำ-ค่าไฟเป็นของ = เดือนก่อนเดือนค่าเช่า
-// **ต้องตรงกับ utilityMonthOf ใน src/main/db/invoices.js** — ที่นี่ใช้แสดงบนหน้าจอเท่านั้น
-// ข้อความที่ลงบิลจริงประกอบฝั่ง main
+// ต้องตรงกับ utilityMonthOf ใน main/db/invoices.js (ใช้แสดงผลเท่านั้น)
 function utilityMonthOf(billingMonth) {
   if (!billingMonth) return ''
   const [year, month] = String(billingMonth).split('-').map(Number)
@@ -969,7 +877,6 @@ function utilityMonthOf(billingMonth) {
   return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
-// ให้เลือกย้อนหลังได้เผื่อออกบิลตามหลัง และล่วงหน้าหนึ่งเดือนเผื่อออกก่อนสิ้นเดือน
 function monthOptions(issueDate) {
   const anchor = billingMonthOf(issueDate)
   if (!anchor) return []
@@ -989,7 +896,7 @@ function formatDate(iso) {
   return `${d}/${m}/${y}`
 }
 
-// '2026-08' -> '08-2026' ตามที่ต้นแบบขึ้นบนบิลและในตัวเลือก
+// '2026-08' -> '08-2026'
 function formatBillingMonth(month) {
   if (!month) return '-'
   const [y, m] = String(month).split('-')

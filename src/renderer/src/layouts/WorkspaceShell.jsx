@@ -10,29 +10,13 @@ import MoveOutHistoryPage from '../pages/MoveOutHistoryPage.jsx'
 import MaintenancePage from '../pages/MaintenancePage.jsx'
 import { SETTINGS_GROUPS, SettingsSection } from '../pages/SettingsPage.jsx'
 
-// หน้าจอทำงานภายในหอพักหนึ่งหอ — เมนูด้านข้างจะมีก็ต่อเมื่อเลือกหอแล้วเท่านั้น
-//
-// ไม่มีเมนู "หอพัก" ในแถบนี้โดยตั้งใจ เพราะการเปลี่ยนหอ = ออกไปหน้ารวม
-// ถ้าใส่ไว้ในเมนูข้างจะกลายเป็นว่ามีสองทางเข้าไปเรื่องเดียวกัน แล้วผู้ใช้สับสนว่า
-// ตอนนี้ตัวเองอยู่ในบริบทของหอไหน — ชื่อหอบนแถบบนคือคำตอบเดียวที่ควรมี
-//
-// "ตั้งค่า" กางออกในเมนูข้างเลย ไม่ใช่กดแล้วเข้าไปเจอเมนูซ้อนอีกชั้นในหน้า (ตามต้นแบบ)
-// เหตุผล: หัวข้อตั้งค่ามีสิบกว่าอัน ถ้าซ่อนไว้หลังการกดหนึ่งครั้ง คนจะไม่รู้ว่ามีอะไรบ้าง
-// และการสลับไปมาระหว่างหัวข้อต้องเสียการกดเพิ่มทุกครั้ง
-// **ไม่มีเมนู "สัญญา" กับ "การจอง" โดยตั้งใจ** — ทั้งสองเรื่องอยู่ในหน้ารายละเอียดห้อง
-// เหมือนต้นแบบ (สัญญาผูกกับห้อง ไม่ได้ลอยอยู่เดี่ยวๆ) เคยใส่ไว้แล้วกดเข้าไปเจอหน้าเปล่า
-// ซึ่งทำให้เข้าใจผิดว่ายังทำสัญญาไม่ได้ ทั้งที่ตัวช่วยทำสัญญาเสร็จตั้งแต่ Phase 2 แล้ว
-//
-// เมนูที่ยังไม่มีเนื้อหาจริงต้องบอกให้ชัดว่าจะมีอะไร ไม่ใช่ขึ้นว่า "โครงเปล่า" เฉยๆ
+// เมนูของหอที่เลือก — สัญญาและการจองอยู่ในหน้ารายละเอียดห้อง
 const NAV = [
   { key: 'dashboard', label: 'ภาพรวม' },
   { key: 'rooms', label: 'ห้องพัก' },
   { key: 'meters', label: 'จดมิเตอร์' },
   { key: 'invoices', label: 'ใบแจ้งหนี้' },
   { key: 'payments', label: 'การชำระเงิน' },
-  // ประวัติการย้ายออกเป็นเมนูของตัวเอง ไม่ได้ซ่อนอยู่ในหน้าห้อง — ต่างจากสัญญา/การจอง
-  // ที่ผูกกับห้องที่ยังมีคนอยู่ ผู้เช่าที่ย้ายออกแล้วไม่มีห้องให้เข้าไปหาอีกต่อไป
-  // (ห้องกลับเป็นห้องว่างและอาจมีผู้เช่าคนใหม่อยู่แล้ว)
   { key: 'moveOuts', label: 'ประวัติการย้ายออก' },
   { key: 'maintenance', label: 'แจ้งซ่อม' }
 ]
@@ -40,8 +24,7 @@ const NAV = [
 const SETTINGS_ITEMS = SETTINGS_GROUPS.flatMap((g) => g.items)
 
 export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
-  // หัวข้อที่สงวนไว้ให้เจ้าของหอ พนักงานจะไม่เห็นในเมนูเลย (ดู SETTINGS_GROUPS)
-  // เป็นการจัดหน้าจอเท่านั้น — ตัวกันสิทธิ์จริงอยู่ที่ requireOwnerUserId ฝั่ง main ทุกช่อง
+  // ซ่อนเมนูเจ้าของหอจากพนักงาน — สิทธิ์จริงตรวจที่ main
   const settingsGroups = SETTINGS_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => !item.ownerOnly || user.isOwner)
@@ -49,13 +32,10 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
 
   const [active, setActive] = useState('dashboard')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  // ห้องที่กำลังเปิดรายละเอียดอยู่ — null = อยู่ที่ตารางห้อง
   const [openRoom, setOpenRoom] = useState(null)
-  // บิลที่หน้าภาพรวมสั่งให้กางทันทีตอนสลับไปหน้าใบแจ้งหนี้ — null = เข้าหน้ารายการปกติ
   const [jumpInvoiceId, setJumpInvoiceId] = useState(null)
 
-  // ทางเดียวที่ใช้เปลี่ยนหน้าจากในเนื้อหา (ปุ่มบนหน้าภาพรวม) — ล้างสถานะที่ค้างจากหน้าก่อน
-  // ทุกครั้ง เหมือนตอนกดเมนูข้าง ไม่งั้นกดกลับมาหน้าเดิมแล้วเจอบิลใบเก่ากางอยู่
+  // เปลี่ยนหน้าจากในเนื้อหา — ล้างสถานะค้างจากหน้าก่อน
   function goto(key) {
     setJumpInvoiceId(null)
     setOpenRoom(null)
@@ -70,8 +50,6 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
       <aside className="sidebar">
         <div className="brand">Dormy Manager</div>
 
-        {/* ชื่อหอที่กำลังทำงานอยู่ ต้องเห็นตลอดเวลาไม่ว่าจะเลื่อนไปหน้าไหน
-            พร้อมทางออกกลับไปเลือกหออื่นในที่เดียวกัน */}
         <button type="button" className="apartment-switch" onClick={onExit}>
           <span className="apartment-switch-label">หอพักที่เลือก</span>
           <span className="apartment-switch-name">{apartment.nameTh}</span>
@@ -153,7 +131,6 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
             <DashboardPage
               apartment={apartment}
               onNavigate={goto}
-              // กดบิลจากตารางบิลค้าง = ไปหน้าใบแจ้งหนี้แล้วกางใบนั้นให้เลย
               onOpenInvoice={(invoiceId) => {
                 setJumpInvoiceId(invoiceId)
                 setOpenRoom(null)
@@ -165,7 +142,6 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
               <RoomDetailPage
                 apartment={apartment}
                 room={openRoom}
-                // ชื่อผู้ทำรายการไปขึ้นช่องลงชื่อในใบสรุปการย้ายออก
                 user={user}
                 onBack={() => setOpenRoom(null)}
               />
@@ -175,8 +151,7 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
           ) : active === 'meters' ? (
             <MetersPage apartment={apartment} />
           ) : active === 'invoices' ? (
-            // key เปลี่ยนตามบิลที่สั่งกาง = สั่งให้ React สร้างหน้าใหม่ ไม่ใช่ใช้ตัวเดิมที่
-            // อ่าน prop ไปแล้วตอน mount (ดูคำอธิบายที่ initialInvoiceId ใน InvoicesPage)
+            // key ตามบิลที่สั่งกาง — ให้ React สร้างหน้าใหม่
             <InvoicesPage
               key={jumpInvoiceId ?? 'list'}
               apartment={apartment}
@@ -184,12 +159,10 @@ export default function WorkspaceShell({ apartment, user, onExit, onLogout }) {
               initialInvoiceId={jumpInvoiceId}
             />
           ) : active === 'payments' ? (
-            // user ไปตัดสินว่าจะแสดงปุ่ม "ยกเลิกใบเสร็จ" ไหม (เจ้าของหอเท่านั้น)
             <ReceiptsPage apartment={apartment} user={user} />
           ) : active === 'maintenance' ? (
             <MaintenancePage apartment={apartment} />
           ) : active === 'moveOuts' ? (
-            // ชื่อผู้ที่ล็อกอินอยู่ไปขึ้นช่องลงชื่อในใบสรุปที่พิมพ์ย้อนหลัง
             <MoveOutHistoryPage apartment={apartment} user={user} />
           ) : settingsItem ? (
             <SettingsSection

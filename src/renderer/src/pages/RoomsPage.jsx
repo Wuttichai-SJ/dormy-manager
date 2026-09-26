@@ -6,15 +6,7 @@ import { formatPhone } from '../components/TenantDialog.jsx'
 import { ROOM_STATUS_LABELS } from '../constants.js'
 import { listRoomsForApartment } from '../services/contractService.js'
 
-// หน้า "ห้องพัก" — หน้าหลักของระบบตามต้นแบบ (สำรวจหน้าจริง 2026-07-31)
-//
-// ต้นแบบไม่มีเมนู "ผู้เช่า" หรือ "สัญญา" แยก ทุกอย่างเริ่มจากห้อง: ตารางห้องบอกว่า
-// ห้องไหนมีใครอยู่ ค่าเช่าเท่าไหร่ แล้วกด "รายละเอียด" เข้าไปจัดการสัญญาของห้องนั้น
-//
-// **สถานะ "จองแล้ว" ไม่ใช่ค่าใน rooms.status** — rooms.status มีแค่ ว่าง/ไม่ว่าง/ปิดปรับปรุง
-// และห้องที่มีคนจองไว้ก็ยังว่างจริงๆ (ยังไม่มีใครอยู่) หน้าจอจึงอ่านจากใบจองที่ยังกันห้องอยู่
-// แล้วขึ้นป้ายเอง ถ้าเก็บเป็นสถานะห้อง จะต้องมีคนคอยตั้งและล้างตามวงจรของใบจองทุกจังหวะ
-// แล้ววันหนึ่งก็ค้างเป็นสถานะเก่าที่ไม่ตรงกับความจริง
+// สถานะ "จองแล้ว" อ่านจากใบจอง ไม่ใช่ rooms.status
 export default function RoomsPage({ apartment, onOpenRoom }) {
   const [rooms, setRooms] = useState(null)
   const [error, setError] = useState('')
@@ -33,7 +25,7 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
     load()
   }, [load])
 
-  // นับจากทั้งหอเสมอ ไม่ใช่นับจากผลที่กรองแล้ว — ตัวเลขสรุปต้องไม่เปลี่ยนตามคำค้น
+  // นับจากทั้งหอ ไม่ใช่จากผลที่กรอง
   const [totals, setTotals] = useState({ total: 0, vacant: 0, booked: 0, outstanding: 0 })
   useEffect(() => {
     listRoomsForApartment(apartment.apartmentId).then((res) => {
@@ -41,7 +33,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
       setTotals({
         total: res.data.length,
         vacant: res.data.filter((r) => r.status === 'vacant').length,
-        // นับจากใบจองที่ยังกันห้องอยู่ ไม่ได้นับจากสถานะห้อง (ห้องที่มีคนจองยังว่างอยู่จริง)
         booked: res.data.filter((r) => r.booking).length,
         outstanding: res.data.filter((r) => r.invoiceOutstandingCents > 0).length
       })
@@ -67,8 +58,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
             aria-label="ค้นหาเลขห้อง"
           />
         </div>
-        {/* ค้นได้ทั้งผู้เช่าตามสัญญาและคนที่จองไว้แต่ยังไม่ย้ายเข้า — หอร้อยห้อง คนจอง
-            จำเลขห้องตัวเองไม่ได้ ชื่อจึงเป็นทางเดียวที่หาห้องเจอ (ผู้ใช้สั่ง 2026-08-10) */}
         <div className="search-field">
           <Icon name="search" />
           <input
@@ -117,9 +106,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                 <tr key={room.roomId}>
                   <td>
                     <span className="room-cell-number">{room.roomNumber}</span>
-                    {/* ห้องว่างที่มีคนจองไว้ขึ้น "จองแล้ว" แทน "ว่าง" — อ่านจากใบจองตรงๆ
-                        ไม่ได้เก็บเป็นสถานะห้อง จึงไม่มีทางค้างเป็นสถานะเก่าที่ไม่มีใครล้าง
-                        (ห้องที่มีคนอยู่แล้วยังขึ้น "ไม่ว่าง" เหมือนเดิม สัญญาชนะใบจองเสมอ) */}
                     {room.status === 'vacant' && room.booking ? (
                       <span className="room-badge status-booked">จองแล้ว</span>
                     ) : (
@@ -127,8 +113,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                         {ROOM_STATUS_LABELS[room.status] ?? room.status}
                       </span>
                     )}
-                    {/* เงินประกันที่ยังเก็บไม่ครบต้องเห็นตั้งแต่หน้ารวม ไม่ใช่ต้องกดเข้าไปดู
-                        ทีละห้อง — เคสจริงคือวางมัดจำครึ่งเดียวตอนจอง แล้วลืมเก็บส่วนที่เหลือ */}
                     {room.depositOutstandingCents > 0 && (
                       <span className="deposit-due-badge">
                         ค้างเงินประกัน {formatBaht(room.depositOutstandingCents)}
@@ -141,13 +125,10 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                         <div>{room.primaryTenant.fullName}</div>
                         <div className="muted room-cell-sub">
                           {formatPhone(room.primaryTenant.phone)}
-                          {/* ห้องที่อยู่กันหลายคน ต้องเห็นตั้งแต่ตาราง ไม่ใช่ต้องกดเข้าไปดู */}
                           {room.tenants.length > 1 && ` · และอีก ${room.tenants.length - 1} คน`}
                         </div>
                       </>
                     ) : room.booking ? (
-                      /* ห้องที่จองไว้ต้องบอกว่าใครจองและจะเข้าวันไหน ไม่งั้นเจ้าของหอเห็นแค่
-                         ป้าย "จองแล้ว" แล้วต้องกดเข้าไปดูทีละห้องว่ารอใครอยู่ */
                       <>
                         <div>{room.booking.customerName}</div>
                         <div className="muted room-cell-sub">
@@ -166,8 +147,7 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                       : <span className="muted">—</span>}
                   </td>
                   <td className="align-right">
-                    {/* ค่าเช่าที่แสดงคือของสัญญาจริง ไม่ใช่ราคาตั้งของห้อง เพราะสองอันนี้
-                        ต่างกันได้ (ต่อรองราคา / ขึ้นราคาห้องหลังเซ็นสัญญาไปแล้ว) */}
+                    {/* ค่าเช่าของสัญญาจริง ไม่ใช่ราคาตั้งของห้อง */}
                     {room.contractRentCents !== null
                       ? formatBaht(room.contractRentCents)
                       : <span className="muted">{formatBaht(room.monthlyRentCents)}</span>}

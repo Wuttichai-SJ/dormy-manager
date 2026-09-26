@@ -6,11 +6,9 @@ import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
 import RecoveryCodeInput from '../components/RecoveryCodeInput.jsx'
 import { resetPasswordWithTicket, verifyRecoveryCode } from '../services/authService.js'
 
-// ลืมรหัสผ่าน 3 ขั้น: ยืนยันรหัสสำรอง → ตั้งรหัสผ่านใหม่ → รับรหัสสำรองใบใหม่
-// ขั้นที่ 3 ไม่ใช่ของแถม แต่เป็นหัวใจของ rotate-on-use: ใบเก่าใช้ไม่ได้แล้วตั้งแต่วินาที
-// ที่ตั้งรหัสผ่านใหม่สำเร็จ ถ้าผู้ใช้ข้ามจอนี้ไปจะเหลือกระดาษใบเก่าที่ใช้ไม่ได้อยู่ในมือ
+// 3 ขั้น: ยืนยันรหัสสำรอง → ตั้งรหัสใหม่ → รับรหัสสำรองใบใหม่ (ใบเก่าใช้ไม่ได้แล้ว)
 export default function ForgotPasswordPage({ onCancel, onDone }) {
-  const [step, setStep] = useState('verify') // verify | reset | done
+  const [step, setStep] = useState('verify') /* verify | reset | done */
   const [identifier, setIdentifier] = useState('')
   const [recoveryCode, setRecoveryCode] = useState('')
   const [ticket, setTicket] = useState('')
@@ -32,7 +30,6 @@ export default function ForgotPasswordPage({ onCancel, onDone }) {
       setError(res.error)
       return
     }
-    // ตั๋วมีอายุ 10 นาทีนับจากตรงนี้ (main เป็นคนจับเวลา)
     setTicket(res.data.ticket)
     setFullName(res.data.fullName)
     setStep('reset')

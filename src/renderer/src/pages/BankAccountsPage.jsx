@@ -16,12 +16,9 @@ import {
   updateBankAccount
 } from '../services/bankAccountService.js'
 
-// ขั้นที่ 3 ของการตั้งค่าหอ — บัญชีรับเงิน + ข้อความแจ้งการชำระเงิน
-// สองเรื่องนี้อยู่หน้าเดียวกันตามต้นแบบ เพราะทั้งคู่ถูกพิมพ์ลงใบแจ้งหนี้ด้วยกัน
 const EMPTY = { bankName: '', accountName: '', accountNumber: '' }
 
 export default function BankAccountsPage({ apartment }) {
-  // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
   const [confirmDialog, ask] = useConfirm()
   const [accounts, setAccounts] = useState([])
   const [instructions, setInstructions] = useState('')
@@ -77,8 +74,6 @@ export default function BankAccountsPage({ apartment }) {
     load()
   }
 
-  // สองข้อความนี้อยู่ในฟอร์มเดียวกัน จึงบันทึกพร้อมกัน — ถ้าแยกปุ่มจะมีสองปุ่ม "บันทึก"
-  // ในการ์ดเดียวและผู้ใช้ต้องจำว่าปุ่มไหนคุมช่องไหน
   async function submitInstructions(e) {
     e.preventDefault()
     setError('')
@@ -114,9 +109,7 @@ export default function BankAccountsPage({ apartment }) {
             <label htmlFor="bankName">
               ธนาคาร <span className="required">* จำเป็น</span>
             </label>
-            {/* ไม่ใช้ <select> ที่นี่: รายการธนาคารยาว 18 รายการ ทำให้ Chromium กาง
-                รายการ **ขึ้นไปทับหัวข้อและตัวช่วยตั้งค่าทั้งหน้า** เพราะใต้ช่องมีที่ไม่พอ
-                และทิศทางนั้น CSS สั่งไม่ได้ (ดู components/SelectField.jsx) */}
+            {/* ใช้ SelectField — <select> กางขึ้นทับหน้าจอ */}
             <SelectField
               id="bankName"
               value={form.bankName}
@@ -147,7 +140,6 @@ export default function BankAccountsPage({ apartment }) {
               onChange={(e) => set('accountNumber', e.target.value)}
               inputMode="numeric"
             />
-            {/* พร้อมเพย์ใช้เบอร์โทรหรือเลขบัตรได้ จึงไม่บังคับจำนวนหลักตายตัว */}
           </div>
 
           <div className="bank-form-submit">
@@ -195,8 +187,6 @@ export default function BankAccountsPage({ apartment }) {
                   <td>{a.accountName}</td>
                   <td>{a.accountNumber}</td>
                   <td>
-                    {/* สวิตช์แทนลิงก์ "ตั้งเป็นหลัก" ตามต้นแบบ — เห็นได้ทันทีว่าอันไหนเป็น
-                        ค่าเริ่มต้นอยู่ ปิดเองไม่ได้ ต้องไปเปิดของอีกบัญชีแทน (มีได้ทีละอัน) */}
                     <ToggleSwitch
                       label=""
                       checked={a.isDefault}
@@ -270,8 +260,6 @@ export default function BankAccountsPage({ apartment }) {
             />
           </div>
 
-          {/* ข้อความที่สองท้ายบิล — คนละหน้าที่กับข้างบน อันบนบอก "วิธีแจ้งเมื่อโอนแล้ว"
-              อันนี้เป็นข้อตกลงประจำของหอ ต้นแบบขึ้นเป็นหัวข้อ "Note:" แยกกัน */}
           <div className="field">
             <label htmlFor="invoiceNote">ข้อความประจำท้ายใบแจ้งหนี้</label>
             <textarea
@@ -286,7 +274,6 @@ export default function BankAccountsPage({ apartment }) {
             />
           </div>
 
-          {/* ปุ่มบันทึกอยู่ในแถบเทาท้ายการ์ดตามต้นแบบ ไม่ลอยอยู่กับเนื้อหา */}
           <div className="card-foot">
             <button type="submit" className="btn">
               บันทึก

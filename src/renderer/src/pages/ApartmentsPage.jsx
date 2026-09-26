@@ -5,17 +5,11 @@ import { showToast } from '../components/Toast.jsx'
 import ApartmentFormPage from './ApartmentFormPage.jsx'
 import { listApartments } from '../services/apartmentService.js'
 
-// หน้าหอพัก — โครงตามหน้า "จัดการอพาร์ตเมนต์" ของต้นแบบ: การ์ดหนึ่งใบต่อหนึ่งหอ
-// บอกจำนวนห้องว่าง/ทั้งหมด แล้วมีทางเข้าไปจัดการต่อ
-//
-// ตัวเลข "บิลค้างชำระ" ของต้นแบบยังไม่ใส่ เพราะตาราง invoices ยังไม่มีข้อมูล (Phase 3)
-// จงใจไม่โชว์ 0 ไปก่อน — เลข 0 ที่ไม่ได้มาจากการนับจริงทำให้เจ้าของหอเข้าใจผิดว่า
-// "ไม่มีใครค้างเลย" ทั้งที่ระบบยังไม่ได้เริ่มออกบิล
 export default function ApartmentsPage({ user, onOpen, onCreated, onSetup }) {
   const [apartments, setApartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [view, setView] = useState({ mode: 'list' }) // list | create | edit
+  const [view, setView] = useState({ mode: 'list' }) /* list | create | edit */
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -41,11 +35,8 @@ export default function ApartmentsPage({ user, onOpen, onCreated, onSetup }) {
           apartmentId={view.apartmentId}
           onDone={(apartment) => {
             setView({ mode: 'list' })
-            // ข้อความแจ้งผลลอยมุมจอเหมือนต้นแบบ — ต้องสั่งจากตรงนี้ ไม่ใช่ในฟอร์ม
-            // เพราะฟอร์มถูกถอดออกจากจอทันทีหลังบันทึก (ดู components/Toast.jsx)
+            // ต้องสั่ง toast จากที่นี่ — ฟอร์มถูกถอดทันทีหลังบันทึก
             showToast(view.mode === 'create' ? 'เพิ่มข้อมูลสำเร็จ' : 'แก้ไขข้อมูลสำเร็จ')
-            // สร้างหอใหม่ = พาเข้าตัวช่วยตั้งค่าทันที (ตามต้นแบบ) ไม่ใช่ทิ้งไว้ที่รายการหอ
-            // แล้วให้เจ้าของเดาเองว่าต้องไปตั้งอะไรต่อที่ไหน
             if (view.mode === 'create') onCreated?.(apartment)
             else load()
           }}
@@ -56,8 +47,6 @@ export default function ApartmentsPage({ user, onOpen, onCreated, onSetup }) {
 
   return (
     <>
-      {/* สร้าง/แก้ข้อมูลหอเป็นของเจ้าของหอ (main บังคับที่ apartment:create / :update)
-          พนักงานเข้าหอที่มีอยู่ไปทำงานได้ตามปกติ แต่ไม่ได้ตั้งหอเอง */}
       {user?.isOwner && (
         <div className="page-actions">
           <button type="button" className="btn" onClick={() => setView({ mode: 'create' })}>
@@ -93,14 +82,12 @@ export default function ApartmentsPage({ user, onOpen, onCreated, onSetup }) {
             <ApartmentCard
               key={a.apartmentId}
               apartment={a}
-              // หอที่ยังเดินตัวช่วยตั้งค่าไม่ครบ 8 ขั้น เข้าหน้าทำงานที่มีเมนูข้างไม่ได้
-              // ต้องบอกด้วยว่าทำไมถึงเข้าไม่ได้ ไม่ใช่เด้งกลับเฉยๆ ให้เดาเอง
               onOpen={() => {
                 if (a.isSetupComplete) return onOpen(a)
                 showToast('ยังตั้งค่าตั้งต้นไม่สมบูรณ์', 'error')
                 onSetup?.(a)
               }}
-              // ส่ง null = ไม่มีปุ่ม "แก้ไข" ให้กด (พนักงานแก้ข้อมูลหอไม่ได้)
+              // null = ไม่มีปุ่มแก้ไข (พนักงาน)
               onEdit={
                 user?.isOwner
                   ? () => setView({ mode: 'edit', apartmentId: a.apartmentId })
@@ -115,11 +102,7 @@ export default function ApartmentsPage({ user, onOpen, onCreated, onSetup }) {
 }
 
 function ApartmentCard({ apartment, onOpen, onEdit }) {
-  // "ตั้งค่าเสร็จ" ต้องมาจากการกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่าเท่านั้น
-  //
-  // เดิมเดาจาก "มีห้องแล้ว = เสร็จ" ซึ่งผิด — หอที่สร้างผังห้องเสร็จ (ขั้น 5) แต่ยังไม่ได้
-  // ตั้งค่าเช่า/สถานะ/ค่าบริการ (ขั้น 6-8) ก็มีห้องเหมือนกัน แล้วหลุดเข้าหน้าทำงานที่มี
-  // เมนูข้างไปทั้งที่ค่าเช่ายังเป็น 0 ทุกห้อง — ออกบิลไปได้ศูนย์บาททั้งหอ
+  // ตั้งค่าเสร็จ = มี setupCompletedAt เท่านั้น (ไม่ใช่แค่มีห้อง)
   const needsSetup = !apartment.isSetupComplete
 
   return (
@@ -142,10 +125,6 @@ function ApartmentCard({ apartment, onOpen, onEdit }) {
         </div>
 
         <div className="apartment-card-actions">
-          {/* ทางเข้าหลักของการ์ด — กดแล้วเข้าไปทำงานในบริบทของหอนี้ (มีเมนูข้าง)
-              ส่วน "แก้ไข" คือแก้ข้อมูลหอเอง ซึ่งเป็นคนละเรื่องกัน */}
-          {/* ปุ่มเดียวเสมอ ไม่ว่าตั้งค่าเสร็จหรือยัง — หอที่ยังไม่เสร็จกดแล้วจะถูกพากลับ
-              เข้าตัวช่วยตั้งค่าพร้อมข้อความแจ้งเตือน (เหมือนต้นแบบ) ไม่ใช่ซ่อนปุ่มไว้ */}
           <button type="button" className="btn btn-sm" onClick={onOpen}>
             จัดการ
           </button>
@@ -154,8 +133,6 @@ function ApartmentCard({ apartment, onOpen, onEdit }) {
               แก้ไข
             </button>
           )}
-          {/* ปุ่มลบไม่ได้อยู่ตรงนี้ — อยู่ในหอนั้นเอง ที่ ตั้งค่า > ข้อมูลหอพัก (ตามต้นแบบ)
-              จึงต้องตั้งค่าให้เสร็จก่อนถึงจะลบได้ */}
         </div>
       </div>
     </article>

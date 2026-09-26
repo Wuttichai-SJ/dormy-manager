@@ -1,10 +1,7 @@
 import React, { useCallback, useState } from 'react'
 import Icon from '../Icon.jsx'
 
-// ข้อความ error ใต้ช่องกรอก — แบบเดียวกับฟอร์มทั่วไป: ขอบช่องแดง + ไอคอน + ข้อความแดง
-// ติดอยู่ใต้ช่องที่ผิดเลย (โอ๊คขอ 2026-09-25) ไม่ใช่ไปรวมไว้บนสุดของหน้าต่าง
-//
-// id ใช้ผูกกับ aria-describedby ของช่องกรอก โปรแกรมอ่านหน้าจอจะอ่านข้อความนี้ต่อจากชื่อช่อง
+// ข้อความ error ใต้ช่องกรอก
 export default function FieldError({ id, message }) {
   if (!message) return null
   return (
@@ -15,14 +12,7 @@ export default function FieldError({ id, message }) {
   )
 }
 
-// สถานะ error ของฟอร์มหนึ่งฟอร์ม
-//
-// main ส่ง { success: false, error, fields } มา (ดู src/main/fieldError.js)
-//   · fields บอกช่องที่ผิด → แสดงใต้ช่องนั้น
-//   · ช่องที่ฟอร์มนี้ไม่มี หรือ error ที่ไม่ได้บอกช่อง → formError แสดงบนสุดของหน้าต่าง
-// knownFields ต้องส่งมา — ไม่งั้น error ของช่องที่ฟอร์มนี้ไม่ได้วาดจะหายไปเงียบๆ
-//
-// clear(ช่อง) เรียกตอนผู้ใช้แก้ช่องนั้น — แก้แล้ว error ของช่องนั้นหายทันที ไม่ต้องรอกดบันทึก
+// fields จาก main → ใต้ช่อง · ช่องที่ฟอร์มไม่มี → formError บนสุด · knownFields ต้องส่งมา
 export function useFormErrors(knownFields) {
   const [state, setState] = useState({ fields: {}, form: '' })
 
@@ -40,7 +30,6 @@ export function useFormErrors(knownFields) {
         form: hasFields ? leftover.join('\n') : leftover.join('\n') || res.error || ''
       })
     },
-    // knownFields เป็นอาร์เรย์คงที่ที่ฟอร์มประกาศไว้ ไม่เปลี่ยนระหว่างใช้งาน
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
@@ -58,8 +47,7 @@ export function useFormErrors(knownFields) {
   return { errors: state.fields, formError: state.form, fromResult, clear, reset }
 }
 
-// ช่องที่มี error: กรอบแดง (.has-error ที่ div.field) + ผูกข้อความ error ให้โปรแกรมอ่านหน้าจอ
-// id ของข้อความ error = `${id ของช่อง}-error` เสมอ ใช้คู่กับ <FieldError id=...>
+// id ของข้อความ error = `${id}-error`
 export function fieldClass(base, error) {
   return error ? `${base} has-error` : base
 }

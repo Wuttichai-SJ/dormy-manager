@@ -1,20 +1,11 @@
 import React, { useRef } from 'react'
 
-// ช่องกรอกรหัสสำรอง 4 ช่อง ช่องละ 4 ตัว มีขีดคั่นตายตัว
-//
-// ทำไมต้องแยกช่อง: ผู้ใช้กำลังคัดรหัส 16 ตัวจากกระดาษที่จดไว้ ถ้าเป็นช่องยาวช่องเดียว
-// จะไม่รู้ว่าพิมพ์มาถึงกลุ่มไหนแล้ว ต้องนับตัวอักษรเอง — แยกช่องทำให้เทียบกับกระดาษ
-// ได้ทีละกลุ่มและเห็นทันทีว่าเหลืออีกกี่กลุ่ม
-//
-// ค่าที่ส่งออกไปข้างนอกเป็นสตริงล้วนไม่มีขีด (สูงสุด 16 ตัว) ฝั่ง main จะ normalize
-// อีกชั้นอยู่แล้ว ที่นี่จึงไม่ต้องใส่ขีดกลับเข้าไป
+// 4 ช่อง ช่องละ 4 ตัว · ค่าที่ส่งออกไม่มีขีด
 const SEG_LEN = 4
 const SEG_COUNT = 4
 const TOTAL = SEG_LEN * SEG_COUNT
 
-// ตัวอักษรที่ "ไม่มี" ในรหัสสำรอง (ดู CODE_ALPHABET ใน main/auth.js) — ตัดออกตั้งแต่ตอนสร้าง
-// เพราะหน้าตาซ้ำกับตัวอื่น ถ้าผู้ใช้พิมพ์มาแปลว่าอ่านกระดาษผิด จึงเตือนแทนที่จะปล่อยให้
-// กด "ตรวจสอบ" แล้วได้แค่ "รหัสไม่ถูกต้อง" ซึ่งไม่ได้บอกว่าผิดตรงไหน
+// ตัวอักษรที่ไม่มีในรหัสสำรอง (ดู CODE_ALPHABET ใน main/auth.js)
 const CONFUSABLE = /[01OIL]/
 
 function clean(value) {
@@ -31,14 +22,12 @@ export default function RecoveryCodeInput({ id, label, value, onChange, autoFocu
     code.slice(i * SEG_LEN, (i + 1) * SEG_LEN)
   )
 
-  // ย้ายเคอร์เซอร์ไปยังตำแหน่งตัวอักษรที่ n ของทั้งรหัส (ข้ามช่องให้เอง)
   function focusChar(position) {
     const clamped = Math.max(0, Math.min(position, TOTAL - 1))
     const box = refs.current[Math.floor(clamped / SEG_LEN)]
     if (!box) return
     box.focus()
     const offset = clamped % SEG_LEN
-    // ต้องรอให้ค่าใหม่ถูกวาดก่อนถึงจะตั้งตำแหน่งเคอร์เซอร์ได้ถูก
     requestAnimationFrame(() => box.setSelectionRange(offset, offset))
   }
 
@@ -64,7 +53,6 @@ export default function RecoveryCodeInput({ id, label, value, onChange, autoFocu
     const start = index * SEG_LEN + e.target.selectionStart
 
     if (e.key === 'Backspace' && e.target.selectionStart === 0 && index > 0) {
-      // อยู่หัวช่องแล้วกดลบ = ลบตัวท้ายของช่องก่อนหน้า (พฤติกรรมที่คนคาดหวังจากช่องแยก)
       e.preventDefault()
       const cut = index * SEG_LEN
       onChange(code.slice(0, cut - 1) + code.slice(cut))
@@ -81,7 +69,6 @@ export default function RecoveryCodeInput({ id, label, value, onChange, autoFocu
     }
   }
 
-  // วางทั้งรหัสทีเดียว (คัดลอกมาจากที่อื่น) ต้องกระจายลงทุกช่องให้ ไม่ใช่ยัดลงช่องเดียว
   function handlePaste(index, e) {
     e.preventDefault()
     writeAt(index * SEG_LEN + e.target.selectionStart, e.clipboardData.getData('text'))
@@ -106,8 +93,7 @@ export default function RecoveryCodeInput({ id, label, value, onChange, autoFocu
               onKeyDown={(e) => handleKeyDown(i, e)}
               onPaste={(e) => handlePaste(i, e)}
               onFocus={(e) => e.target.select()}
-              // maxLength 5 ไม่ใช่ 4 โดยตั้งใจ: ยอมให้พิมพ์เกินได้ 1 ตัวเพื่อให้ตัวที่ 5
-              // ไหลไปช่องถัดไปเองแทนที่จะถูกเบราว์เซอร์กลืนหายไปเงียบๆ
+              // maxLength 5 — ให้ตัวที่ 5 ไหลไปช่องถัดไป
               maxLength={SEG_LEN + 1}
               inputMode="text"
               autoComplete="off"

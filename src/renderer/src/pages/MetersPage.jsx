@@ -16,23 +16,15 @@ import {
   saveMeterReadings
 } from '../services/meterService.js'
 
-// หน้าจดมิเตอร์ — โครงตามต้นแบบ (คู่มือ yeeraf หัวข้อ "จดมิเตอร์น้ำ-ไฟ"):
-// รายการ "ใบจดมิเตอร์" หนึ่งใบต่อวันที่จด แล้วกดเข้าไปกรอกทีละฝั่ง (น้ำ / ไฟ)
-//
-// สองระดับอยู่ในหน้าเดียวกัน ไม่แยกเป็นเมนู เพราะการกรอกเลขมิเตอร์เป็นงานที่ทำรวดเดียว
-// แล้วจบ — เข้าไปกรอก บันทึก ถอยกลับ ไม่ได้เป็นหน้าที่ต้องเข้าถึงตรงๆ จากที่อื่น
 export default function MetersPage({ apartment }) {
   const [batches, setBatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
-  // ใบจดที่กำลังถามยืนยันก่อนลบ — null = ไม่ได้ถามอยู่
   const [deleting, setDeleting] = useState(null)
   const [readingDate, setReadingDate] = useState(today())
-  // error ของหน้าต่างสร้างใบจด แยกจาก error ของหน้า — ขึ้นใต้ช่องวันที่ในหน้าต่าง
   const createForm = useFormErrors(['readingDate'])
-  // ใบ+ฝั่งที่กำลังเปิดกรอกอยู่ — null = อยู่ที่รายการใบจด
   const [openSheet, setOpenSheet] = useState(null)
 
   const load = useCallback(async () => {
@@ -60,7 +52,6 @@ export default function MetersPage({ apartment }) {
     load()
   }
 
-  // เรียกจากหน้าต่างยืนยันเท่านั้น — ล้มเหลวคืนผลให้หน้าต่างแสดง error เอง
   async function remove(batch) {
     const res = await deleteMeterBatch(batch.batchId)
     if (!res.success) return res
@@ -134,8 +125,6 @@ export default function MetersPage({ apartment }) {
                     </button>
                   ))}
 
-                  {/* ใบที่ออกบิลไปแล้วยังเปิดดูได้ แต่ลบไม่ได้ — ปุ่มหายไปเลยดีกว่าขึ้นแล้วกดไม่ได้
-                      เพราะผู้ใช้จะไม่รู้ว่าทำไม จึงบอกด้วยป้ายแทน */}
                   {batch.isUsedForBilling ? (
                     <span className="tag">ออกบิลแล้ว</span>
                   ) : (
@@ -201,11 +190,6 @@ export default function MetersPage({ apartment }) {
   )
 }
 
-// ------------------------------------------------------------------
-// ตารางกรอกเลขมิเตอร์ของฝั่งหนึ่ง
-// ------------------------------------------------------------------
-// ต้นแบบให้กรอกทั้งตารางแล้วกดบันทึกครั้งเดียว ฝั่ง main ก็เขียนทั้งใบในธุรกรรมเดียว
-// (แถวเดียวผิด = ไม่มีแถวไหนถูกเขียน) หน้าจอจึงต้องถือค่าที่กำลังแก้ไว้ทั้งตาราง
 function MeterSheet({ batchId, side, onBack }) {
   const [sheet, setSheet] = useState(null)
   const [rows, setRows] = useState([])
@@ -225,11 +209,9 @@ function MeterSheet({ batchId, side, onBack }) {
     setRows(
       res.data.rooms.map((room) => ({
         ...room,
-        // ช่องกรอกเก็บเป็นข้อความ ไม่ใช่ตัวเลข — ไม่งั้นลบเลขจนว่างแล้วจะเด้งเป็น 0
-        // ทันทีจนพิมพ์ต่อไม่ได้
+        // เก็บเป็นข้อความ — ลบจนว่างต้องไม่เด้งเป็น 0
         currentInput: room.currentReading === null ? '' : String(room.currentReading),
-        // สามสถานะที่เลือกได้ทีละอย่าง เก็บเป็นค่าเดียวไม่ใช่ boolean สองตัว — สองตัวติ๊ก
-        // พร้อมกันได้ แล้วต้องมาตัดสินทีหลังว่าอันไหนชนะ
+        // สามสถานะเลือกได้ทีละอย่าง — เก็บเป็นค่าเดียว
         meterEvent: room.isMeterReplaced ? 'replaced' : room.isOverCycle ? 'over_cycle' : 'normal',
         removedInput: room.removedReading === null ? '' : String(room.removedReading),
         newStartInput: room.newStartReading === null ? '' : String(room.newStartReading)
@@ -245,12 +227,7 @@ function MeterSheet({ batchId, side, onBack }) {
     setRows((list) => list.map((r) => (r.roomId === roomId ? { ...r, ...patch } : r)))
   }
 
-  // กด Enter แล้วลงไปกรอกห้องถัดไปต่อได้เลย — คนจดมิเตอร์ถือกระดาษเดินไล่ห้องแล้วพิมพ์
-  // ตัวเลขรวดเดียว ถ้าต้องละมือไปคลิกทีละช่องจะช้ากว่าการพิมพ์มาก
-  //
-  // เลื่อนไปเสมอแม้แถวนั้นยังคำนวณไม่ได้ (เลขลดลงโดยไม่ติ๊กเกินรอบ) ไม่งั้นจะกลายเป็น
-  // กักคนไว้ในช่องที่เขาอาจตั้งใจย้อนกลับมาแก้ทีหลัง — เครื่องหมายเตือนในคอลัมน์หน่วย
-  // บอกอยู่แล้วว่าแถวไหนยังไม่เรียบร้อย และฝั่ง main ก็ไม่ยอมให้บันทึกอยู่ดี
+  // Enter = ไปห้องถัดไป
   const inputsRef = useRef(new Map())
 
   function focusNextRoom(roomId) {
@@ -261,14 +238,10 @@ function MeterSheet({ batchId, side, onBack }) {
     const el = inputsRef.current.get(next.roomId)
     if (!el) return
     el.focus()
-    // เลือกข้อความเดิมไว้ให้ด้วย พิมพ์ทับได้เลยโดยไม่ต้องลบก่อน (ห้องที่เคยจดไว้แล้ว
-    // จะมีเลขเก่าค้างอยู่ในช่อง)
     el.select()
   }
 
-  // บันทึกเฉพาะห้องที่กรอกเลขปัจจุบันมาจริงๆ — ห้องที่เว้นว่างแปลว่ายังไม่ได้ไปจด
-  // ไม่ใช่จดได้ 0 การส่ง 0 ไปให้ทุกห้องจะทำให้บิลของห้องที่ยังไม่ได้จดออกมาเป็น 0 หน่วย
-  // ทั้งที่ความจริงคือยังไม่มีข้อมูล
+  // ส่งเฉพาะห้องที่กรอกเลขปัจจุบัน — ว่าง = ยังไม่ได้จด (ไม่ใช่ 0)
   const filled = useMemo(() => rows.filter((r) => r.currentInput.trim() !== ''), [rows])
 
   async function save() {
@@ -277,15 +250,14 @@ function MeterSheet({ batchId, side, onBack }) {
     const res = await saveMeterReadings(
       batchId,
       side,
-      // ไม่ส่งเลขครั้งก่อนไป — ฝั่ง main คิดเองจากเลขปิดของรอบก่อน (ส่งไปก็ไม่ถูกใช้)
+      // ไม่ส่งเลขครั้งก่อน — main คิดเอง
       filled.map((r) => ({
         roomId: r.roomId,
         roomNumber: r.roomNumber,
         currentReading: Number(r.currentInput || 0),
         isOverCycle: r.meterEvent === 'over_cycle',
         isMeterReplaced: r.meterEvent === 'replaced',
-        // ส่งเป็นข้อความไปตามที่พิมพ์ — ช่องว่างต้องไปถึงฝั่ง main เพื่อให้มันเป็นคน
-        // บอกว่า "ต้องกรอกเลขตอนถอดมิเตอร์เก่า" ไม่ใช่กลายเป็น 0 เงียบๆ ระหว่างทาง
+        // ส่งข้อความตามที่พิมพ์ — ช่องว่างต้องไปถึง main
         removedReading: r.removedInput,
         newStartReading: r.newStartInput
       }))
@@ -320,8 +292,6 @@ function MeterSheet({ batchId, side, onBack }) {
         </h2>
         <Alert>{error}</Alert>
 
-        {/* ห้องที่มีผู้เช่าแต่ถูกปิดใช้งานไว้ จะไม่อยู่ในตารางนี้ — ต้องบอกว่าห้องไหนหายไป
-            และหายเพราะอะไร ไม่ใช่ปล่อยให้ไปนับห้องเอาเองว่าครบหรือไม่ */}
         {sheet?.hiddenRooms?.length > 0 && (
           <Alert kind="warn">
             ห้อง {sheet.hiddenRooms.join(', ')} ถูกปิดใช้งาน จึงไม่อยู่ในใบนี้ — เปิดได้ที่ ตั้งค่า →
@@ -329,9 +299,6 @@ function MeterSheet({ batchId, side, onBack }) {
           </Alert>
         )}
 
-        {/* ห้องที่เปลี่ยนผู้เช่าหลังรอบจดล่าสุด — โซ่มิเตอร์ถูกตัดแล้วเริ่มใหม่ที่เลขในสัญญา
-            ต้องประกาศออกมา ไม่ใช่เปลี่ยนตัวเลขให้เงียบๆ เพราะถ้าเลขในสัญญากรอกผิด
-            (หรือลืมกรอกจนเป็น 0) บิลใบแรกของผู้เช่าใหม่จะพุ่งโดยไม่มีอะไรบอก */}
         {sheet?.newTenantRooms?.length > 0 && (
           <Alert kind="warn">
             <strong>ห้องที่เปลี่ยนผู้เช่า — เริ่มนับเลขใหม่</strong>
@@ -376,12 +343,9 @@ function MeterSheet({ batchId, side, onBack }) {
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  // ยังไม่กรอกกับกรอกแล้วคำนวณไม่ได้ ต้องแสดงคนละอย่าง — ถ้ารวมเป็นกรณีเดียว
-                  // ห้องที่ยังไม่ได้ไปจดจะขึ้นเครื่องหมายเตือนสีแดงทั้งตารางตั้งแต่เปิดหน้ามา
+                  // ยังไม่กรอก ≠ กรอกแล้วคำนวณไม่ได้
                   const pending = row.currentInput.trim() === ''
                   const replaced = row.meterEvent === 'replaced'
-                  // แยกกรณี "พิมพ์เกินหลัก" ออกมาเพื่อให้คำเตือนบอกตรงเหตุ — เป็นความผิดพลาด
-                  // ที่เกิดบ่อยสุดตอนไล่พิมพ์เร็วๆ ทั้งหอ (กด 0 เกินไปหนึ่งตัว)
                   const overDial = !pending && Number(row.currentInput) >= 10 ** sheet.meterDigits
                   const units = pending
                     ? null
@@ -392,9 +356,6 @@ function MeterSheet({ batchId, side, onBack }) {
                         newStartReading: row.newStartInput,
                         meterDigits: sheet?.meterDigits
                       })
-                  // ข้อความบอกว่าแถวนี้ผิดตรงไหน — ขึ้นใต้ช่องกรอกของแถวนั้นเลย ไม่ซ่อนใน title
-                  // (โอ๊คเลือก 2026-09-25) คนจดมือยังอยู่บนคีย์บอร์ด ต้องเห็นโดยไม่ต้องจับเมาส์
-                  // และเลขที่ผิดคือบิลที่ผิด จึงเข้ากติกา "เตือนเรื่องเงินต้องเห็นเลย"
                   const problem =
                     !pending && units === null ? meterProblem(row, sheet.meterDigits, overDial) : null
                   const problemId = `meter-problem-${row.roomId}`
@@ -406,9 +367,7 @@ function MeterSheet({ batchId, side, onBack }) {
                           {ROOM_STATUS_LABELS[row.status] ?? row.status}
                         </span>
                       </td>
-                      {/* อ่านอย่างเดียว — เลขปิดของรอบก่อนคือเลขเปิดของรอบนี้ ไม่ใช่ตัวเลข
-                          ที่กรอกทับได้ แก้ได้เมื่อไหร่โซ่มิเตอร์ก็ขาดได้เมื่อนั้น
-                          ป้าย "ผู้เช่าใหม่" ขึ้นเฉพาะแถวที่โซ่ถูกตัดจริง (มีเลขรอบก่อนถูกข้าม) */}
+                      {/* อ่านอย่างเดียว — เลขปิดรอบก่อนคือเลขเปิดรอบนี้ */}
                       <td className="align-right meter-previous">
                         {row.previousReading}
                         {row.supersededReading !== null &&
@@ -422,7 +381,6 @@ function MeterSheet({ batchId, side, onBack }) {
                           )}
                       </td>
                       <td className="align-right">
-                        {/* ช่องเลข + ตัวเลือกกรณีอยู่แถวเดียวกัน สูงเท่ากัน — แถวตารางจะได้ไม่สูงขึ้น */}
                         <div className="meter-entry">
                           <input
                             className="meter-input"
@@ -442,9 +400,6 @@ function MeterSheet({ batchId, side, onBack }) {
                               focusNextRoom(row.roomId)
                             }}
                           />
-                          {/* สองเหตุการณ์ที่ทำให้เลขปัจจุบันน้อยกว่าครั้งก่อนได้โดยไม่ได้จดผิด
-                              และคิดหน่วยคนละสูตรกัน จึงเป็นตัวเลือกที่เลือกได้ทีละอย่าง
-                              ไม่ใช่ช่องติ๊กสองช่องที่ติ๊กพร้อมกันได้ */}
                           <select
                             className={
                               row.meterEvent === 'normal'
@@ -461,8 +416,6 @@ function MeterSheet({ batchId, side, onBack }) {
                           </select>
                         </div>
 
-                        {/* เลขสองตัวนี้ต้องเก็บไว้ ไม่ใช่แค่ใช้คำนวณแล้วทิ้ง — ปีหน้ามีคนถามแน่
-                            ว่าทำไมเลขมิเตอร์ห้องนี้กระโดด แล้วต้องตอบได้จากข้อมูลที่มี */}
                         {replaced && (
                           <div className="meter-replace-fields">
                             <label>
@@ -500,7 +453,6 @@ function MeterSheet({ batchId, side, onBack }) {
                         {pending ? (
                           <span className="muted">—</span>
                         ) : units === null ? (
-                          // ไอคอนยังอยู่ไว้กวาดตาดูทั้งตาราง — ส่วนเหตุผลอยู่ใต้ช่องกรอกของแถวนี้
                           <span className="meter-units-bad" role="img" aria-label="คำนวณหน่วยไม่ได้">
                             <Icon name="warning" />
                           </span>
@@ -548,8 +500,7 @@ function formatDateTime(iso) {
   return `${pad2(at.getDate())}/${pad2(at.getMonth() + 1)}/${at.getFullYear()} ${pad2(at.getHours())}:${pad2(at.getMinutes())}`
 }
 
-// เหตุที่แถวนี้คำนวณหน่วยไม่ได้ — ไล่ตามลำดับเดียวกับ previewUnitsUsed (constants.js)
-// ข้อความต้องบอก "ต้องทำอะไร" ไม่ใช่แค่ว่าผิด
+// ลำดับเดียวกับ previewUnitsUsed (constants.js)
 function meterProblem(row, meterDigits, overDial) {
   const current = Number(row.currentInput)
   if (!Number.isFinite(current) || current < 0) return 'กรอกเป็นตัวเลขเท่านั้น'

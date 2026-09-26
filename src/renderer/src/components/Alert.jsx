@@ -1,14 +1,11 @@
 import React from 'react'
 import Icon from '../Icon.jsx'
 
-// กล่องข้อความแจ้งเตือนของฟอร์ม
-// ฝั่ง main รวมข้อผิดพลาดหลายข้อมาเป็นสตริงเดียวคั่นด้วย \n (ดู validateUserInput)
-// ตรงนี้จึงแตกกลับเป็นรายการ เพื่อให้ผู้ใช้เห็นครบทุกข้อที่ต้องแก้ในรอบเดียว
+// แตกข้อความที่คั่นด้วย \n เป็นรายการ
 export default function Alert({ kind = 'error', children }) {
   if (!children) return null
 
   const lines = typeof children === 'string' ? children.split('\n').filter(Boolean) : null
-  // เฉพาะ success เท่านั้นที่ใช้เครื่องหมายถูก — คำเตือนต้องไม่ดูเหมือนว่าทุกอย่างเรียบร้อย
   const icon = kind === 'success' ? 'check' : 'warning'
 
   return (

@@ -1,10 +1,6 @@
 import React from 'react'
 import Modal from './Modal.jsx'
 
-// ฟอร์มผู้เช่าในหน้าต่างซ้อน — ใช้ได้ทั้งตอนเพิ่มและตอนแก้ไข
-//
-// อยู่ที่ components/ ไม่ใช่ในหน้าใดหน้าหนึ่ง เพราะต้นแบบไม่มีหน้า "ผู้เช่า" แยก
-// การเพิ่ม/แก้ผู้เช่าเกิดในหน้ารายละเอียดห้อง (การ์ด "ข้อมูลผู้เช่า") และตอนทำสัญญา
 export const EMPTY_TENANT = {
   firstName: '',
   lastName: '',
@@ -71,7 +67,6 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
             onChange={(e) => set('idCardNo', e.target.value)}
             inputMode="numeric"
           />
-          {/* บอกให้ชัดว่าเว้นได้ ไม่งั้นเจ้าหน้าที่จะกรอกเลขมั่วเพื่อให้ผ่าน */}
           <p className="field-hint">เว้นว่างได้ ถ้ายังไม่ได้เอกสาร — เติมทีหลังได้</p>
         </div>
       </div>
@@ -126,8 +121,7 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
   )
 }
 
-// แสดงผลให้อ่านง่ายเท่านั้น — ในฐานข้อมูลเก็บเป็นตัวเลขล้วนเสมอ (ดู db/tenants.js)
-// export ไว้ให้ตารางผู้เช่าในหน้ารายละเอียดห้องใช้ร่วมกัน จะได้ไม่เขียนสูตรซ้ำสองที่
+// แสดงผลเท่านั้น — ฐานข้อมูลเก็บตัวเลขล้วน
 export function formatPhone(digits) {
   if (digits?.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
   return digits

@@ -5,14 +5,7 @@ import { showToast } from '../components/Toast.jsx'
 import { DEPOSIT_REFUND_POLICIES } from '../constants.js'
 import { getDepositPolicy, saveDepositPolicy } from '../services/apartmentService.js'
 
-// ตั้งค่า > เงินประกันและการคืนเงิน
-//
-// 🔴 **หน้านี้ตั้ง "ค่าตั้งต้นของสัญญาใบใหม่" ไม่ได้เปลี่ยนกฎของสัญญาที่เซ็นไปแล้ว**
-// กฎถูกถ่ายสำเนาลงตัวสัญญาตั้งแต่วันทำสัญญา (migration 004) เพราะผู้เช่าที่เซ็นตอนกติกา
-// คือ "แจ้งล่วงหน้า 15 วัน" ต้องไม่โดนกติกา 60 วันย้อนหลัง — เรื่องนี้กลายเป็นข้อพิพาทได้จริง
-//
-// ต้นแบบ (yeeraf) ไม่มีเรื่องนี้เลย ของเขาคือพนักงานพิมพ์ยอดคืนเอาเองตอนย้ายออก
-// กฎอัตโนมัติทั้งชุดนี้เป็นของหอนี้เอง
+// ค่าตั้งต้นของสัญญาใหม่เท่านั้น — สัญญาเดิมใช้กฎที่ตรึงไว้
 export default function DepositPolicyPage({ apartment }) {
   const [form, setForm] = useState(null)
   const [saved, setSaved] = useState(null)
@@ -59,8 +52,6 @@ export default function DepositPolicyPage({ apartment }) {
 
   return (
     <>
-      {/* คำเตือนที่สำคัญที่สุดของหน้านี้ ต้องอยู่เหนือฟอร์ม ไม่ใช่เป็นเชิงอรรถข้างล่าง —
-          คนที่เข้ามาแก้ตัวเลขส่วนใหญ่คาดหวังว่ามันจะมีผลกับทุกคนทันที ซึ่งไม่ใช่ */}
       <Alert kind="warn">
         การแก้ที่นี่<strong>ไม่กระทบสัญญาที่ทำไปแล้ว</strong>
         {saved.activeContractCount > 0 && ` (${saved.activeContractCount} ใบที่ใช้งานอยู่)`} ·
@@ -104,8 +95,7 @@ export default function DepositPolicyPage({ apartment }) {
             <p className="field-hint">{selected?.hint}</p>
           </div>
 
-          {/* สองช่องล่างมีผลเฉพาะนโยบาย "คืนเมื่ออยู่ครบ" — อีกสองแบบตัดสินโดยไม่ดูเงื่อนไข
-              ซ่อนไปเลยดีกว่าปล่อยให้กรอกค่าที่ไม่ถูกใช้ แล้วเข้าใจว่าตั้งไปแล้วมีผล */}
+          {/* สองช่องนี้ใช้เฉพาะนโยบาย "คืนเมื่ออยู่ครบ" */}
           {form.policy === 'on_full_term' && (
             <>
               <div className="field">
@@ -141,8 +131,6 @@ export default function DepositPolicyPage({ apartment }) {
                   onChange={(e) => setForm((f) => ({ ...f, minStayMonths: e.target.value }))}
                   placeholder="เว้นว่าง = ตามระยะสัญญาของแต่ละใบ"
                 />
-                {/* ค่าที่หอนี้ใช้อยู่คือเว้นว่าง — สัญญา 12 เดือนก็ต้องอยู่ครบ 12
-                    ใส่ตัวเลขเมื่อต้องการเกณฑ์ตายตัวที่ไม่ขึ้นกับระยะสัญญา */}
               </div>
             </>
           )}

@@ -1,19 +1,11 @@
-// ตัวห่อ IPC ของการแจ้งย้ายออก / ยกเลิกสัญญา / คืนเงินประกัน
-// ช่องทั้งหมดอยู่ที่ src/main/handlers/terminationHandlers.js
-//
-// ไม่ต้องส่ง "ผู้ทำรายการ" ไปเอง — ฝั่ง main อ่านจากเซสชันที่ล็อกอินอยู่เสมอ
 import { invoke } from './ipc.js'
 
-// บันทึกวันที่ผู้เช่าแจ้งย้ายออก · ส่ง null เพื่อยกเลิกการแจ้ง (ผู้เช่าเปลี่ยนใจไม่ย้ายแล้ว)
+// ส่ง null เพื่อยกเลิกการแจ้ง
 export function setMoveOutNotice(contractId, noticeDate) {
   return invoke('termination:setNotice', { contractId, noticeDate })
 }
 
-// หน้าสรุปก่อนยืนยัน — คำนวณอย่างเดียว ยังไม่เขียนอะไรลงฐานข้อมูล
-// เรียกใหม่ทุกครั้งที่เปลี่ยนวันที่ออกหรือแก้รายการ เพราะทั้งผลการตัดสินเรื่องเงินประกัน
-// และยอดสุทธิขยับตามวันที่ (สูตรอยู่ฝั่ง main ที่เดียว)
-// overrideRefundable = null/undefined ใช้ผลตามกฎ · true/false คือเจ้าของหอตัดสินเอง
-// ต้องส่งไปด้วยเสมอ ไม่งั้นยอดสรุปบนจอจะเป็นของ "ตามกฎ" ค้างไว้ทั้งที่ติ๊กข้ามกฎแล้ว
+// overrideRefundable: null = ตามกฎ · true/false = เจ้าของตัดสินเอง (ต้องส่งเสมอ)
 export function getTerminationSheet({ contractId, moveOutDate, adjustments, overrideRefundable }) {
   return invoke('termination:sheet', {
     contractId,
@@ -23,8 +15,6 @@ export function getTerminationSheet({ contractId, moveOutDate, adjustments, over
   })
 }
 
-// ยืนยันย้ายออก — ตัดหนี้จากเงินประกัน ออกใบเสร็จคืนเงิน ปิดสัญญา คืนห้องเป็นว่าง
-// ทั้งหมดในธุรกรรมเดียว · overrideRefundable ใส่เมื่อเจ้าของตัดสินต่างจากกฎ (ต้องมีเหตุผล)
 export function completeTermination(payload) {
   return invoke('termination:complete', payload)
 }
@@ -33,14 +23,10 @@ export function getTermination(contractId) {
   return invoke('termination:get', { contractId })
 }
 
-// ประวัติการย้ายออกทั้งหมดของหอ — ค้นด้วยเลขห้องหรือชื่อผู้เช่า กรองด้วยช่วงวันที่ย้ายออก
-// (ใส่ข้างเดียวได้ วันขอบนับรวม)
 export function listTerminations(apartmentId, { search, dateFrom, dateTo } = {}) {
   return invoke('termination:list', { apartmentId, search, dateFrom, dateTo })
 }
 
-// ตามเก็บเงินส่วนต่างที่ตอนย้ายออกติ๊กไว้ว่า "ยังเก็บไม่ได้"
-// ทยอยเก็บทีละส่วนได้ แต่เก็บเกินยอดค้างไม่ได้ (main เป็นฝ่ายบังคับ)
 export function collectShortfall({ contractId, amount, paymentMethod, paymentDate, remark }) {
   return invoke('termination:collect', {
     contractId,

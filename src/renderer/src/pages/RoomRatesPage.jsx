@@ -15,32 +15,23 @@ import {
 } from '../services/roomService.js'
 import { listServices } from '../services/apartmentServiceService.js'
 
-// ขั้นที่ 6-8 ของการตั้งค่าหอ — ค่าห้อง / สถานะห้อง / ค่าบริการรายห้อง
-//
-// สามเรื่องนี้อยู่ไฟล์เดียวกันเพราะวิธีใช้เหมือนกันเป๊ะตามต้นแบบ: เลือกห้อง (ทีละห้อง
-// หรือทั้งชั้น) → กดปุ่มที่แถบล่าง → กรอกค่าในหน้าต่างซ้อน → สั่งทีเดียวทุกห้องที่เลือก
-// หอ 40 ห้องส่วนใหญ่ราคาเท่ากันหมด ถ้าให้กรอกทีละห้องคือพิมพ์เลขเดิม 40 รอบ
-//
-// only: ล็อกไว้โหมดเดียวและซ่อนแท็บ ใช้ตอนอยู่ใน wizard ที่แยกเป็นคนละขั้นตามต้นแบบ
+// ขั้น 6-8: ค่าห้อง / สถานะห้อง / ค่าบริการรายห้อง · only = ล็อกโหมดเดียว (ใน wizard)
 const MODES = {
   rate: { tab: 'ตั้งค่าห้อง', action: 'ระบุค่าห้อง' },
-  status: { tab: 'ตั้งสถานะห้อง', action: null }, // สถานะกดปุ่มตรงๆ ไม่ต้องเปิดหน้าต่าง
+  status: { tab: 'ตั้งสถานะห้อง', action: null },
   services: { tab: 'ค่าบริการรายห้อง', action: 'เพิ่มค่าบริการ' }
 }
 
 export default function RoomRatesPage({ apartment, only }) {
   const [floors, setFloors] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
-  // แท็บใช้เฉพาะตอนเปิดหน้านี้เดี่ยวๆ จากเมนูตั้งค่า ส่วนใน wizard โหมดมาจาก prop `only`
-  // ห้ามเอา `only` ไปตั้งเป็นค่าเริ่มต้นของ useState เด็ดขาด — ค่าเริ่มต้นถูกอ่านครั้งเดียว
-  // ตอน mount แรก พอ wizard เปลี่ยนขั้นแล้วส่ง only ใหม่มา state จะยังค้างค่าเก่า
+  // ห้ามใช้ only เป็นค่าเริ่มต้นของ useState — อ่านครั้งเดียวตอน mount
   const [tab, setTab] = useState('rate')
   const mode = only ?? tab
   const [error, setError] = useState('')
   const [catalogue, setCatalogue] = useState([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  // error ของหน้าต่าง (ค่าห้อง / ค่าบริการ) แยกจาก error ของหน้า — ขึ้นในหน้าต่าง ใต้ช่องที่ผิด
   const dialogForm = useFormErrors(['monthlyRent', 'dailyRent'])
 
   const load = useCallback(async () => {
@@ -58,14 +49,12 @@ export default function RoomRatesPage({ apartment, only }) {
     load()
   }, [load])
 
-  // ปิดหน้าต่าง = ล้าง error ของหน้าต่าง ไม่ให้ค้างไปถึงรอบเปิดถัดไป
   function closeDialog() {
     setDialogOpen(false)
     dialogForm.reset()
   }
 
-  // เปิดหน้าต่างอยู่ (ค่าห้อง / ค่าบริการ) → error ขึ้นในหน้าต่าง
-  // ไม่ได้เปิด (ปุ่มสถานะห้องบนหน้า) → error ขึ้นบนหน้า — ไม่งั้นหายไปเงียบๆ
+  // มีหน้าต่างเปิด → error ในหน้าต่าง · ไม่มี → error บนหน้า
   async function act(fn) {
     setError('')
     dialogForm.reset()
@@ -75,7 +64,7 @@ export default function RoomRatesPage({ apartment, only }) {
     if (!res.success) return dialogOpen ? dialogForm.fromResult(res) : setError(res.error)
     setFloors(res.data)
     setDialogOpen(false)
-    // ล้างการเลือกหลังสั่งสำเร็จ กันการกดซ้ำโดยไม่ตั้งใจกับชุดเดิม
+    // ล้างการเลือกหลังสั่งสำเร็จ
     setSelected(new Set())
   }
 
@@ -180,8 +169,6 @@ export default function RoomRatesPage({ apartment, only }) {
         )
       })}
 
-      {/* หอที่ไม่มีค่าบริการเลยข้ามขั้นนี้ได้ ไม่ต้องกลับไปกรอกขั้นที่ 1 ก่อน
-          ต้นแบบก็ไม่บังคับ — หอหลายแห่งไม่มีค่าบริการเพิ่มเติมอะไรเลยจริงๆ */}
       {mode === 'services' && catalogue.length === 0 && (
         <p className="muted step-optional">
           หอพักนี้ยังไม่มีค่าบริการเพิ่มเติม — ข้ามขั้นนี้ได้เลย
@@ -197,7 +184,6 @@ export default function RoomRatesPage({ apartment, only }) {
         </span>
 
         {mode === 'status' ? (
-          // สถานะมีไม่กี่ค่า ต้นแบบจึงวางเป็นปุ่มตรงๆ ไม่ต้องเปิดหน้าต่างให้เสียจังหวะ
           ROOM_STATUSES.map((status) => (
             <button
               key={status}
@@ -213,7 +199,6 @@ export default function RoomRatesPage({ apartment, only }) {
           <button
             type="button"
             className="btn"
-            // ขั้นค่าบริการรายห้องข้ามได้ ถ้าหอนี้ไม่มีค่าบริการเลย (ต้นแบบก็ไม่บังคับ)
             disabled={roomIds.length === 0 || (mode === 'services' && catalogue.length === 0)}
             onClick={() => setDialogOpen(true)}
           >
@@ -246,7 +231,6 @@ export default function RoomRatesPage({ apartment, only }) {
   )
 }
 
-// รายละเอียดใต้เลขห้อง เปลี่ยนตามขั้นที่กำลังอยู่ — ค่าเช่า / สถานะ / ค่าบริการที่ผูกไว้
 function RoomCardDetail({ mode, room }) {
   if (mode === 'rate') {
     return (
@@ -280,9 +264,6 @@ function RoomCardDetail({ mode, room }) {
   )
 }
 
-// -----------------------------------------------------
-// หน้าต่างซ้อน
-// -----------------------------------------------------
 function RateDialog({ onClose, onSubmit, busy, form }) {
   const [monthlyRent, setMonthlyRent] = useState('')
   const [dailyRent, setDailyRent] = useState('')
@@ -338,17 +319,7 @@ function RateDialog({ onClose, onSubmit, busy, form }) {
   )
 }
 
-// รายการในช่องเลือกมาจากค่าบริการที่กรอกไว้ในขั้นที่ 1 ของหอนี้ (apartment_services)
-// ไม่ใช่รายการตายตัว — ตั้งชื่ออะไรไว้ที่ขั้นแรกก็เห็นอันนั้นที่นี่
-//
-// ต้นแบบมีแค่ปุ่ม "บันทึก" (เพิ่มอย่างเดียว) แต่เราเพิ่ม "นำออก" ไว้ด้วย ไม่งั้น
-// ผูกผิดห้องแล้วแก้ไม่ได้เลย — ยังไม่มีหน้าอื่นในระบบที่ถอดค่าบริการออกจากห้องได้
-//
-// ช่องเลือกโชว์เฉพาะบริการที่ยัง "เพิ่มได้" (โอ๊คสั่ง 2026-09-25 ลดการกดซ้ำ)
-//   · ทุกห้องที่เลือกมีแล้ว → ไม่อยู่ในช่องเลือก ไปอยู่ในรายการ "ผูกอยู่แล้ว" ข้างล่างแทน
-//   · มีแค่บางห้อง → ยังเลือกได้ (เติมให้ห้องที่ยังขาด) และบอกว่ามีแล้วกี่ห้อง
-// การนำออกย้ายมาเป็นปุ่มรายบริการในรายการ "ผูกอยู่แล้ว" — เดิมอาศัยช่องเลือกเดียวกัน
-// ถ้าซ่อนบริการที่มีครบแล้วจากช่องเลือก จะไม่มีทางนำออกได้เลย
+// ช่องเลือกแสดงเฉพาะบริการที่ยังเพิ่มได้ · ที่ผูกครบแล้วนำออกได้จากรายการข้างล่าง
 function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, error }) {
   const [serviceId, setServiceId] = useState('')
   const [confirmDialog, ask] = useConfirm()
@@ -382,7 +353,7 @@ function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, er
           >
             <option value="">เลือกค่าบริการ</option>
             {addable.map((s) => (
-              // <option> รับได้แค่ข้อความล้วน — ประกอบเป็นสตริงเดียว ไม่ใช้ `cond && ...` ในนี้
+              // <option> รับแค่ข้อความล้วน
               <option key={s.serviceId} value={s.serviceId}>
                 {`${s.name} (${formatBaht(s.priceCents)} บาท)` +
                   (s.count > 0 ? ` · มีแล้ว ${s.count}/${total} ห้อง` : '')}
@@ -415,7 +386,6 @@ function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, er
                       confirmLabel: 'นำออก',
                       busyLabel: 'กำลังนำออก...',
                       icon: 'close',
-                      // ผล/ error ของการนำออกไปขึ้นที่หน้าต่างค่าบริการข้างใต้ (act ของหน้า)
                       onConfirm: async () => {
                         await onDetach(s.serviceId)
                         return { success: true }

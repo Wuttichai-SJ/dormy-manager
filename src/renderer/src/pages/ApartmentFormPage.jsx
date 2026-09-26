@@ -5,35 +5,22 @@ import { centsToInput } from '../format.js'
 import { MAX_DUE_DATE_DAY, DEFAULT_VAT_RATE, MAX_VAT_RATE } from '../constants.js'
 import { createApartment, getApartment, updateApartment } from '../services/apartmentService.js'
 
-// ฟอร์มเพิ่ม/แก้ไขหอพัก — ลอกหน้า "เพิ่มอพาร์ตเมนต์" ของต้นแบบมาทั้งโครงและระยะ:
-// แต่ละกลุ่มมีหัวข้อ+คำอธิบายอยู่คอลัมน์ซ้าย การ์ดช่องกรอกอยู่คอลัมน์ขวา คั่นกลุ่มด้วย
-// เส้นบางที่เว้น 32px ทั้งบนและล่าง ปิดท้ายด้วยปุ่มยืนยันใบเดียวชิดขวา (ไม่มีปุ่มยกเลิก
-// เหมือนกัน — ทางออกคือลิงก์ "กลับไปรายการหอพัก" ด้านบน)
-//
-// ต่างจากต้นแบบโดยตั้งใจ 3 อย่าง:
-// - ไม่มีหัวข้อ "โลโก้อพาร์ตเมนต์" (คอลัมน์ logo_url มีรออยู่ แต่ยังไม่ทำหน้าอัปโหลด)
-// - ไม่มีช่องเลขประจำตัวผู้เสียภาษี (หอนักศึกษาไม่ออกใบกำกับภาษีเต็มรูป)
-// - VAT เปิดได้เลย ไม่ต้องอัปเกรดแพ็กเกจ (ระบบนี้ไม่มีแพ็กเกจ)
 const EMPTY = {
   nameTh: '',
   addressTh: '',
   nameEn: '',
   addressEn: '',
   phone: '',
-  // วันที่ 10 คือกติกาของหอจริง (ผู้ใช้ยืนยัน 2026-08-10) — หอที่สร้างใหม่จะได้ค่านี้เลย
   dueDateDay: '10',
   lateFeePerDay: '0.00',
   lateFeeGraceDays: '0',
   isAutoLateFeeEnabled: false,
   isVatEnabled: false,
-  // 7% คืออัตราที่ไทยใช้อยู่ หอใหม่จึงไม่ต้องมากรอกเอง (เปลี่ยนได้ถ้ากฎหมายเปลี่ยน)
   vatRate: String(DEFAULT_VAT_RATE),
-  // 5 หลักคือมิเตอร์ที่หอใช้จริง (เจ้าของหอยืนยัน 2026-08-10) หอใหม่จึงไม่ต้องมาตั้งเอง
   meterDigits: '5'
 }
 
-// ปล่อยให้พิมพ์ได้แค่ตัวเลขกับจุดเดียว ทศนิยมไม่เกิน 2 ตำแหน่ง — ถ้าปล่อย "7.5.5" ผ่าน
-// ฝั่ง main จะปฏิเสธด้วยข้อความ "ต้องอยู่ระหว่าง 0-100%" ซึ่งไม่ตรงกับสิ่งที่ผู้ใช้พิมพ์ผิด
+// รับแค่ตัวเลขกับจุดเดียว ทศนิยมไม่เกิน 2 ตำแหน่ง
 function sanitiseRate(value) {
   const cleaned = String(value).replace(/[^\d.]/g, '')
   const [whole, ...rest] = cleaned.split('.')
@@ -124,7 +111,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             />
           </div>
 
-          {/* ต้นแบบใช้ช่องบรรทัดเดียวสำหรับที่อยู่ ไม่ใช่กล่องหลายบรรทัด */}
           <div className="field field-required">
             <label htmlFor="addressTh">
               ที่อยู่ (ภาษาไทย) <Required />
@@ -205,8 +191,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
                 </option>
               ))}
             </select>
-            {/* บอกให้ชัดว่าตัวเลขนี้มีผลกับอะไร ไม่งั้นดูเหมือนช่องตกแต่งที่ไม่ต้องสนใจ
-                แล้วหอที่ใช้มิเตอร์คนละแบบจะปล่อยไว้ผิดโดยไม่รู้ตัว */}
           </div>
         </div>
       </section>
@@ -241,11 +225,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
                 </option>
               ))}
             </select>
-            {/* ต้นแบบก็ให้เลือกได้ถึงวันที่ 28 เท่ากัน เหตุผลอยู่ใน db/apartments.js
-                (ก.พ. ไม่มีวันที่ 29-31) ต้นแบบไม่มีคำอธิบายบรรทัดนี้ เราใส่เพิ่มเอง
-                เพราะมีคนถามแล้วว่าทำไมเลื่อนต่อไม่ได้ */}
-            {/* ตัวเลขเฉยๆ ไม่บอกว่าเกิดอะไรขึ้นเมื่อออกบิลหลังวันนั้นไปแล้ว ยกตัวอย่างด้วยวันที่
-                ที่เลือกอยู่จริง จะได้ไม่ต้องออกบิลจริงแล้วมานั่งเดาว่าทำไมได้วันนั้น */}
           </div>
 
           <div className="field field-required">
@@ -292,9 +271,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
               />
               <span>ต้องการ</span>
             </label>
-            {/* บอกให้ชัดว่าปิดอยู่แล้วช่องข้างบนไม่มีผล ไม่งั้นเจ้าของหอกรอกค่าปรับไว้
-                แล้วสงสัยว่าทำไมไม่เคยถูกเก็บ */}
-            {/* เตือนตั้งแต่ในฟอร์ม ก่อนจะไปเจอ error ตอนกดบันทึก */}
             {form.isAutoLateFeeEnabled && Number(form.lateFeePerDay) === 0 ? (
               <p className="field-hint field-hint-warn">
                 ค่าปรับต่อวันยังเป็น 0 บาท — ระบบจะเก็บค่าปรับไม่ได้
@@ -325,8 +301,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             <span>เปิดการใช้งาน VAT</span>
           </label>
 
-          {/* ปิดช่องไว้เมื่อยังไม่เปิดสวิตช์ — กรอกอัตราทิ้งไว้โดยที่ VAT ปิดอยู่ไม่มีความหมาย
-              และทำให้เข้าใจผิดว่าระบบกำลังคิดภาษีให้ */}
           <div className="field">
             <label htmlFor="vatRate">
               อัตรา VAT
