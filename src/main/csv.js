@@ -11,9 +11,21 @@ export const UTF8_BOM = '﻿'
 
 // ครอบทุกช่องด้วยเครื่องหมายคำพูดไปเลย ง่ายกว่าและไม่มีทางผิด — ตัวเลขที่อยู่ในเครื่องหมาย
 // คำพูด Excel ก็ยังอ่านเป็นตัวเลข ส่วน " ในเนื้อข้อมูลต้องคูณเป็น "" ตามกติกาของ CSV
+//
+// กันสูตรแฝง (CSV formula injection — เจอจากรีวิวโค้ด 2026-09-26): ข้อความที่ผู้ใช้พิมพ์เอง
+// เช่นชื่อผู้เช่า/หมายเหตุ ถ้าขึ้นต้นด้วย = + - @ Excel จะถือเป็นสูตรแล้วคำนวณตอนเปิดไฟล์
+// จึงเติม ' นำหน้าให้ Excel อ่านเป็นข้อความธรรมดา · ตัวเลข (ทั้งชนิด number และข้อความที่เป็น
+// ตัวเลขล้วน เช่น "-500") ไม่แตะ ไม่งั้นยอดติดลบจะกลายเป็นข้อความ บวกเลขในไฟล์ไม่ได้
+const FORMULA_START = /^[=+\-@\t\r]/
+const PLAIN_NUMBER = /^[+-]?\d+(\.\d+)?$/
+
 function toCsvCell(value) {
   if (value === null || value === undefined) return '""'
-  return `"${String(value).replace(/"/g, '""')}"`
+  let text = String(value)
+  if (typeof value === 'string' && FORMULA_START.test(text) && !PLAIN_NUMBER.test(text)) {
+    text = `'${text}`
+  }
+  return `"${text.replace(/"/g, '""')}"`
 }
 
 // columns = [{ key, label }] · rows = อาร์เรย์ของ object
