@@ -1,4 +1,3 @@
-// IPC ของค่าบริการหอพัก — เปลือกบางๆ ครอบ db/apartmentServices.js
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -22,8 +21,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -39,8 +36,7 @@ function assertValid(payload) {
 export function registerApartmentServiceHandlers() {
   handleSession('apartmentService:list', ({ apartmentId }) => listServices(getDatabase(), apartmentId))
 
-  // ราคาค่าบริการเป็นของเจ้าของหอ (เมนูตั้งค่าทั้งเมนู — ผู้ใช้ตัดสินใจ 2026-08-14)
-  // ช่อง list เปิดไว้ เพราะตัวช่วยทำสัญญาและการออกบิลต้องอ่านรายการค่าบริการ
+  // ตั้งค่าบริการเฉพาะเจ้าของหอ · list เปิดไว้ให้สัญญา/ออกบิลอ่าน
   handle('apartmentService:create', ({ apartmentId, ...payload }) => {
     requireOwnerUserId()
     assertValid(payload)

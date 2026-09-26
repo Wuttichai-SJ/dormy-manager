@@ -1,9 +1,3 @@
-// IPC ของงานแจ้งซ่อม — เปลือกบางๆ ครอบ db/maintenance.js
-//
-// **แจ้งซ่อมเป็นงานประจำวัน พนักงานทำได้ทั้งหมด** ต่างจากเมนูตั้งค่าที่สงวนให้เจ้าของ —
-// คนที่รับโทรศัพท์จากผู้เช่าตอนน้ำรั่วคือคนที่ต้องคีย์ได้ทันที ไม่ใช่รอเจ้าของว่าง
-// (ค่าซ่อมที่บันทึกยังไม่ไหลไปเป็นเงินที่ไหน จึงยังไม่มีอะไรให้กันในแง่การเงิน —
-//  ถ้าวันหนึ่งค่าซ่อมเข้าบิลได้ ต้องกลับมาทบทวนข้อนี้ใหม่)
 import fs from 'node:fs'
 import path from 'node:path'
 import { dialog, ipcMain } from 'electron'
@@ -43,8 +37,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -109,8 +101,7 @@ export function registerMaintenanceHandlers() {
     return result
   })
 
-  // **ผู้ใช้เลือกไฟล์แล้ว main อ่านไบต์เอง ไม่ได้ให้หน้าจออ่านแล้วส่งข้ามมา** —
-  // รูป 3 MB ที่แปลงเป็น array ธรรมดาเพื่อข้าม IPC จะบวมเป็นสิบเท่า (วิธีเดียวกับ QR)
+  // main อ่านไฟล์รูปเอง — ส่ง bytes ข้าม IPC จะบวมมาก
   handleSession('maintenance:addImage', async ({ maintenanceId }) => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title: 'เลือกรูปประกอบการแจ้งซ่อม',
@@ -135,7 +126,6 @@ export function registerMaintenanceHandlers() {
     removeMaintenanceImage(getDatabase(), maintenanceId, imageId)
   )
 
-  // ส่งออกเป็น data URL ไม่ใช่ Buffer ดิบ (กติกาเดียวกับรูป QR)
   handleSession('maintenance:imageDataUrl', ({ imageId }) => ({
     dataUrl: getImageDataUrl(getDatabase(), imageId)
   }))

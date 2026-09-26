@@ -1,8 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-// The ONLY bridge between renderer and main. Renderer never touches ipcRenderer directly;
-// every call goes through window.electron.invoke(channel, data) and returns
-// { success, data | error } from the matching ipcMain.handle in the main process.
+// สะพานเดียวระหว่าง renderer กับ main — คืน { success, data | error }
 contextBridge.exposeInMainWorld('electron', {
   invoke: (channel, data) => ipcRenderer.invoke(channel, data)
 })

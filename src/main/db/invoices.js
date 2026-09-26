@@ -1,12 +1,4 @@
-// ตาราง invoices / invoice_items / document_counters — SQL ดิบล้วน ไม่มี ORM
-//
-// นี่คือใจกลางของระบบ: เงินทุกบาทที่หอเก็บได้ผ่านไฟล์นี้
-//
-// โครงตามหน้าจริงของต้นแบบ (ดูคู่มือ yeeraf.com/documents/ หัวข้อ "ออกบิลรายเดือน"
-// และ "บิลค้างชำระ"): ออกบิลจากใบจดมิเตอร์หนึ่งใบ → พรีวิวทุกห้อง → กดสร้างทีละห้อง
-// หรือทั้งหอ → ได้ใบแจ้งหนี้ที่แก้/เพิ่ม/ลบรายการทีหลังได้
-//
-// ห้าม import logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
+// ห้าม import electron/logger — ชุดทดสอบรันแบบ node
 import { toCents } from '../money.js'
 import { FieldError } from '../fieldError.js'
 import { calculateUtilityCharge, isSideUnpriced, toUtilitySides } from './utilityDefaults.js'
@@ -32,45 +24,19 @@ export const ITEM_TYPES = [
   'other'
 ]
 
-// 🔴 **อัตรา VAT ไม่ใช่ค่าคงที่อีกแล้ว** เจ้าของหอกรอกเองได้ที่หน้าตั้งค่าหอ (migration 031)
-//
-// อัตราที่ใช้กับบิลใบหนึ่ง ถูกตรึงไว้ที่ `invoices.vat_rate` ตั้งแต่ตอนออกบิล และใช้ค่านั้น
-// ตลอดไป — **ทุกฟังก์ชันในไฟล์นี้ต้องอ่านอัตราจากบิล ห้ามย้อนไปอ่าน apartments.vat_rate**
-//
-// เหตุผล: เจ้าของหอยืนยันว่าบิลที่ยื่นให้ผู้เช่าแล้วต้องคง VAT เดิม ต่อให้มาจ่ายช้า
-// แล้วโดนค่าปรับ (ซึ่งเรียก addLateFeeItem -> recalculateTotals) ก็ตาม
-// อัตราใหม่มีผลกับบิลที่ออกในรอบถัดไปเท่านั้น
-//
-// ตัวนี้เป็นแค่ค่าถอยเมื่อไม่รู้อัตรา (แถวเก่าก่อน migration 031 ซึ่ง DEFAULT เป็น 7 อยู่แล้ว)
+// อัตรา VAT ตรึงที่ invoices.vat_rate ตอนออกบิล — ทุกฟังก์ชันต้องอ่านจากบิล ห้ามอ่านจากหอ · ค่านี้ใช้เมื่อไม่รู้อัตรา
 import { DEFAULT_VAT_RATE } from './apartments.js'
 
-// **VAT คิดแบบ "บวกเพิ่มจากราคา" ไม่ใช่ "รวมอยู่ในราคาแล้ว"**
-// ยืนยันกับบิลจริงของต้นแบบแล้ว (หัวคอลัมน์เขียน "ราคาต่อหน่วย (ก่อน VAT)" / "ยอดเงิน (รวม VAT)")
-//
-// **อะไรเสียภาษีบ้าง** (แก้ 2026-08-08 หลังเทียบกับบิลจริง — ของเดิมผิด):
-//   ค่าเช่าห้อง       ยกเว้นเสมอ — การให้เช่าอสังหาริมทรัพย์ได้รับยกเว้น VAT ตามกฎหมายไทย
-//   ค่าน้ำ / ค่าไฟ    เสียภาษี ถ้าหอเปิด VAT — เป็นการขายสินค้า/บริการ ไม่ใช่ค่าเช่า
-//   ค่าบริการ         เสียภาษี ถ้าหอเปิด VAT *และ* ค่าบริการตัวนั้นติดธงไว้
-//   ส่วนลด / อื่นๆ     ไม่คิดต่อ (ดู addInvoiceItem)
-//
-// เดิมเขียนไว้ว่าค่าน้ำ/ค่าไฟยกเว้นด้วย ซึ่งเป็นการเดาที่ผิด — ผลคือหอที่เปิด VAT แล้วมีแต่
-// ค่าเช่ากับค่าน้ำค่าไฟบนบิล จะได้ฐานภาษี 0 และ VAT 0 ทั้งที่ควรเก็บ
+// VAT บวกเพิ่มจากราคา: ค่าเช่ายกเว้นเสมอ · น้ำ/ไฟเสียภาษีถ้าหอเปิด VAT · ค่าบริการเสียถ้าเปิด VAT และติดธง
 
-// ------------------------------------------------------------------
-// เลขที่เอกสาร
-// ------------------------------------------------------------------
-// I2025030018 = 'I' + YYYYMM + ลำดับ 4 หลัก (ต้นแบบเดินเลขแบบนี้)
-// ใบเสร็จเป็น 'R' ใบจองเป็น 'B' แต่ละชนิดเดินเลขของตัวเองแยกกัน
-//
-// ต้องเรียกอยู่ในธุรกรรมเดียวกับการสร้างเอกสารเสมอ ไม่งั้นถ้าสร้างเอกสารล้มทีหลัง
-// ตัวนับจะเดินไปแล้วโดยไม่มีเอกสารจริง (เลขหาย — ยอมรับได้) แต่ที่ยอมไม่ได้คือเลขซ้ำ
+// I + YYYYMM + ลำดับ 4 หลัก · ต้องเรียกในธุรกรรมเดียวกับการสร้างเอกสาร
 const DOC_PREFIXES = { invoice: 'I', receipt: 'R', booking: 'B' }
 
 export function nextDocumentNumber(db, apartmentId, docType, dateIso) {
   const prefix = DOC_PREFIXES[docType]
   if (!prefix) throw new Error(`ชนิดเอกสารไม่ถูกต้อง: ${docType}`)
 
-  const period = String(dateIso).slice(0, 7).replace('-', '') // 'YYYY-MM-DD' -> 'YYYYMM'
+  const period = String(dateIso).slice(0, 7).replace('-', '')
   if (!/^\d{6}$/.test(period)) throw new Error('วันที่เอกสารไม่ถูกต้อง')
 
   const now = new Date().toISOString()
@@ -91,15 +57,7 @@ export function nextDocumentNumber(db, apartmentId, docType, dateIso) {
   return `${prefix}${period}${String(seq).padStart(4, '0')}`
 }
 
-// ------------------------------------------------------------------
-// วันครบกำหนดชำระ
-// ------------------------------------------------------------------
-// = วันที่ due_date_day ครั้งถัดไป *หลัง* วันที่ออกบิล
-// ออกบิล 26/03 + กำหนดชำระวันที่ 5 → ครบกำหนด 05/04
-// ออกบิล 01/03 + กำหนดชำระวันที่ 5 → ครบกำหนด 05/03
-//
-// ตั้งค่าหน้าหอจำกัด due_date_day ไว้ที่ 28 อยู่แล้ว (ยืนยันกับต้นแบบแล้ว) จึงไม่ต้อง
-// กังวลเรื่องเดือนที่ไม่มีวันที่ 29-31
+// วันครบกำหนด = วันที่ due_date_day ถัดไปหลังวันออกบิล (26/03 + วันที่ 5 → 05/04)
 export function calculateDueDate(issueDate, dueDateDay) {
   const day = Number(dueDateDay)
   if (!Number.isInteger(day) || day < 1 || day > 28) {
@@ -125,25 +83,7 @@ function pad2(n) {
   return String(n).padStart(2, '0')
 }
 
-// ------------------------------------------------------------------
-// เดือนที่ค่าน้ำ-ค่าไฟบนบิลเป็นของ
-// ------------------------------------------------------------------
-// บิลหนึ่งใบมีสองเดือนอยู่ในนั้น: **ค่าเช่าเป็นของเดือนที่กำลังจะอยู่ ส่วนค่าน้ำ-ค่าไฟ
-// เป็นของเดือนที่เพิ่งผ่านไป** ผู้เช่าที่อ่านบิลจึงต้องเห็นว่าค่าน้ำเป็นของเดือนไหน
-// ไม่งั้นจะเข้าใจว่าเป็นเดือนเดียวกับค่าเช่า
-//
-// ยืนยันกับใบเสร็จจริงของหอแล้ว (ผู้ใช้ส่งมา 2026-08-10):
-//   เลขที่ 10100 · วันที่ 1 ก.พ. 2569
-//   ค่าเช่าห้อง (1 - 28 ก.พ. 2569)  2,000.00
-//   ค่าน้ำ (ม.ค. 2569)                120.00
-//   ค่าไฟ (ม.ค. 2569)                 216.00
-//
-// **คิดจากเดือนค่าเช่า ไม่ใช่จากวันจดมิเตอร์** — เคยคิดจาก "วันก่อนวันจดมิเตอร์" แต่
-// เจ้าของหอไม่ได้จดวันเดิมทุกเดือน และผู้ใช้ก็ไม่รู้ว่าจดวันไหน สิ่งเดียวที่แน่นอนคือ
-// **หอออกบิลวันที่ 1 เสมอ** วันจดมิเตอร์จึงเป็นหลักยึดที่เชื่อไม่ได้
-//
-// ผลพลอยได้: ออกบิลย้อนหลังก็ยังถูก — ตั้งเดือนค่าเช่าเป็นกุมภาพันธ์ตอนไหนก็ตาม
-// ค่าน้ำก็เป็นมกราคมเสมอ ไม่ขึ้นกับว่ากดออกบิลวันไหน
+// ค่าน้ำ-ไฟบนบิล = ของเดือนก่อนเดือนค่าเช่า (บิลวันที่ 1 ก.พ. = ค่าเช่า ก.พ. + น้ำไฟ ม.ค.)
 export function utilityMonthOf(billingMonth) {
   const [year, month] = String(billingMonth ?? '').split('-').map(Number)
   if (!year || !month) return null
@@ -152,11 +92,7 @@ export function utilityMonthOf(billingMonth) {
   return `${previous.getUTCFullYear()}-${pad2(previous.getUTCMonth() + 1)}`
 }
 
-// ------------------------------------------------------------------
-// ประกอบรายการในบิล
-// ------------------------------------------------------------------
-// คืน "รายการที่จะลงบิล" โดยยังไม่เขียนอะไร เพื่อให้หน้าพรีวิวก่อนออกบิลกับตอนออกบิลจริง
-// ใช้ตรรกะชุดเดียวกันเป๊ะ ไม่ใช่คำนวณคนละทางแล้วตัวเลขบนจอไม่ตรงกับบิลที่ออกมา
+// ใช้ทั้งพรีวิวและออกบิลจริง — ตัวเลขตรงกันเสมอ
 export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }) {
   const contract = db
     .prepare(
@@ -175,7 +111,6 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
 
   const items = []
 
-  // 1) ค่าเช่าห้อง — ข้อความตั้งต้นตั้งได้ที่หน้าหอ (ดู migration 016 เรื่องค่าเดิมที่มีอังกฤษพ่วง)
   const rentLabel = contract.default_rent_item_text || 'ค่าเช่าห้อง'
   items.push({
     itemType: 'rent',
@@ -183,12 +118,11 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
     quantity: 1,
     unitPriceCents: contract.rent_amount_cents,
     totalAmountCents: contract.rent_amount_cents,
-    // ค่าเช่าอสังหาริมทรัพย์ได้รับยกเว้น VAT เสมอ ต่อให้หอจดทะเบียน VAT ไว้
+    // ค่าเช่ายกเว้น VAT เสมอ
     isTaxable: false
   })
 
-  // 2) ค่าน้ำ / ค่าไฟ — อ่านค่าที่จดไว้ในใบจดมิเตอร์ที่เลือก แล้วคิดเงินด้วย
-  //    calculateUtilityCharge ซึ่งเป็นสูตรเดียวของทั้งระบบ (ห้ามเขียนสูตรซ้ำที่นี่)
+  // สูตรคิดเงินใช้ calculateUtilityCharge ที่เดียว
   const settingsRow = db
     .prepare('SELECT * FROM room_utility_settings WHERE room_id = ?')
     .get(contract.room_id)
@@ -203,13 +137,9 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
           .get(meterBatchId, contract.room_id)
       : null
 
-    // เดือนที่หน่วยน้ำ/ไฟชุดนี้เป็นของ = เดือนก่อนเดือนค่าเช่า
-    // ไม่ได้จดมิเตอร์มาก็ไม่มีหน่วยให้คิด จึงไม่ต้องเขียนเดือน
     const utilityMonth = meterBatchId ? utilityMonthOf(billingMonth) : null
     const monthTag = utilityMonth ? ` (เดือน ${formatDocumentMonth(utilityMonth)})` : ''
 
-    // ชื่อรายการเป็นภาษาไทยล้วน — เคยเขียนคู่กับอังกฤษ ('ค่าน้ำ/water') ตามต้นแบบ
-    // แต่ผู้เช่าอ่านไทยกันหมด และคอลัมน์รายการบนบิลแคบ คำอังกฤษเบียดจนอ่านยาก
     for (const [side, itemType, label] of [
       ['water', 'water', 'ค่าน้ำ'],
       ['electric', 'electricity', 'ค่าไฟ']
@@ -222,11 +152,6 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
       const current = reading ? Number(reading[`${side}_current_reading`] ?? 0) : 0
       const charge = calculateUtilityCharge(config, units)
 
-      // ต้นแบบเขียนบรรทัดเป็น "ค่าน้ำ/water : 98 หน่วย (2 - 100)" — เลขมิเตอร์ก่อน/หลัง
-      // ซ่อนได้ด้วยสวิตช์รายห้อง เพราะหอที่คิดแบบเหมาจ่ายไม่มีเลขมิเตอร์ให้แสดง
-      //
-      // เดือนต่อท้ายชื่อรายการเหมือนบรรทัดค่าเช่า ('ค่าเช่าห้อง (เดือน 02-2569)') เพื่อให้
-      // สองเดือนบนบิลใบเดียวกันอ่านออกว่าอันไหนเป็นของเดือนไหน
       const showReading = config.showReadingInInvoice && contract.show_unit_qty_in_invoice === 1
       const description = showReading
         ? `${label}${monthTag} : ${units} หน่วย (${previous} - ${current})`
@@ -235,23 +160,18 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
       items.push({
         itemType,
         description,
-        // จำนวนหน่วยเป็น quantity ก็จริง แต่ยอดเงินคือคำตอบสุดท้าย ไม่ใช่ quantity × unitPrice
-        // เพราะโหมดขั้นต่ำ/เหมาจ่ายคิดคนละแบบ — เก็บยอดที่เรียกเก็บจริงลง totalAmountCents
+        // ยอดเงินคือค่าที่เรียกเก็บจริง ไม่ใช่ quantity × unitPrice (โหมดขั้นต่ำ/เหมาจ่าย)
         quantity: units,
         unitPriceCents: config.unitPriceCents,
         totalAmountCents: charge,
-        // ค่าน้ำ/ค่าไฟเป็นการขายสินค้า ไม่ใช่ค่าเช่า จึงเสียภาษีเมื่อหอจดทะเบียน VAT
         isTaxable: contract.is_vat_enabled === 1,
-        // ใช้จริงแต่คิดเงินไม่ได้เพราะห้องนี้ไม่เคยถูกตั้งราคา — ต้องเตือนก่อนออกบิล
-        // ไม่ใช่ปล่อยให้บิล 0 บาทหลุดไปถึงมือผู้เช่า
+        // ใช้จริงแต่ห้องยังไม่ตั้งราคา — ต้องเตือนก่อนออกบิล
         unpriced: isSideUnpriced(config) && units > 0
       })
     }
   }
 
-  // 3) ค่าบริการ — อ่านจาก contract_services ที่ตรึงราคาไว้ตอนทำสัญญา
-  //    **ห้ามอ่านราคาสดจาก apartment_services** เพราะเจ้าของหอขึ้นราคากลางสัญญาได้
-  //    แล้วบิลย้อนหลังจะเปลี่ยนตามไปด้วยทั้งที่ผู้เช่าตกลงราคาเดิมไว้
+  // ค่าบริการอ่านจาก contract_services (ราคาที่ตรึงไว้) ห้ามอ่านราคาสด
   const services = db
     .prepare(
       `SELECT cs.price_cents, s.name, s.is_vat_enabled
@@ -269,7 +189,6 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
       quantity: 1,
       unitPriceCents: service.price_cents,
       totalAmountCents: service.price_cents,
-      // ค่าบริการเสียภาษีก็ต่อเมื่อหอเปิด VAT *และ* ค่าบริการตัวนั้นติดธงไว้
       isTaxable: contract.is_vat_enabled === 1 && service.is_vat_enabled === 1
     })
   }
@@ -278,31 +197,18 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
 }
 
 function formatBillingMonth(billingMonth) {
-  // '2025-03' -> '03-2025' ตามที่ต้นแบบขึ้นบนบิล
   const [year, month] = String(billingMonth).split('-')
   return `${month}-${year}`
 }
 
-// เดือนที่จะไปอยู่ใน "ข้อความของรายการบนเอกสาร" — พ.ศ. (ผู้ใช้สั่ง 2026-08-10)
-//
-// **แยกจาก formatBillingMonth โดยตั้งใจ** ตัวนั้นยังใช้ ค.ศ. เพราะไปโผล่ในข้อความเตือน
-// ที่ผู้ใช้อ่านคู่กับตัวเลือกเดือนบนหน้าจอ ซึ่งยังเป็น ค.ศ. อยู่ ถ้าใช้ตัวเดียวกันทั้งสองที่
-// เจ้าของหอจะเลือกเดือน 08-2026 แล้วโดนเตือนว่า "ออกบิลของเดือน 08-2569 ไปแล้ว"
-//
-// ฐานข้อมูลยังเก็บ billing_month เป็น 'YYYY-MM' ค.ศ. เหมือนเดิม — แปลงตอนประกอบข้อความเท่านั้น
+// พ.ศ. สำหรับข้อความบนเอกสาร — แยกจาก formatBillingMonth (ค.ศ. ใช้บนจอ)
 function formatDocumentMonth(billingMonth) {
   const [year, month] = String(billingMonth).split('-')
   if (!year || !month) return String(billingMonth)
   return `${month}-${Number(year) + 543}`
 }
 
-// ------------------------------------------------------------------
-// รวมยอด
-// ------------------------------------------------------------------
-// แยก exempt / taxable / vat ตามที่สคีมาเตรียมช่องไว้ ยอดรวมคือผลบวกของทั้งสาม
-// ส่วนลดเก็บเป็นยอดติดลบในรายการ จึงลดยอดรวมได้เองโดยไม่ต้องมีตรรกะพิเศษ
-// vatRate = อัตราของ "บิลใบนี้" — จงใจไม่มีค่าเริ่มต้น เพราะการลืมส่งแล้วเงียบๆ คิดที่ 7
-// คือบั๊กที่หาไม่เจอ (เคยเกิดมาแล้วที่ previewMonthlyBilling) ลืมส่งต้องพังตั้งแต่บรรทัดแรก
+// vatRate ไม่มีค่าเริ่มต้นโดยตั้งใจ — ลืมส่งต้องพัง
 export function calculateInvoiceTotals(items, vatRate) {
   let exempt = 0
   let taxable = 0
@@ -325,17 +231,12 @@ export function calculateInvoiceTotals(items, vatRate) {
   }
 }
 
-// ------------------------------------------------------------------
-// ออกบิล
-// ------------------------------------------------------------------
 export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchId, issueDate }) {
   if (!/^\d{4}-\d{2}$/.test(String(billingMonth ?? ''))) {
     throw new Error('กรุณาระบุเดือนที่ออกบิลในรูปแบบ YYYY-MM')
   }
   if (!isDate(issueDate)) throw new Error('กรุณาระบุวันที่ออกบิล')
 
-  // ต้นแบบออกบิลรายเดือนจากใบจดมิเตอร์เสมอ (ผู้ใช้ยืนยันให้ทำตาม 2026-08-07)
-  // ห้องที่ยังไม่ได้จดจะได้ 0 หน่วย ซึ่งเป็นคำตอบที่ถูกต้อง ไม่ใช่บิลที่ขาดข้อมูล
   if (!meterBatchId) throw new Error('กรุณาเลือกใบจดมิเตอร์ก่อนออกบิลรายเดือน')
 
   const { contract, items } = buildInvoiceItems(db, { contractId, billingMonth, meterBatchId })
@@ -355,8 +256,7 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
   }
 
   const dueDate = calculateDueDate(issueDate, getDueDateDay(db, contract.apartment_id))
-  // **จุดตรึงอัตรา** — อ่านอัตราของหอครั้งเดียวตรงนี้ แล้วเก็บลงบิล จากนี้ไปบิลใบนี้
-  // ใช้ค่านี้ตลอดไป ต่อให้หอเปลี่ยนอัตราทีหลังก็ไม่กระทบ
+  // จุดตรึงอัตรา VAT ลงบิล
   const vatRate = Number(contract.vat_rate ?? DEFAULT_VAT_RATE)
   const totals = calculateInvoiceTotals(items, vatRate)
   const now = new Date().toISOString()
@@ -365,8 +265,7 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
     const invoiceNumber = nextDocumentNumber(db, contract.apartment_id, 'invoice', issueDate)
     const result = db
       .prepare(
-        // apartment_id ซ้ำกับที่ไล่ผ่าน contract → room → floor ได้ แต่ต้องมีในแถวจริง
-        // เพราะ unique index ของเลขที่บิลเป็นแบบ (apartment_id, invoice_number) — ดู 021
+        // เลขที่บิลเดินแยกรายหอ
         `INSERT INTO invoices (
            contract_id, apartment_id, invoice_number, billing_month, issue_date, due_date, status,
            invoice_type, meter_batch_id, vat_rate,
@@ -402,7 +301,7 @@ export function createMonthlyInvoice(db, { contractId, billingMonth, meterBatchI
   return getInvoiceById(db, run())
 }
 
-// vatRate = อัตราของ "บิลใบนี้" ไม่ใช่ของหอ ผู้เรียกต้องอ่านมาจาก invoices.vat_rate เสมอ
+// vatRate ต้องมาจาก invoices.vat_rate
 function insertItems(db, invoiceId, items, now, vatRate) {
   const stmt = db.prepare(
     `INSERT INTO invoice_items (
@@ -439,11 +338,6 @@ function getDueDateDay(db, apartmentId) {
   return row.due_date_day
 }
 
-// ------------------------------------------------------------------
-// พรีวิวก่อนออกบิลทั้งหอ
-// ------------------------------------------------------------------
-// ตารางขั้นที่ 3 ของต้นแบบ: ห้อง | สถานะ | ค่าน้ำ | ค่าไฟ | เงินฝากล่วงหน้า
-// คืนทุกห้องที่มีสัญญาใช้งานอยู่ พร้อมบอกว่าห้องไหนออกบิลเดือนนี้ไปแล้ว
 export function previewMonthlyBilling(db, { apartmentId, meterBatchId, billingMonth }) {
   const contracts = db
     .prepare(
@@ -470,8 +364,7 @@ export function previewMonthlyBilling(db, { apartmentId, meterBatchId, billingMo
       billingMonth,
       meterBatchId
     })
-    // ต้องใช้อัตราเดียวกับที่ createMonthlyInvoice จะใช้จริง ไม่งั้นตัวเลขบนตารางพรีวิว
-    // ไม่ตรงกับบิลที่ออกมา — ซึ่งขัดกับเจตนาของพรีวิวทั้งหมด (ดูคอมเมนต์หัวไฟล์)
+    // ใช้อัตราเดียวกับ createMonthlyInvoice
     const totals = calculateInvoiceTotals(items, Number(contract.vat_rate ?? DEFAULT_VAT_RATE))
     const water = items.find((i) => i.itemType === 'water')
     const electric = items.find((i) => i.itemType === 'electricity')
@@ -485,26 +378,16 @@ export function previewMonthlyBilling(db, { apartmentId, meterBatchId, billingMo
       electricUnits: electric ? electric.quantity : 0,
       electricChargeCents: electric ? electric.totalAmountCents : 0,
       totalAmountCents: totals.totalAmountCents,
-      // ห้องที่มีหน่วยใช้จริงแต่คิดเงินไม่ได้ — หน้าจอต้องเตือนก่อนกดออกบิล
       unpricedSides: items.filter((i) => i.unpriced).map((i) => i.itemType),
-      // ห้องที่ออกบิลไปแล้วยังต้องแสดงในตาราง (ต้นแบบขึ้น "สร้างสำเร็จ") แต่กดสร้างซ้ำไม่ได้
       existingInvoiceId: existing ? existing.invoice_id : null,
       existingInvoiceNumber: existing ? existing.invoice_number : null,
-      // **สัญญาที่เริ่มในเดือนที่กำลังออกบิล = จ่ายค่าเช่าเดือนนี้ไปแล้วตอนย้ายเข้า**
-      //
-      // เจ้าของหอเก็บค่าเช่าเดือนแรกวันที่ผู้เช่าย้ายเข้า (เต็มเดือนถ้าเข้าวันที่ 1-3
-      // ไม่งั้นคิดตามวัน) และ createContract ออกใบเสร็จให้แล้ว ถ้าออกบิลของเดือนเดียวกัน
-      // ให้อีก ผู้เช่าจะโดนเก็บค่าเช่าเดือนนั้นสองรอบ
-      //
-      // เดือนถัดไปถึงจะเข้ารอบบิลปกติ — แล้วค่าน้ำ-ค่าไฟของช่วงที่อยู่ในเดือนแรก
-      // ก็จะไปอยู่บนบิลใบนั้น ไม่ได้หายไปไหน
+      // สัญญาที่เริ่มเดือนนี้จ่ายค่าเช่าไปแล้วตอนย้ายเข้า — ไม่ออกบิลซ้ำ (น้ำไฟไปอยู่บิลเดือนหน้า)
       startsThisMonth: String(row.start_date ?? '').slice(0, 7) === billingMonth
     }
   })
 }
 
-// ปุ่ม "สร้างใบแจ้งหนี้ทุกห้อง" — ห้องที่ออกไปแล้วให้ข้าม ไม่ใช่ล้มทั้งชุด
-// เพราะเจ้าของหอกดปุ่มนี้ซ้ำได้เป็นเรื่องปกติ (เพิ่มผู้เช่าใหม่กลางเดือนแล้วกดอีกรอบ)
+// ห้องที่ออกแล้วข้าม ไม่ล้มทั้งชุด
 export function createMonthlyInvoicesForApartment(
   db,
   { apartmentId, meterBatchId, billingMonth, issueDate }
@@ -524,7 +407,6 @@ export function createMonthlyInvoicesForApartment(
       continue
     }
 
-    // จ่ายค่าเช่าเดือนนี้ไปแล้วตอนย้ายเข้า — ออกบิลอีกใบคือเก็บซ้ำ
     if (row.startsThisMonth) {
       skipped.push({
         roomNumber: row.roomNumber,
@@ -542,7 +424,7 @@ export function createMonthlyInvoicesForApartment(
       })
       created.push({ roomNumber: row.roomNumber, invoiceNumber: invoice.invoiceNumber })
     } catch (err) {
-      // ห้องหนึ่งพังต้องไม่ทำให้อีก 40 ห้องออกบิลไม่ได้ — เก็บไว้รายงานท้ายงาน
+      // ห้องหนึ่งพังไม่ทำให้ห้องอื่นออกไม่ได้
       failed.push({ roomNumber: row.roomNumber, message: err.message })
     }
   }
@@ -550,9 +432,6 @@ export function createMonthlyInvoicesForApartment(
   return { created, skipped, failed }
 }
 
-// ------------------------------------------------------------------
-// อ่าน
-// ------------------------------------------------------------------
 export function getInvoiceById(db, invoiceId) {
   const row = db
     .prepare(
@@ -576,11 +455,7 @@ export function getInvoiceById(db, invoiceId) {
     .prepare('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY invoice_item_id')
     .all(invoiceId)
 
-  // ผู้เช่าของสัญญานี้ — ใบแจ้งหนี้ที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น
-  // ผู้เช่าหลักขึ้นก่อนเสมอ (ดู 010_contract_tenants.sql) เพราะเป็นคนที่ชื่อขึ้นใบแจ้งหนี้
-  //
-  // ซ่อนได้ด้วย apartments.show_tenant_info_in_invoice — หอที่ส่งบิลแบบติดหน้าห้อง
-  // อาจไม่อยากให้ชื่อกับเบอร์ของผู้เช่าติดไปกับกระดาษที่คนเดินผ่านเห็นได้
+  // ผู้เช่าหลักขึ้นก่อน · ซ่อนได้ด้วย show_tenant_info_in_invoice
   const tenants =
     row.show_tenant_info_in_invoice === 1
       ? db
@@ -601,8 +476,6 @@ export function getInvoiceById(db, invoiceId) {
           }))
       : []
 
-  // บัญชีธนาคารกับข้อความแจ้งชำระต้องไปอยู่บนใบแจ้งหนี้ ไม่ใช่แค่ในหน้าตั้งค่า —
-  // ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนเข้าบัญชีไหน (ต้นแบบก็มี)
   const bankAccounts = db
     .prepare(
       `SELECT bank_name, account_name, account_number, is_default
@@ -618,10 +491,7 @@ export function getInvoiceById(db, invoiceId) {
       isDefault: bank.is_default === 1
     }))
 
-  // ยอดที่ชำระมาแล้วคำนวณสดจากใบเสร็จเสมอ ไม่เก็บเป็นคอลัมน์
-  // ความจริงเดียวกันสองที่จะไม่ตรงกันวันใดวันหนึ่ง และตัวที่ถูกคือผลรวมของใบเสร็จ
-  //
-  // ใบเสร็จที่ยกเลิกแล้วไม่นับ (migration 023) — "ยกเลิก" แปลว่าเงินก้อนนั้นไม่เคยเข้า
+  // ยอดชำระคำนวณสดจากใบเสร็จ ไม่นับใบที่ยกเลิก
   const paidCents = db
     .prepare(
       `SELECT COALESCE(SUM(amount_cents), 0) AS paid
@@ -643,20 +513,16 @@ export function getInvoiceById(db, invoiceId) {
     exemptAmountCents: row.exempt_amount_cents,
     taxableAmountCents: row.taxable_amount_cents,
     vatAmountCents: row.vat_amount_cents,
-    // หน้าใบแจ้งหนี้ใช้ธงนี้ตัดสินว่าจะ "แสดงแถว VAT" หรือไม่ ไม่ใช่ดูว่ายอด VAT เป็น 0
-    // เพราะหอที่เปิด VAT ไว้แต่เดือนนี้ไม่มีรายการที่เสียภาษี ก็ได้ 0 เหมือนกัน
-    // แต่ควรยังเห็นแถว VAT 0.00 บนบิล ต่างจากหอที่ไม่ได้จด VAT ซึ่งต้องไม่มีแถวนี้เลย
+    // ใช้ธงนี้ตัดสินว่าแสดงแถว VAT — ไม่ใช่ดูว่ายอดเป็น 0
     isVatEnabled: row.is_vat_enabled === 1,
-    // **อัตราของบิลใบนี้ ไม่ใช่ของหอตอนนี้** — ป้าย "VAT x%" บนใบแจ้งหนี้ต้องใช้ตัวนี้
-    // ไม่งั้นบิลเก่าที่ออกตอน 7% จะพิมพ์อัตราใหม่ออกมา ทั้งที่ยอดเงินยังคิดที่ 7%
+    // อัตราของบิลใบนี้ ไม่ใช่ของหอตอนนี้
     vatRate: Number(row.vat_rate ?? DEFAULT_VAT_RATE),
     totalAmountCents: row.total_amount_cents,
     paidAmountCents: paidCents,
     outstandingCents: row.total_amount_cents - paidCents,
     note: row.note,
     cancelledAt: row.cancelled_at,
-    // บิลที่ยกเลิกก่อน migration 024 ไม่มีเหตุผลเก็บไว้ — คืน null ตรงๆ ให้หน้าจอบอกได้ว่า
-    // "ไม่ได้บันทึกเหตุผลไว้" ไม่ใช่แสดงช่องว่างจนดูเหมือนคนกดยกเลิกลืมกรอก
+    // บิลที่ยกเลิกก่อน migration 024 ไม่มีเหตุผล — คืน null
     cancelReason: row.cancel_reason ?? null,
     cancelledByName: row.cancelled_by_name ?? null,
     roomNumber: row.room_number,
@@ -688,25 +554,14 @@ function toPublicItem(row) {
   }
 }
 
-// จับกลุ่มสถานะเป็น "ยังต้องตามเก็บ" กับ "จบแล้ว" สำหรับตัวกรองบนหน้าจอ
-//
-// **ค้างชำระต้องรวม `partial_paid` ด้วย** — จ่ายมาครึ่งเดียวก็ยังเป็นหนี้ที่ต้องตามเก็บ
-// ถ้ากรองแค่ `unpaid` บิลที่จ่ายบางส่วนจะหายไปจากทั้งสองแท็บแล้วไม่มีใครตามต่อ
-// (ชื่อป้ายสถานะ `unpaid` ก็แปลว่า "ค้างชำระ" เหมือนกัน จุดนี้จึงพลาดได้ง่ายมาก)
-//
-// **บิลที่ยกเลิกต้องไม่หล่นเข้ากลุ่มไหนของสองกลุ่มแรก** ต่อให้ยอดค้างคำนวณออกมาเป็นบวก
-// ก็ไม่ใช่หนี้จริง จึงกรองด้วย "สถานะ" ไม่ใช่ "ยอดค้าง > 0" — และมีกลุ่มของตัวเองแทน
-// (ผู้ใช้ขอ 2026-08-11) ที่นั่นคือที่ที่ตามหาเลขที่ใบที่หายไปจากลำดับ และเป็นที่ที่ปุ่มลบ
-// ใบที่ยกเลิกแล้วอยู่ครบในที่เดียว ไม่ต้องไปไล่หาปนกับบิลที่ยังต้องตามเก็บเงิน
+// ค้างชำระรวม partial_paid · บิลที่ยกเลิกมีกลุ่มของตัวเอง (กรองด้วยสถานะ ไม่ใช่ยอดค้าง)
 const SETTLEMENT_STATUSES = {
   outstanding: ['unpaid', 'partial_paid'],
   paid: ['paid'],
   cancelled: ['cancelled']
 }
 
-// รายการบิลค้างชำระของหอ — คอลัมน์ตามต้นแบบ: เลขใบแจ้งหนี้ | วันที่ | สถานะ | ห้อง | ยอดเงิน
-// `today` มีไว้ให้เทสต์ตรึงวันได้ (และให้หน้าภาพรวมนับ "เกินกำหนดกี่วัน" ด้วยวันเดียวกัน
-// ทั้งหน้า) — ไม่ส่งมาก็คือวันนี้ ซึ่งเป็นพฤติกรรมเดิมทุกที่ที่เรียกอยู่แล้ว
+// today มีไว้ให้เทสต์ตรึงวัน
 export function listInvoices(
   db,
   apartmentId,
@@ -717,22 +572,17 @@ export function listInvoices(
 
   if (settlement) {
     const statuses = SETTLEMENT_STATUSES[settlement]
-    // ค่าที่ไม่รู้จักต้องดังออกมา ไม่ใช่เงียบแล้วคืนบิลทั้งหมด — ตัวกรองที่ไม่ทำงาน
-    // แต่หน้าจอยังไฮไลต์แท็บอยู่ ทำให้อ่านตัวเลขผิดโดยไม่รู้ตัว
+    // ค่าที่ไม่รู้จักต้อง error ไม่คืนทั้งหมดเงียบๆ
     if (!statuses) throw new Error(`ตัวกรองสถานะไม่ถูกต้อง: ${settlement}`)
-    // ค่าในลิสต์มาจากค่าคงที่ของเราเอง ไม่ได้มาจากผู้เรียก จึงต่อเป็นข้อความได้
+    // ค่ามาจากค่าคงที่ของเราเอง ต่อเป็นข้อความได้
     where.push(`i.status IN (${statuses.map((s) => `'${s}'`).join(', ')})`)
   }
 
   if (billingMonth) where.push('i.billing_month = @billingMonth')
-  // ทั้งปี (หน้าใบแจ้งหนี้โหมด "ปี") — billing_month เป็น 'YYYY-MM' จึงเทียบคำนำหน้าได้ตรงๆ
   if (billingYear) where.push("i.billing_month LIKE @billingYear || '-%'")
   if (roomNumber) where.push('r.room_number LIKE @roomNumber')
   if (invoiceNumber) where.push('i.invoice_number LIKE @invoiceNumber')
-  // ช่วงวันที่ออกบิล — เทียบเป็นข้อความได้ตรงๆ เพราะเก็บเป็น 'YYYY-MM-DD' ซึ่งเรียงตามเวลา
-  // อยู่แล้ว ไม่ต้องแปลงเป็น date ก่อน (และไม่ต้องพึ่งฟังก์ชันวันที่ของ SQLite)
-  //
-  // ใส่มาข้างเดียวก็ได้ — ระบุแต่วันเริ่มคือ "ตั้งแต่วันนั้นเป็นต้นไป"
+  // ใส่ข้างเดียวได้
   if (dateFrom) where.push('i.issue_date >= @dateFrom')
   if (dateTo) where.push('i.issue_date <= @dateTo')
 
@@ -762,7 +612,7 @@ export function listInvoices(
     })
     .map((row) => ({
       invoiceId: row.invoice_id,
-      // ต้องมี — ขั้นตอนย้ายออกกรองบิลค้างของ "สัญญาใบนี้" ออกจากบิลค้างทั้งหอ
+      // ขั้นตอนย้ายออกใช้กรองบิลของสัญญานี้
       contractId: row.contract_id,
       invoiceNumber: row.invoice_number,
       issueDate: row.issue_date,
@@ -774,8 +624,6 @@ export function listInvoices(
       totalAmountCents: row.total_amount_cents,
       paidAmountCents: row.paid,
       outstandingCents: row.total_amount_cents - row.paid,
-      // เกินกำหนดกี่วันแล้ว — มีประโยชน์แม้หอจะปิดค่าปรับ เพราะหอต้องรู้อยู่ดีว่าใครค้าง
-      // นับถึงวันนี้ ไม่ใช่ถึงวันที่จ่าย เพราะบิลใบนี้ยังไม่ได้จ่าย
       overdueDays:
         row.status === 'unpaid' || row.status === 'partial_paid'
           ? Math.max(0, daysBetween(row.due_date, today ?? todayIso()))
@@ -783,10 +631,7 @@ export function listInvoices(
     }))
 }
 
-// รอบเดือนที่หอนี้เคยออกบิลไว้ ใหม่สุดก่อน — ใช้ทำตัวเลือกเดือนบนหน้ารับเงินหลายห้อง
-//
-// ดึงจากบิลที่มีจริง ไม่ใช่ไล่เดือนย้อนหลังไปเรื่อยๆ จากวันนี้ เพราะหอที่เพิ่งเริ่มใช้ระบบ
-// จะได้เดือนเปล่าเต็มไปหมด ส่วนหอที่ค้างบิลข้ามปีจะหาเดือนเก่าไม่เจอ
+// ดึงจากบิลที่มีจริง
 export function listBillingMonths(db, apartmentId) {
   return db
     .prepare(
@@ -802,11 +647,6 @@ export function listBillingMonths(db, apartmentId) {
     .map((row) => row.month)
 }
 
-// ------------------------------------------------------------------
-// แก้ไขบิลที่ออกไปแล้ว
-// ------------------------------------------------------------------
-// ต้นแบบให้เพิ่ม/ลบรายการบนใบที่ออกไปแล้วได้ (การ์ด "เพิ่มรายการ" แท็บค่าบริการ /
-// ส่วนลด-คืนเงิน) ทุกครั้งที่รายการเปลี่ยน ยอดรวมของหัวบิลต้องถูกคิดใหม่ทันที
 export function addInvoiceItem(db, invoiceId, { itemType, description, amount, isTaxable }) {
   const invoice = requireOpenInvoice(db, invoiceId)
 
@@ -814,7 +654,6 @@ export function addInvoiceItem(db, invoiceId, { itemType, description, amount, i
   const label = String(description ?? '').trim()
   if (!label) throw new FieldError({ description: 'กรุณากรอกชื่อรายการ' })
 
-  // ส่วนลด/คืนเงินเก็บเป็นยอดติดลบ ผู้ใช้กรอกเป็นจำนวนบวกตามปกติ
   let magnitude
   try {
     magnitude = toCents(amount, itemType === 'discount' ? 'ส่วนลด' : 'จำนวนเงิน')
@@ -832,11 +671,7 @@ export function addInvoiceItem(db, invoiceId, { itemType, description, amount, i
         quantity: 1,
         unitPriceCents: totalAmountCents,
         totalAmountCents,
-        // ส่วนลดไม่คิด VAT ต่อ — ไม่งั้นต้องตัดสินว่าลดจากฐานภาษีหรือลดจากยอดรวม
-        // ซึ่งต้นแบบก็ไม่ได้แยกไว้
-        //
-        // และต้องเช็คสวิตช์ VAT ของหอด้วยเสมอ ไม่ใช่เชื่อ isTaxable ที่ส่งมาอย่างเดียว —
-        // หอที่เจ้าของไม่ได้ติ๊ก "เปิดการใช้งาน VAT" ต้องไม่มี VAT โผล่บนบิลจากทางไหนเลย
+        // ส่วนลดไม่คิด VAT · ต้องเช็คสวิตช์ VAT ของหอด้วย ไม่เชื่อ isTaxable อย่างเดียว
         isTaxable:
           invoice.is_vat_enabled === 1 && itemType !== 'discount' && Boolean(isTaxable)
       }
@@ -864,15 +699,7 @@ export function removeInvoiceItem(db, invoiceId, invoiceItemId) {
   return getInvoiceById(db, invoiceId)
 }
 
-// สถานะบิลเป็น "ผล" ของยอดรวมกับยอดที่รับมาแล้วเสมอ ไม่ใช่ค่าที่ตั้งแยก
-// จึงต้องคิดใหม่ทุกครั้งที่ *ฝั่งใดฝั่งหนึ่ง* ขยับ — เงินเข้า/ออก (payments.js เรียกตัวนี้)
-// และยอดบิลเปลี่ยนเพราะเพิ่ม/ลบรายการ (recalculateTotals ข้างล่างเรียกตัวนี้)
-//
-// เคยพลาดมาแล้ว: เพิ่มรายการเข้าบิลที่จ่ายครบแล้ว ยอดรวมขึ้นแต่สถานะยังค้างเป็น 'paid'
-// กลายเป็นบิลที่เขียนว่า "ชำระแล้ว" ทั้งที่มียอดค้างอยู่
-//
-// อยู่ที่ไฟล์นี้ไม่ใช่ payments.js เพราะเป็นเรื่องของใบแจ้งหนี้ และ payments.js นำเข้าจาก
-// ไฟล์นี้อยู่แล้ว (ทางกลับกันจะกลายเป็นวงกลม)
+// สถานะบิลคิดจากยอดรวมกับยอดรับ — ต้องคิดใหม่ทุกครั้งที่ฝั่งใดฝั่งหนึ่งเปลี่ยน
 export function refreshInvoiceStatus(db, invoiceId, now) {
   const row = db
     .prepare(
@@ -885,16 +712,10 @@ export function refreshInvoiceStatus(db, invoiceId, now) {
     .get(invoiceId)
   if (!row) return
 
-  // บิลที่ถูกยกเลิกไม่ถูกแตะ — สถานะ 'cancelled' ต้องชนะทุกอย่าง
+  // 'cancelled' ชนะทุกอย่าง
   if (row.status === 'cancelled') return
 
-  // **บิลยอด 0 (หรือติดลบ) ถือว่าชำระครบ** — เกิดขึ้นจริงเมื่อเจ้าของหอใส่ส่วนลดเท่ากับ
-  // ยอดบิลทั้งใบ (addInvoiceItem รองรับ) เงื่อนไขเดิมมี `&& row.total > 0` ต่อท้าย ทำให้
-  // บิลแบบนั้นตกเป็น 'unpaid' ตลอดกาลและเคลียร์ไม่ได้เลย เพราะ recordInvoicePayment
-  // ไม่รับยอด 0 และไม่รับยอดเกินยอดค้าง (ซึ่งเป็น 0) — บิลจะค้างในแท็บค้างชำระ ในตัวเลข
-  // หน้าภาพรวม และบล็อกการย้ายออก (terminations.js) ถาวร
-  //
-  // ไม่กระทบบิลที่ถูกยกเลิก เพราะ 'cancelled' return ออกไปก่อนแล้วด้านบน
+  // บิลยอด 0 หรือติดลบ = ชำระครบ
   let status = 'unpaid'
   if (row.paid >= row.total) status = 'paid'
   else if (row.paid > 0) status = 'partial_paid'
@@ -907,12 +728,7 @@ export function refreshInvoiceStatus(db, invoiceId, now) {
   )
 }
 
-// อ่านรายการทั้งหมดกลับมารวมใหม่ ไม่ใช่บวก/ลบส่วนต่างจากยอดเดิม
-// เพราะยอดเดิมอาจเพี้ยนมาก่อนแล้ว การรวมใหม่ทั้งใบทำให้บิลกลับมาถูกเสมอ
-// 🔴 **อ่านอัตราจากบิล ไม่ใช่จากหอ** — นี่คือจุดที่ทำให้ "บิลเก่าไม่เปลี่ยนตามอัตราใหม่"
-// เป็นจริง ฟังก์ชันนี้ถูกเรียกทุกครั้งที่รายการในบิลเปลี่ยน รวมถึงตอนที่ addLateFeeItem
-// เติมค่าปรับให้ผู้เช่าที่มาจ่ายช้า ถ้าตรงนี้ไปหยิบอัตราปัจจุบันของหอมาใช้ บิลที่ออกไป
-// เมื่อหลายเดือนก่อนจะเปลี่ยนยอดเองโดยไม่มีใครสั่ง
+// รวมใหม่ทั้งใบ · อ่านอัตรา VAT จากบิล ไม่ใช่จากหอ
 function recalculateTotals(db, invoiceId, now) {
   const invoice = db
     .prepare('SELECT vat_rate FROM invoices WHERE invoice_id = ?')
@@ -948,20 +764,13 @@ function recalculateTotals(db, invoiceId, now) {
     now
   })
 
-  // ยอดรวมเพิ่งเปลี่ยน สถานะจึงอาจไม่ตรงกับความจริงแล้ว
   refreshInvoiceStatus(db, invoiceId, now)
 }
 
 function requireOpenInvoice(db, invoiceId) {
   const row = db
     .prepare(
-      // 🟡 **ตรึงแค่ "อัตรา" ไม่ได้ตรึง "สวิตช์"** — i.vat_rate เป็นของบิล แต่ a.is_vat_enabled
-      // อ่านสดจากหอ ถ้าบิลออกตอนหอปิด VAT แล้วเจ้าของมาเปิดทีหลัง รายการที่เพิ่มเข้าบิล
-      // ใบเก่านั้นจะกลายเป็นรายการเสียภาษี = บิลที่เคยไม่มี VAT งอกแถว VAT ขึ้นมา
-      //
-      // เป็นพฤติกรรมเดิมก่อนมี migration 031 และยังไม่เคยมีใครเจอ (หอเปิด/ปิด VAT ไม่บ่อย)
-      // จึงไม่แก้ในรอบนี้เพื่อไม่ให้ขอบเขตบาน — ถ้าจะตรึง ต้องเพิ่ม invoices.is_vat_enabled
-      // แล้วอ่านจากตรงนั้นแทน ด้วยเหตุผลเดียวกับที่ตรึงอัตรา
+      // สวิตช์ VAT ยังอ่านสดจากหอ (ตรึงแค่อัตรา) — รู้แล้ว ยังไม่แก้
       `SELECT i.invoice_id, i.status, i.vat_rate, a.is_vat_enabled
          FROM invoices i
          JOIN contracts c ON c.contract_id = i.contract_id
@@ -976,15 +785,7 @@ function requireOpenInvoice(db, invoiceId) {
   return row
 }
 
-// ------------------------------------------------------------------
-// ยกเลิกบิล
-// ------------------------------------------------------------------
-// ไม่ลบทิ้ง — ทำเครื่องหมายยกเลิกไว้ เอกสารการเงินที่หายไปเฉยๆ ตรวจสอบย้อนหลังไม่ได้
-// และ partial unique index ยอมให้ออกบิลเดือนเดิมใหม่ได้หลังใบเก่าถูกยกเลิก
-//
-// **เหตุผลบังคับกรอก** (ผู้ใช้สั่ง 2026-08-11 · migration 024) — กดยกเลิกแล้วยอดหนี้
-// ของห้องนั้นหายไปจากรายการค้างชำระทันที ปีหน้ามีคนถามว่าทำไมห้อง 203 ไม่มีบิลเดือน
-// มีนาคม แล้วต้องตอบได้ · ตรงกับที่ลบใบแจ้งหนี้และยกเลิกใบเสร็จบังคับไว้อยู่แล้ว
+// ไม่ลบ ทำเครื่องหมายยกเลิก · เหตุผลบังคับกรอก
 export function cancelInvoice(db, invoiceId, { reason, cancelledBy } = {}) {
   const invoice = getInvoiceById(db, invoiceId)
   if (!invoice) throw new Error('ไม่พบใบแจ้งหนี้')
@@ -1010,16 +811,7 @@ export function cancelInvoice(db, invoiceId, { reason, cancelledBy } = {}) {
   return getInvoiceById(db, invoiceId)
 }
 
-// ------------------------------------------------------------------
-// ค่าปรับชำระล่าช้า
-// ------------------------------------------------------------------
-// คิด "ตอนรับเงิน" ไม่ใช่ตอนออกบิล (ผู้ใช้ตัดสินใจ 2026-08-08 ตามที่ต้นแบบทำ)
-//
-// เหตุผล: ตอนออกบิลยังไม่รู้ว่าผู้เช่าจะจ่ายวันไหน ค่าปรับจึงเป็นตัวเลขที่ยังเดินอยู่ทุกวัน
-// ตรึงเป็นตัวเลขจริงได้ก็ต่อเมื่อเงินเข้าแล้ว — ถ้าใส่ลงบิลตั้งแต่ออก จะได้ค่าปรับที่เดาไว้
-// ล่วงหน้าซึ่งไม่มีทางตรง
-//
-// นับวันจาก "วันครบกำหนด" ถึง "วันที่รับเงิน" แล้วหักวันผ่อนผันออก (ดู migration 018)
+// ค่าปรับคิดตอนรับเงิน ไม่ใช่ตอนออกบิล · นับจากวันครบกำหนดถึงวันรับเงิน หักวันผ่อนผัน
 export function calculateLateFee({ dueDate, paymentDate, ratePerDayCents, graceDays }) {
   const empty = { overdueDays: 0, chargeableDays: 0, amountCents: 0 }
   if (!isDate(dueDate) || !isDate(paymentDate)) return empty
@@ -1027,7 +819,7 @@ export function calculateLateFee({ dueDate, paymentDate, ratePerDayCents, graceD
   const overdueDays = daysBetween(dueDate, paymentDate)
   if (overdueDays <= 0) return empty
 
-  // ผ่อนผัน 3 วัน แปลว่าเกิน 3 วันแรกไม่ปรับ วันที่ 4 เป็นต้นไปจึงเริ่มนับ
+  // ผ่อนผัน 3 วัน = เริ่มปรับวันที่ 4
   const chargeableDays = Math.max(0, overdueDays - Math.max(0, graceDays ?? 0))
   return {
     overdueDays,
@@ -1036,8 +828,7 @@ export function calculateLateFee({ dueDate, paymentDate, ratePerDayCents, graceD
   }
 }
 
-// เทียบวันแบบ UTC เพื่อไม่ให้เวลาออมแสง/เขตเวลาทำให้ผลต่างเพี้ยนไปหนึ่งวัน
-// (วันที่เก็บเป็น 'YYYY-MM-DD' ไม่มีเวลาอยู่แล้ว จึงไม่ควรมีเรื่องเขตเวลามาเกี่ยว)
+// เทียบแบบ UTC กันเขตเวลาทำให้วันเพี้ยน
 function daysBetween(fromDate, toDate) {
   const [fy, fm, fd] = fromDate.split('-').map(Number)
   const [ty, tm, td] = toDate.split('-').map(Number)
@@ -1046,8 +837,7 @@ function daysBetween(fromDate, toDate) {
   return Math.round((to - from) / 86400000)
 }
 
-// ค่าปรับที่ "เรียกเก็บได้สูงสุด" ของบิลใบหนึ่ง ณ วันที่รับเงินหนึ่ง
-// ฝั่งรับเงินใช้ตัวนี้เป็นเพดาน — เจ้าของหอลดหย่อนได้ แต่เก็บเกินกฎที่ตัวเองตั้งไว้ไม่ได้
+// เพดานค่าปรับ — ลดได้ แต่เก็บเกินไม่ได้
 export function getLateFeeForInvoice(db, invoiceId, paymentDate) {
   const row = db
     .prepare(
@@ -1066,7 +856,7 @@ export function getLateFeeForInvoice(db, invoiceId, paymentDate) {
   const enabled = row.is_auto_late_fee_enabled === 1 && row.late_fee_per_day_cents > 0
   const graceDays = row.late_fee_grace_days ?? 0
 
-  // บิลที่มีค่าปรับอยู่แล้วไม่คิดซ้ำ — รับเงินสองงวดในบิลเดียวกันต้องไม่โดนปรับสองรอบ
+  // หักค่าปรับที่เก็บไปแล้ว ไม่ปรับซ้ำ
   const already = db
     .prepare(
       `SELECT COALESCE(SUM(total_amount_cents), 0) AS charged
@@ -1083,8 +873,7 @@ export function getLateFeeForInvoice(db, invoiceId, paymentDate) {
 
   return {
     enabled,
-    // เปิดสวิตช์ไว้แต่อัตราเป็น 0 — ตั้งค่าไม่ครบ ไม่ใช่ "ตั้งใจไม่เก็บ"
-    // หน้าจอต้องบอกให้รู้ ไม่งั้นดูเหมือนระบบไม่ทำงาน (เจอจริง 2026-08-08)
+    // เปิดสวิตช์แต่อัตราเป็น 0 = ตั้งค่าไม่ครบ
     misconfigured: row.is_auto_late_fee_enabled === 1 && row.late_fee_per_day_cents === 0,
     dueDate: row.due_date,
     ratePerDayCents: row.late_fee_per_day_cents,
@@ -1092,16 +881,13 @@ export function getLateFeeForInvoice(db, invoiceId, paymentDate) {
     overdueDays: fee.overdueDays,
     chargeableDays: fee.chargeableDays,
     alreadyChargedCents: already,
-    // เก็บได้อีกเท่าไหร่ — หักส่วนที่เคยเก็บไปแล้วออก
     suggestedCents: enabled ? Math.max(0, fee.amountCents - already) : 0
   }
 }
 
-// เพิ่มบรรทัด "ค่าปรับ" เข้าบิล — ไม่คิด VAT (ตรงกับต้นแบบ: เป็นค่าเสียหาย ไม่ใช่ค่าสินค้า)
 export function addLateFeeItem(db, invoiceId, { amountCents, overdueDays }) {
   const now = new Date().toISOString()
-  // ค่าปรับเองไม่เสีย VAT แต่ insertItems ต้องได้อัตราของบิลไปด้วย เพราะ recalculateTotals
-  // ที่ตามมาจะคิด VAT ของ "ทั้งใบ" ใหม่ — รวมค่าน้ำ/ค่าไฟที่เสียภาษี
+  // insertItems ต้องได้อัตราของบิล — recalculateTotals คิด VAT ทั้งใบใหม่
   const invoice = db.prepare('SELECT vat_rate FROM invoices WHERE invoice_id = ?').get(invoiceId)
   const vatRate = Number(invoice?.vat_rate ?? DEFAULT_VAT_RATE)
   const run = db.transaction(() => {
@@ -1126,17 +912,7 @@ export function addLateFeeItem(db, invoiceId, { amountCents, overdueDays }) {
   run()
 }
 
-// ถอดรายการค่าปรับออกจากบิล — ใช้ตอนยกเลิกใบเสร็จใบสุดท้ายของบิล (ดู cancelPayment)
-//
-// ค่าปรับเข้าบิลตอน "รับเงิน" เท่านั้น (ดู addLateFeeItem) รายการค่าปรับจึงมีอยู่ได้
-// เพราะเคยมีเงินเข้าเสมอ ถ้าใบเสร็จทุกใบของบิลถูกยกเลิกไปหมดแล้ว ค่าปรับที่ค้างอยู่
-// จะกลายเป็นหนี้ที่งอกมาจากเหตุการณ์ที่ถูกลบล้างไปแล้ว
-//
-// ไม่ได้ผูกรายการค่าปรับกับใบเสร็จใบไหนเป็นรายตัว เพราะค่าปรับคิดเป็นยอดสะสมของทั้งบิล
-// (getLateFeeForInvoice หัก alreadyChargedCents ออกให้) การจับคู่รายตัวจึงไม่มีความหมาย
-// — เงื่อนไขจึงเป็น "ไม่เหลือใบเสร็จที่ยังใช้ได้เลย" ไม่ใช่ "ใบนี้เคยเก็บค่าปรับเท่าไหร่"
-//
-// รอบหน้าที่รับเงินจริง ค่าปรับจะถูกคิดใหม่ตามวันที่รับเงินจริงเอง
+// ถอดค่าปรับเมื่อไม่เหลือใบเสร็จที่ใช้ได้ (ดู cancelPayment)
 export function removeLateFeeItems(db, invoiceId, now) {
   const result = db
     .prepare("DELETE FROM invoice_items WHERE invoice_id = ? AND item_type = 'late_fee'")
@@ -1145,14 +921,7 @@ export function removeLateFeeItems(db, invoiceId, now) {
   return result.changes
 }
 
-// ------------------------------------------------------------------
-// ลบบิลที่ยกเลิกแล้วออกจากระบบ
-// ------------------------------------------------------------------
-// ลบได้เฉพาะใบที่ "ยกเลิกแล้ว" เท่านั้น — การยกเลิกเป็นด่านที่บังคับให้ตัดสินใจสองครั้ง
-// และด่านแรกกันไม่ให้ลบใบที่มีการรับเงินไปแล้วอยู่ก่อนหน้านี้
-//
-// เหตุผลบังคับกรอกเสมอ (ผู้ใช้สั่ง 2026-08-07) และถูกเก็บไว้ที่ invoice_deletions
-// ไม่ใช่ถามแล้วทิ้ง — เลขที่ใบที่หายไปจากรายการต้องตามได้ว่าเป็นใบอะไรและหายเพราะอะไร
+// ลบได้เฉพาะใบที่ยกเลิกแล้ว · เหตุผลเก็บที่ invoice_deletions
 export function deleteInvoice(db, invoiceId, { reason, deletedBy }) {
   const invoice = getInvoiceById(db, invoiceId)
   if (!invoice) throw new Error('ไม่พบใบแจ้งหนี้ที่ต้องการลบ')
@@ -1165,12 +934,7 @@ export function deleteInvoice(db, invoiceId, { reason, deletedBy }) {
   if (!note) throw new FieldError({ reason: 'กรุณาระบุเหตุผลในการลบใบแจ้งหนี้' })
   if (!deletedBy) throw new Error('ไม่ทราบผู้ลบ กรุณาเข้าสู่ระบบใหม่')
 
-  // ใบที่ยกเลิกแล้วไม่ควรมีใบเสร็จผูกอยู่ (cancelInvoice กันไว้) แต่ตรวจซ้ำก่อนลบจริง
-  // เพราะการลบเป็นทางเดียว ถ้าหลุดไปได้ใบเสร็จจะชี้ไปที่บิลที่ไม่มีอยู่
-  //
-  // **นับใบเสร็จที่ยกเลิกแล้วด้วย** — บิลที่เคยออกใบเสร็จจะลบไม่ได้ตลอดไป ต่อให้ใบเสร็จ
-  // ทุกใบถูกยกเลิกจนยอดรับเป็น 0 แล้วก็ตาม เพราะเลขที่ใบเสร็จนั้นยื่นให้ผู้เช่าไปแล้ว
-  // และแถวใบเสร็จอ้าง invoice_id อยู่ (ลบบิลทิ้ง = FK พัง หรือใบเสร็จชี้ไปที่ความว่างเปล่า)
+  // เคยมีใบเสร็จ (แม้ยกเลิกแล้ว) ลบไม่ได้
   const payments = db
     .prepare('SELECT COUNT(*) AS n FROM payments WHERE invoice_id = ?')
     .get(invoiceId).n
@@ -1211,7 +975,6 @@ export function deleteInvoice(db, invoiceId, { reason, deletedBy }) {
   return { invoiceNumber: invoice.invoiceNumber }
 }
 
-// ประวัติการลบของหอ — ไว้ให้ตอบได้ว่าเลขที่ใบที่หายไปคือใบอะไร ใครลบ เพราะอะไร
 export function listInvoiceDeletions(db, apartmentId) {
   return db
     .prepare(
@@ -1235,7 +998,6 @@ export function listInvoiceDeletions(db, apartmentId) {
     }))
 }
 
-// ------------------------------------------------------------------
 function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }

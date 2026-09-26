@@ -1,5 +1,3 @@
-// IPC ของโมดูลออกบิล — เปลือกบางๆ ครอบ db/invoices.js
-// กฎเดียวกับ handler อื่น: คืน { success, data | error } เท่านั้น ห้าม throw ข้ามสะพาน
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -29,8 +27,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -39,7 +35,6 @@ function handleSession(channel, fn) {
 }
 
 export function registerInvoiceHandlers() {
-  // ตารางขั้นที่ 3 ของ wizard ออกบิล — คำนวณอย่างเดียว ยังไม่เขียนอะไรลงฐานข้อมูล
   handleSession('invoice:preview', ({ apartmentId, meterBatchId, billingMonth }) =>
     previewMonthlyBilling(getDatabase(), { apartmentId, meterBatchId, billingMonth })
   )
@@ -55,8 +50,6 @@ export function registerInvoiceHandlers() {
     return invoice
   })
 
-  // ปุ่ม "สร้างใบแจ้งหนี้ทุกห้อง" — คืน { created, skipped, failed } ให้หน้าจอสรุปให้ผู้ใช้
-  // ห้องที่พังไม่ล้มทั้งชุด จึงต้อง log ไว้ด้วยว่ามีห้องไหนไม่ผ่านบ้าง
   handleSession('invoice:createMonthlyAll', ({ apartmentId, meterBatchId, billingMonth, issueDate }) => {
     const result = createMonthlyInvoicesForApartment(getDatabase(), {
       apartmentId,
@@ -74,8 +67,6 @@ export function registerInvoiceHandlers() {
 
   handleSession('invoice:get', ({ invoiceId }) => getInvoiceById(getDatabase(), invoiceId))
 
-  // ค่าปรับ ณ วันที่รับเงินที่ผู้ใช้เลือก — ถามใหม่ทุกครั้งที่เปลี่ยนวันที่
-  // คำนวณฝั่ง main ที่เดียว ไม่ทำสำเนาสูตรไว้ที่หน้าจอ
   handleSession('invoice:lateFee', ({ invoiceId, paymentDate }) =>
     getLateFeeForInvoice(getDatabase(), invoiceId, paymentDate)
   )
@@ -101,8 +92,7 @@ export function registerInvoiceHandlers() {
     return invoice
   })
 
-  // เหตุผลบังคับกรอก และ **ผู้ยกเลิกมาจากเซสชันฝั่ง main เสมอ** เหมือนผู้ลบและผู้รับเงิน
-  // ไม่งั้นเปิด DevTools แล้วยกเลิกบิลในนามคนอื่นได้ บันทึกก็เชื่อไม่ได้ทั้งชุด
+  // ผู้ยกเลิกมาจากเซสชันเสมอ
   handle('invoice:cancel', ({ invoiceId, reason }) => {
     const invoice = cancelInvoice(getDatabase(), invoiceId, {
       reason,
@@ -112,10 +102,7 @@ export function registerInvoiceHandlers() {
     return invoice
   })
 
-  // ลบถาวร — ผู้ลบมาจากเซสชันฝั่ง main เหมือนใบเสร็จ ไม่ให้หน้าจอบอกว่าตัวเองเป็นใคร
-  //
-  // **เจ้าของหอเท่านั้น** (ดู OWNER_ONLY_ACTIONS) — แถวถูกลบจริง เลขที่ที่เคยยื่นให้ผู้เช่า
-  // จะชี้ไปที่ความว่างเปล่า พนักงานที่ออกบิลผิดใช้ "ยกเลิกบิล" ซึ่งเก็บแถวไว้และตามได้
+  // เฉพาะเจ้าของหอ · ผู้ลบมาจากเซสชัน
   handle('invoice:delete', ({ invoiceId, reason }) => {
     const result = deleteInvoice(getDatabase(), invoiceId, {
       reason,

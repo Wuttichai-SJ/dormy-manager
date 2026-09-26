@@ -1,21 +1,11 @@
-// ตาราง apartment_services — ค่าบริการเพิ่มเติมของหอ (ค่าอินเทอร์เน็ต ค่าที่จอดรถ ฯลฯ)
-//
-// รายการที่นี่คือ "แคตตาล็อกของหอ" ยังไม่ผูกกับห้องไหน การผูกเข้าห้องอยู่ที่ตาราง
-// room_services และตอนทำสัญญาจะถูกคัดลอกราคาไปที่ contract_services อีกที
-// เพื่อให้การขึ้นราคาค่าบริการภายหลังไม่ย้อนไปเปลี่ยนสัญญาที่เซ็นไปแล้ว
+// แคตตาล็อกค่าบริการของหอ — ราคาถูกคัดลอกไป contract_services ตอนทำสัญญา
 import { toCents } from '../money.js'
 
-// ค่าบริการมี 2 แบบ ตามที่ต้นแบบแบ่งไว้:
-//   flat  = เหมาจ่ายต่อเดือน (ค่าส่วนกลาง ค่าอินเทอร์เน็ต)
-//   meter = แปรผันตามมิเตอร์ คิดเป็นราคาต่อหน่วย (เช่นมิเตอร์น้ำอุ่นแยกของห้อง)
-// SQLite ไม่มี ENUM — เก็บเป็น 0/1 ในคอลัมน์ is_meter_based แล้วตรวจที่ JS
+// is_meter_based: 0 = เหมาจ่าย, 1 = คิดตามหน่วยมิเตอร์
 export function serviceKind(row) {
   return row.is_meter_based === 1 ? 'meter' : 'flat'
 }
 
-// -----------------------------------------------------
-// ตรวจข้อมูลก่อนเขียน
-// -----------------------------------------------------
 export function validateServiceInput({ name, price }) {
   const errors = []
 
@@ -32,8 +22,6 @@ export function validateServiceInput({ name, price }) {
   return errors
 }
 
-// เช็คชื่อซ้ำก่อน เพื่อให้ได้ข้อความที่ผู้ใช้อ่านรู้เรื่อง แทน UNIQUE constraint
-// ของ SQLite ที่ขึ้นว่า "UNIQUE constraint failed: apartment_services.name"
 function assertNameAvailable(db, apartmentId, name, exceptServiceId = null) {
   const row = db
     .prepare(
@@ -45,9 +33,6 @@ function assertNameAvailable(db, apartmentId, name, exceptServiceId = null) {
   if (row) throw new Error(`มีค่าบริการชื่อ "${name}" ในหอพักนี้อยู่แล้ว`)
 }
 
-// -----------------------------------------------------
-// อ่าน
-// -----------------------------------------------------
 export function listServices(db, apartmentId) {
   return db
     .prepare(
@@ -64,9 +49,6 @@ export function getServiceById(db, serviceId) {
   return row ? toPublicService(row) : null
 }
 
-// -----------------------------------------------------
-// เขียน
-// -----------------------------------------------------
 export function insertService(db, apartmentId, input) {
   const name = String(input.name).trim()
   assertNameAvailable(db, apartmentId, name)
@@ -118,9 +100,7 @@ export function updateService(db, serviceId, input) {
   return getServiceById(db, serviceId)
 }
 
-// ลบได้เฉพาะค่าบริการที่ยังไม่ถูกใช้งานที่ไหน
-// ห้องที่ผูกไว้ (room_services) และสัญญาที่อ้างถึง (contract_services) ต้องเคลียร์ก่อน
-// ไม่งั้นบิลที่เคยออกไปแล้วจะอธิบายไม่ได้ว่าบรรทัดนั้นมาจากค่าบริการอะไร
+// ลบได้เฉพาะที่ยังไม่ถูกผูกกับห้องหรือสัญญา
 export function deleteService(db, serviceId) {
   const roomLinks = db
     .prepare('SELECT COUNT(*) AS n FROM room_services WHERE apartment_service_id = ?')
@@ -143,7 +123,6 @@ export function deleteService(db, serviceId) {
   return { ok: true }
 }
 
-// -----------------------------------------------------
 export function toPublicService(row) {
   if (!row) return null
   return {

@@ -1,31 +1,17 @@
-// ตาราง floors + rooms + room_utility_settings — ผังห้องของหอพัก
-//
-// สามตารางนี้อยู่ไฟล์เดียวกันเพราะเป็นเรื่องเดียวกันในสายตาผู้ใช้ ("ผังห้อง") และ
-// แทบทุกคำสั่งต้องแตะพร้อมกัน — สร้างห้องหนึ่งห้องคือเขียน rooms + room_utility_settings
-// เสมอ ถ้าแยกไฟล์จะมีโอกาสที่ใครสักคนเขียน rooms อย่างเดียวแล้วลืมอีกตาราง
-//
-// หมายเหตุ: ไฟล์ใน db/ ห้าม import logger.js หรืออะไรที่ดึง electron เข้ามา
-// (เหตุผลอยู่ใน db/bankAccounts.js) — การ log เป็นหน้าที่ของชั้น handlers
+// ผังห้อง: floors + rooms + room_utility_settings (สร้างห้องต้องเขียนคู่กันเสมอ)
 import { errorList } from '../fieldError.js'
 import { getUtilityDefaults } from './utilityDefaults.js'
 import { deleteOrphanImages } from './images.js'
 import { toCents } from '../money.js'
 
-// ต้นแบบจำกัดไว้ที่ 50 ห้อง/ชั้น และ 30 ชั้น — ใช้ตัวเลขเดียวกัน
-// ไม่ใช่เพราะระบบทำมากกว่านี้ไม่ได้ แต่เกินจากนี้แปลว่าผู้ใช้พิมพ์ผิด
-// (ไม่มีหอพักไหนมี 500 ห้องในชั้นเดียว) ปล่อยผ่านแล้วจะได้ห้องขยะ 500 ห้องให้ตามลบ
+// เพดานกันพิมพ์ผิด
 export const MAX_FLOORS = 30
 export const MAX_ROOMS_PER_FLOOR = 50
 
-// ชื่อประเภทห้องที่สร้างให้อัตโนมัติตอนยังไม่มีอะไรเลย
-// ตาราง rooms บังคับ room_type_id NOT NULL แต่ตอนสร้างผังห้องครั้งแรกผู้ใช้ยังไม่ได้
-// คิดเรื่องประเภทห้อง — สร้างประเภทกลางๆ ให้ก่อน แล้วค่อยแก้ทีหลังได้
+// ประเภทห้องเริ่มต้น (room_type_id บังคับ NOT NULL)
 export const DEFAULT_ROOM_TYPE = 'ทั่วไป'
 
-// สถานะห้อง — ต้องตรงกับที่ 001_init.sql ระบุไว้
-// ต้นแบบมีให้เลือกแค่ ว่าง/ไม่ว่าง ตอนตั้งค่าครั้งแรก แต่ schema เรารองรับ maintenance
-// ด้วย ซึ่งจำเป็นเวลาห้องน้ำท่วม/ซ่อมอยู่ — ห้องแบบนั้นไม่ใช่ทั้ง "ว่างให้เช่า" และ
-// ไม่ใช่ "มีคนอยู่" ถ้าไม่มีสถานะนี้เจ้าของจะต้องปล่อยเป็นว่างแล้วเสี่ยงปล่อยเช่าซ้ำ
+// ต้องตรงกับ 001_init.sql
 export const ROOM_STATUSES = ['vacant', 'occupied', 'maintenance']
 
 export const ROOM_STATUS_LABELS = {
@@ -34,35 +20,20 @@ export const ROOM_STATUS_LABELS = {
   maintenance: 'ปิดปรับปรุง'
 }
 
-// ความยาวของ "เลขนำหน้าเลขห้อง" ที่รับได้ (migration 030)
-// 3 ตัวพอสำหรับตึก+ชั้นสองหลัก ('112' = ตึก 1 ชั้น 12) เกินจากนี้แปลว่าพิมพ์ผิด
 export const MAX_ROOM_NUMBER_PREFIX = 3
 export const MAX_BUILDING_NAME = 30
 
-// -----------------------------------------------------
-// ตัวช่วย
-// -----------------------------------------------------
-// เลขห้องอัตโนมัติ: เลขนำหน้า + ลำดับห้อง 2 หลัก
-//   ชั้นที่ 1 (ไม่ตั้งเลขนำหน้า) → 101, 102, 103 · ชั้นที่ 10 → 1001, 1002
-//   ชั้นที่ตั้งเลขนำหน้า '12'    → 1201, 1202     · ตั้ง '22' → 2201, 2202
-//
-// เติมศูนย์ให้ลำดับห้องเป็น 2 หลักเสมอ เพื่อให้เรียงตามตัวอักษรแล้วยังถูกลำดับ
-// (ถ้าไม่เติม ชั้น 1 ที่มี 12 ห้องจะเรียงเป็น 101, 1010, 1011, 102 ... ซึ่งอ่านแล้วงง)
+// เลขห้อง = เลขนำหน้า + ลำดับ 2 หลัก (101, 102 · ตั้ง '22' → 2201)
 export function buildRoomNumber(prefix, index) {
   return `${prefix}${String(index + 1).padStart(2, '0')}`
 }
 
-// เลขนำหน้าที่ชั้นนี้ใช้จริง — ที่ตั้งไว้เอง หรือลำดับที่ของชั้นถ้าไม่ได้ตั้ง
-//
-// รวมไว้ที่เดียวเพราะมีสามที่ที่ต้องรู้คำตอบนี้ (สร้างผังครั้งแรก / เพิ่มชั้น / หาเลขห้อง
-// ถัดไป) และถ้าสามที่ตอบไม่เหมือนกัน เลขห้องจะเริ่มชนกันเองโดยไม่มีใครรู้ว่าทำไม
+// ใช้ที่เดียว ไม่งั้นเลขห้องชนกัน
 export function effectivePrefix(prefix, ordinal) {
   const trimmed = String(prefix ?? '').trim()
   return trimmed || String(ordinal)
 }
 
-// เลขนำหน้าต้องเป็นตัวเลขหรืออักษรอังกฤษล้วน ไม่มีเว้นวรรค — มันถูกต่อหน้าเลขห้องตรงๆ
-// เลขห้องที่มีช่องว่างหรืออักขระพิเศษจะไปโผล่บนบิลและค้นหาไม่เจอ
 export function normalizeRoomNumberPrefix(value) {
   const text = String(value ?? '').trim()
   if (!text) return null
@@ -84,8 +55,7 @@ export function normalizeBuildingName(value) {
   return text
 }
 
-// เลขนำหน้าซ้ำกันสองชั้น = ห้องของสองชั้นจะได้เลขเดียวกันทั้งชุด แล้วไปตายตอนสร้างห้อง
-// ที่สองเพราะเลขห้องซ้ำ — ดักตอนตั้งค่าดีกว่า ตอนนั้นยังบอกได้ว่าชนกับชั้นไหน
+// เลขนำหน้าซ้ำสองชั้น = เลขห้องชน
 function assertPrefixFree(db, apartmentId, prefix, excludeFloorId = null) {
   if (!prefix) return
 
@@ -115,9 +85,7 @@ function ensureRoomType(db, apartmentId, name = DEFAULT_ROOM_TYPE) {
     .run(apartmentId, name, new Date().toISOString()).lastInsertRowid
 }
 
-// คัดลอกวิธีคิดค่าน้ำ/ค่าไฟของหอลงห้องที่เพิ่งสร้าง
-// ต้องทำทุกครั้งที่สร้างห้อง ไม่ใช่ปล่อยว่างไว้แล้วค่อยมาเติม เพราะ room_utility_settings
-// เป็นตัวที่ตอนออกบิลใช้จริง ห้องที่ไม่มีแถวนี้จะออกบิลค่าน้ำค่าไฟไม่ได้เลย
+// ต้องคัดลอกทุกครั้ง — ออกบิลใช้ค่ารายห้อง
 function insertRoomUtilitySettings(db, roomId, defaults, now) {
   const w = defaults.water
   const e = defaults.electric
@@ -149,11 +117,7 @@ function insertRoomUtilitySettings(db, roomId, defaults, now) {
   )
 }
 
-// เลขห้องต้องไม่ซ้ำทั้งหอ ไม่ใช่แค่ในชั้นเดียวกัน (unique index กันได้แค่ระดับชั้น)
-// เพราะเวลาผู้เช่าบอกว่า "ห้อง 205" ไม่มีใครถามต่อว่าชั้นไหน
-// เลขห้องถัดไปของชั้นหนึ่ง — นับจาก "จำนวนห้องที่มีอยู่" แล้วเดินหน้าจนกว่าจะเจอเลขที่ว่าง
-// ไล่หาเลขว่างแทนการ +1 เฉยๆ เพราะห้องกลางชั้นอาจถูกลบไปแล้ว หรือเจ้าของหอพิมพ์เลขเอง
-// จนชนกับเลขที่ระบบจะตั้งให้ ถ้าไม่ไล่หาจะโยน "มีห้องนี้อยู่แล้ว" ใส่หน้าคนกดปุ่มเฉยๆ
+// เลขห้องต้องไม่ซ้ำทั้งหอ · หาเลขว่างถัดไป ไม่ใช่ +1
 function nextRoomNumber(db, apartmentId, floorId) {
   const ordinal = db
     .prepare(
@@ -162,8 +126,7 @@ function nextRoomNumber(db, apartmentId, floorId) {
     )
     .get(apartmentId, floorId).n
 
-  // ชั้นนี้ตั้งเลขนำหน้าไว้เองไหม (migration 030) — ถ้าตั้ง ห้องใหม่ต้องเดินตามนั้น
-  // ไม่ใช่ตามลำดับที่ของชั้น ไม่งั้นกด "เพิ่มห้อง" ในตึก 2 แล้วได้เลขของตึก 1
+  // ชั้นที่ตั้งเลขนำหน้าเอง ห้องใหม่ต้องตามนั้น
   const row = db
     .prepare('SELECT room_number_prefix FROM floors WHERE floor_id = ?')
     .get(floorId)
@@ -205,9 +168,6 @@ function apartmentIdOfFloor(db, floorId) {
   return row.apartment_id
 }
 
-// -----------------------------------------------------
-// อ่าน
-// -----------------------------------------------------
 export function listFloors(db, apartmentId) {
   const floors = db
     .prepare('SELECT * FROM floors WHERE apartment_id = ? ORDER BY floor_id ASC')
@@ -224,8 +184,6 @@ export function listFloors(db, apartmentId) {
     )
     .all(apartmentId)
 
-  // ดึงค่าบริการที่ผูกกับห้องมาในคำสั่งเดียว แล้วค่อยจับกลุ่มใน JS
-  // ดีกว่ายิง query แยกทีละห้อง ซึ่งหอ 40 ห้องจะกลายเป็น 40 คำสั่ง
   const links = db
     .prepare(
       `SELECT rs.room_id, s.service_id, s.name, s.price_cents, s.is_meter_based
@@ -253,11 +211,9 @@ export function listFloors(db, apartmentId) {
     floorId: floor.floor_id,
     apartmentId: floor.apartment_id,
     floorName: floor.floor_name,
-    // ป้ายตึก + เลขนำหน้าห้อง (migration 030) · null = ยังไม่ได้ตั้ง
     buildingName: floor.building_name ?? null,
     numberPrefix: floor.room_number_prefix ?? null,
-    // เลขที่ห้องใหม่ของชั้นนี้จะได้จริง — หน้าจอเอาไปขึ้นเป็นตัวอย่างให้เห็นก่อนกรอก
-    // ไม่ให้หน้าจอคิดเอง เพราะกฎ "ไม่ตั้ง = ใช้ลำดับที่ของชั้น" ต้องมีคำตอบเดียวในระบบ
+    // ตัวอย่างเลขห้องถัดไปให้หน้าจอแสดง
     effectivePrefix: effectivePrefix(floor.room_number_prefix, index + 1),
     rooms: rooms
       .filter((r) => r.floor_id === floor.floor_id)
@@ -287,9 +243,6 @@ export function countRooms(db, apartmentId) {
     .get(apartmentId).n
 }
 
-// -----------------------------------------------------
-// สร้างผังห้องครั้งแรก (ขั้น 4-5 ของ wizard)
-// -----------------------------------------------------
 export function validateFloorPlan(specs) {
   const errors = []
 
@@ -299,7 +252,6 @@ export function validateFloorPlan(specs) {
   }
   if (specs.length > MAX_FLOORS) errors.push(`จำนวนชั้นต้องไม่เกิน ${MAX_FLOORS} ชั้น`)
 
-  // เลขนำหน้าที่ผู้ใช้กรอกมา — เก็บไว้เทียบกันเองด้วย ไม่ใช่ตรวจแต่รูปแบบทีละอัน
   const seenPrefixes = new Map()
 
   specs.forEach((spec, index) => {
@@ -330,11 +282,7 @@ export function validateFloorPlan(specs) {
   return errors
 }
 
-// สร้างชั้นพร้อมห้องทั้งหมดในธุรกรรมเดียว
-// ถ้าพลาดกลางทางต้องไม่เหลือชั้นที่มีห้องครึ่งๆ กลางๆ ให้ผู้ใช้มานั่งไล่ลบเอง
-//
-// ใช้ได้เฉพาะตอนที่หอยังไม่มีชั้นเลย — การเพิ่มชั้นทีหลังใช้ addFloor
-// เพราะถ้าปล่อยให้เรียกซ้ำได้ เลขห้องจะชนกับของเดิมทั้งหมด
+// เฉพาะหอที่ยังไม่มีชั้น — เพิ่มทีหลังใช้ addFloor
 export function generateFloorPlan(db, apartmentId, specs) {
   if (db.prepare('SELECT COUNT(*) AS n FROM floors WHERE apartment_id = ?').get(apartmentId).n > 0) {
     throw new Error('หอพักนี้มีผังห้องอยู่แล้ว หากต้องการเพิ่มให้ใช้ปุ่มเพิ่มชั้น/เพิ่มห้อง')
@@ -351,8 +299,6 @@ export function generateFloorPlan(db, apartmentId, specs) {
       const roomCount = Number(spec.roomCount)
       const buildingName = normalizeBuildingName(spec.buildingName)
       const prefix = normalizeRoomNumberPrefix(spec.numberPrefix)
-      // ชั้นก่อนหน้าถูกเขียนลงไปแล้วในธุรกรรมเดียวกัน การถามฐานข้อมูลจึงดักเลขนำหน้า
-      // ที่ซ้ำกันเองในชุดที่กำลังสร้างได้ด้วย ไม่ใช่ดักแต่ที่ซ้ำกับชั้นเก่า
       assertPrefixFree(db, apartmentId, prefix)
 
       const floorId = db
@@ -386,7 +332,7 @@ export function generateFloorPlan(db, apartmentId, specs) {
   return listFloors(db, apartmentId)
 }
 
-// จุดเดียวที่เขียนแถว rooms — บังคับให้ room_utility_settings ถูกสร้างคู่กันเสมอ
+// จุดเดียวที่เขียน rooms — สร้าง room_utility_settings คู่กันเสมอ
 function createRoomRow(db, { floorId, roomTypeId, roomNumber, defaults, now }) {
   const roomId = db
     .prepare(
@@ -400,9 +346,6 @@ function createRoomRow(db, { floorId, roomTypeId, roomNumber, defaults, now }) {
   return roomId
 }
 
-// -----------------------------------------------------
-// ชั้น
-// -----------------------------------------------------
 export function addFloor(db, apartmentId, { floorName, roomCount, buildingName, numberPrefix } = {}) {
   const count = Number(roomCount)
   if (!Number.isInteger(count) || count < 0 || count > MAX_ROOMS_PER_FLOOR) {
@@ -441,8 +384,7 @@ export function addFloor(db, apartmentId, { floorName, roomCount, buildingName, 
 
     for (let i = 0; i < count; i += 1) {
       const roomNumber = buildRoomNumber(effectivePrefix(prefix, ordinal), i)
-      // ชั้นที่เพิ่มทีหลังอาจได้เลขที่ชนกับห้องที่ผู้ใช้ตั้งชื่อเองไว้ก่อน — ข้ามไปเงียบๆ
-      // ไม่ได้ เพราะผู้ใช้สั่งสร้าง N ห้องแล้วจะได้ไม่ครบ ต้องบอกให้ไปแก้ก่อน
+      // เลขชนกับห้องที่ตั้งเอง ต้อง error ไม่ข้ามเงียบ
       assertRoomNumberAvailable(db, apartmentId, roomNumber)
       createRoomRow(db, { floorId, roomTypeId, roomNumber, defaults, now })
     }
@@ -452,19 +394,14 @@ export function addFloor(db, apartmentId, { floorName, roomCount, buildingName, 
   return listFloors(db, apartmentId)
 }
 
-// แก้ชื่อชั้น / ป้ายตึก / เลขนำหน้าห้อง
-//
-// 🔴 **เปลี่ยนเลขนำหน้าไม่ไปแก้เลขห้องที่มีอยู่แล้ว** มีผลกับห้องที่สร้างใหม่หลังจากนี้
-// เท่านั้น — เลขห้องถูกพิมพ์ลงใบแจ้งหนี้ ใบเสร็จ และใบจดมิเตอร์ที่ยื่นให้ผู้เช่าไปแล้ว
-// ถ้าไล่เปลี่ยนย้อนหลัง เอกสารในมือผู้เช่ากับในระบบจะเป็นห้องคนละเลขกันทั้งหมด
-// (จะย้ายเลขห้องจริงๆ ให้แก้รายห้องด้วย updateRoom ซึ่งเป็นการตัดสินใจของคนไม่ใช่ของระบบ)
+// เปลี่ยนเลขนำหน้าไม่แก้เลขห้องที่มีอยู่
 export function updateFloor(db, floorId, { floorName, buildingName, numberPrefix } = {}) {
   const existing = db
     .prepare('SELECT apartment_id, floor_name FROM floors WHERE floor_id = ?')
     .get(floorId)
   if (!existing) throw new Error('ไม่พบชั้นที่ต้องการแก้ไข')
 
-  // ไม่ได้ส่งมา = ไม่แตะ (ต่างจากส่งค่าว่างมาซึ่งแปลว่า "ล้างค่า")
+  // ไม่ส่งมา = ไม่แตะ · ส่งค่าว่าง = ล้างค่า
   const name = floorName === undefined ? existing.floor_name : String(floorName ?? '').trim()
   if (!name) throw new Error('กรุณากรอกชื่อชั้น')
 
@@ -487,8 +424,7 @@ export function updateFloor(db, floorId, { floorName, buildingName, numberPrefix
   return listFloors(db, existing.apartment_id)
 }
 
-// ลบชั้นได้เฉพาะชั้นที่ไม่มีห้องแล้ว — บังคับให้ลบห้องทีละห้องก่อน
-// จงใจไม่ทำ "ลบชั้นแล้วห้องหายหมด" เพราะกดพลาดครั้งเดียวข้อมูลทั้งชั้นหายไป
+// ลบได้เฉพาะชั้นที่ไม่มีห้องแล้ว
 export function deleteFloor(db, floorId) {
   const apartmentId = apartmentIdOfFloor(db, floorId)
   const rooms = db.prepare('SELECT COUNT(*) AS n FROM rooms WHERE floor_id = ?').get(floorId).n
@@ -500,12 +436,7 @@ export function deleteFloor(db, floorId) {
   return listFloors(db, apartmentId)
 }
 
-// -----------------------------------------------------
-// ห้อง
-// -----------------------------------------------------
-// เว้น roomNumber ไว้ได้ = ให้ระบบตั้งเลขต่อจากห้องสุดท้ายของชั้นนั้นให้เอง
-// (ปุ่ม "เพิ่มห้อง" ในผังห้องเรียกแบบไม่ส่งเลขมา แล้วให้เจ้าของหอพิมพ์ทับทีหลังถ้าอยากได้
-// เลขอื่น — ต้นแบบก็เพิ่มแถวว่างที่มีเลขให้แล้วทันทีโดยไม่ถามก่อน)
+// ไม่ส่ง roomNumber = ตั้งเลขต่อให้เอง
 export function addRoom(db, floorId, { roomNumber, roomTypeName } = {}) {
   const apartmentId = apartmentIdOfFloor(db, floorId)
   const number = String(roomNumber ?? '').trim() || nextRoomNumber(db, apartmentId, floorId)
@@ -533,12 +464,7 @@ export function updateRoom(db, roomId, { roomNumber, roomTypeName, isActive }) {
   const number = String(roomNumber ?? '').trim()
   if (!number) throw new Error('กรุณากรอกเลขห้อง')
 
-  // **ห้องที่มีคนอยู่ ปิดใช้งานไม่ได้** (เจอจริง 2026-08-10 กับหอพักประตู 5 ห้อง 102)
-  //
-  // "ปิดใช้งาน" แปลว่าห้องนี้เลิกใช้แล้ว ไม่ให้เช่าอีก — แต่ถ้ายังมีสัญญาที่ยังไม่จบอยู่
-  // สถานะสองอย่างนี้ขัดกันเอง แล้วห้องจะกลายเป็นห้องที่ "มีผู้เช่า" ในหน้าห้อง แต่
-  // หายไปจากใบจดมิเตอร์ (ซึ่งกรอง is_active = 1) โดยไม่มีอะไรบอกว่าหายไปไหน
-  // ผู้เช่าจึงอยู่ไปเรื่อยๆ โดยไม่ถูกจดมิเตอร์และไม่มีใครสังเกต
+  // ห้องที่มีสัญญาอยู่ปิดใช้งานไม่ได้
   if (!isActive) {
     const active = db
       .prepare("SELECT COUNT(*) AS n FROM contracts WHERE room_id = ? AND status = 'active'")
@@ -566,8 +492,7 @@ export function updateRoom(db, roomId, { roomNumber, roomTypeName, isActive }) {
   return listFloors(db, apartmentId)
 }
 
-// ลบห้องไม่ได้ถ้าเคยมีสัญญาเช่า — ประวัติบิลและสัญญาอ้างถึงห้องนี้อยู่
-// ห้องที่เลิกใช้แล้วให้ปิดใช้งาน (is_active = 0) แทนการลบ
+// เคยมีสัญญาลบไม่ได้ — ให้ปิดใช้งานแทน
 export function deleteRoom(db, roomId) {
   const existing = db.prepare('SELECT floor_id FROM rooms WHERE room_id = ?').get(roomId)
   if (!existing) throw new Error('ไม่พบห้องที่ต้องการลบ')
@@ -582,14 +507,7 @@ export function deleteRoom(db, roomId) {
   const apartmentId = apartmentIdOfFloor(db, existing.floor_id)
 
   const run = db.transaction(() => {
-    // ตารางลูกที่ผูกกับห้องต้องถูกล้างก่อน ไม่งั้น FK บล็อก
-    //
-    // **เพิ่มตารางใหม่ที่ผูกกับ room_id เมื่อไหร่ ต้องกลับมาเพิ่มที่นี่ด้วย** — บทเรียน
-    // เดียวกับ deleteApartment ที่เคยลืม apartment_utility_defaults แล้วโยนข้อความดิบ
-    // ของ SQLite ("FOREIGN KEY constraint failed") ออกไปที่หน้าจอ
-    //
-    // งานแจ้งซ่อมของห้องที่ไม่เคยมีสัญญา (ด่านข้างบนกันไว้แล้ว) คือเรื่องของห้องเปล่า
-    // ที่กำลังจะไม่มีอยู่ — เก็บไว้ก็ชี้ไปที่ห้องที่ถูกลบ
+    // ตารางที่ผูก room_id ต้องล้างก่อน — เพิ่มตารางใหม่ต้องมาเพิ่มที่นี่
     db.prepare(
       `DELETE FROM maintenance_request_images
         WHERE maintenance_id IN (SELECT maintenance_id FROM maintenance_requests WHERE room_id = ?)`
@@ -598,7 +516,6 @@ export function deleteRoom(db, roomId) {
     db.prepare('DELETE FROM room_utility_settings WHERE room_id = ?').run(roomId)
     db.prepare('DELETE FROM room_services WHERE room_id = ?').run(roomId)
     db.prepare('DELETE FROM rooms WHERE room_id = ?').run(roomId)
-    // รูปที่เพิ่งหลุดจากงานซ่อมกลายเป็นรูปกำพร้า เก็บกวาดในธุรกรรมเดียวกัน
     deleteOrphanImages(db)
   })
   run()
@@ -606,11 +523,6 @@ export function deleteRoom(db, roomId) {
   return listFloors(db, apartmentId)
 }
 
-// -----------------------------------------------------
-// ตั้งค่าหลายห้องพร้อมกัน (ขั้น 6-7 ของ wizard)
-// -----------------------------------------------------
-// หอ 40 ห้องส่วนใหญ่ราคาเท่ากันหมด ถ้าให้กรอกทีละห้องคือพิมพ์เลขเดิม 40 รอบ
-// ต้นแบบจึงทำเป็น "ติ๊กเลือกห้อง แล้วตั้งค่าทีเดียว" — ลอกมาเพราะเหตุผลถูก
 function assertRoomsBelongToSameApartment(db, roomIds) {
   if (!Array.isArray(roomIds) || roomIds.length === 0) {
     throw new Error('กรุณาเลือกห้องอย่างน้อย 1 ห้อง')
@@ -627,7 +539,7 @@ function assertRoomsBelongToSameApartment(db, roomIds) {
     .map((r) => r.id)
 
   if (apartmentIds.length === 0) throw new Error('ไม่พบห้องที่เลือก')
-  // กันไม่ให้คำสั่งเดียวข้ามหอ — ถ้าเกิดขึ้นแปลว่าฝั่งหน้าจอส่งข้อมูลผิด
+  // กันคำสั่งเดียวข้ามหอ
   if (apartmentIds.length > 1) throw new Error('ไม่สามารถตั้งค่าห้องข้ามหอพักในครั้งเดียวได้')
 
   return apartmentIds[0]
@@ -642,7 +554,6 @@ export function validateRoomRateInput({ monthlyRent, dailyRent }) {
     errors.add('monthlyRent', err.message)
   }
 
-  // ค่าเช่ารายวันไม่บังคับ — หอที่ไม่รับรายวันเว้นว่างไว้ได้ (ต้นแบบก็เขียนแบบนี้)
   if (String(dailyRent ?? '').trim() !== '') {
     try {
       toCents(dailyRent, 'ค่าเช่ารายวัน')
@@ -658,8 +569,7 @@ export function setRoomRates(db, roomIds, { monthlyRent, dailyRent }) {
   const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
 
   const monthly = toCents(monthlyRent, 'ค่าเช่ารายเดือน')
-  // เว้นว่าง = ไม่รับรายวัน เก็บเป็น NULL ไม่ใช่ 0
-  // เพราะ 0 แปลว่า "รับรายวันแต่ฟรี" ซึ่งคนละความหมายกัน
+  // ว่าง = ไม่รับรายวัน (NULL ไม่ใช่ 0)
   const daily = String(dailyRent ?? '').trim() === '' ? null : toCents(dailyRent, 'ค่าเช่ารายวัน')
 
   const stmt = db.prepare(
@@ -678,9 +588,7 @@ export function setRoomStatus(db, roomIds, status) {
   if (!ROOM_STATUSES.includes(status)) throw new Error('สถานะห้องไม่ถูกต้อง')
   const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
 
-  // ห้องที่มีสัญญาเช่าอยู่จะถูกตั้งเป็น "ว่าง" ด้วยมือไม่ได้
-  // ถ้าปล่อยให้ทำได้ ห้องนั้นจะโผล่ในรายการห้องว่างทั้งที่มีคนอยู่ แล้วอาจถูกปล่อยเช่าซ้ำ
-  // การทำให้ห้องว่างต้องเกิดจากการย้ายออกเท่านั้น
+  // ห้องที่มีสัญญาตั้งเป็นว่างเองไม่ได้ — ต้องผ่านการย้ายออก
   if (status === 'vacant') {
     const placeholders = roomIds.map(() => '?').join(',')
     const occupied = db
@@ -709,13 +617,7 @@ export function setRoomStatus(db, roomIds, status) {
   return listFloors(db, apartmentId)
 }
 
-// -----------------------------------------------------
-// ค่าบริการรายห้อง (ขั้น 8 ของ wizard)
-// -----------------------------------------------------
-// ผูกค่าบริการจากแคตตาล็อกของหอ (apartment_services) เข้ากับห้องที่เลือก
-// ราคาไม่ได้ถูกคัดลอกมาที่นี่ — ตาราง room_services เก็บแค่ "ห้องนี้มีบริการนี้"
-// ราคาจริงถูกคัดลอกอีกทีตอนทำสัญญา (contract_services) เพื่อให้การขึ้นราคาภายหลัง
-// ไม่ย้อนไปเปลี่ยนสัญญาที่เซ็นไปแล้ว
+// ผูกบริการกับห้อง — ราคาถูกคัดลอกตอนทำสัญญา
 function assertServicesBelongToApartment(db, apartmentId, serviceIds) {
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
     throw new Error('กรุณาเลือกค่าบริการอย่างน้อย 1 รายการ')
@@ -738,9 +640,7 @@ export function attachServicesToRooms(db, roomIds, serviceIds) {
   const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
   assertServicesBelongToApartment(db, apartmentId, serviceIds)
 
-  // OR IGNORE เพราะ (apartment_service_id, room_id) เป็น UNIQUE อยู่แล้ว
-  // ห้องที่มีบริการนั้นอยู่แล้วให้ข้ามไปเงียบๆ ไม่ใช่ทำให้ทั้งคำสั่งล้มเหลว
-  // ผู้ใช้เลือกทั้งชั้นแล้วบางห้องมีอยู่แล้วเป็นเรื่องปกติ ไม่ใช่ข้อผิดพลาด
+  // ห้องที่มีบริการอยู่แล้วข้ามไป
   const stmt = db.prepare(
     'INSERT OR IGNORE INTO room_services (apartment_service_id, room_id, created_at) VALUES (?,?,?)'
   )
@@ -755,8 +655,7 @@ export function attachServicesToRooms(db, roomIds, serviceIds) {
   return listFloors(db, apartmentId)
 }
 
-// การนำออกจากห้องไม่กระทบสัญญาที่ทำไปแล้ว เพราะ contract_services เก็บสำเนาของตัวเอง
-// ผู้เช่าที่ยังอยู่จึงถูกเก็บค่าบริการต่อไปตามสัญญาจนกว่าจะหมดสัญญา — ตั้งใจให้เป็นแบบนี้
+// นำออกไม่กระทบสัญญาเดิม (contract_services เก็บสำเนาเอง)
 export function detachServicesFromRooms(db, roomIds, serviceIds) {
   const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
   assertServicesBelongToApartment(db, apartmentId, serviceIds)
@@ -774,7 +673,6 @@ export function detachServicesFromRooms(db, roomIds, serviceIds) {
   return listFloors(db, apartmentId)
 }
 
-// -----------------------------------------------------
 export function toPublicRoom(row) {
   if (!row) return null
   return {

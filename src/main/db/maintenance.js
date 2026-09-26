@@ -1,12 +1,7 @@
-// ตาราง maintenance_requests — งานแจ้งซ่อมของแต่ละห้อง
-//
-// ห้ามนำเข้า logger.js หรืออะไรที่ลาก electron เข้ามา (เทสต์รันใต้ ELECTRON_RUN_AS_NODE)
 import { toCents } from '../money.js'
 import { deleteOrphanImages, insertImage } from './images.js'
 import { FieldError } from '../fieldError.js'
 
-// SQLite ไม่มี ENUM — ค่าที่ยอมรับได้อยู่ที่นี่ที่เดียว ตรวจก่อนเขียนทุกครั้ง
-// (ค่าเดียวกันนี้กำกับไว้ที่ migration 028 ด้วย)
 export const MAINTENANCE_STATUSES = ['pending', 'scheduled', 'done', 'cancelled']
 
 export const MAINTENANCE_STATUS_LABELS = {
@@ -16,16 +11,11 @@ export const MAINTENANCE_STATUS_LABELS = {
   cancelled: 'ยกเลิก'
 }
 
-// งานที่ยังต้องตามต่อ — ใช้ทั้งตัวกรองค่าตั้งต้นของหน้ารายการ และการ์ดนับงานค้าง
 export const OPEN_STATUSES = ['pending', 'scheduled']
 
-// รูปต่องานหนึ่งใบ — ไม่ได้จำกัดเพราะฐานข้อมูลรับไม่ไหว (จำกัดขนาดต่อรูปไว้แล้วที่ 3 MB)
-// แต่เพราะงานซ่อมหนึ่งงานที่ต้องใช้รูปเกินหกใบอธิบาย มักแปลว่าควรแยกเป็นหลายงาน
+// จำกัดจำนวนรูปต่องาน
 export const MAX_IMAGES_PER_REQUEST = 6
 
-// ------------------------------------------------------------------
-// รับแจ้ง
-// ------------------------------------------------------------------
 export function createMaintenanceRequest(
   db,
   { roomId, reportedDate, description, appointmentDate, images } = {}
@@ -38,11 +28,9 @@ export function createMaintenanceRequest(
   const detail = String(description ?? '').trim()
   if (!detail) throw new FieldError({ description: 'กรุณาระบุอาการ/สิ่งที่ต้องซ่อม' })
 
-  // นัดไว้ก่อนวันที่แจ้งไม่ได้ — เป็นวันที่พิมพ์ผิด ไม่ใช่เหตุการณ์ที่เกิดได้จริง
   const appointment = normalizeAppointment(appointmentDate, reported)
 
-  // มีวันนัดมาตั้งแต่ตอนรับแจ้ง = นัดแล้ว · ไม่มี = ยังรอดำเนินการ
-  // (สถานะไม่ใช่สิ่งที่คนคีย์ต้องเลือกเองตอนแจ้ง มันอ่านออกจากข้อมูลอยู่แล้ว)
+  // มีวันนัด = นัดแล้ว · ไม่มี = รอดำเนินการ
   const status = appointment ? 'scheduled' : 'pending'
 
   const now = new Date().toISOString()
@@ -63,11 +51,6 @@ export function createMaintenanceRequest(
   return getMaintenanceRequest(db, run())
 }
 
-// ------------------------------------------------------------------
-// แก้ข้อมูลที่รับแจ้งไว้
-// ------------------------------------------------------------------
-// แก้ได้เฉพาะสิ่งที่ "รับแจ้งมา" (วันที่แจ้ง อาการ วันนัด) — ผลการซ่อมไปอยู่ที่ completeMaintenance
-// เพราะการปิดงานมีเงื่อนไขของตัวเองและต้องบันทึกวันที่ซ่อมเสร็จเสมอ
 export function updateMaintenanceRequest(
   db,
   maintenanceId,
@@ -84,13 +67,12 @@ export function updateMaintenanceRequest(
   const detail = String(description ?? current.description ?? '').trim()
   if (!detail) throw new FieldError({ description: 'กรุณาระบุอาการ/สิ่งที่ต้องซ่อม' })
 
-  // ส่ง appointmentDate = null มาโดยตั้งใจ = ยกเลิกการนัด (กลับไปเป็นรอดำเนินการ)
+  // appointmentDate = null คือยกเลิกนัด
   const appointment = normalizeAppointment(
     appointmentDate === undefined ? current.appointment_date : appointmentDate,
     reported
   )
 
-  // สถานะเดินตามวันนัดเสมอ ยกเว้นงานที่ถูกยกเลิกไปแล้ว ซึ่งการแก้ข้อมูลไม่ควรปลุกกลับมาเอง
   const status = current.status === 'cancelled' ? 'cancelled' : appointment ? 'scheduled' : 'pending'
 
   db.prepare(
@@ -103,13 +85,7 @@ export function updateMaintenanceRequest(
   return getMaintenanceRequest(db, maintenanceId)
 }
 
-// ------------------------------------------------------------------
-// ปิดงาน
-// ------------------------------------------------------------------
-// **ค่าซ่อมที่บันทึกตรงนี้ยังไม่ไหลไปไหนทั้งสิ้น** เป็นบันทึกว่าหอจ่ายอะไรไปเท่าไหร่
-// รอคำตอบจากเจ้าของหอว่าค่าซ่อมระหว่างผู้เช่ายังอยู่ เรียกเก็บจากผู้เช่าได้หรือไม่
-// (ตอนย้ายออกตกลงแล้วว่าหักจากเงินประกัน แต่ระหว่างอยู่ยังไม่เคยคุยกัน)
-// ถ้าคำตอบคือเรียกเก็บได้ ทางต่อคือส่งเข้า addInvoiceItem ของบิลเดือนถัดไป
+// ค่าซ่อมยังเป็นแค่บันทึก ไม่เข้าบิล
 export function completeMaintenance(
   db,
   maintenanceId,
@@ -120,15 +96,13 @@ export function completeMaintenance(
 
   const repaired = repairedDate ?? todayIso()
   if (!isDate(repaired)) throw new FieldError({ repairedDate: 'กรุณาระบุวันที่ซ่อมเสร็จ' })
-  // ซ่อมเสร็จก่อนวันที่แจ้งเป็นไปไม่ได้ — จับตรงนี้ดีกว่าปล่อยให้รายงานสรุปเวลาซ่อมติดลบ
   if (repaired < current.reported_date) {
     throw new FieldError({
       repairedDate: `วันที่ซ่อมเสร็จต้องไม่ก่อนวันที่แจ้ง (${current.reported_date})`
     })
   }
 
-  // เว้นว่างได้ = ยังไม่รู้ค่าซ่อม หรือไม่มีค่าใช้จ่าย · ไม่เหมาเป็น 0 เพราะ 0 แปลว่า
-  // "ซ่อมแล้วไม่เสียเงิน" ซึ่งคนละเรื่องกับ "ยังไม่ได้กรอก" (บทเรียนเดียวกับเลขมิเตอร์)
+  // ว่าง = ยังไม่รู้ค่าซ่อม (ไม่ใช่ 0)
   const costCents =
     repairCost === undefined || repairCost === null || String(repairCost).trim() === ''
       ? null
@@ -151,8 +125,7 @@ export function completeMaintenance(
   return getMaintenanceRequest(db, maintenanceId)
 }
 
-// ยกเลิกงาน — ผู้เช่าแจ้งแล้วหายเอง หรือแจ้งซ้ำใบเดิม
-// ไม่ลบแถวทิ้ง เพราะ "เคยมีคนแจ้งเรื่องนี้" เป็นข้อมูลที่มีค่าเวลาปัญหาเดิมกลับมาอีก
+// ยกเลิกไม่ลบแถว — เก็บไว้เป็นประวัติ
 export function cancelMaintenance(db, maintenanceId, { reason } = {}) {
   const current = requireRequest(db, maintenanceId)
   if (current.status === 'done') throw new Error('งานที่ปิดไปแล้วยกเลิกไม่ได้')
@@ -166,8 +139,6 @@ export function cancelMaintenance(db, maintenanceId, { reason } = {}) {
       WHERE maintenance_id = @maintenanceId`
   ).run({
     maintenanceId,
-    // เหตุผลที่ยกเลิกใช้ช่องเดียวกับรายละเอียดการซ่อม — ทั้งสองอย่างคือ "เกิดอะไรขึ้นกับงานนี้"
-    // และการเพิ่มคอลัมน์ที่สองเพื่อแยกสองประโยคไม่คุ้มกับการที่ใครสักคนต้องมาไล่ว่าอันไหนอยู่ช่องไหน
     details: note ? `ยกเลิก: ${note}` : 'ยกเลิก',
     now: new Date().toISOString()
   })
@@ -175,8 +146,7 @@ export function cancelMaintenance(db, maintenanceId, { reason } = {}) {
   return getMaintenanceRequest(db, maintenanceId)
 }
 
-// เปิดงานที่ปิด/ยกเลิกไปแล้วกลับมา — ซ่อมแล้วไม่หาย ซึ่งเกิดบ่อยกว่าที่คิด
-// ล้างผลการซ่อมออกด้วย ไม่งั้นงานที่เปิดใหม่จะพกวันที่ซ่อมเสร็จของรอบก่อนติดมา
+// เปิดงานใหม่ต้องล้างผลการซ่อมรอบก่อน
 export function reopenMaintenance(db, maintenanceId) {
   const current = requireRequest(db, maintenanceId)
   if (current.status === 'pending' || current.status === 'scheduled') {
@@ -194,15 +164,12 @@ export function reopenMaintenance(db, maintenanceId) {
   return getMaintenanceRequest(db, maintenanceId)
 }
 
-// ลบทิ้งจริง — สำหรับใบที่คีย์ผิดห้องหรือคีย์ซ้ำเท่านั้น
-// ไม่ใช่เอกสารการเงิน จึงไม่ต้องเก็บบันทึกการลบแบบใบแจ้งหนี้ (ดู invoice_deletions)
 export function deleteMaintenanceRequest(db, maintenanceId) {
   requireRequest(db, maintenanceId)
 
   const run = db.transaction(() => {
     db.prepare('DELETE FROM maintenance_request_images WHERE maintenance_id = ?').run(maintenanceId)
     db.prepare('DELETE FROM maintenance_requests WHERE maintenance_id = ?').run(maintenanceId)
-    // รูปที่เพิ่งหลุดจากงานนี้กลายเป็นรูปกำพร้า เก็บกวาดในธุรกรรมเดียวกัน
     deleteOrphanImages(db)
   })
   run()
@@ -210,9 +177,6 @@ export function deleteMaintenanceRequest(db, maintenanceId) {
   return { ok: true }
 }
 
-// ------------------------------------------------------------------
-// รูปประกอบ
-// ------------------------------------------------------------------
 export function addMaintenanceImage(db, maintenanceId, { mimeType, bytes } = {}) {
   requireRequest(db, maintenanceId)
 
@@ -250,9 +214,6 @@ export function removeMaintenanceImage(db, maintenanceId, imageId) {
   return getMaintenanceRequest(db, maintenanceId)
 }
 
-// ------------------------------------------------------------------
-// อ่าน
-// ------------------------------------------------------------------
 export function getMaintenanceRequest(db, maintenanceId) {
   const row = db
     .prepare(
@@ -289,7 +250,6 @@ export function listMaintenanceRequests(db, apartmentId, { status, search, dateF
   const where = ['f.apartment_id = @apartmentId']
   const params = { apartmentId }
 
-  // 'open' = งานที่ยังต้องตามต่อ (รอดำเนินการ + นัดแล้ว) ซึ่งเป็นคำถามที่คนเปิดหน้านี้ถามบ่อยสุด
   if (status === 'open') {
     where.push(`m.status IN ('${OPEN_STATUSES.join("','")}')`)
   } else if (status) {
@@ -338,8 +298,7 @@ export function listMaintenanceRequests(db, apartmentId, { status, search, dateF
     imageCount: row.image_count
   }))
 
-  // การ์ดสรุปนับจากทั้งหอเสมอ ไม่ใช่จากผลที่กรองอยู่ — ไม่งั้นกรอง "ซ่อมเสร็จแล้ว"
-  // แล้วตัวเลข "งานค้าง" จะกลายเป็น 0 ทั้งที่ยังค้างอยู่จริง
+  // การ์ดสรุปนับทั้งหอเสมอ ไม่ใช่ตามตัวกรอง
   const totals = db
     .prepare(
       `SELECT m.status, COUNT(*) AS n
@@ -359,7 +318,6 @@ export function listMaintenanceRequests(db, apartmentId, { status, search, dateF
     count: requests.length,
     countByStatus,
     openCount: OPEN_STATUSES.reduce((sum, s) => sum + countByStatus[s], 0),
-    // ค่าซ่อมรวมของงานที่ปิดแล้ว — เท่าที่กรอกไว้ (ช่องที่เว้นว่างไม่ถูกนับเป็น 0)
     repairCostTotalCents: db
       .prepare(
         `SELECT COALESCE(SUM(m.repair_cost_cents), 0) AS total
@@ -372,15 +330,12 @@ export function listMaintenanceRequests(db, apartmentId, { status, search, dateF
   }
 }
 
-// ------------------------------------------------------------------
 function toPublicRequest(row, images) {
   return {
     maintenanceId: row.maintenance_id,
     roomId: row.room_id,
     roomNumber: row.room_number,
     apartmentId: row.apartment_id,
-    // ผู้เช่าที่อยู่ในห้องนั้น "ตอนนี้" ไม่ใช่ตอนที่แจ้ง — งานซ่อมเป็นเรื่องของห้อง
-    // ไม่ได้ผูกกับสัญญา (ห้องว่างก็แจ้งซ่อมได้ และควรแจ้งด้วยซ้ำ)
     tenantName: row.tenant_name ?? null,
     reportedDate: row.reported_date,
     appointmentDate: row.appointment_date,
@@ -389,7 +344,7 @@ function toPublicRequest(row, images) {
     isOpen: OPEN_STATUSES.includes(row.status),
     description: row.description,
     repairedDate: row.repaired_date,
-    // null = ยังไม่ได้กรอก · 0 = ซ่อมแล้วไม่เสียเงิน (คนละเรื่องกัน)
+    // null = ยังไม่กรอก · 0 = ไม่เสียเงิน
     repairCostCents: row.repair_cost_cents,
     repairDetails: row.repair_details,
     imageIds: images,
@@ -398,7 +353,6 @@ function toPublicRequest(row, images) {
   }
 }
 
-// toCents โยน Error ธรรมดาเมื่อรูปแบบตัวเลขผิด — ห่อให้ผูกกับช่องค่าซ่อม ข้อความเดิม
 function costToCents(value) {
   try {
     return toCents(value, 'ค่าซ่อม')

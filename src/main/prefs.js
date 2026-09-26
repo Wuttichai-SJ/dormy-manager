@@ -1,9 +1,4 @@
-// ค่าที่จำไว้ระหว่างเปิดแอปแต่ละครั้ง เก็บเป็น JSON ไฟล์เล็กๆ ใน userData
-// ห้ามเก็บอะไรที่เป็นความลับลงที่นี่ — ไฟล์นี้เป็น plaintext ที่ใครเปิดเครื่องได้ก็อ่านได้
-//
-// "จดจำฉัน" ในแอปนี้ = จำแค่ "ชื่อผู้ใช้ที่กรอกล่าสุด" เพื่อเติมช่องแรกให้อัตโนมัติ
-// จงใจไม่ทำ auto-login: แอปนี้เปิดบนเครื่องที่วางอยู่ในสำนักงานหอพัก ถ้าเปิดมาแล้ว
-// เข้าระบบให้เลย รหัสผ่านก็ไม่มีความหมายอะไรอีก
+// จำแค่ชื่อผู้ใช้ล่าสุด (ไม่ auto-login) · ไฟล์ plaintext ห้ามเก็บความลับ
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
@@ -11,12 +6,7 @@ import { logError } from './logger.js'
 
 const DEFAULTS = { lastIdentifier: '' }
 
-// 🔴 **ตอนพัฒนาใช้คนละไฟล์กับตัวจริง** ด้วยเหตุผลเดียวกับที่ resolveDbPath() ใน
-// database.js แยก dormy-dev.sqlite ออกจาก dormy.sqlite — userData เป็นโฟลเดอร์เดียวกัน
-// ทั้งตอน `npm run dev` และตอนรันจาก .exe (มันขึ้นกับชื่อแอปอย่างเดียว ไม่สนว่า packaged
-// หรือไม่) ถ้าใช้ไฟล์เดียวกัน ชื่อผู้ใช้ที่จำไว้ตอน dev จะไปโผล่ในช่องเข้าสู่ระบบของแอปจริง
-// ทั้งที่ฐานข้อมูลนั้นไม่มีบัญชีนี้อยู่ — พอกรอกรหัสผ่านก็ขึ้น "ไม่พบผู้ใช้" ซึ่งชวนงงมาก
-// (เจอจริงตอนติดตั้ง .exe ครั้งแรกแล้วเห็นชื่อที่เคยกรอกไว้ตอน dev ขึ้นมาเอง)
+// dev ใช้คนละไฟล์กับตัวจริง (userData โฟลเดอร์เดียวกัน)
 function prefsPath() {
   const fileName = app.isPackaged ? 'prefs.json' : 'prefs-dev.json'
   return path.join(app.getPath('userData'), fileName)
@@ -27,7 +17,6 @@ export function readPrefs() {
     if (!fs.existsSync(prefsPath())) return { ...DEFAULTS }
     return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(prefsPath(), 'utf-8')) }
   } catch (err) {
-    // ไฟล์พังไม่ใช่เหตุให้แอปเปิดไม่ได้ — ถอยไปใช้ค่าเริ่มต้นแต่ต้องมีร่องรอยใน log
     logError('อ่าน prefs.json ไม่สำเร็จ ใช้ค่าเริ่มต้นแทน', err)
     return { ...DEFAULTS }
   }

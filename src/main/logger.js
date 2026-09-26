@@ -1,9 +1,4 @@
-// Electron บน Windows เป็น GUI subsystem — console.log/error ของ main process
-// "ไม่" ไปโผล่ใน terminal ที่รัน npm run dev เลย แปลว่าถ้าแอปพังฝั่ง main
-// เราจะไม่เห็นอะไรทั้งสิ้น (แอปดับเงียบ) ทุกอย่างจึงต้องเขียนลงไฟล์ด้วยเสมอ
-//
-// ตอนส่งมอบจริงยิ่งจำเป็น: เจ้าของหอไม่มีทางเปิด DevTools อ่าน error ให้เรา
-// เวลามีปัญหาให้สั่งเขาส่งไฟล์ log มาให้ดู
+// main process บน Windows ไม่มี console ให้เห็น จึงเขียน log ลงไฟล์เสมอ
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
@@ -24,9 +19,7 @@ function write(level, message, err) {
   try {
     fs.appendFileSync(getLogPath(), line)
   } catch {
-    // เขียน log ไม่ได้ก็ต้องไม่ทำให้แอปล่มซ้ำซ้อน — กลืนไปเงียบๆ ที่นี่ที่เดียว
   }
-  // เผื่อกรณีรันผ่าน terminal ที่มองเห็น stdout ได้ (เช่น ELECTRON_RUN_AS_NODE)
   if (level === 'ERROR') console.error(line.trim())
   else console.log(line.trim())
 }

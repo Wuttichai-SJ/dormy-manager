@@ -1,5 +1,3 @@
-// IPC ของโมดูลผู้เช่า — เปลือกบางๆ ครอบ db/tenants.js
-// กฎเดียวกับ handler อื่น: คืน { success, data | error } เท่านั้น ห้าม throw ข้ามสะพาน
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -25,8 +23,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -34,18 +30,14 @@ function handleSession(channel, fn) {
   })
 }
 
-// ตรวจก่อนแตะฐานข้อมูลเสมอ และรวมข้อผิดพลาดทุกข้อเป็นข้อความเดียว
-// เพื่อให้ผู้ใช้แก้ทีเดียวจบ ไม่ใช่กดบันทึกแล้วโดนไล่บอกทีละข้อ
 function assertValid(payload) {
   const errors = validateTenantInput(payload)
   if (errors.length > 0) throw new Error(errors.join('\n'))
 }
 
 export function registerTenantHandlers() {
-  // ค้นทั้งระบบ — ใช้ตอนสร้างสัญญา เพราะผู้เช่าอาจเคยอยู่หออื่นมาก่อน
   handleSession('tenant:list', ({ search }) => listTenants(getDatabase(), { search }))
 
-  // เฉพาะผู้เช่าที่มีสัญญาผูกกับห้องในหอนี้ — ใช้ในหน้า "ผู้เช่า" ของหอ
   handleSession('tenant:listByApartment', ({ apartmentId }) =>
     listTenantsByApartment(getDatabase(), apartmentId)
   )

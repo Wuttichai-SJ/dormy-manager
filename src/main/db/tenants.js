@@ -1,16 +1,5 @@
-// ตาราง tenants — SQL ดิบล้วน ไม่มี ORM (ดู .claude/skills/dormy-manager)
-//
-// ผู้เช่าเป็นข้อมูล "กลาง" ไม่ผูกกับหอใดหอหนึ่ง (ไม่มีคอลัมน์ apartment_id)
-// ความสัมพันธ์กับหอเกิดผ่านสัญญาเท่านั้น: tenants → contracts → rooms → floors → apartments
-//
-// ทำไมถึงออกแบบแบบนี้: เจ้าของมี 3 หอ และผู้เช่าคนเดียวกันย้ายข้ามหอได้จริง
-// ถ้าแยกผู้เช่าตามหอ คนเดิมจะกลายเป็นคนละระเบียน แล้วประวัติการเช่าขาดตอน
-// ตามหนี้เก่าข้ามหอไม่ได้ และเลขบัตรประชาชนจะซ้ำข้ามหอโดยระบบไม่รู้ตัว
+// ผู้เช่าเป็นข้อมูลกลางไม่ผูกหอ — ผูกผ่านสัญญาเท่านั้น (ย้ายข้ามหอได้)
 
-// ------------------------------------------------------------------
-// ตรวจข้อมูลก่อนเขียน
-// ------------------------------------------------------------------
-// คืนข้อผิดพลาดทั้งหมดพร้อมกัน ไม่ใช่ throw ตัวแรกที่เจอ (แบบเดียวกับ db/apartments.js)
 export function validateTenantInput({ firstName, lastName, phone, idCardNo }) {
   const errors = []
 
@@ -23,15 +12,13 @@ export function validateTenantInput({ firstName, lastName, phone, idCardNo }) {
     errors.push('เบอร์โทรศัพท์ต้องมี 9-10 หลัก')
   }
 
-  // เลขบัตรประชาชนไม่บังคับ (ดู 009_tenants_optional_id_card.sql) แต่ถ้ากรอกมาต้องครบ 13 หลัก
   const idCard = onlyDigits(idCardNo)
   if (idCard && idCard.length !== 13) errors.push('เลขบัตรประชาชนต้องมี 13 หลัก')
 
   return errors
 }
 
-// เก็บเบอร์/เลขบัตรเป็นตัวเลขล้วนเสมอ — คนกรอกใส่ขีดบ้างเว้นวรรคบ้าง ถ้าเก็บตามที่พิมพ์
-// เลขเดียวกันจะกลายเป็นคนละค่าแล้ว UNIQUE กันซ้ำไม่ได้ และค้นหาก็ไม่เจอ
+// เบอร์/เลขบัตรเก็บเป็นตัวเลขล้วน
 function onlyDigits(value) {
   return String(value ?? '').replace(/\D/g, '')
 }
@@ -46,7 +33,7 @@ function toRow(input) {
     firstName: String(input.firstName).trim(),
     lastName: String(input.lastName).trim(),
     phone: onlyDigits(input.phone),
-    // ว่าง = NULL ไม่ใช่สตริงว่าง ไม่งั้น UNIQUE จะมองว่าคนที่ไม่กรอกทุกคน "ซ้ำกัน"
+    // ว่าง = NULL (ไม่งั้น UNIQUE ชนกัน)
     idCardNo: onlyDigits(input.idCardNo) || null,
     address: optional(input.address),
     emergencyContactName: optional(input.emergencyContactName),
@@ -56,8 +43,6 @@ function toRow(input) {
   }
 }
 
-// UNIQUE ของ SQLite ให้ข้อความที่คนอ่านไม่รู้เรื่อง ("UNIQUE constraint failed:
-// tenants.phone") จึงเช็คเองก่อนเพื่อบอกได้ว่าชนกับใคร
 function assertNotDuplicate(db, row, exceptTenantId = null) {
   const clash = db
     .prepare(
@@ -78,13 +63,6 @@ function assertNotDuplicate(db, row, exceptTenantId = null) {
   throw new Error(`เลขบัตรประชาชนนี้ถูกใช้กับผู้เช่า "${name}" อยู่แล้ว`)
 }
 
-// ------------------------------------------------------------------
-// อ่าน
-// ------------------------------------------------------------------
-// นับสัญญาที่ยัง active มาด้วย เพื่อให้หน้าจอบอกได้ทันทีว่าใครกำลังเช่าอยู่/ใครย้ายออกแล้ว
-// โดยไม่ต้องยิงคำถามเพิ่มรายคน
-// ผู้เช่าผูกกับสัญญาผ่านตาราง contract_tenants (หนึ่งสัญญามีได้หลายคน — ดู 010_*.sql)
-// ไม่ใช่คอลัมน์ tenant_id บน contracts อีกต่อไป
 const LIST_SQL = `
   SELECT
     t.*,
@@ -101,8 +79,6 @@ export function listTenants(db, { search } = {}) {
     return db.prepare(`${LIST_SQL} ORDER BY t.first_name, t.last_name`).all().map(toPublicTenant)
   }
 
-  // ค้นได้ทั้งชื่อ นามสกุล เบอร์ และเลขบัตร — เจ้าหน้าที่จำได้อย่างเดียวว่าอะไรก็ค้นเจอ
-  // เบอร์/เลขบัตรที่พิมพ์มาต้องตัดขีดออกก่อน เพราะในฐานข้อมูลเก็บเป็นตัวเลขล้วน
   const digits = onlyDigits(keyword)
   return db
     .prepare(
@@ -117,8 +93,6 @@ export function listTenants(db, { search } = {}) {
     .map(toPublicTenant)
 }
 
-// ผู้เช่าของหอหนึ่ง = คนที่มีสัญญาผูกกับห้องในหอนั้น (จะยังอยู่หรือย้ายออกแล้วก็ตาม)
-// หน้า "ผู้เช่า" ในหอใช้ตัวนี้ ส่วนตอนสร้างสัญญาใช้ listTenants เพื่อค้นทั้งระบบ
 export function listTenantsByApartment(db, apartmentId) {
   return db
     .prepare(
@@ -141,9 +115,6 @@ export function getTenantById(db, tenantId) {
   return row ? toPublicTenant(row) : null
 }
 
-// ------------------------------------------------------------------
-// เขียน
-// ------------------------------------------------------------------
 export function insertTenant(db, input) {
   const row = toRow(input)
   assertNotDuplicate(db, row)
@@ -188,8 +159,7 @@ export function updateTenant(db, tenantId, input) {
   return getTenantById(db, tenantId)
 }
 
-// ลบได้เฉพาะผู้เช่าที่ไม่เคยมีสัญญาเลย (กรอกผิดคนแล้วอยากลบทิ้ง)
-// คนที่เคยเช่าจริงห้ามลบ เพราะบิลและใบเสร็จย้อนหลังอ้างถึงสัญญาที่อ้างถึงคนนี้
+// ลบได้เฉพาะผู้เช่าที่ไม่เคยมีสัญญา
 export function deleteTenant(db, tenantId) {
   const contracts = db
     .prepare('SELECT COUNT(*) AS n FROM contract_tenants WHERE tenant_id = ?')
@@ -203,9 +173,6 @@ export function deleteTenant(db, tenantId) {
   return { ok: true }
 }
 
-// ------------------------------------------------------------------
-// รูปแบบที่ส่งออกไปให้หน้าจอ — camelCase ที่เดียว หน้าจอไม่ต้องรู้ชื่อคอลัมน์
-// ------------------------------------------------------------------
 export function toPublicTenant(row) {
   if (!row) return null
   return {
@@ -220,7 +187,6 @@ export function toPublicTenant(row) {
     emergencyRelation: row.emergency_relation,
     emergencyPhone: row.emergency_phone,
     note: row.note,
-    // มีเฉพาะตอนดึงผ่าน LIST_SQL — บอกว่าตอนนี้กำลังเช่าอยู่กี่ห้อง
     activeContracts: row.active_contracts ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at

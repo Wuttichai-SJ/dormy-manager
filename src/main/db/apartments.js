@@ -1,48 +1,22 @@
-// ตาราง apartments — SQL ดิบล้วน ไม่มี ORM (ดู .claude/skills/dormy-manager)
-//
-// รับ `db` เป็นพารามิเตอร์ตัวแรกเสมอเหมือน db/users.js เพื่อให้ชุดทดสอบเปิดฐานข้อมูล
-// ชั่วคราวของตัวเองได้
 import { toCents } from '../money.js'
 import { deleteOrphanImages } from './images.js'
 
-// วันครบกำหนดชำระเลือกได้ถึงวันที่ 28 เท่านั้น (ต้นแบบก็ทำแบบนี้) — ไม่ใช่ 31
-// เพราะถ้าเจ้าของตั้งวันที่ 31 ไว้ เดือนกุมภาพันธ์กับเดือนที่มี 30 วันจะไม่มีวันนั้นอยู่จริง
-// แล้วระบบต้องมาเดาว่าจะเลื่อนไปวันไหน ซึ่งเดาผิดทีเดียวคือคิดค่าปรับผิดทั้งหอ
+// วันครบกำหนดเลือกได้ถึง 28 — ทุกเดือนมีวันนั้น
 export const MAX_DUE_DATE_DAY = 28
 
-// ข้อความบรรทัดค่าเช่าบนใบแจ้งหนี้ของหอที่เพิ่งสร้าง — ไทยล้วน ไม่มีอังกฤษพ่วง
-// เจ้าของหอแก้เป็นข้อความของตัวเองได้ที่หน้าตั้งค่าหอ
 export const DEFAULT_RENT_ITEM_TEXT = 'ค่าเช่าห้อง'
 
-// จำนวนหลักของหน้าปัดมิเตอร์ — เจ้าของหอยืนยัน 2026-08-10 ว่าเป็น 5 หลัก
-// ใช้ 2 อย่าง: หาจุดหมุนกลับตอนมิเตอร์วนรอบ และกันเลขที่กรอกเกินหน้าปัด
-//
-// ขอบเขตกว้างไว้เผื่อมิเตอร์แบบอื่น แต่ 3 หลักก็แทบไม่มีแล้ว และเกิน 8 หลักคือกรอกผิด
+// จำนวนหลักหน้าปัดมิเตอร์ (หอนี้ 5 หลัก)
 export const MIN_METER_DIGITS = 3
 export const MAX_METER_DIGITS = 8
 export const DEFAULT_METER_DIGITS = 5
 
-// -----------------------------------------------------
-// อัตรา VAT
-// -----------------------------------------------------
-// **ค่านี้คืออัตราของหอ "ตอนนี้" ใช้กับบิลที่ออกใหม่เท่านั้น** (ดู migration 031)
-//
-// บิลที่ออกไปแล้วเก็บอัตราของตัวเองไว้ที่ invoices.vat_rate และใช้ค่านั้นตลอดไป
-// เจ้าของหอยืนยันว่าบิลที่ยื่นให้ผู้เช่าแล้วต้องคง VAT เดิม ต่อให้มาจ่ายช้าแล้วโดนค่าปรับ
-// — อัตราใหม่มีผลกับรอบบิลถัดไปเท่านั้น
-//
-// ไทยใช้ 7% มาตลอด (เคยเป็น 10%) รับทศนิยมไว้เพราะคอลัมน์เป็น DECIMAL(5,2) อยู่แล้ว
-// และไม่มีเหตุผลที่จะบังคับให้เป็นจำนวนเต็ม
+// อัตรา VAT ของหอใช้กับบิลใหม่ — บิลเดิมเก็บอัตราของตัวเองไว้
 export const MIN_VAT_RATE = 0
 export const MAX_VAT_RATE = 100
 export const DEFAULT_VAT_RATE = 7
 
-// -----------------------------------------------------
-// นโยบายคืนเงินประกัน (ค่าตั้งต้นของหอ)
-// -----------------------------------------------------
-// **ค่าเหล่านี้ถูกสำเนาลงสัญญาแต่ละใบตอนทำสัญญา ไม่ได้อ่านสดตอนย้ายออก** (ดู 004)
-// เปลี่ยนที่นี่จึงมีผลกับ "สัญญาใบใหม่" เท่านั้น สัญญาที่เซ็นไปแล้วยังใช้กฎที่ตกลงกันวันนั้น
-// — ถ้าอ่านสดตอนคำนวณ ผู้เช่าที่เซ็นตอนแจ้ง 15 วันจะโดนกฎ 60 วันย้อนหลัง ซึ่งเป็นข้อพิพาทจริง
+// ค่าตั้งต้นของสัญญาใหม่ — สัญญาเดิมใช้กฎที่ตรึงไว้
 export const DEPOSIT_REFUND_POLICIES = ['on_full_term', 'always', 'never']
 
 export const DEPOSIT_REFUND_POLICY_LABELS = {
@@ -51,17 +25,11 @@ export const DEPOSIT_REFUND_POLICY_LABELS = {
   never: 'ไม่คืนเงินประกัน'
 }
 
-// แจ้งล่วงหน้าได้มากสุด 1 ปี — เกินจากนี้คือกรอกผิดหลัก (พิมพ์ 150 แทน 15)
-// ปล่อยผ่านแล้วผู้เช่าทุกคนจะถูกริบเงินประกันโดยไม่มีใครรู้ว่าทำไม
+// เพดานกันพิมพ์ผิดหลัก
 export const MAX_DEPOSIT_NOTICE_DAYS = 365
 
-// อยู่ครบขั้นต่ำได้มากสุด 60 เดือน (5 ปี) ด้วยเหตุผลเดียวกัน
 export const MAX_DEPOSIT_MIN_STAY_MONTHS = 60
 
-// -----------------------------------------------------
-// ตรวจข้อมูลก่อนเขียน
-// -----------------------------------------------------
-// คืนข้อผิดพลาดทั้งหมดพร้อมกัน ไม่ใช่ throw ตัวแรกที่เจอ (เหมือน validateUserInput)
 export function validateApartmentInput({
   nameTh,
   addressTh,
@@ -84,7 +52,6 @@ export function validateApartmentInput({
     errors.push(`วันสุดท้ายของการชำระเงินต้องเป็นวันที่ 1-${MAX_DUE_DATE_DAY}`)
   }
 
-  // ค่าปรับเป็น 0 ได้ (หอที่ไม่คิดค่าปรับ) แต่ต้องกรอก ไม่ใช่เว้นว่าง
   let lateFeeCents = null
   try {
     lateFeeCents = toCents(lateFeePerDay, 'ค่าปรับชำระล่าช้าต่อวัน')
@@ -92,15 +59,12 @@ export function validateApartmentInput({
     errors.push(err.message)
   }
 
-  // เปิดสวิตช์เก็บค่าปรับแต่ตั้งอัตราไว้ 0 = สถานะที่เป็นไปไม่ได้ ต้องกันตั้งแต่ตอนบันทึก
-  //
-  // เคยปล่อยผ่านแล้วเจอจริง: เจ้าของหอติ๊ก "ต้องการ" ไว้ แต่ช่องค่าปรับยังเป็น 0.00
-  // ระบบจึงไม่เคยคิดค่าปรับให้เลย และไม่มีอะไรบอกว่าทำไม — ดูเหมือนฟีเจอร์เสีย
+  // เปิดค่าปรับแต่อัตรา 0 = บันทึกไม่ได้
   if (isAutoLateFeeEnabled && lateFeeCents === 0) {
     errors.push('เปิดการเก็บค่าปรับแล้ว กรุณากรอกค่าปรับต่อวันให้มากกว่า 0 บาท')
   }
 
-  // ไม่ส่งมา = ไม่ได้มาแก้ช่องนี้ ใช้ของเดิม/ค่าเริ่มต้นต่อ
+  // ไม่ส่งมา = ใช้ของเดิม
   if (meterDigits !== undefined && meterDigits !== null && meterDigits !== '') {
     const digits = Number(meterDigits)
     if (!Number.isInteger(digits) || digits < MIN_METER_DIGITS || digits > MAX_METER_DIGITS) {
@@ -113,18 +77,12 @@ export function validateApartmentInput({
     if (!Number.isFinite(rate) || rate < MIN_VAT_RATE || rate > MAX_VAT_RATE) {
       errors.push(`อัตรา VAT ต้องอยู่ระหว่าง ${MIN_VAT_RATE}-${MAX_VAT_RATE}%`)
     } else if (!/^\d+(\.\d{1,2})?$/.test(String(vatRate).trim())) {
-      // **ตรวจจากข้อความ ไม่ใช่จากการคูณ 100** — `Math.round(r*100) !== r*100` ใช้ไม่ได้
-      // เพราะเลขทศนิยมฐานสอง: 8.2*100 = 819.9999999999999 · 2.3*100 = 229.99999999999997
-      // อัตราที่ถูกต้องอย่าง 8.2 / 2.3 / 16.4 จะถูกปฏิเสธ ขณะที่ 7 / 7.1 / 10 ผ่าน
-      // — บั๊กที่ลองเล่นด้วยเลขที่คุ้นเคยแล้วไม่มีวันเจอ
-      //
-      // ปัดให้เหลือ 2 ตำแหน่งเงียบๆ ก็ไม่ควร: ถ้าเจ้าของหอพิมพ์ 7.125 แปลว่าเข้าใจอะไรผิด
+      // ตรวจทศนิยมจากข้อความ — r*100 ด้วย float ไม่แม่น
       errors.push('อัตรา VAT ใส่ทศนิยมได้ไม่เกิน 2 ตำแหน่ง')
     }
   }
 
-  // เปิดสวิตช์ VAT แต่ตั้งอัตราไว้ 0 = สถานะที่เป็นไปไม่ได้ กันแบบเดียวกับค่าปรับล่าช้า
-  // (ถ้าปล่อยผ่าน บิลจะไม่มี VAT เลยทั้งที่ติ๊กเปิดไว้ แล้วดูเหมือนฟีเจอร์เสีย)
+  // เปิด VAT แต่อัตรา 0 = บันทึกไม่ได้
   if (isVatEnabled && Number(vatRate) === 0) {
     errors.push('เปิดการใช้งาน VAT แล้ว กรุณากรอกอัตรา VAT ให้มากกว่า 0%')
   }
@@ -132,8 +90,7 @@ export function validateApartmentInput({
   return errors
 }
 
-// ใช้ทั้งตอนเขียนและตอนอ่านแถวเก่าที่ยังไม่มีค่า — ตัวเลขนี้ไปคูณกับเงินในบิล
-// จึงต้องไม่มีทางกลายเป็น NaN หรือ 0 ได้เลย (10 ** 0 = 1 คือจุดหมุนกลับที่พังที่สุด)
+// ห้ามเป็น NaN หรือ 0 — ใช้เป็นตัวหาร
 function normalizeMeterDigits(value) {
   const digits = Math.floor(Number(value))
   if (!Number.isInteger(digits) || digits < MIN_METER_DIGITS || digits > MAX_METER_DIGITS) {
@@ -142,11 +99,9 @@ function normalizeMeterDigits(value) {
   return digits
 }
 
-// เหตุผลเดียวกับ normalizeMeterDigits — ตัวเลขนี้ไปคูณกับเงินในบิล ห้ามกลายเป็น NaN
-// ไม่ส่งมา/ส่งค่าพังมา ให้ถอยไปที่ 7 ซึ่งเป็นอัตราที่ระบบใช้มาตลอดก่อนมีช่องนี้
+// ค่าพังหรือไม่ส่งมา ใช้ 7
 function normalizeVatRate(value) {
-  // เว้นว่าง/ไม่ส่งมา = "ไม่ได้มาแก้ช่องนี้" ไม่ใช่ "ตั้งเป็น 0"
-  // (Number('') กับ Number(null) ได้ 0 ซึ่งผ่านช่วง 0-100 แล้วเก็บ 0 ลงไปเงียบๆ)
+  // ว่าง = ไม่ได้แก้ (ไม่ใช่ 0)
   if (value === undefined || value === null || String(value).trim() === '') {
     return DEFAULT_VAT_RATE
   }
@@ -154,14 +109,10 @@ function normalizeVatRate(value) {
   if (!Number.isFinite(rate) || rate < MIN_VAT_RATE || rate > MAX_VAT_RATE) {
     return DEFAULT_VAT_RATE
   }
-  // ตัดให้เหลือ 2 ตำแหน่งเอง — SQLite ไม่ได้บังคับความกว้างของ DECIMAL(5,2) ให้
-  // (NUMERIC affinity เก็บ 7.125 ไว้ตรงๆ ไม่ปัด) ตัวที่การันตี 2 ตำแหน่งคือบรรทัดนี้
+  // SQLite ไม่บังคับ DECIMAL(5,2) — ปัดเองที่นี่
   return Math.round(rate * 100) / 100
 }
 
-// แปลงค่าจากฟอร์มเป็นรูปที่พร้อมเขียนลงตาราง ใช้ร่วมกันทั้งตอนสร้างและตอนแก้ไข
-// เก็บช่องที่ไม่บังคับเป็น NULL เมื่อเว้นว่าง ไม่เก็บสตริงว่าง จะได้แยกออกว่า
-// "ยังไม่ได้กรอก" ต่างจาก "กรอกเป็นค่าว่างโดยตั้งใจ"
 function toRow(input) {
   const optional = (value) => {
     const trimmed = String(value ?? '').trim()
@@ -178,7 +129,6 @@ function toRow(input) {
     dueDateDay: Number(input.dueDateDay),
     lateFeePerDayCents: toCents(input.lateFeePerDay, 'ค่าปรับชำระล่าช้าต่อวัน'),
     isAutoLateFeeEnabled: input.isAutoLateFeeEnabled ? 1 : 0,
-    // ผ่อนผันกี่วันหลังวันครบกำหนดจึงเริ่มปรับ (0 = ปรับตั้งแต่วันถัดไปเลย)
     lateFeeGraceDays: Math.max(0, Math.floor(Number(input.lateFeeGraceDays) || 0)),
     isVatEnabled: input.isVatEnabled ? 1 : 0,
     vatRate: normalizeVatRate(input.vatRate),
@@ -186,11 +136,7 @@ function toRow(input) {
   }
 }
 
-// -----------------------------------------------------
-// อ่าน
-// -----------------------------------------------------
-// นับห้องด้วย subquery แทน JOIN + GROUP BY เพราะหอที่ยังไม่มีชั้น/ห้องเลยต้องขึ้นในรายการ
-// ด้วย (นับได้ 0) ถ้าใช้ JOIN ธรรมดาหอเปล่าจะหายไปทั้งแถว
+// ใช้ subquery ให้หอที่ยังไม่มีห้องขึ้นในรายการด้วย
 const LIST_SQL = `
   SELECT
     a.*,
@@ -217,10 +163,7 @@ export function countApartments(db) {
   return db.prepare('SELECT COUNT(*) AS n FROM apartments').get().n
 }
 
-// ปิดงานตั้งค่า — เรียกตอนเจ้าของหอกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่าเท่านั้น
-// ก่อนหน้านั้นหอยังเข้าหน้าทำงาน (ที่มีเมนูข้าง) ไม่ได้ ดู 008_apartment_setup_completed.sql
-//
-// กดซ้ำได้ไม่เป็นไร แต่ไม่ทับเวลาเดิม เพราะอยากได้เวลาที่ "ตั้งค่าเสร็จครั้งแรก"
+// ไม่ทับเวลาเดิม — เก็บเวลาที่ตั้งค่าเสร็จครั้งแรก
 export function markSetupCompleted(db, apartmentId) {
   const result = db
     .prepare(
@@ -235,14 +178,10 @@ export function markSetupCompleted(db, apartmentId) {
   return getApartmentById(db, apartmentId)
 }
 
-// -----------------------------------------------------
-// เขียน
-// -----------------------------------------------------
 export function insertApartment(db, input) {
   const row = toRow(input)
   const now = new Date().toISOString()
 
-  // หอใหม่ไปต่อท้ายรายการเสมอ ไม่แทรกกลาง — เจ้าของค่อยลากจัดลำดับเองทีหลัง
   const nextOrder =
     (db.prepare('SELECT MAX(display_order) AS m FROM apartments').get().m ?? 0) + 1
 
@@ -260,11 +199,7 @@ export function insertApartment(db, input) {
          @rentItemText, @displayOrder, @now
        )`
     )
-    // เขียนค่านี้เอง ไม่พึ่ง DEFAULT ของคอลัมน์ — DEFAULT ใน 001_init.sql ยังเป็น
-    // 'ค่าเช่าห้อง/Rent' และ SQLite แก้ DEFAULT ของคอลัมน์ทีหลังไม่ได้ (ต้องสร้างตารางใหม่
-    // ทั้งใบ ซึ่งไม่คุ้มเสี่ยงกับตารางที่มีข้อมูลจริง — ดู migration 016)
-    //
-    // ข้อความที่ผู้ใช้ตั้งเองจะถูกแก้ผ่าน updateApartment ตามปกติ
+    // เขียนเอง ไม่พึ่ง DEFAULT ของคอลัมน์ (ยังเป็นข้อความเก่า)
     .run({ ...row, rentItemText: DEFAULT_RENT_ITEM_TEXT, displayOrder: nextOrder, now })
 
   return getApartmentById(db, result.lastInsertRowid)
@@ -298,8 +233,6 @@ export function updateApartment(db, apartmentId, input) {
   return getApartmentById(db, apartmentId)
 }
 
-// จัดลำดับใหม่ทั้งชุดในทีเดียว (หน้าจอส่งลำดับ apartment_id ที่เรียงแล้วมาให้)
-// ทำใน transaction เพราะถ้าเขียนสำเร็จครึ่งเดียว ลำดับจะซ้ำ/ข้ามและการ์ดสลับมั่ว
 export function reorderApartments(db, orderedIds) {
   const stmt = db.prepare('UPDATE apartments SET display_order = ? WHERE apartment_id = ?')
   const run = db.transaction((ids) => {
@@ -309,9 +242,7 @@ export function reorderApartments(db, orderedIds) {
   return listApartments(db)
 }
 
-// ลบได้เฉพาะหอที่ยังไม่มีอะไรผูกอยู่ — ห้ามลบหอที่มีชั้น/ห้อง/ผู้ใช้ที่ผูกสิทธิ์ไว้
-// เพราะประวัติบิลและสัญญาทั้งหมดอ้างถึงห้องในหอนั้น ลบทิ้งแล้วรายงานย้อนหลังพัง
-// (FK ช่วยกันได้ระดับหนึ่ง แต่ข้อความ error ของ SQLite ผู้ใช้อ่านไม่รู้เรื่อง)
+// ลบได้เฉพาะหอที่ไม่มีชั้น/ห้อง/ผู้ใช้ผูกอยู่
 export function deleteApartment(db, apartmentId) {
   const floors = db
     .prepare('SELECT COUNT(*) AS n FROM floors WHERE apartment_id = ?')
@@ -321,27 +252,19 @@ export function deleteApartment(db, apartmentId) {
   }
 
   const run = db.transaction(() => {
-    // ตารางลูกที่ไม่มีห้องมาเกี่ยวข้อง ลบพร้อมกันได้ในธุรกรรมเดียว
-    //
-    // ทุกตารางที่มี apartment_id ต้องอยู่ในรายการนี้ครบ ถ้าตกไปตารางเดียว FK จะบล็อก
-    // การลบแล้วโยนข้อความดิบของ SQLite ("FOREIGN KEY constraint failed") ออกไปที่หน้าจอ
-    // ซึ่งเจ้าของหออ่านไม่รู้เรื่องและดูเหมือนปุ่มลบเสีย — เคยหลุด apartment_utility_defaults
-    // มาแล้วครั้งหนึ่ง เพิ่มตารางใหม่ที่ผูกกับหอเมื่อไหร่ ต้องกลับมาเพิ่มที่นี่ด้วย
+    // ทุกตารางที่มี apartment_id ต้องอยู่ในรายการนี้ ไม่งั้น FK บล็อก
     db.prepare('DELETE FROM apartment_utility_defaults WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM apartment_services WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM apartment_bank_accounts WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM users_apartments WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM document_counters WHERE apartment_id = ?').run(apartmentId)
     db.prepare('DELETE FROM invoice_deletions WHERE apartment_id = ?').run(apartmentId)
-    // ใบจดมิเตอร์ที่ยังไม่มีห้องผูกอยู่เท่านั้นที่มาถึงตรงนี้ได้ (หอที่มีห้องถูกกันไปตั้งแต่ต้น)
     db.prepare(
       `DELETE FROM meter_readings
         WHERE meter_batch_id IN (SELECT batch_id FROM meter_batches WHERE apartment_id = ?)`
     ).run(apartmentId)
     db.prepare('DELETE FROM meter_batches WHERE apartment_id = ?').run(apartmentId)
     const result = db.prepare('DELETE FROM apartments WHERE apartment_id = ?').run(apartmentId)
-    // รูป QR ของหอที่เพิ่งถูกลบกลายเป็นรูปกำพร้า เก็บกวาดในธุรกรรมเดียวกัน
-    // ไม่งั้นไฟล์ฐานข้อมูลจะพกรูปที่ไม่มีใครใช้ติดไปกับไฟล์สำรองทุกครั้ง
     deleteOrphanImages(db)
     if (result.changes === 0) throw new Error('ไม่พบหอพักที่ต้องการลบ')
   })
@@ -349,9 +272,6 @@ export function deleteApartment(db, apartmentId) {
   return { ok: true }
 }
 
-// -----------------------------------------------------
-// นโยบายคืนเงินประกันของหอ
-// -----------------------------------------------------
 export function validateDepositPolicyInput({ policy, noticeDays, minStayMonths }) {
   const errors = []
 
@@ -366,8 +286,7 @@ export function validateDepositPolicyInput({ policy, noticeDays, minStayMonths }
     errors.push(`จำนวนวันที่ต้องแจ้งล่วงหน้าต้องไม่เกิน ${MAX_DEPOSIT_NOTICE_DAYS} วัน`)
   }
 
-  // เว้นว่างได้ = ใช้ระยะสัญญาของสัญญาใบนั้นเป็นเกณฑ์ (สัญญา 12 เดือนต้องอยู่ครบ 12)
-  // ซึ่งเป็นค่าที่หอนี้ใช้อยู่ ใส่ตัวเลขเมื่อหอต้องการเกณฑ์ตายตัวไม่ขึ้นกับระยะสัญญา
+  // ว่าง = ใช้ระยะสัญญาของแต่ละใบ
   if (minStayMonths !== null && minStayMonths !== undefined && String(minStayMonths).trim() !== '') {
     const months = Number(minStayMonths)
     if (!Number.isInteger(months) || months < 1) {
@@ -395,9 +314,7 @@ export function getDepositPolicy(db, apartmentId) {
     policy: row.policy,
     policyLabel: DEPOSIT_REFUND_POLICY_LABELS[row.policy] ?? row.policy,
     noticeDays: row.noticeDays,
-    // null = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์
     minStayMonths: row.minStayMonths,
-    // จำนวนสัญญาที่ยัง active อยู่ — หน้าจอต้องบอกให้ชัดว่าการแก้ตรงนี้ "ไม่" กระทบใบเหล่านี้
     activeContractCount: db
       .prepare(
         `SELECT COUNT(*) AS n
@@ -438,10 +355,6 @@ export function saveDepositPolicy(db, apartmentId, { policy, noticeDays, minStay
   return getDepositPolicy(db, apartmentId)
 }
 
-// -----------------------------------------------------
-// รูปแบบที่ส่งออกไปให้หน้าจอ — แปลงชื่อคอลัมน์เป็น camelCase และ 0/1 เป็น boolean
-// ที่เดียวที่ฝั่งหน้าจอต้องรู้จัก ไม่ต้องไปรู้ชื่อคอลัมน์ในตาราง
-// -----------------------------------------------------
 export function toPublicApartment(row) {
   if (!row) return null
   return {
@@ -457,14 +370,11 @@ export function toPublicApartment(row) {
     lateFeeGraceDays: row.late_fee_grace_days ?? 0,
     dueDateDay: row.due_date_day,
     isVatEnabled: row.is_vat_enabled === 1,
-    // อัตราปัจจุบันของหอ — บิลที่ออกไปแล้วถือของตัวเองไว้ที่ invoices.vat_rate
     vatRate: normalizeVatRate(row.vat_rate),
     meterDigits: normalizeMeterDigits(row.meter_digits),
     displayOrder: row.display_order,
-    // null = ยังเดินตัวช่วยตั้งค่าไม่ครบ หน้าจอใช้ค่านี้ตัดสินว่าจะให้เข้าหน้าทำงานได้ไหม
     setupCompletedAt: row.setup_completed_at ?? null,
     isSetupComplete: Boolean(row.setup_completed_at),
-    // มีเฉพาะตอนดึงจากรายการ (LIST_SQL) — หน้าฟอร์มไม่ต้องใช้
     totalRooms: row.total_rooms,
     vacantRooms: row.vacant_rooms,
     createdAt: row.created_at,

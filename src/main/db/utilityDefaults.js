@@ -1,14 +1,8 @@
-// ตาราง apartment_utility_defaults — วิธีคิดค่าน้ำ/ค่าไฟระดับหอ
-//
-// เป็น "ค่าตั้งต้น" ที่จะถูกคัดลอกลง room_utility_settings ตอนสร้างห้อง
-// การแก้ที่นี่ทีหลังจะ *ไม่* ย้อนไปเปลี่ยนห้องที่สร้างไว้แล้ว โดยตั้งใจ — ไม่งั้น
-// ห้องที่เจ้าของตั้งราคาพิเศษไว้จะถูกทับหายโดยไม่มีใครรู้ตัว
+// ค่าตั้งต้นของหอ — คัดลอกลงห้องตอนสร้างห้อง แก้ทีหลังไม่ย้อนไปทับห้องเดิม
 import { errorList } from '../fieldError.js'
 import { centsToBaht, toCents } from '../money.js'
 
-// SQLite ไม่มี ENUM — เก็บเป็น TEXT แล้วตรวจค่าที่ JS ก่อนเขียนทุกครั้ง
-// ค่าเหล่านี้ต้องตรงกับที่ระบุไว้ใน 001_init.sql (room_utility_settings) เป๊ะๆ
-// เพราะสองตารางนี้คัดลอกค่าข้ามกัน
+// ต้องตรงกับค่าใน room_utility_settings (คัดลอกข้ามตารางกัน)
 export const BILLING_TYPES = ['actual', 'minimum', 'flat']
 
 export const BILLING_TYPE_LABELS = {
@@ -17,15 +11,10 @@ export const BILLING_TYPE_LABELS = {
   flat: 'เหมาจ่ายรายเดือน'
 }
 
-// -----------------------------------------------------
-// ตรวจข้อมูล
-// -----------------------------------------------------
-// ตรวจทีละฝั่ง (น้ำ/ไฟ) เพราะเงื่อนไขเหมือนกันเป๊ะ ต่างแค่ชื่อที่เอาไปขึ้นข้อความ
 function validateSide(input, label, errors) {
-  // ปิดการคิดค่าบริการนี้ = ไม่ต้องตรวจอะไรเลย ราคาจะถูกเก็บเป็น 0
   if (!input.enabled) return
 
-  // ไม่ได้ส่ง billingType มา = ก้อนนี้แค่สลับสวิตช์ ไม่ได้มาตั้งวิธีคิดเงิน ปล่อยผ่าน
+  // ไม่ส่ง billingType = แค่สลับสวิตช์ ไม่ต้องตรวจราคา
   if (input.billingType === undefined) return
 
   if (!BILLING_TYPES.includes(input.billingType)) {
@@ -33,8 +22,6 @@ function validateSide(input, label, errors) {
     return
   }
 
-  // ตรวจเฉพาะช่องที่โหมดนั้นใช้จริง ช่องที่ไม่ใช้ปล่อยว่างได้ (เก็บเป็น 0)
-  // ถ้าบังคับกรอกครบทุกช่องทุกโหมด ผู้ใช้จะต้องใส่เลขมั่วๆ ลงช่องที่ไม่เกี่ยว
   if (input.billingType === 'actual' || input.billingType === 'minimum') {
     try {
       toCents(input.unitPrice, `ราคา${label}ต่อหน่วย`)
@@ -60,26 +47,15 @@ function validateSide(input, label, errors) {
   }
 }
 
-// รับได้ทั้งก้อนเต็ม {water, electric} และก้อนบางส่วน {water} — ฝั่งที่ไม่ได้ส่งมา
-// แปลว่า "ไม่ได้แก้" จึงไม่ต้องตรวจ
-//
-// ทำไมต้องตรวจแยกฝั่ง: หน้าจอตั้งค่าน้ำกับค่าไฟทีละฝั่ง ถ้าตรวจรวมทุกครั้ง ฝั่งที่ยัง
-// ไม่ได้กรอกราคาจะโยน error ออกมาบล็อกฝั่งที่กำลังกรอกอยู่ กลายเป็น "ระบุอะไรไม่ได้เลย"
-//
-// และตรวจ "ราคา" เฉพาะตอนที่ผู้เรียกส่ง billingType มาด้วย = เจตนามาตั้งวิธีคิดเงินจริงๆ
-// ส่วนการสลับสวิตช์เปิด/ปิด ส่งมาแค่ enabled จึงบันทึกได้โดยไม่ต้องมีราคาก่อน
-// (ต้นแบบก็เปิดสวิตช์ได้ก่อนแล้วค่อยกดเข้าไประบุราคาทีหลัง)
+// รับทั้งก้อนเต็มหรือบางฝั่ง — ฝั่งที่ไม่ส่งมาคือไม่ได้แก้
 export function validateUtilityInput(input) {
-  // ชื่อช่องไม่แยกฝั่งน้ำ/ไฟ เพราะหน้าต่างตั้งค่าเปิดและส่งมาทีละฝั่งอยู่แล้ว
   const errors = errorList()
   if (input?.water) validateSide(input.water, 'ค่าน้ำ', errors)
   if (input?.electric) validateSide(input.electric, 'ค่าไฟ', errors)
   return errors
 }
 
-// แปลงค่าจากฟอร์มเป็นตัวเลขที่พร้อมเขียน — ช่องที่โหมดปัจจุบันไม่ใช้จะถูกเก็บเป็น 0
-// ไม่ใช่เก็บค่าเก่าค้างไว้ เพราะถ้าเก็บค้าง แล้ววันหนึ่งสลับโหมดกลับมา จะได้ราคาเก่า
-// ที่ลืมไปแล้วโผล่มาใช้งานเงียบๆ
+// ช่องที่โหมดนี้ไม่ใช้เก็บเป็น 0
 function sideToRow(input) {
   const enabled = Boolean(input?.enabled)
   const type = enabled && BILLING_TYPES.includes(input.billingType) ? input.billingType : 'actual'
@@ -101,11 +77,7 @@ function sideToRow(input) {
   }
 }
 
-// -----------------------------------------------------
-// อ่าน / เขียน
-// -----------------------------------------------------
-// หอที่ยังไม่เคยตั้งค่าจะไม่มีแถวในตารางนี้ — คืนค่าเริ่มต้นกลับไปแทน null
-// เพื่อให้หน้าจอมีอะไรให้แสดงเสมอ ไม่ต้องเขียนเงื่อนไข "ยังไม่มีข้อมูล" ซ้ำทุกที่
+// หอที่ยังไม่ตั้งค่า คืนค่าเริ่มต้นแทน null
 export function getUtilityDefaults(db, apartmentId) {
   const row = db
     .prepare('SELECT * FROM apartment_utility_defaults WHERE apartment_id = ?')
@@ -133,11 +105,7 @@ function emptySide() {
   }
 }
 
-// รวมค่าที่ส่งมาใหม่ทับค่าที่เก็บอยู่ — คืนรูปแบบ "ฟอร์ม" (ราคาเป็นข้อความบาท)
-// ให้ sideToRow เอาไปแปลงเป็นสตางค์ต่อ
-//
-// ค่าที่เก็บอยู่เป็น *Cents ส่วนค่าที่ส่งมาจากฟอร์มเป็นบาท จึงต้องแปลงกลับก่อนผสม
-// ไม่งั้นราคา 18 บาทที่เก็บเป็น 1800 จะถูกอ่านเป็น 1800 บาทในรอบบันทึกถัดไป
+// ของที่เก็บเป็นสตางค์ ของจากฟอร์มเป็นบาท — แปลงก่อนผสม
 function mergeSide(stored, patch) {
   const base = {
     enabled: stored.enabled,
@@ -156,12 +124,8 @@ function mergeSide(stored, patch) {
   return merged
 }
 
-// UPSERT — หอหนึ่งมีได้แถวเดียว (apartment_id UNIQUE)
-// ใช้ ON CONFLICT แทนการ SELECT แล้วค่อยตัดสินใจ INSERT/UPDATE เพราะสั้นกว่า
-// และไม่มีช่องว่างระหว่างสองคำสั่งให้เกิดแถวซ้ำได้
 export function saveUtilityDefaults(db, apartmentId, input) {
-  // ก้อนที่ส่งมาเป็น "เฉพาะสิ่งที่แก้" ได้ ฝั่งไหน/ช่องไหนไม่ได้ส่งมาให้ใช้ของเดิมต่อ
-  // ถ้าไม่ merge ก่อน การกดสวิตช์ฝั่งเดียวจะล้างราคาของอีกฝั่งเป็น 0 ทันที
+  // merge กับของเดิมก่อน ไม่งั้นอีกฝั่งถูกล้างเป็น 0
   const current = getUtilityDefaults(db, apartmentId)
   const water = sideToRow(mergeSide(current.water, input?.water))
   const electric = sideToRow(mergeSide(current.electric, input?.electric))
@@ -217,18 +181,7 @@ export function saveUtilityDefaults(db, apartmentId, input) {
   return getUtilityDefaults(db, apartmentId)
 }
 
-// -----------------------------------------------------
-// นำค่าของหอไปลงห้องที่สร้างไว้แล้ว
-// -----------------------------------------------------
-// ปกติค่าน้ำ/ค่าไฟถูกคัดลอกลงห้อง "ตอนสร้างห้อง" ครั้งเดียว และการแก้ค่าของหอทีหลัง
-// จงใจไม่ย้อนไปทับ (ห้องที่ตั้งราคาพิเศษไว้จะได้ไม่ถูกล้างโดยไม่มีใครรู้ตัว)
-//
-// แต่กฎนั้นพังในกรณีที่ห้องถูกสร้าง *ก่อน* หอจะมีการตั้งค่าน้ำ/ไฟเลย — ห้องจะได้
-// "เปิดเก็บค่าน้ำ ราคาหน่วยละ 0 บาท" ติดตัวไป แล้วออกบิลมาเป็น 0 อย่างเงียบๆ
-// (เจอจริงกับหอนาโร: สร้างห้อง 30 ก.ค. แต่ยังไม่เคยตั้งค่าน้ำ-ไฟ)
-//
-// จึงต้องมีทางให้เจ้าของหอสั่งเองว่า "เอาราคาปัจจุบันของหอไปลงห้องทั้งหมด"
-// เป็นการกดสั่งชัดๆ ไม่ใช่ทำให้อัตโนมัติ เพราะมันทับราคาพิเศษรายห้องจริงๆ
+// เจ้าของสั่งเอง: ทับราคาน้ำ-ไฟของทุกห้องด้วยราคาปัจจุบันของหอ
 export function applyDefaultsToRooms(db, apartmentId) {
   const defaults = getUtilityDefaults(db, apartmentId)
   if (!defaults.isConfigured) {
@@ -280,8 +233,7 @@ export function applyDefaultsToRooms(db, apartmentId) {
   return { updatedRooms: run() }
 }
 
-// ห้องที่ "เปิดเก็บเงินไว้แต่ทุกราคาเป็น 0" = ยังไม่เคยถูกตั้งค่าจริง ไม่ใช่ตั้งใจให้ฟรี
-// (ถ้าตั้งใจให้ฟรีจริง ให้ปิดสวิตช์ฝั่งนั้นแทน แล้วบรรทัดจะไม่ขึ้นบนบิลเลย)
+// เปิดเก็บแต่ราคาเป็น 0 = ยังไม่เคยตั้งค่า
 export function isSideUnpriced(side) {
   return (
     side.enabled &&
@@ -291,11 +243,7 @@ export function isSideUnpriced(side) {
   )
 }
 
-// -----------------------------------------------------
-// การคิดเงินจริง — ใช้ได้ทั้งค่าตั้งต้นของหอและค่ารายห้อง เพราะรูปร่างเหมือนกัน
-// -----------------------------------------------------
-// แยกออกมาเป็นฟังก์ชันบริสุทธิ์ตัวเดียวโดยตั้งใจ เพื่อให้ตอนออกบิลจริง (Phase 3)
-// ใช้ตัวนี้ตัวเดียวกัน ไม่ใช่ไปเขียนสูตรซ้ำอีกรอบแล้วสองที่คำนวณไม่ตรงกัน
+// สูตรคิดเงินที่เดียว ใช้ทั้งค่าของหอและรายห้อง
 export function calculateUtilityCharge(side, unitsUsed) {
   if (!side.enabled) return 0
 
@@ -304,26 +252,19 @@ export function calculateUtilityCharge(side, unitsUsed) {
 
   switch (side.billingType) {
     case 'flat':
-      // เหมาจ่าย: ใช้เท่าไหร่ก็จ่ายเท่านี้ ไม่สนมิเตอร์
       return side.flatRateCents
 
     case 'minimum':
-      // ขั้นต่ำเป็น "บาท" ไม่ใช่จำนวนหน่วย — ใช้น้อยกว่าขั้นต่ำก็จ่ายเท่าขั้นต่ำ
+      // ขั้นต่ำเป็นบาท ไม่ใช่หน่วย
       return Math.max(Math.round(units * side.unitPriceCents), side.minChargeCents)
 
     case 'actual':
     default:
-      // ปัดเป็นจำนวนเต็มสตางค์ เพราะหน่วยที่ใช้เป็นทศนิยมได้ (มิเตอร์อ่านได้ .5 หน่วย)
       return Math.round(units * side.unitPriceCents)
   }
 }
 
-// -----------------------------------------------------
-// แปลงแถวดิบเป็นก้อน {water, electric} ที่ calculateUtilityCharge กินได้
-//
-// ใช้ได้ทั้งกับ apartment_utility_defaults และ room_utility_settings เพราะสองตารางนี้
-// ตั้งใจให้มีคอลัมน์ชื่อเดียวกันทุกช่อง (ต่างแค่ apartment_id / room_id — ดู 006)
-// ตอนออกบิลต้องอ่านของ *รายห้อง* จึงต้องมีตัวแปลงที่ไม่ผูกกับตารางใดตารางหนึ่ง
+// ใช้ได้ทั้งสองตาราง — ชื่อคอลัมน์ตรงกัน
 export function toUtilitySides(row) {
   return {
     water: {

@@ -1,7 +1,3 @@
-// IPC ของการแจ้งย้ายออก / ยกเลิกสัญญา / คืนเงินประกัน — เปลือกบางๆ ครอบ db/terminations.js
-//
-// **ผู้ทำรายการมาจากเซสชันฝั่ง main เสมอ** เหมือนผู้รับเงิน ผู้ลบบิล และผู้ยกเลิกใบเสร็จ —
-// ใบเสร็จคืนเงินประกันที่ออกจากขั้นตอนนี้ต้องบอกได้ว่าใครเป็นคนคืน
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -26,8 +22,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -36,8 +30,7 @@ function handleSession(channel, fn) {
 }
 
 export function registerTerminationHandlers() {
-  // จังหวะแรก: บันทึกวันที่ผู้เช่าแจ้งย้ายออก (ยังไม่แตะอะไร ผู้เช่ายังอยู่ ห้องยังไม่ว่าง)
-  // ส่ง noticeDate = null เพื่อยกเลิกการแจ้ง (ผู้เช่าเปลี่ยนใจไม่ย้ายแล้ว)
+  // noticeDate = null คือยกเลิกการแจ้ง
   handleSession('termination:setNotice', ({ contractId, noticeDate }) => {
     const result = setMoveOutNotice(getDatabase(), contractId, noticeDate ?? null)
     logInfo(
@@ -48,8 +41,6 @@ export function registerTerminationHandlers() {
     return result
   })
 
-  // หน้าสรุปก่อนยืนยัน — คำนวณอย่างเดียว ยังไม่เขียนอะไร หน้าจอเรียกซ้ำได้ทุกครั้งที่
-  // ผู้ใช้เปลี่ยนวันที่ออกหรือเพิ่มรายการ
   handleSession('termination:sheet', ({ contractId, moveOutDate, adjustments, overrideRefundable }) =>
     getTerminationSheet(getDatabase(), contractId, {
       moveOutDate,
@@ -83,13 +74,11 @@ export function registerTerminationHandlers() {
     getTerminationByContract(getDatabase(), contractId)
   )
 
-  // ประวัติการย้ายออกทั้งหมดของหอ — ผู้เช่าที่ย้ายออกแล้วต้องยังเปิดดูย้อนหลังได้
   handleSession('termination:list', ({ apartmentId, search, dateFrom, dateTo }) =>
     listTerminations(getDatabase(), apartmentId, { search, dateFrom, dateTo })
   )
 
-  // ตามเก็บเงินส่วนต่างที่ตอนย้ายออกยังเก็บไม่ได้
-  // ผู้รับเงินมาจากเซสชันเหมือนใบเสร็จทุกใบ — หน้าจอส่ง createdBy มาเองไม่ได้
+  // ผู้รับเงินมาจากเซสชันเสมอ
   handle('termination:collect', (payload) => {
     const result = collectTerminationShortfall(getDatabase(), payload.contractId, {
       amount: payload.amount,

@@ -1,4 +1,3 @@
-// IPC ของผังห้อง (ชั้น + ห้อง) — เปลือกบางๆ ครอบ db/rooms.js
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -32,9 +31,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็มอยู่เหนือ requireSessionUserId()
-// ใน authHandlers.js · ต่างกับ handleOwner() ข้างล่างแค่ระดับ: ตัวนั้นต้องเป็นเจ้าของหอ
-// ตัวนี้ขอแค่ล็อกอิน (ผังห้องเป็นข้อมูลที่ทุกหน้าจอต้องอ่าน แต่ไม่ใช่ของสาธารณะ)
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -42,14 +38,7 @@ function handleSession(channel, fn) {
   })
 }
 
-// 🔴 **ทุกช่องที่แก้ผังห้อง/ราคา/สถานะ เป็นของเจ้าของหอเท่านั้น** (ผู้ใช้ตัดสินใจ 2026-08-14:
-// ทั้งเมนู "ตั้งค่า" เป็นของเจ้าของ พนักงานทำงานประจำวันในเมนูหลัก)
-//
-// ค่าห้องกับค่าบริการคือ "คิดเท่าไหร่" — ลดค่าเช่าห้องเพื่อนจาก 3,000 เป็น 2,800 แล้วบิล
-// ก็ออกมาถูกต้องตามที่ตั้งไว้ทุกประการ ไม่มีอะไรผิดปกติให้จับได้เลยนอกจากไปไล่ดูราคาห้อง
-//
-// เขียนเป็นตัวห่ออีกชั้นแทนการใส่ requireOwnerUserId() ทีละช่อง เพราะสิบเอ็ดช่องที่ต้อง
-// จำให้ครบคือสิบเอ็ดโอกาสที่จะลืมช่องใดช่องหนึ่ง แล้วรูที่เหลือไว้ก็เท่ากับไม่ได้ล็อกเลย
+// แก้ผังห้อง/ราคา/สถานะ เฉพาะเจ้าของหอ
 function handleOwner(channel, fn) {
   handle(channel, (payload) => {
     requireOwnerUserId()
@@ -74,7 +63,6 @@ export function registerRoomHandlers() {
     addFloor(getDatabase(), apartmentId, { floorName, roomCount, buildingName, numberPrefix })
   )
 
-  // ช่องเดียวคุมชื่อชั้น/ป้ายตึก/เลขนำหน้าห้อง — ฟิลด์ที่ไม่ได้ส่งมาคือฟิลด์ที่ไม่ถูกแตะ
   handleOwner('room:updateFloor', ({ floorId, floorName, buildingName, numberPrefix }) =>
     updateFloor(getDatabase(), floorId, { floorName, buildingName, numberPrefix })
   )

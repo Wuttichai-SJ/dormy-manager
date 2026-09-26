@@ -1,16 +1,5 @@
-// ตาราง apartment_bank_accounts — บัญชีรับเงินของหอ ที่จะถูกพิมพ์ลงใบแจ้งหนี้
-//
-// เก็บ "ชื่อธนาคาร" เป็นข้อความ ไม่ใช่รหัสตัวเลขที่อ้างตารางธนาคารแยก
-// เหตุผล: อีก 20 ปีถ้าเปิดฐานข้อมูลนี้ขึ้นมาดู ต้องอ่านออกทันทีว่าเป็นบัญชีธนาคารอะไร
-// ไม่ใช่เห็นเลข 2 แล้วต้องไปหาว่าตารางแปลรหัสหายไปไหน (ธนาคารควบรวม/เปลี่ยนชื่อกันได้)
-//
-// หมายเหตุสำคัญ: ไฟล์ใน db/ ห้าม import logger.js หรืออะไรที่ดึง electron เข้ามา
-// เพราะชุดทดสอบรันใต้ ELECTRON_RUN_AS_NODE ซึ่งโมดูล 'electron' กลายเป็น CJS shim
-// ที่ import แบบ ESM ไม่ได้ — ชั้น db ต้องเป็น SQL ล้วนๆ ทดสอบได้โดยไม่ต้องเปิดแอป
-// การบันทึก log เป็นหน้าที่ของชั้น handlers
+// ไฟล์ใน db/ ห้าม import electron/logger — ชุดทดสอบรันแบบ node
 
-// รายชื่อธนาคารที่รองรับ — คัดมาจาก dropdown จริงของต้นแบบ (18 รายการ)
-// "พร้อมเพย์" อยู่ในรายการเดียวกับธนาคารตามต้นแบบ ไม่ได้แยกเป็นฟีเจอร์ต่างหาก
 export const BANKS = [
   'กรุงเทพ (Bangkok Bank)',
   'กสิกรไทย (Kasikorn)',
@@ -32,14 +21,8 @@ export const BANKS = [
   'ธกส (BAAC)'
 ]
 
-// ต้นแบบแนะนำว่า "ควรระบุไม่เกิน 2 รายชื่อธนาคาร" — เป็นคำแนะนำ ไม่ใช่ข้อบังคับ
-// เพราะพื้นที่บนใบแจ้งหนี้จำกัด ใส่เยอะแล้วผู้เช่าจะงงว่าควรโอนบัญชีไหน
-// เตือนที่หน้าจอ แต่ไม่ห้าม เผื่อหอที่มีเหตุผลของตัวเอง
 export const RECOMMENDED_MAX_ACCOUNTS = 2
 
-// -----------------------------------------------------
-// ตรวจข้อมูล
-// -----------------------------------------------------
 export function validateBankAccountInput({ bankName, accountName, accountNumber }) {
   const errors = []
 
@@ -48,8 +31,6 @@ export function validateBankAccountInput({ bankName, accountName, accountNumber 
 
   if (!String(accountName ?? '').trim()) errors.push('กรุณากรอกชื่อบัญชี')
 
-  // เลขบัญชีเก็บเป็นตัวเลขล้วน ตัดขีด/ช่องว่างที่คนพิมพ์ออก
-  // ไม่บังคับจำนวนหลัก เพราะแต่ละธนาคารไม่เท่ากัน และพร้อมเพย์ใช้เบอร์โทร/เลขบัตรได้
   const digits = normalizeAccountNumber(accountNumber)
   if (!digits) errors.push('กรุณากรอกเลขบัญชี')
   else if (digits.length < 8 || digits.length > 20) errors.push('เลขบัญชีต้องมี 8-20 หลัก')
@@ -61,9 +42,6 @@ export function normalizeAccountNumber(value) {
   return String(value ?? '').replace(/[^\d]/g, '')
 }
 
-// -----------------------------------------------------
-// อ่าน
-// -----------------------------------------------------
 export function listBankAccounts(db, apartmentId) {
   return db
     .prepare(
@@ -82,11 +60,7 @@ export function getBankAccountById(db, bankAccountId) {
   return row ? toPublicBankAccount(row) : null
 }
 
-// -----------------------------------------------------
-// เขียน
-// -----------------------------------------------------
-// บัญชีแรกของหอถูกตั้งเป็นบัญชีหลักให้อัตโนมัติ — ไม่งั้นหอที่มีบัญชีเดียวจะไม่มี
-// บัญชีหลักเลย แล้วตอนออกบิลไม่รู้ว่าจะพิมพ์บัญชีไหนลงไป
+// บัญชีแรกของหอเป็นบัญชีหลักอัตโนมัติ
 export function insertBankAccount(db, apartmentId, input) {
   const isFirst =
     db
@@ -133,8 +107,7 @@ export function updateBankAccount(db, bankAccountId, input) {
   return getBankAccountById(db, bankAccountId)
 }
 
-// มีบัญชีหลักได้ทีละหนึ่งบัญชีต่อหอ — ล้างของเดิมแล้วตั้งใหม่ในธุรกรรมเดียว
-// ถ้าทำแยกสองคำสั่งแล้วพลาดกลางทาง จะเหลือหอที่มีบัญชีหลักสองใบหรือไม่มีเลย
+// บัญชีหลักมีได้ใบเดียวต่อหอ — ทำในธุรกรรมเดียว
 export function setDefaultBankAccount(db, bankAccountId) {
   const row = db
     .prepare('SELECT apartment_id FROM apartment_bank_accounts WHERE bank_account_id = ?')
@@ -154,7 +127,7 @@ export function setDefaultBankAccount(db, bankAccountId) {
   return listBankAccounts(db, row.apartment_id)
 }
 
-// ลบบัญชีหลักแล้วต้องเลื่อนบัญชีอื่นขึ้นมาแทนทันที ไม่ปล่อยให้หอไม่มีบัญชีหลัก
+// ลบบัญชีหลักแล้วเลื่อนบัญชีอื่นขึ้นแทน
 export function deleteBankAccount(db, bankAccountId) {
   const row = db
     .prepare(
@@ -185,10 +158,6 @@ export function deleteBankAccount(db, bankAccountId) {
   return listBankAccounts(db, row.apartment_id)
 }
 
-// -----------------------------------------------------
-// ข้อความแจ้งการชำระเงิน — เก็บอยู่ที่ apartments.payment_instructions
-// อยู่หน้าเดียวกับบัญชีธนาคารตามต้นแบบ เพราะทั้งสองอย่างถูกพิมพ์ลงใบแจ้งหนี้ด้วยกัน
-// -----------------------------------------------------
 export function getPaymentInstructions(db, apartmentId) {
   const row = db
     .prepare('SELECT payment_instructions FROM apartments WHERE apartment_id = ?')
@@ -209,13 +178,6 @@ export function savePaymentInstructions(db, apartmentId, text) {
   return trimmed
 }
 
-// -----------------------------------------------------
-// ข้อความประจำท้ายบิล ("Note:") — เก็บที่ apartments.invoice_note (ดู migration 017)
-// ต่างจาก payment_instructions ตรงที่อันนั้นบอก "วิธีแจ้งเมื่อโอนแล้ว" ส่วนอันนี้เป็น
-// ข้อตกลง/ข้อควรรู้ประจำของหอ เช่นวันกำหนดชำระ
-//
-// ไม่บังคับกรอก — ล้างเป็นค่าว่างได้ แล้วบล็อกนี้จะหายไปจากบิล
-// -----------------------------------------------------
 export function getInvoiceNote(db, apartmentId) {
   const row = db
     .prepare('SELECT invoice_note FROM apartments WHERE apartment_id = ?')
@@ -235,7 +197,6 @@ export function saveInvoiceNote(db, apartmentId, text) {
   return trimmed
 }
 
-// -----------------------------------------------------
 export function toPublicBankAccount(row) {
   if (!row) return null
   return {

@@ -1,8 +1,4 @@
-// IPC ของรูปภาพ — ตอนนี้ใช้กับ QR รับเงินของหอพักอย่างเดียว
-//
-// **ผู้ใช้เลือกไฟล์ผ่านกล่องของระบบฝั่ง main แล้ว main อ่านไฟล์เอง** ไม่ได้ให้หน้าจอ
-// อ่านไฟล์แล้วส่งไบต์ข้ามสะพานมา — รูป 3 MB ที่แปลงเป็น array ธรรมดาเพื่อข้าม IPC
-// จะบวมเป็นสิบเท่าและช้า อีกทั้งหน้าจอไม่ต้องมีสิทธิ์แตะไฟล์ในเครื่องเลย
+// main อ่านไฟล์รูปเอง — ส่ง bytes ข้าม IPC จะบวมมาก
 import fs from 'node:fs'
 import path from 'node:path'
 import { dialog, ipcMain } from 'electron'
@@ -17,8 +13,6 @@ import {
   insertImage
 } from '../db/images.js'
 
-// นามสกุลไฟล์ → mime type ที่ตาราง images ยอมรับ
-// อ่านจากนามสกุลก็พอสำหรับรูปที่ผู้ใช้เลือกเองจากเครื่องตัวเอง ไม่ใช่ไฟล์ที่รับจากภายนอก
 const MIME_BY_EXT = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -38,8 +32,7 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็มอยู่เหนือ requireSessionUserId()
-// ใน authHandlers.js · 🔴 ต้องส่ง event ต่อให้ fn ด้วย เหตุผลอยู่ที่ exportHandlers.js
+// ต้องส่ง event ต่อให้ fn (ดู exportHandlers.js)
 function handleSession(channel, fn) {
   handle(channel, (payload, event) => {
     requireSessionUserId()
@@ -48,10 +41,7 @@ function handleSession(channel, fn) {
 }
 
 export function registerImageHandlers() {
-  // อัปโหลด QR ของหอ — เลือกไฟล์ → เก็บลงตาราง images → ผูกกับหอ → เก็บกวาดรูปเก่า
-  // 🔴 **เจ้าของหอเท่านั้น** — QR บนบิลคือปลายทางที่ผู้เช่าสแกนจ่าย เปลี่ยนรูปนี้เป็น QR
-  // ของตัวเองคือการเปลี่ยนว่าเงินเข้ากระเป๋าใคร โดยที่บิลยังหน้าตาเหมือนเดิมทุกอย่าง
-  // (ช่อง getQr / getDataUrl เปิดไว้ เพราะบิลที่พนักงานพิมพ์ต้องมี QR อยู่บนเอกสาร)
+  // เฉพาะเจ้าของหอ — QR คือปลายทางเงิน · getQr/getDataUrl เปิดไว้ให้พิมพ์บิล
   handle('image:uploadQr', async ({ apartmentId }) => {
     requireOwnerUserId()
     const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -80,8 +70,6 @@ export function registerImageHandlers() {
       const image = insertImage(db, { mimeType, bytes })
       db.prepare('UPDATE apartments SET qr_code_image_id = ?, updated_at = ? WHERE apartment_id = ?')
         .run(image.imageId, new Date().toISOString(), apartmentId)
-      // รูปเก่าที่เพิ่งถูกปลดออกจากหอจะกลายเป็นรูปกำพร้า เก็บกวาดทันทีในธุรกรรมเดียวกัน
-      // ไม่งั้นไฟล์ฐานข้อมูลจะบวมขึ้นทุกครั้งที่เปลี่ยน QR
       deleteOrphanImages(db)
       return image.imageId
     })
@@ -113,7 +101,6 @@ export function registerImageHandlers() {
     return { ok: true }
   })
 
-  // รูปสำหรับแสดงบนใบแจ้งหนี้ — คืนเป็น data URL ไม่ใช่ไบต์ดิบ
   handleSession('image:getDataUrl', ({ imageId }) => ({
     dataUrl: getImageDataUrl(getDatabase(), imageId)
   }))

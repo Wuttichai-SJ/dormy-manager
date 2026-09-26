@@ -1,29 +1,9 @@
-// สำรองและกู้คืนฐานข้อมูล
-//
-// ทั้งระบบอยู่ในไฟล์ SQLite ไฟล์เดียว ถ้าไฟล์นั้นเสียหรือหาย = ข้อมูลหอพักหายทั้งหมด
-// ไม่มีเซิร์ฟเวอร์ ไม่มีคลาวด์ให้ดึงกลับ (ตามข้อกำหนด offline-first) การสำรองจึงเป็น
-// ตาข่ายนิรภัยชั้นเดียวที่มี — ต้องมีก่อนเริ่มกรอกข้อมูลหอจริง ไม่ใช่ทำท้ายโปรเจกต์
-//
-// *** ห้ามคัดลอกไฟล์ .sqlite ด้วย fs.copyFile ตรงๆ ***
-// ฐานข้อมูลเปิดอยู่ในโหมด WAL — ข้อมูลที่เพิ่งเขียนอาจยังอยู่ในไฟล์ -wal ไม่ใช่ในไฟล์หลัก
-// สำเนาที่ได้จะขาดข้อมูลล่าสุดไปเงียบๆ และรู้ตัวตอนกู้คืนแล้วเท่านั้น
-// ต้องใช้ db.backup() ซึ่งเรียก online backup API ของ SQLite ที่จัดการ WAL ให้ถูกต้อง
+// ห้าม copyFile ไฟล์ .sqlite ตรงๆ (WAL) — ใช้ db.backup()
 import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 
-// เก็บสำเนาไว้ข้างไฟล์ฐานข้อมูลจริง (userData) — ผู้ใช้คัดลอกทั้งโฟลเดอร์ไปไว้ไดรฟ์อื่น
-// หรือ USB ได้ในทีเดียว ซึ่งคือสิ่งที่ควรทำจริงๆ เพราะสำเนาที่อยู่ดิสก์เดียวกับต้นฉบับ
-// ไม่รอดถ้าดิสก์พัง
-//
-// 🔴 **ตอนพัฒนาใช้คนละโฟลเดอร์กับตัวจริง** ด้วยเหตุผลเดียวกับที่ resolveDbPath() ใน
-// database.js แยก dormy-dev.sqlite ออกจาก dormy.sqlite — เครื่องนี้เป็นทั้งเครื่องพัฒนา
-// และเครื่องที่รันแอปจริง ถ้าใช้โฟลเดอร์เดียวกัน สำเนาของข้อมูลทดสอบจะไปนั่งปนอยู่ใน
-// รายการเดียวกับสำเนาของข้อมูลหอจริง หน้าตาเหมือนกันทุกประการ (ชื่อไฟล์เป็นวันเวลาล้วน
-// ไม่มีอะไรบอกที่มา) แล้ววันหนึ่งจะมีคนกดกู้คืนผิดใบ ทับข้อมูลหอจริงด้วยข้อมูลทดสอบ
-//
-// ตัวเลือกนี้เป็น argument ไม่ใช่การอ่าน app.isPackaged เอง เพราะโมดูลใน db/ ห้ามรู้จัก
-// electron (ชุดทดสอบรันใต้ ELECTRON_RUN_AS_NODE) — ผู้เรียกฝั่ง handlers เป็นคนตัดสิน
+// dev ใช้คนละโฟลเดอร์กับตัวจริง — ผู้เรียกฝั่ง handler เป็นคนบอก
 export function resolveBackupDir(userDataPath, { isDev = false } = {}) {
   return path.join(userDataPath, isDev ? 'backups-dev' : 'backups')
 }
@@ -33,9 +13,6 @@ function ensureDir(dir) {
   return dir
 }
 
-// ชื่อไฟล์เรียงตามเวลาได้เองเมื่อเรียงตามตัวอักษร (YYYY-MM-DD_HHmmss)
-// อ่านออกด้วยตาโดยไม่ต้องเปิดโปรแกรมอะไร
-// ใบที่สองขึ้นไปในวินาทีเดียวกันได้เลขต่อท้าย (-2, -3) — ดู reserveBackupFile()
 function buildFileName(now = new Date(), sequence = 1) {
   const pad = (n) => String(n).padStart(2, '0')
   return [
@@ -54,13 +31,7 @@ function buildFileName(now = new Date(), sequence = 1) {
   ].join('')
 }
 
-// 🔴 จองชื่อไฟล์ด้วยการสร้างไฟล์เปล่าแบบ exclusive ('wx') ไม่ใช่เช็ก existsSync ก่อน
-// ชื่อไฟล์ละเอียดแค่ระดับวินาที เดิมสำรองสองใบในวินาทีเดียวกันแล้ว db.backup() เขียนทับ
-// ใบแรกเงียบๆ — เกิดได้จริงตอนกู้คืน ที่ระบบสร้าง "สำรองอัตโนมัติก่อนกู้คืน" ตามหลังใบที่
-// ผู้ใช้เพิ่งกดสร้าง และการเช็ก existsSync ไม่พอ เพราะ db.backup() เป็น async ถ้ากดสร้าง
-// รัวๆ ทุกคำขอจะเห็นว่าชื่อยังว่างแล้วเลือกชื่อเดียวกันหมด ส่วน 'wx' ให้ระบบปฏิบัติการ
-// ตัดสินว่าใครได้ชื่อไป ชนเมื่อไหร่ได้ EEXIST แล้วขยับไปเลขถัดไป
-// (db.backup() เขียนลงไฟล์เปล่าที่จองไว้ได้ปกติ — ไฟล์ขนาด 0 ไบต์คือฐานข้อมูลว่าง)
+// จองชื่อไฟล์ด้วย 'wx' กันสำรองสองใบในวินาทีเดียวกันทับกัน
 function reserveBackupFile(dir, now) {
   for (let sequence = 1; ; sequence++) {
     const fileName = buildFileName(now, sequence)
@@ -73,11 +44,6 @@ function reserveBackupFile(dir, now) {
   }
 }
 
-// ------------------------------------------------------------------
-// สร้างสำเนา
-// ------------------------------------------------------------------
-// db.backup() เป็น async — คืน Promise ที่ resolve เมื่อคัดลอกครบทุกหน้า
-// now มีไว้ให้ชุดทดสอบกำหนดเวลาเองได้ — แอปไม่ต้องส่งมา
 export async function createBackup(db, userDataPath, { label, isDev = false, now = new Date() } = {}) {
   const dir = ensureDir(resolveBackupDir(userDataPath, { isDev }))
   const fileName = reserveBackupFile(dir, now)
@@ -86,14 +52,12 @@ export async function createBackup(db, userDataPath, { label, isDev = false, now
   try {
     await db.backup(target)
   } catch (err) {
-    // สำรองไม่สำเร็จ = อย่าทิ้งไฟล์ที่จองไว้ (เปล่าหรือครึ่งๆ กลางๆ) ให้โผล่ในรายการ
-    // เพราะหน้าตาเหมือนไฟล์สำรองปกติ แล้ววันหนึ่งจะมีคนกดกู้คืนจากมัน
+    // สำรองไม่สำเร็จ ลบไฟล์ที่จองไว้ทิ้ง
     fs.rmSync(target, { force: true })
     throw err
   }
 
-  // บันทึกป้ายกำกับไว้ในไฟล์ข้างๆ ไม่ยัดลงชื่อไฟล์ — ชื่อไฟล์ต้องเรียงตามเวลาได้เสมอ
-  // และผู้ใช้พิมพ์อักษรที่ใช้เป็นชื่อไฟล์ไม่ได้ลงไปได้
+  // ป้ายกำกับเก็บในไฟล์ .txt ข้างๆ
   if (label) {
     fs.writeFileSync(`${target}.txt`, String(label).trim(), 'utf-8')
   }
@@ -101,9 +65,6 @@ export async function createBackup(db, userDataPath, { label, isDev = false, now
   return describeBackup(dir, fileName)
 }
 
-// ------------------------------------------------------------------
-// อ่านรายการ
-// ------------------------------------------------------------------
 export function listBackups(userDataPath, { isDev = false } = {}) {
   const dir = resolveBackupDir(userDataPath, { isDev })
   if (!fs.existsSync(dir)) return []
@@ -129,13 +90,7 @@ function describeBackup(dir, fileName) {
   }
 }
 
-// ------------------------------------------------------------------
-// ตรวจว่าไฟล์ใช้กู้คืนได้จริง
-// ------------------------------------------------------------------
-// เปิดอ่านแบบ read-only แล้วดูว่ามีตาราง _migrations กับ apartments อยู่จริงไหม
-// กันการเอาไฟล์อะไรก็ไม่รู้มาทับฐานข้อมูลจริงแล้วพังทั้งระบบ
-// knownMigrations = ชื่อไฟล์ migration ทั้งหมดที่แอปเวอร์ชันนี้มี (จาก migrationsDir)
-// ส่งเข้ามาเพื่อกันการกู้คืนไฟล์ที่มาจากแอป "รุ่นใหม่กว่า" — ดูเหตุผลด้านล่าง
+// ตรวจว่าเป็นไฟล์สำรองจริงก่อนกู้คืน
 export function inspectBackup(filePath, knownMigrations = null) {
   if (!fs.existsSync(filePath)) throw new Error('ไม่พบไฟล์สำรองที่ระบุ')
 
@@ -152,13 +107,7 @@ export function inspectBackup(filePath, knownMigrations = null) {
     const applied = probe.prepare('SELECT name FROM _migrations ORDER BY name').all().map((r) => r.name)
     const apartments = probe.prepare('SELECT COUNT(*) AS n FROM apartments').get().n
 
-    // *** กันการกู้คืนไฟล์จากแอปรุ่นใหม่กว่า ***
-    //
-    // migration runner เดินไปข้างหน้าอย่างเดียว ไม่มีทางย้อนกลับ ถ้าไฟล์สำรองผ่าน
-    // migration ที่แอปรุ่นนี้ยังไม่มีไฟล์ให้รู้จัก แปลว่าสคีมาข้างในใหม่กว่าที่โค้ดนี้เข้าใจ
-    // — กู้คืนไปแล้วจะ "เปิดได้แต่ทำงานเพี้ยน" ซึ่งอันตรายกว่าพังตรงๆ เพราะไม่มีใครสังเกต
-    //
-    // เกิดได้จริงตอนมีแอปหลายรุ่นในมือ: อัปเดตแอป → สำรอง → ย้อนกลับไปใช้รุ่นเก่า → กู้คืน
+    // ไม่กู้คืนไฟล์จากแอปรุ่นใหม่กว่า (migration ย้อนกลับไม่ได้)
     if (knownMigrations) {
       const known = new Set(knownMigrations)
       const unknown = applied.filter((name) => !known.has(name))
@@ -171,8 +120,6 @@ export function inspectBackup(filePath, knownMigrations = null) {
 
     return { migrations: applied.length, appliedMigrations: applied, apartments }
   } catch (err) {
-    // ข้อความของ SQLite ("file is not a database") ผู้ใช้อ่านไม่รู้เรื่อง — แต่ข้อความที่เรา
-    // ตั้งใจโยนเองต้องผ่านออกไปตามเดิม ไม่ถูกกลบด้วยข้อความรวม
     if (err.message.includes('ไฟล์นี้ไม่ใช่') || err.message.includes('รุ่นใหม่กว่า')) throw err
     throw new Error('เปิดไฟล์สำรองไม่ได้ — ไฟล์อาจเสียหายหรือไม่ใช่ไฟล์ฐานข้อมูล')
   } finally {
@@ -180,26 +127,12 @@ export function inspectBackup(filePath, knownMigrations = null) {
   }
 }
 
-// อ่านรายชื่อไฟล์ migration ที่แอปเวอร์ชันนี้มี — ชุดเดียวกับที่ migrate.js ใช้
 export function listKnownMigrations(migrationsDir) {
   if (!fs.existsSync(migrationsDir)) return []
   return fs.readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort()
 }
 
-// ------------------------------------------------------------------
-// กู้คืน
-// ------------------------------------------------------------------
-// คืนค่าเป็น path ที่ต้องเอาไปทับ ให้ฝั่ง handler เป็นคนปิดฐานข้อมูล/ทับไฟล์/รีสตาร์ตแอป
-// เพราะโมดูลนี้ต้องไม่รู้จัก electron (ชุดทดสอบรันใต้ ELECTRON_RUN_AS_NODE ที่ import
-// electron ไม่ได้ — กฎเดียวกับ db/*.js ตัวอื่น)
-// 🔴 ชื่อไฟล์ที่หน้าจอส่งมาต้องชี้ไปที่ไฟล์สำรองในโฟลเดอร์สำรองเท่านั้น (รีวิวโค้ด 2026-09-25)
-// เดิม path.join ต่อชื่อที่ส่งมาตรงๆ — ส่ง "../dormy.sqlite" มาแล้ว "ลบไฟล์สำรอง" ไปลบ
-// ฐานข้อมูลตัวจริงได้ หรือ "กู้คืน" จากไฟล์ที่ไหนก็ได้ในเครื่อง ปุ่มบนหน้าจอส่งชื่อที่ถูกเสมอ
-// ตัวนี้จึงเป็นด่านเผื่อไว้สำหรับคำสั่งที่ไม่ได้มาจากปุ่ม
-//
-// ไม่บังคับรูปแบบชื่อ dormy-YYYY-MM-DD_… — ผู้ใช้อาจคัดลอกไฟล์สำรองกลับมาจาก USB แล้วตั้งชื่อเอง
-// ซึ่ง listBackups ก็แสดงไฟล์ .sqlite ทุกไฟล์ในโฟลเดอร์อยู่แล้ว ตรวจแค่ว่าเป็นชื่อไฟล์ล้วน
-// ลงท้าย .sqlite และปลายทางอยู่ในโฟลเดอร์สำรองจริง
+// ชื่อไฟล์ต้องชี้ไปไฟล์ .sqlite ในโฟลเดอร์สำรองเท่านั้น
 function resolveBackupFile(userDataPath, fileName, { isDev = false } = {}) {
   const dir = path.resolve(resolveBackupDir(userDataPath, { isDev }))
   const name = String(fileName ?? '')

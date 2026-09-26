@@ -1,5 +1,3 @@
-// IPC ของโมดูลการจอง — เปลือกบางๆ ครอบ db/bookings.js
-// กฎเดียวกับ handler อื่น: คืน { success, data | error } เท่านั้น ห้าม throw ข้ามสะพาน
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -27,8 +25,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -55,13 +51,11 @@ export function registerBookingHandlers() {
     return booking
   })
 
-  // ตรวจข้อมูลสัญญาก่อนเสมอ — ถ้าปล่อยผ่านแล้วไปพังกลางธุรกรรม การจองจะยังไม่ถูกแปลง
-  // แต่ผู้ใช้เห็นข้อความ error ดิบๆ ของ SQLite แทนที่จะรู้ว่ากรอกอะไรขาด
   handle('booking:convert', ({ bookingId, ...contractInput }) => {
     const errors = validateContractInput(contractInput)
     if (errors.length > 0) throw new Error(errors.join('\n'))
 
-    // ผู้รับเงินของใบเสร็จเงินจองมาจากเซสชันเสมอ ห้ามให้หน้าจอส่งมาเอง
+    // ผู้รับเงินมาจากเซสชันเสมอ ไม่รับจากหน้าจอ
     const contract = convertBookingToContract(getDatabase(), bookingId, {
       ...contractInput,
       createdBy: requireSessionUserId()

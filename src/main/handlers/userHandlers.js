@@ -1,10 +1,4 @@
-// IPC ของหน้าจัดการผู้ใช้ — เปลือกบางๆ ครอบ auth.js/db/users.js
-//
-// ทุกช่องยกเว้น `user:changeOwnPassword` เป็นของเจ้าของหอเท่านั้น ด่านอยู่ที่
-// requireOwnerUserId() ซึ่งอ่านบทบาทจากฐานข้อมูลสดทุกครั้ง — การซ่อนปุ่มฝั่งหน้าจอ
-// เป็นแค่การจัดหน้าจอ ไม่ได้กันอะไร เพราะเปิด DevTools แล้วยิงช่องนี้ตรงๆ ได้
-//
-// ห้ามส่ง hash หรือรหัสผ่านกลับออกไปในทุกกรณี (ใช้ toPublicUser ทุกครั้ง)
+// ทุกช่องเฉพาะเจ้าของหอ ยกเว้น user:changeOwnPassword · ห้ามส่ง hash ออกไป
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -35,8 +29,7 @@ export function registerUserHandlers() {
     return { users: listUsers(getDatabase()) }
   })
 
-  // รหัสสำรองตัวจริงออกจาก main process ครั้งเดียวตรงนี้ (เฉพาะบัญชีเจ้าของ)
-  // หน้าจอต้องแสดงให้จดทันที เพราะไม่มีทางเรียกดูอีกแล้ว
+  // รหัสสำรองออกจาก main ครั้งเดียวตรงนี้
   handle('user:create', (payload) => {
     requireOwnerUserId()
     const result = createUser(getDatabase(), {
@@ -67,8 +60,6 @@ export function registerUserHandlers() {
 
   handle('user:setActive', ({ userId, isActive }) => {
     const actor = requireOwnerUserId()
-    // ปิดบัญชีตัวเองไม่ได้ — กดพลาดแล้วออกจากระบบไม่ได้กลับเข้ามาอีก
-    // (ถึงจะเหลือเจ้าของคนอื่นอยู่ ก็ยังเป็นการล็อกตัวเองออกโดยไม่ตั้งใจ)
     if (userId === actor && !isActive) {
       throw new Error('ปิดการใช้งานบัญชีของตัวเองไม่ได้')
     }
@@ -77,9 +68,7 @@ export function registerUserHandlers() {
     return { user }
   })
 
-  // ทางกู้คืนของพนักงาน: พนักงานไม่มีรหัสสำรอง เจ้าของจึงเป็นคนตั้งรหัสผ่านใหม่ให้
-  // actorUserId มาจากเซสชันฝั่ง main เสมอ ห้ามรับจากหน้าจอ — ไม่งั้นด่าน "ตั้งให้ตัวเองไม่ได้"
-  // ใน resetUserPassword จะถูกข้ามด้วยการส่ง actorUserId ปลอมมาจาก DevTools
+  // actorUserId มาจากเซสชันเสมอ
   handle('user:resetPassword', ({ userId, newPassword }) => {
     const actor = requireOwnerUserId()
     const user = resetUserPassword(getDatabase(), { userId, newPassword, actorUserId: actor })
@@ -87,8 +76,7 @@ export function registerUserHandlers() {
     return { user }
   })
 
-  // ช่องเดียวของกลุ่มนี้ที่พนักงานเรียกได้ — และเรียกได้เฉพาะกับบัญชีตัวเอง
-  // userId มาจากเซสชันฝั่ง main ไม่ได้รับจากหน้าจอ จึงเปลี่ยนรหัสผ่านของคนอื่นไม่ได้
+  // เปลี่ยนได้เฉพาะรหัสผ่านตัวเอง (userId จากเซสชัน)
   handle('user:changeOwnPassword', ({ currentPassword, newPassword }) => {
     const userId = requireSessionUserId()
     const user = changeOwnPassword(getDatabase(), { userId, currentPassword, newPassword })

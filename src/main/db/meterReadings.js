@@ -1,14 +1,6 @@
-// ตาราง meter_batches / meter_readings — SQL ดิบล้วน ไม่มี ORM
-//
-// โครงตามหน้า "จดมิเตอร์" ของต้นแบบ: หนึ่ง "ใบจดมิเตอร์" ต่อวันที่จด แล้วไล่กรอกทุกห้อง
-// ในใบนั้น แยกหน้าน้ำกับหน้าไฟ ตารางคือ ห้อง | สถานะห้อง | จดครั้งก่อน | ปัจจุบัน | หน่วย
-//
-// ห้ามให้ไฟล์นี้ import logger.js หรืออะไรที่ลาก electron เข้ามา — เทสต์รันใต้
-// ELECTRON_RUN_AS_NODE ซึ่ง electron เป็น CJS shim ที่ ESM import ไม่ได้
+// ห้าม import electron/logger — ชุดทดสอบรันแบบ node
 import { FieldError } from '../fieldError.js'
 
-// ทั้งใบเก็บเลขน้ำและเลขไฟไว้แถวเดียวกันต่อห้อง (ตาม 001_init.sql) แต่หน้าจอกรอกทีละฝั่ง
-// จึงต้องมี "ฝั่ง" เป็นแนวคิดชัดๆ ไม่งั้นทุกฟังก์ชันต้องเขียนสองชุดที่ต่างกันแค่ชื่อคอลัมน์
 export const METER_SIDES = ['water', 'electric']
 
 export const METER_SIDE_LABELS = {
@@ -16,7 +8,6 @@ export const METER_SIDE_LABELS = {
   electric: 'ค่าไฟ'
 }
 
-// ชื่อคอลัมน์ของแต่ละฝั่ง รวมไว้ที่เดียว เพื่อให้ที่อื่นเขียนสูตรครั้งเดียวแล้วใช้ได้ทั้งคู่
 const SIDE_COLUMNS = {
   water: {
     previous: 'water_previous_reading',
@@ -46,31 +37,13 @@ function columnsFor(side) {
   return cols
 }
 
-// ------------------------------------------------------------------
-// คำนวณหน่วยที่ใช้
-// ------------------------------------------------------------------
-// ปกติคือ ปัจจุบัน − ครั้งก่อน ตรงๆ
-//
-// มีสองเหตุการณ์ที่ทำให้เลขปัจจุบันน้อยกว่าครั้งก่อนได้โดยที่ไม่ได้จดผิด และทั้งสอง
-// **คิดหน่วยคนละสูตรกัน** จึงต้องแยกให้ผู้ใช้เลือกว่าเจอเหตุการณ์ไหน:
-//
-// 1) เกินรอบมิเตอร์ — หน้าปัดวิ่งจนสุดแล้วหมุนกลับไปเริ่มที่ 0 ตัวมิเตอร์เป็นลูกเดิม
-//    น้ำ/ไฟที่ใช้ระหว่างทางจนถึงจุดสุดหน้าปัดต้องถูกนับด้วย
-//
-// 2) เปลี่ยนมิเตอร์ลูกใหม่ — ของเก่าหยุดที่เลขหนึ่ง ของใหม่เริ่มที่อีกเลขหนึ่ง
-//    ไม่มีช่วงไหนหายไป จึงไม่มีอะไรให้บวก แค่รวมหน่วยของสองลูกเข้าด้วยกัน
-//
-// เลือกผิดข้อคือบิลผิดเป็นหลักหมื่น — เปลี่ยนมิเตอร์แล้วไปติ๊ก "เกินรอบ" จะได้หน่วย
-// เกินมาเกือบเต็มหน้าปัด และไม่มีอะไรเตือนเลยเพราะตัวเลขดูสมเหตุสมผลในตัวมันเอง
+// ปัจจุบันน้อยกว่าครั้งก่อนมี 2 กรณี คิดคนละสูตร: เกินรอบมิเตอร์ / เปลี่ยนมิเตอร์ลูกใหม่
 export function calculateUnitsUsed(previous, current, options) {
-  // เดิมพารามิเตอร์ที่สามเป็น boolean ของ "เกินรอบมิเตอร์" ตัวเดียว รับทั้งสองแบบไว้
-  // เพื่อให้ที่เรียกแบบเก่ายังอ่านออกว่าหมายถึงอะไร
+  // รับ boolean แบบเก่า (= เกินรอบ) ด้วย
   const opts = typeof options === 'object' && options !== null ? options : { isOverCycle: options }
   const { isOverCycle, isMeterReplaced, removedReading, newStartReading, meterDigits } = opts
 
   const digits = normalizeMeterDigits(meterDigits)
-  // มิเตอร์ 5 หลักอ่านได้สูงสุด 99,999 แล้ววนกลับไป 0 — เลข 100,000 จึงเป็นจุดหมุนกลับ
-  // และเป็นเพดานที่เลขบนหน้าปัดไปไม่ถึงในเวลาเดียวกัน
   const rollover = 10 ** digits
 
   const prev = Number(previous ?? 0)
@@ -97,30 +70,19 @@ export function calculateUnitsUsed(previous, current, options) {
     return round2(curr - prev)
   }
 
-  // ติ๊กเกินรอบแล้วแต่เลขยังเดินหน้าปกติ = ติ๊กผิด คิดแบบธรรมดาให้ ไม่ต้องบวกรอบเกิน
   if (curr >= prev) return round2(curr - prev)
 
-  // มิเตอร์ 5 หลัก ครั้งก่อน 99,850 ปัจจุบัน 120 → 100000 − 99850 + 120 = 270
-  //
-  // **จำนวนหลักมาจากค่าตั้งค่าของหอ ไม่ได้เดาจากเลขครั้งก่อนแล้ว** (เจ้าของหอยืนยัน
-  // 2026-08-10 ว่าเป็น 5 หลัก) ของเดิมนับหลักของเลขครั้งก่อนเอา ซึ่งให้คำตอบตรงกันเฉพาะ
-  // ตอนที่วนรอบจริง แต่ตอนติ๊กผิดมันจะเงียบ: ครั้งก่อน 850 ปัจจุบัน 120 เคยได้ 270
-  // ทั้งที่มิเตอร์ 5 หลักต้องเดินไป 99,270 หน่วยถึงจะกลับมาที่ 120 ได้ — ตัวเลขที่บอกชัดว่า
-  // ไม่ได้วนรอบ แต่ติ๊กผิด กลับถูกกลบจนดูสมเหตุสมผล
+  // เช่น 5 หลัก: ครั้งก่อน 99,850 ปัจจุบัน 120 → 100000 − 99850 + 120 = 270
   return round2(rollover - prev + curr)
 }
 
-// จำนวนหลักต้องใช้ได้เสมอ ต่อให้ผู้เรียกลืมส่งมา — ตัวเลขนี้ไปเป็นตัวหารของบิล
-// (10 ** 0 = 1 จะทำให้ทุกเลขมิเตอร์ "เกินหน้าปัด" แล้วบันทึกอะไรไม่ได้เลยทั้งหอ)
+// จำนวนหลักต้องใช้ได้เสมอ — เป็นตัวหาร
 function normalizeMeterDigits(value) {
   const digits = Math.floor(Number(value))
   return Number.isInteger(digits) && digits >= 3 && digits <= 8 ? digits : 5
 }
 
-// มิเตอร์ 5 หลักอ่านได้ไม่เกิน 99,999 — เลขที่เกินนั้นคือพิมพ์เกินหลัก ไม่ใช่ค่าที่อ่านได้จริง
-//
-// เป็นความผิดพลาดที่เกิดง่ายที่สุดของงานนี้ (กด 0 เกินไปหนึ่งตัวตอนไล่พิมพ์เร็วๆ ทั้งหอ)
-// และแพงที่สุด เพราะ 10,500 → 105,000 จะกลายเป็นค่าน้ำหลักหมื่นบาทในบิลใบเดียว
+// เลขเกินหน้าปัด = พิมพ์เกินหลัก
 function requireWithinDial(value, rollover, digits, label) {
   if (value >= rollover) {
     throw new Error(
@@ -130,12 +92,7 @@ function requireWithinDial(value, rollover, digits, label) {
   }
 }
 
-// หน่วยที่ใช้ตอนเปลี่ยนมิเตอร์ = ส่วนที่ลูกเก่าเดินไปก่อนถูกถอด + ส่วนที่ลูกใหม่เดินมาจนถึงวันจด
-//
-//   (เลขถอดเก่า − ครั้งก่อน) + (ปัจจุบัน − เลขเริ่มลูกใหม่)
-//
-// เลขเริ่มลูกใหม่มักเป็น 0 แต่ไม่เสมอไป มิเตอร์มือสองหรือมิเตอร์ที่ช่างทดสอบมาก่อนติดตั้ง
-// จะมีเลขค้างอยู่ ถ้าเหมาว่าเป็น 0 หน่วยที่ค้างในลูกใหม่จะถูกคิดเงินกับผู้เช่าทันที
+// (เลขถอดเก่า − ครั้งก่อน) + (ปัจจุบัน − เลขเริ่มลูกใหม่)
 function unitsAcrossMeterChange(prev, curr, removedReading, newStartReading, rollover, digits) {
   if (removedReading === null || removedReading === undefined || removedReading === '') {
     throw new Error('เปลี่ยนมิเตอร์ใหม่ ต้องกรอกเลขตอนถอดมิเตอร์เก่า')
@@ -154,8 +111,6 @@ function unitsAcrossMeterChange(prev, curr, removedReading, newStartReading, rol
   requireWithinDial(removed, rollover, digits, 'เลขตอนถอดมิเตอร์เก่า')
   requireWithinDial(newStart, rollover, digits, 'เลขเริ่มต้นของมิเตอร์ลูกใหม่')
 
-  // มิเตอร์ลูกเก่าเดินถอยหลังไม่ได้ ถ้าเลขถอดน้อยกว่าครั้งก่อนแปลว่าจดผิด หรือลูกเก่า
-  // หมุนครบรอบก่อนถูกถอดด้วย — กรณีหลังหายากจนไม่คุ้มจะเดาแทนผู้ใช้ ให้คนดูดีกว่า
   if (removed < prev) {
     throw new Error(
       `เลขตอนถอดมิเตอร์เก่า (${removed}) น้อยกว่าเลขที่จดครั้งก่อน (${prev}) — กรุณาตรวจสอบเลขที่กรอก`
@@ -171,13 +126,10 @@ function unitsAcrossMeterChange(prev, curr, removedReading, newStartReading, rol
 }
 
 function round2(n) {
-  // มิเตอร์อ่านทศนิยมได้ (.5 หน่วย) แต่ float ทำให้ 100.1 - 2 กลายเป็น 98.09999999999999
+  // ปัดแก้ float (100.1 - 2)
   return Math.round(n * 100) / 100
 }
 
-// ------------------------------------------------------------------
-// ใบจดมิเตอร์
-// ------------------------------------------------------------------
 export function listBatches(db, apartmentId) {
   return db
     .prepare(
@@ -195,7 +147,7 @@ export function listBatches(db, apartmentId) {
       readingDate: row.reading_date,
       createdAt: row.created_at,
       roomCount: row.roomCount,
-      // ใบที่ออกบิลไปแล้วห้ามลบ/ห้ามแก้เลข ไม่งั้นบิลที่พิมพ์ส่งผู้เช่าไปแล้วจะไม่ตรงฐานข้อมูล
+      // ใบที่ออกบิลแล้วห้ามลบหรือแก้เลข
       isUsedForBilling: row.invoiceCount > 0
     }))
 }
@@ -206,10 +158,6 @@ export function getBatchById(db, batchId) {
   return { batchId: row.batch_id, apartmentId: row.apartment_id, readingDate: row.reading_date }
 }
 
-// จำนวนหลักของหน้าปัดมิเตอร์ ตั้งไว้ที่ระดับหอ (migration 020)
-//
-// อ่านด้วย SQL ตรงๆ ไม่ import db/apartments.js เพื่อไม่ให้สองโมดูลนี้อ้างกันไปมา
-// — ตอนออกบิล invoices.js เรียกทั้งคู่อยู่แล้ว
 function getMeterDigits(db, apartmentId) {
   const row = db.prepare('SELECT meter_digits FROM apartments WHERE apartment_id = ?').get(apartmentId)
   return row?.meter_digits ?? undefined
@@ -258,28 +206,7 @@ export function deleteBatch(db, batchId) {
   return true
 }
 
-// ------------------------------------------------------------------
-// หน้ากรอกเลขมิเตอร์ของฝั่งหนึ่ง
-// ------------------------------------------------------------------
-// คืนทุกห้องที่เปิดใช้งานของหอ พร้อมเลข "จดครั้งก่อน" ที่ระบบหาให้
-//
-// **โซ่ของมิเตอร์ขาดตอนที่ผู้เช่าเปลี่ยนคน** — เลขที่ผู้เช่าคนก่อนทิ้งไว้ไม่ใช่เลขตั้งต้น
-// ของคนใหม่ ระหว่างคนเก่าย้ายออกกับคนใหม่ย้ายเข้า มิเตอร์ยังเดินได้ (ทำความสะอาด ซ่อมห้อง)
-// และหน่วยช่วงนั้นเป็นของหอ ไม่ใช่ของผู้เช่ารายใหม่
-//
-// กติกา:
-//   1) มีสัญญาที่ยังใช้งานอยู่ และสัญญาเริ่ม **หลัง** รอบจดล่าสุด
-//      → ใช้ "เลขมิเตอร์วันเข้าพัก" ของสัญญานั้น (โซ่เริ่มใหม่ที่นี่)
-//   2) นอกนั้นใช้เลขปัจจุบันของใบจดก่อนหน้าใบนี้ (โซ่เดินต่อตามปกติ)
-//   3) ไม่เคยจดและไม่มีสัญญา → 0
-//
-// 🔴 ของเดิมเป็น `lastReading ?? contractStart` ซึ่งแปลว่า **ห้องที่เคยมีใบจดมิเตอร์มาก่อน
-// จะเมินเลขในสัญญาเสมอ** ผู้เช่าใหม่ที่ย้ายเข้าห้องมือสองจึงโดนคิดหน่วยที่คนก่อนใช้ค้างไว้
-// (ไม่เคยเจอตอนทดสอบเพราะหอที่กรอกจริงยังไม่มีห้องไหนหมุนเวียนผู้เช่า)
-//
-// เลขในสัญญาที่ผิด (เช่นลืมกรอกจนเป็น 0) จะทำให้บิลใบแรกพุ่ง จึงไม่เดาแทนผู้ใช้แต่
-// **ประกาศออกมาให้เห็น** ผ่าน `previousSource` / `supersededReading` / `newTenantRooms`
-// แล้วให้หน้าจอขึ้นป้ายบอกว่าแถวนี้เริ่มนับใหม่จากเลขอะไร
+// เลขครั้งก่อน: สัญญาเริ่มหลังรอบจดล่าสุด → เลขวันเข้าพัก · นอกนั้น → เลขรอบก่อน · ไม่มีเลย → 0
 export function getBatchSheet(db, batchId, side) {
   const cols = columnsFor(side)
   const batch = getBatchById(db, batchId)
@@ -338,12 +265,7 @@ export function getBatchSheet(db, batchId, side) {
     )
     .all({ batchId, apartmentId: batch.apartmentId, readingDate: batch.readingDate })
 
-  // ห้องที่ถูกปิดใช้งานทั้งที่ยังมีผู้เช่าอยู่ — ตารางข้างบนกรอง is_active = 1 ทิ้งไปแล้ว
-  //
-  // **ห้ามให้ห้องหายไปเงียบๆ** (เจอจริง 2026-08-10: หอพักประตู 5 ห้อง 102 ถูกปิดใช้งาน
-  // ทั้งที่มีสัญญาอยู่ เจ้าของหอเห็นห้องเป็น "ไม่ว่าง" ในหน้าห้อง แต่ใบจดมิเตอร์มีแค่สองห้อง
-  // แล้วไม่มีอะไรบอกว่าห้องที่สามไปไหน) ตอนนี้ `updateRoom` กันไม่ให้เกิดสถานะนี้แล้ว
-  // แต่ข้อมูลเก่าที่ตั้งไว้ผิดอยู่ก่อนหน้ายังต้องมีทางให้เห็น
+  // ห้องที่ปิดใช้งานแต่ยังมีผู้เช่า ต้องแสดงให้เห็น
   const hiddenRooms = db
     .prepare(
       `SELECT r.room_number
@@ -357,16 +279,13 @@ export function getBatchSheet(db, batchId, side) {
     .all(batch.apartmentId)
     .map((row) => row.room_number)
 
-  // ห้องที่โซ่ถูกตัดเพราะเปลี่ยนผู้เช่า — หน้าจอเอาไปขึ้นแถบเตือนรวมด้านบน
-  // เลขตั้งต้นที่ผิดจะทำให้บิลใบแรกของผู้เช่าใหม่พุ่ง ต้องให้เจ้าของหอเหลือบเห็นก่อนกดบันทึก
   const newTenantRooms = []
 
   const sheetRooms = rows.map((row) => {
     const lastReading = row.lastReading === null ? null : Number(row.lastReading)
     const contractMeterStart = row.contractStart === null ? null : Number(row.contractStart)
 
-    // สัญญาเริ่มหลังรอบจดล่าสุด = ผู้เช่ารายนี้เพิ่งเข้ามาหลังเลขนั้นถูกจด
-    // เท่ากับ = จดในวันที่ย้ายเข้าพอดี ถือว่าเป็นเลขของคนใหม่แล้ว จึงเดินโซ่ต่อได้
+    // วันเท่ากัน = จดวันย้ายเข้าพอดี ใช้เลขนั้นต่อได้
     const startsFromContract =
       contractMeterStart !== null &&
       (lastReading === null ||
@@ -374,7 +293,6 @@ export function getBatchSheet(db, batchId, side) {
 
     const derived = startsFromContract ? contractMeterStart : (lastReading ?? 0)
     const previousSource = startsFromContract ? 'contract' : lastReading === null ? 'none' : 'batch'
-    // เลขปิดของผู้เช่าคนก่อนที่ถูกข้ามไป — มีเฉพาะตอนที่โซ่ถูกตัดจริง
     const supersededReading = startsFromContract ? lastReading : null
 
     if (supersededReading !== null) {
@@ -391,12 +309,9 @@ export function getBatchSheet(db, batchId, side) {
       roomNumber: row.room_number,
       floorName: row.floor_name,
       status: row.status,
-      // แถวที่บันทึกไปแล้วแสดงเลขที่บันทึกไว้จริง เพราะจำนวนหน่วยที่คิดไปแล้วมาจากเลขนั้น
-      // ถ้าแสดงเลขที่ไล่หาใหม่ ตัวเลขบนจอจะไม่ตรงกับหน่วยที่อยู่ข้างๆ
       previousReading: Number(row.savedPrevious ?? derived),
-      // เลขที่ระบบไล่หาให้ — ตอนบันทึกใช้ตัวนี้เสมอ ไม่ใช้ค่าที่หน้าจอส่งมา
       derivedPreviousReading: derived,
-      // 'batch' = เดินต่อจากรอบก่อน · 'contract' = เริ่มใหม่ที่เลขวันเข้าพัก · 'none' = ไม่เคยมีอะไรเลย
+      // 'batch' / 'contract' / 'none'
       previousSource,
       contractStartDate: row.contractStartDate ?? null,
       supersededReading,
@@ -416,19 +331,13 @@ export function getBatchSheet(db, batchId, side) {
     side,
     hiddenRooms,
     newTenantRooms,
-    // หน้าจอต้องใช้ตัวเลขเดียวกับที่ฝั่ง main ใช้คำนวณ ไม่งั้นตัวเลขหน่วยที่ขึ้นระหว่างพิมพ์
-    // จะไม่ตรงกับที่บันทึกจริง
+    // หน้าจอต้องใช้ตัวเลขเดียวกับที่ main คำนวณ
     meterDigits: normalizeMeterDigits(getMeterDigits(db, batch.apartmentId)),
     rooms: sheetRooms
   }
 }
 
-// ------------------------------------------------------------------
-// บันทึกเลขมิเตอร์ทั้งใบ (ฝั่งเดียว)
-// ------------------------------------------------------------------
-// รับทั้งหน้าเป็นก้อนเดียว เพราะต้นแบบให้กรอกทั้งตารางแล้วกดบันทึกครั้งเดียว
-// ถ้าแถวไหนคำนวณไม่ผ่าน ต้องไม่มีแถวไหนถูกเขียนเลย — ครึ่งใบที่บันทึกสำเร็จอ่านไม่ออก
-// ว่าตกลงจดครบหรือยัง
+// บันทึกทั้งใบ — แถวไหนไม่ผ่านต้องไม่เขียนเลยสักแถว
 export function saveBatchReadings(db, batchId, side, rows) {
   const cols = columnsFor(side)
   const batch = getBatchById(db, batchId)
@@ -443,20 +352,12 @@ export function saveBatchReadings(db, batchId, side, rows) {
     throw new Error('แก้ไขไม่ได้ เพราะใบจดมิเตอร์นี้ถูกใช้ออกบิลไปแล้ว')
   }
 
-  // **เลขครั้งก่อนคิดจากฝั่งนี้เสมอ ไม่รับค่าที่หน้าจอส่งมา**
-  //
-  // เลขปิดของรอบก่อนคือเลขเปิดของรอบนี้ ไม่ใช่ตัวเลขที่ใครจะกรอกทับได้ ถ้าปล่อยให้แก้
-  // โซ่ของมิเตอร์จะขาดตรงไหนก็ได้ แล้วหน่วยที่หายไประหว่างสองรอบจะไม่มีใครเรียกเก็บ
-  // — และไม่มีทางรู้ย้อนหลังว่าขาดตรงไหน เพราะทุกแถวดูสมเหตุสมผลในตัวเอง
-  //
-  // ล็อกที่หน้าจออย่างเดียวไม่พอ ต้องบังคับที่นี่ด้วย ไม่งั้นก็ยังส่งค่าอื่นเข้ามาได้อยู่ดี
+  // เลขครั้งก่อนคิดที่ main เสมอ ไม่รับจากหน้าจอ
   const sheet = getBatchSheet(db, batchId, side)
   const derived = new Map(sheet.rooms.map((r) => [r.roomId, r.derivedPreviousReading]))
-  // จำนวนหลักมาจากค่าตั้งค่าของหอเสมอ ไม่รับจากหน้าจอ — เหตุผลเดียวกับเลขครั้งก่อน
+  // จำนวนหลักมาจากค่าของหอ ไม่รับจากหน้าจอ
   const meterDigits = sheet.meterDigits
 
-  // คำนวณและตรวจให้ครบทุกแถวก่อน แล้วค่อยเขียน — รวบ error ทุกแถวไว้บอกทีเดียว
-  // ไม่ใช่ให้ผู้ใช้แก้ทีละแถวแล้วกดบันทึกใหม่รอบละห้อง
   const errors = []
   const prepared = []
   for (const row of rows ?? []) {
@@ -482,8 +383,7 @@ export function saveBatchReadings(db, batchId, side, rows) {
         units,
         overCycle: row.isOverCycle ? 1 : 0,
         replaced: row.isMeterReplaced ? 1 : 0,
-        // เก็บเลขของการเปลี่ยนมิเตอร์เฉพาะรอบที่เปลี่ยนจริง แถวอื่นต้องเป็น NULL
-        // ไม่ใช่ 0 — 0 เป็นเลขมิเตอร์ที่อ่านได้จริง แยกจาก "ไม่มีเหตุการณ์นี้" ไม่ออก
+        // ไม่ได้เปลี่ยนมิเตอร์ = NULL (ไม่ใช่ 0)
         removed: row.isMeterReplaced ? Number(row.removedReading) : null,
         newStart: row.isMeterReplaced ? Number(row.newStartReading) : null
       })
@@ -494,11 +394,7 @@ export function saveBatchReadings(db, batchId, side, rows) {
   if (errors.length > 0) throw new Error(errors.join('\n'))
 
   const now = new Date().toISOString()
-  // แถวหนึ่งเก็บทั้งน้ำและไฟ แต่หน้าจอบันทึกทีละฝั่ง คอลัมน์ของอีกฝั่งจึงถูกปล่อยเป็น NULL
-  //
-  // **ห้ามเขียนเป็น 0** — เคยทำแบบนั้นตอนที่คอลัมน์ยังเป็น NOT NULL แล้วหน้าจอของฝั่งที่สอง
-  // อ่านเลข 0 นั้นว่า "บันทึกไว้แล้ว" จึงไม่ไล่หาเลขครั้งก่อนจากรอบที่แล้วหรือจากสัญญาต่อ
-  // ผู้ใช้เลยต้องพิมพ์เลขครั้งก่อนของฝั่งไฟเองทุกเดือน (ดู migration 014)
+  // อีกฝั่งปล่อยเป็น NULL — ห้ามเขียน 0
   const upsert = db.prepare(
     `INSERT INTO meter_readings (
        meter_batch_id, room_id,
@@ -530,7 +426,6 @@ export function saveBatchReadings(db, batchId, side, rows) {
   return getBatchSheet(db, batchId, side)
 }
 
-// ------------------------------------------------------------------
 function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }

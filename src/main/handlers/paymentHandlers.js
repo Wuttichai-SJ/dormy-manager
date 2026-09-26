@@ -1,9 +1,4 @@
-// IPC ของโมดูลรับชำระเงิน — เปลือกบางๆ ครอบ db/payments.js
-// กฎเดียวกับ handler อื่น: คืน { success, data | error } เท่านั้น ห้าม throw ข้ามสะพาน
-//
-// **ผู้รับเงินมาจากเซสชันฝั่ง main เสมอ ไม่ใช่จาก payload** — ถ้าให้หน้าจอส่ง createdBy
-// มาเอง ใครเปิด DevTools ก็ออกใบเสร็จในนามคนอื่นได้ แล้วคอลัมน์ "ผู้รับเงิน" ในรายงาน
-// จะเชื่อถือไม่ได้ทั้งระบบ
+// ผู้รับเงินมาจากเซสชันเสมอ ไม่รับจาก payload
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -31,8 +26,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -55,7 +48,7 @@ export function registerPaymentHandlers() {
     return payment
   })
 
-  // รับเงินหลายห้องพร้อมกัน — ได้ใบเสร็จแยกใบต่อห้อง แต่ทั้งชุดสำเร็จหรือล้มพร้อมกัน
+  // หลายห้องพร้อมกัน — สำเร็จหรือล้มทั้งชุด
   handle('payment:receiveMany', ({ rows, paymentMethod, paymentDate, remark }) => {
     const payments = recordInvoicePayments(getDatabase(), {
       rows,
@@ -79,15 +72,7 @@ export function registerPaymentHandlers() {
     listBillingMonths(getDatabase(), apartmentId)
   )
 
-  // ไม่มีช่องคืนเงินค่าบิล — ดู db/payments.js ว่าทำไม
-  // การคืนเงินประกันตอนย้ายออกใช้ payment:receiveForContract พร้อม isRefund
-  //
-  // ยกเลิกใบเสร็จที่คีย์ผิด — เหตุผลบังคับกรอก และ **ผู้ยกเลิกมาจากเซสชันเสมอ**
-  // เหมือนผู้รับเงิน ไม่งั้นบันทึกการยกเลิกก็เชื่อไม่ได้เหมือนกัน
-  //
-  // **เจ้าของหอเท่านั้น** (ดู OWNER_ONLY_ACTIONS) — ยกเลิกใบเสร็จคือการบอกว่าเงินที่เคย
-  // บันทึกว่ารับมาแล้วไม่เคยเข้ามาจริง ยอดค้างของบิลกลับมาทันที คนที่รับเงินไม่ควรเป็นคน
-  // ตัดสินเองว่าใบไหนไม่นับ
+  // ยกเลิกใบเสร็จ: เฉพาะเจ้าของหอ ผู้ยกเลิกจากเซสชัน
   handle('payment:cancel', ({ paymentId, reason }) => {
     const result = cancelPayment(getDatabase(), paymentId, {
       reason,
@@ -103,7 +88,6 @@ export function registerPaymentHandlers() {
     return result
   })
 
-  // ใบเสร็จเงินประกัน/เงินล่วงหน้าของสัญญา — ไม่มีใบแจ้งหนี้อยู่เบื้องหลัง
   handle(
     'payment:receiveForContract',
     ({ contractId, amount, paymentMethod, paymentDate, remark, isRefund, purpose }) => {
@@ -125,8 +109,6 @@ export function registerPaymentHandlers() {
     }
   )
 
-  // ใบเสร็จทุกใบของสัญญา — ใช้ทำ "ใบรับเงินแรกเข้า" ที่รวมเงินจอง/เงินประกัน/ค่าเช่า
-  // เดือนแรกไว้ในกระดาษใบเดียว
   handleSession('payment:contractReceipts', ({ contractId }) =>
     listContractReceipts(getDatabase(), contractId)
   )

@@ -1,16 +1,8 @@
-// ตาราง contracts — SQL ดิบล้วน ไม่มี ORM (ดู .claude/skills/dormy-manager)
-//
-// โครงตามหน้าจริงของต้นแบบ (`/rooms/{id}/agreements/create` สำรวจ 2026-07-31):
-// การทำสัญญาเป็นตัวช่วย 3 ขั้น — 1 สัญญา · 2 ค่าเช่าล่วงหน้า · 3 มิเตอร์น้ำ-ไฟ
-// แต่ทั้งสามขั้นเขียนลงฐานข้อมูล "ครั้งเดียว" ตอนจบ ไม่ได้ทยอยบันทึกทีละขั้น
-// เพราะสัญญาที่มีแต่ข้อ 1 โดยไม่มีเลขมิเตอร์เริ่มต้น ออกบิลเดือนแรกไม่ได้เลย
+// ตัวช่วยทำสัญญา 3 ขั้น แต่เขียนลงฐานข้อมูลครั้งเดียวตอนจบ
 import { toCents } from '../money.js'
-// invoices.js ไม่ได้นำเข้าอะไรจากไฟล์นี้ ทิศทางจึงไม่เป็นวงกลม
 import { nextDocumentNumber } from './invoices.js'
-// payments.js ไม่ได้ import ไฟล์นี้กลับ จึงไม่เกิดวงกลม
 import { getDepositStatus, recordContractPayment } from './payments.js'
 
-// SQLite ไม่มี ENUM — เก็บเป็น TEXT แล้วตรวจที่ JS ก่อนเขียนทุกครั้ง
 export const RENT_TYPES = ['monthly', 'daily']
 export const CONTRACT_STATUSES = ['active', 'terminated']
 export const DEPOSIT_PAYMENT_METHODS = ['cash', 'transfer', 'other']
@@ -21,34 +13,11 @@ export const DEPOSIT_PAYMENT_METHOD_LABELS = {
   other: 'อื่นๆ'
 }
 
-// ------------------------------------------------------------------
-// ค่าเช่าเดือนแรก (ขั้นที่ 2 ของต้นแบบ)
-// ------------------------------------------------------------------
-// **กติกาจริงของหอ ยืนยันกับเจ้าของหอแล้ว 2026-08-10** (คำพูดของเจ้าของหอ):
-//   "พอน้องมาอยู่เปิดเทอมเข้าต้นเดือนก็คิดเต็มเดือน"
-//   "ถ้าเข้าอยู่ช่วงวันที่ 2 หรือ 3 ก็จะคิดเต็มเดือน"
-//   "ถ้าเข้าคาบเกี่ยว เอาราคาห้องหาร 30 วันแล้วนับวันคิด"
-//
-// จึงมีสองกฎ:
-//   1) เข้าพักวันที่ 1-3 → คิดเต็มเดือน ไม่ปัดเศษลง
-//   2) เข้าพักหลังจากนั้น → (ค่าเช่า ÷ 30) × จำนวนวันที่อยู่จริงจนสิ้นเดือน
-//
-// **หารด้วย 30 เสมอ ไม่ใช่จำนวนวันจริงของเดือนนั้น** — เดิมหารด้วยจำนวนวันจริง (28/29/31)
-// ซึ่งถอดมาจากหน้าจอต้นแบบ แต่หอนี้คิดคนละแบบ ต่างกันจริงทุกเดือนที่ไม่มี 30 วัน:
-//   เข้า 15 ก.ค. ค่าเช่า 5,000 → ของเดิม 5000×17/31 = 2,741.94 · ของหอ 5000/30×17 = 2,833.33
-//
-// คิดบนหน่วยสตางค์แล้วปัดครั้งเดียวตอนท้าย — ถ้าคิดเป็นบาททศนิยมก่อนแล้วค่อยคูณ
-// จะเพี้ยนทีละสตางค์สะสมข้ามเดือน
-//
-// **ปัดเป็นบาทเต็ม** (โอ๊คสั่ง 2026-09-26 — ผู้เช่าจ่ายเงินสด ไม่อยากมีเศษสตางค์)
-// เศษตั้งแต่ 50 สตางค์ปัดขึ้น ต่ำกว่านั้นปัดลง: 166.50 → 167 · 166.39 → 166
-// คิดจากสตางค์ทั้งก้อนแล้วปัดครั้งเดียวเป็นบาท (หาร 30 × 100) ไม่ปัดเป็นสตางค์ก่อนแล้วปัดซ้ำ
-// ปัดเฉพาะกรณีคิดตามวัน — เข้าวันที่ 1-3 เก็บเต็มราคาห้องตามที่ตั้งไว้ ไม่แตะ
+// ค่าเช่าเดือนแรก: เข้าวันที่ 1-3 คิดเต็มเดือน · หลังจากนั้น ค่าเช่า ÷ 30 × วันที่อยู่ ปัดเป็นบาทเต็ม (50 สตางค์ขึ้น)
 
-// เข้าพักภายในวันนี้ของเดือน ยังคิดเต็มเดือน
 export const FULL_MONTH_MOVE_IN_UNTIL_DAY = 3
 
-// ตัวหารคงที่ตามที่หอใช้ ไม่ใช่จำนวนวันจริงของเดือน
+// หาร 30 เสมอ ไม่ใช่จำนวนวันจริงของเดือน
 export const PRORATE_DAYS_PER_MONTH = 30
 
 export function calculateAdvanceRentCents(rentAmountCents, startDate) {
@@ -59,20 +28,13 @@ export function calculateAdvanceRentCents(rentAmountCents, startDate) {
   const dayOfMonth = date.getDate()
   if (dayOfMonth <= FULL_MONTH_MOVE_IN_UNTIL_DAY) return rent
 
-  // วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้ (กันเดือน ก.พ. / ปีอธิกสุรทินเอง)
   const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  // **นับวันเข้าพักเป็นวันแรกที่คิดเงินด้วย** (ผู้ใช้ยืนยัน 2026-08-10)
-  // เข้า 15 มิ.ย. = อยู่ 16 วัน (15 ถึง 30) ไม่ใช่ 15 วัน — ต่างกันวันเดียวก็คือเงินหนึ่งวัน
+  // นับวันเข้าพักเป็นวันแรกด้วย
   const daysStaying = daysInMonth - dayOfMonth + 1
 
-  // rent × วัน เป็นจำนวนเต็มเสมอ — ผลหารที่ลงท้าย .5 พอดีเก็บในทศนิยมได้ตรงตัว
-  // Math.round จึงปัดขึ้นที่ 50 สตางค์ได้ถูกทุกกรณี (ยอดเป็นบวกเสมอ)
   return Math.round((rent * daysStaying) / (PRORATE_DAYS_PER_MONTH * 100)) * 100
 }
 
-// ------------------------------------------------------------------
-// ตรวจข้อมูลก่อนเขียน
-// ------------------------------------------------------------------
 export function validateContractInput(input) {
   const errors = []
   const { rentType, startDate, endDate, tenants } = input
@@ -88,7 +50,6 @@ export function validateContractInput(input) {
     errors.push('กรุณาเลือกวิธีชำระเงินประกัน')
   }
 
-  // เงินทุกช่องยอมให้เป็น 0 ได้ แต่ต้องเป็นตัวเลขที่แปลงเป็นสตางค์ได้
   for (const [key, label] of [
     ['rentAmount', 'ค่าเช่า'],
     ['deposit', 'เงินประกัน'],
@@ -101,7 +62,6 @@ export function validateContractInput(input) {
     }
   }
 
-  // ไม่บังคับกรอก — เว้นว่าง = จ่ายส่วนที่เหลือครบในวันทำสัญญา (กรณีปกติ)
   if (input.depositReceived !== undefined && input.depositReceived !== null && input.depositReceived !== '') {
     try {
       toCents(input.depositReceived, 'เงินประกันที่รับวันนี้')
@@ -110,12 +70,7 @@ export function validateContractInput(input) {
     }
   }
 
-  // เลขมิเตอร์เป็นค่าที่อ่านจากหน้าปัด ไม่ใช่เงิน จึงเป็นทศนิยมธรรมดา ไม่ใช่สตางค์
-  //
-  // **ต้องกันช่องว่างให้ตายตัว** — `Number('')` เป็น 0 ซึ่งเป็นเลขมิเตอร์ที่อ่านได้จริง
-  // ช่องที่ลืมกรอกจึงเคยผ่านเข้าไปเป็น 0 อย่างเงียบๆ ทั้งที่ป้ายเขียนว่า "* จำเป็น"
-  // และเลขนี้เป็นเลขตั้งต้นของบิลแรก ห้องที่มิเตอร์เดินอยู่ที่ 8,000 จะกลายเป็นใช้ไป
-  // 8,000 หน่วยในบิลใบแรกของผู้เช่าใหม่
+  // ช่องว่างต้องเป็น error — Number('') = 0 เป็นเลขมิเตอร์จริง
   for (const [key, label] of [
     ['waterMeterStart', 'เลขมิเตอร์ค่าน้ำ'],
     ['electricMeterStart', 'เลขมิเตอร์ค่าไฟ']
@@ -129,7 +84,6 @@ export function validateContractInput(input) {
     if (!Number.isFinite(value) || value < 0) errors.push(`${label}ต้องเป็นตัวเลขไม่ติดลบ`)
   }
 
-  // ต้นแบบบังคับให้มีผู้เช่าอย่างน้อยหนึ่งคนตั้งแต่ขั้นแรก — สัญญาที่ไม่มีคนเช่าไม่มีความหมาย
   if (!Array.isArray(tenants) || tenants.length === 0) {
     errors.push('กรุณาระบุผู้เช่าอย่างน้อย 1 คน')
   }
@@ -141,17 +95,13 @@ function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
-// ------------------------------------------------------------------
-// อ่าน
-// ------------------------------------------------------------------
 export function getContractById(db, contractId) {
   const row = db.prepare('SELECT * FROM contracts WHERE contract_id = ?').get(contractId)
   if (!row) return null
   return toPublicContract(db, row)
 }
 
-// สัญญาที่ยังใช้งานอยู่ของห้องหนึ่ง — หน้ารายละเอียดห้องถามตัวนี้ทุกครั้งที่เปิด
-// ห้องหนึ่งมีสัญญา active ได้ทีละใบเท่านั้น (บังคับตอนสร้าง)
+// ห้องหนึ่งมีสัญญา active ได้ใบเดียว
 export function getActiveContractByRoom(db, roomId) {
   const row = db
     .prepare(`SELECT * FROM contracts WHERE room_id = ? AND status = 'active' LIMIT 1`)
@@ -159,11 +109,6 @@ export function getActiveContractByRoom(db, roomId) {
   return row ? toPublicContract(db, row) : null
 }
 
-// รายการห้องทั้งหอสำหรับหน้า "ห้องพัก" — ต้นแบบใช้หน้านี้เป็นหน้าหลักของระบบ
-// (คอลัมน์ ห้อง | ลูกค้า | ประเภท | ค่าเช่า | บริการเสริม | ...)
-//
-// ดึงผู้เช่าหลักของสัญญาที่ยัง active มาด้วยในคำถามเดียว ไม่ใช่ยิงถามทีละห้อง
-// หอ 40 ห้องจะได้ไม่กลายเป็น 40 คำถาม
 export function listRoomsForApartment(db, apartmentId, { search, tenant, rentType } = {}) {
   const rows = db
     .prepare(
@@ -227,9 +172,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
     tenantsByContract.set(row.contract_id, list)
   }
 
-  // services = ชื่ออย่างเดียว (หน้ารายการห้อง / หน้าภาพรวมใช้อยู่ ห้ามเปลี่ยนรูป)
-  // serviceItems = ชื่อ + ราคาปัจจุบันของหอ — หน้ารายละเอียดห้องว่างใช้แสดงราคา
-  // (ห้องที่มีสัญญาแล้วแสดงราคาที่ตรึงไว้ในสัญญาแทน ไม่ใช่ตัวนี้)
+  // services = ชื่อ · serviceItems = ชื่อ + ราคาปัจจุบันของหอ (ใช้กับห้องว่าง)
   const servicesByRoom = new Map()
   const serviceItemsByRoom = new Map()
   for (const row of db
@@ -269,19 +212,10 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
       startDate: row.start_date ?? null,
       endDate: row.end_date ?? null,
       contractRentCents: row.rent_amount_cents ?? null,
-      // > 0 = ยังเก็บเงินประกันไม่ครบ หน้ารายการห้องขึ้นป้ายเตือนจากค่านี้
-      // เก็บเกินไม่ทำให้ติดลบ เพราะติดลบอ่านไม่ออกว่าแปลว่าอะไร
+      // > 0 = เงินประกันยังเก็บไม่ครบ
       depositOutstandingCents: Math.max(0, row.deposit_outstanding ?? 0),
       invoiceOutstandingCents: Math.max(0, row.invoice_outstanding ?? 0),
-      // **การจองไม่ได้ถูกเก็บเป็น rooms.status โดยตั้งใจ**
-      //
-      // rooms.status มีแค่ vacant / occupied / maintenance และห้องที่มีคนจองไว้ยัง "ว่าง"
-      // จริงๆ (ยังไม่มีใครอยู่) การเพิ่มสถานะ 'booked' แปลว่าต้องมีคนคอยตั้งและล้างมันตาม
-      // วงจรของใบจอง — จอง ยืนยัน ยกเลิก แปลงเป็นสัญญา — แล้วความจริงเรื่องเดียวกันจะอยู่
-      // สองที่ วันหนึ่งก็ไม่ตรงกัน (แบบเดียวกับ is_active ที่เพิ่งทำให้ห้อง 102 หายไป)
-      //
-      // หน้าจอจึงอ่านจากใบจองตรงๆ แล้วขึ้นป้าย "จองแล้ว" เอง — ตัวเลขบนจอมาจากใบจอง
-      // เสมอ ไม่มีทางค้างเป็นสถานะเก่าที่ไม่มีใครล้าง
+      // สถานะจองอ่านจากใบจองตรงๆ ไม่เก็บใน rooms.status
       booking: row.booking_id
         ? {
             bookingId: row.booking_id,
@@ -296,9 +230,6 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
     }
   })
 
-  // กรองในหน่วยความจำ ไม่ใช่ต่อ WHERE เข้าไปใน SQL — หอใหญ่สุดที่รองรับคือ 30 ชั้น x 50 ห้อง
-  // = 1,500 แถว ซึ่งเล็กมาก แต่การกรองข้ามหลายตาราง (ชื่อผู้เช่าอยู่คนละตาราง) ถ้าเขียนเป็น
-  // SQL จะกลายเป็นคำสั่งยาวที่อ่านยากและแก้ทีหลังพลาดง่าย
   const digits = (value) => String(value ?? '').replace(/\D/g, '')
   return rooms.filter((room) => {
     if (search && !room.roomNumber.includes(String(search).trim())) return false
@@ -309,11 +240,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
       const matches = (name, phone) =>
         String(name ?? '').includes(keyword) || (asDigits && digits(phone).includes(asDigits))
 
-      // **ค้นหาคนจองด้วย ไม่ใช่แค่ผู้เช่าตามสัญญา** (ผู้ใช้สั่ง 2026-08-10)
-      //
-      // คนที่จองห้องไว้ยังไม่ใช่ผู้เช่า — ระเบียนผู้เช่าเพิ่งถูกสร้างตอนทำสัญญา ถ้าค้นแต่
-      // ผู้เช่า คนที่จองไว้แล้วยังไม่ย้ายเข้าจะหาไม่เจอเลย ซึ่งเป็นช่วงเวลาเดียวที่ต้องหา
-      // จริงๆ: หอร้อยห้อง คนจองจำเลขห้องตัวเองไม่ได้ เหลือแค่ชื่อให้ค้น
+      // ค้นชื่อคนจองด้วย ไม่ใช่แค่ผู้เช่า
       const hit =
         room.tenants.some((t) => matches(t.fullName, t.phone)) ||
         (room.booking && matches(room.booking.customerName, room.booking.customerPhone))
@@ -330,9 +257,6 @@ export function listContractsByRoom(db, roomId) {
     .map((row) => toPublicContract(db, row))
 }
 
-// ------------------------------------------------------------------
-// เขียน
-// ------------------------------------------------------------------
 export function createContract(db, input) {
   const roomId = Number(input.roomId)
   const room = db
@@ -344,8 +268,7 @@ export function createContract(db, input) {
     .get(roomId)
   if (!room) throw new Error('ไม่พบห้องพักที่ต้องการทำสัญญา')
 
-  // ห้องหนึ่งมีสัญญาที่ยังใช้งานอยู่ได้ใบเดียว — กันการทำสัญญาซ้อนโดยไม่ตั้งใจ
-  // (เปิดสองแท็บแล้วกดบันทึกทั้งคู่ หรือลืมว่าทำไปแล้ว)
+  // ห้องหนึ่งมีสัญญา active ได้ใบเดียว
   const existing = db
     .prepare(`SELECT contract_id FROM contracts WHERE room_id = ? AND status = 'active'`)
     .get(roomId)
@@ -353,11 +276,7 @@ export function createContract(db, input) {
     throw new Error(`ห้อง ${room.room_number} มีสัญญาที่ยังใช้งานอยู่แล้ว กรุณาแจ้งย้ายออกก่อน`)
   }
 
-  // 🔴 **ห้องที่มีคนจองค้างอยู่ ทำสัญญาได้ทางเดียวคือทำสัญญาจากการจองนั้น** (ตกลงกับเฟิส 2026-09-26)
-  // เดิมไม่กัน — กด "รายเดือน" ทำสัญญาตรงได้ทั้งที่มีคนจองอยู่ ผลคือการจองค้าง "รอยืนยัน"
-  // ทั้งที่ห้องมีคนอยู่แล้ว และเงินจองของผู้จองไม่ถูกนับเข้าเงินประกัน (หายเงียบๆ)
-  // fromBookingId มาจาก convertBookingToContract เท่านั้น — ทางนั้นยกเงินจองมาให้ถูกต้อง
-  // ผู้จองไม่มาแล้ว → ยกเลิกการจองก่อน แล้วค่อยทำสัญญาตรง
+  // ห้องที่มีการจองค้าง ทำสัญญาได้ผ่าน convertBookingToContract เท่านั้น
   const openBooking = db
     .prepare(
       `SELECT booking_id, customer_name FROM room_bookings
@@ -381,12 +300,7 @@ export function createContract(db, input) {
   const rentAmountCents = toCents(input.rentAmount, 'ค่าเช่า')
   const now = new Date().toISOString()
 
-  // กฎคืนเงินประกันถูก "ถ่ายสำเนา" ลงสัญญา ณ วันทำสัญญา (ดู 004_deposit_refund_policy.sql)
-  // ถ้าเจ้าของหอเปลี่ยนกฎทีหลัง สัญญาเก่าต้องยังใช้กฎเดิมที่ตกลงกันไว้ ไม่ใช่ย้อนหลัง
-  //
-  // 🔴 ตัวนโยบายเองเคยหลุดจากการสำเนานี้ — INSERT ไม่ได้ใส่ deposit_refund_policy เลย
-  // สัญญาทุกใบจึงได้ 'on_full_term' จาก DEFAULT ของตาราง ต่อให้หอตั้งเป็นอย่างอื่นไว้
-  // (แก้พร้อมกับหน้าตั้งค่านโยบาย 2026-08-14 · คอลัมน์ระดับหอมาจาก migration 029)
+  // ตรึงกฎคืนเงินประกันลงสัญญา ณ วันทำสัญญา
   const policy = db
     .prepare(
       `SELECT default_deposit_min_stay_months AS minStay,
@@ -399,18 +313,16 @@ export function createContract(db, input) {
   const bookingFeeCents = toCents(input.bookingFee ?? 0, 'เงินจอง')
   const depositCents = toCents(input.deposit, 'เงินประกัน')
 
-  // ไม่ส่งมา = จ่ายส่วนที่เหลือครบในวันทำสัญญา ซึ่งเป็นกรณีปกติ
-  // (ส่งมาเป็น 0 คือตั้งใจบอกว่าวันนี้ยังไม่ได้เก็บ — ต่างจากไม่ส่งมาเลย)
+  // ไม่ส่งมา = จ่ายครบวันนี้ · 0 = ยังไม่ได้เก็บ
   const depositReceivedCents =
     input.depositReceived === undefined || input.depositReceived === null || input.depositReceived === ''
       ? Math.max(0, depositCents - bookingFeeCents)
       : toCents(input.depositReceived, 'เงินประกันที่รับวันนี้')
 
-  // ค่าเช่าเดือนแรก — เก็บตอนย้ายเข้าเลย (สัญญารายวันไม่มีเรื่องนี้)
   const firstMonthRentCents =
     input.rentType === 'monthly' ? calculateAdvanceRentCents(rentAmountCents, input.startDate) : 0
 
-  // เก็บเกินยอดที่ตกลงกันไว้ไม่ได้ — เงินส่วนเกินไม่มีที่ไป และยอดค้างจะติดลบ
+  // เก็บเกินยอดที่ตกลงไม่ได้
   if (bookingFeeCents + depositReceivedCents > depositCents) {
     throw new Error(
       `เงินประกันที่รับรวมกันเกินยอดที่ตกลงไว้ — ตกลง ${depositCents / 100} บาท ` +
@@ -419,11 +331,7 @@ export function createContract(db, input) {
   }
 
   const run = db.transaction(() => {
-    // เลขที่ใบจอง: ยกมาจากใบจองเดิมถ้ามี (ดู convertBookingToContract) ถ้าไม่มีแต่มีการวาง
-    // เงินจองไว้จริง ให้ระบบออกเลขให้เอง — ผู้เช่าที่เดินเข้ามาวางมัดจำแล้วทำสัญญาเลย
-    // ก็ต้องมีเลขอ้างอิงบนใบเสร็จเหมือนกัน
-    //
-    // ยังพิมพ์ทับเองได้ สำหรับหอที่ใช้เล่มใบเสร็จของตัวเองอยู่แล้ว
+    // เลขที่ใบจองยกมาจากใบจองเดิม ไม่มีก็ออกให้ใหม่
     const givenReceiptNo = String(input.bookingReceiptNo ?? '').trim()
     const bookingReceiptNo =
       givenReceiptNo ||
@@ -457,7 +365,7 @@ export function createContract(db, input) {
         depositPaymentMethod: input.depositPaymentMethod,
         bookingFeeCents,
         bookingReceiptNo,
-        // ค่าเช่าเดือนแรกคิดให้เอง ไม่ให้กรอกมือ — คิดมือแล้วผิดคือเก็บเงินผิดตั้งแต่วันแรก
+        // คิดค่าเช่าเดือนแรกให้เอง ไม่รับจากหน้าจอ
         advanceCents: firstMonthRentCents,
         waterMeterStart: Number(input.waterMeterStart),
         electricMeterStart: Number(input.electricMeterStart),
@@ -469,7 +377,7 @@ export function createContract(db, input) {
         now
       }).lastInsertRowid
 
-    // ผู้เช่าคนแรกในรายการ = ผู้เช่าหลัก (คนที่ชื่อขึ้นใบแจ้งหนี้) ดู 010_contract_tenants.sql
+    // ผู้เช่าคนแรก = ผู้เช่าหลัก
     const addTenant = db.prepare(
       `INSERT INTO contract_tenants (contract_id, tenant_id, is_primary, created_at)
        VALUES (?, ?, ?, ?)`
@@ -478,9 +386,7 @@ export function createContract(db, input) {
       addTenant.run(contractId, tenantId, index === 0 ? 1 : 0, now)
     })
 
-    // *** ถ่ายสำเนาค่าบริการของห้อง ณ วันทำสัญญา ลง contract_services ***
-    // ไม่อ่านจาก room_services ตอนออกบิล เพราะเจ้าของหอขึ้นราคาค่าอินเทอร์เน็ตกลางสัญญาได้
-    // ผู้เช่าที่เซ็นไปแล้วต้องจ่ายราคาที่ตกลงกันไว้ ไม่ใช่ราคาใหม่ที่ไม่เคยรับรู้
+    // ตรึงราคาค่าบริการของห้อง ณ วันทำสัญญา
     db.prepare(
       `INSERT INTO contract_services (contract_id, apartment_service_id, price_cents)
        SELECT ?, s.service_id, s.price_cents
@@ -488,22 +394,13 @@ export function createContract(db, input) {
         WHERE rs.room_id = ?`
     ).run(contractId, roomId)
 
-    // ห้องต้องกลายเป็น "ไม่ว่าง" ทันทีในธุรกรรมเดียวกัน ไม่ใช่ให้ไปกดเปลี่ยนเองทีหลัง
-    // ถ้าแยกกันแล้วขั้นที่สองพลาด จะได้ห้องว่างที่มีคนอยู่ แล้วปล่อยเช่าซ้ำ
+    // ห้องเป็นไม่ว่างในธุรกรรมเดียวกัน
     db.prepare(`UPDATE rooms SET status = 'occupied', updated_at = ? WHERE room_id = ?`).run(
       now,
       roomId
     )
 
-    // *** เงินจองที่รับไปแล้ว ออกใบเสร็จเป็น "เงินประกัน" ให้ตรงนี้ ***
-    //
-    // เงินจองคือเงินประกันส่วนแรกที่ผู้เช่าวางไว้ตอนมาดูห้อง (ฟอร์มทำสัญญาก็คิดแบบนี้:
-    // "รวม (เก็บเพิ่ม) = เงินประกัน − เงินจอง") ถ้าไม่บันทึกเป็นใบเสร็จ จะเกิดสองปัญหา:
-    //   1. เงินที่เข้าหอไปจริงไม่โผล่ในรายงานใบเสร็จเลย
-    //   2. ระบบไม่รู้ว่าเงินประกันรับมาแล้วเท่าไหร่ จึงเตือนเรื่องยอดค้างไม่ได้
-    //
-    // **วันที่บนใบเสร็จเป็นวันที่รับเงินจริง ไม่ใช่วันทำสัญญา** — ผู้เช่าวางเงินจองวันที่
-    // 01/03 แล้วเข้าอยู่ 25/05 ใบเสร็จต้องลงวันที่ 01/03 ไม่งั้นรายงานรายรับเดือนมีนาคมจะหาย
+    // เงินจองออกใบเสร็จเป็นเงินประกัน ลงวันที่จองจริง
     if (bookingFeeCents > 0) {
       recordContractPayment(db, {
         contractId,
@@ -516,14 +413,7 @@ export function createContract(db, input) {
       })
     }
 
-    // *** เงินประกันส่วนที่รับในวันทำสัญญา ***
-    //
-    // ปกติผู้เช่าจ่ายส่วนที่เหลือครบในวันเซ็นสัญญา (เดินเข้ามาดูห้องแล้วเข้าอยู่เลยก็จ่าย
-    // เต็มจำนวนตรงนั้น) ฟอร์มจึงเติมยอด "เงินประกัน − เงินจอง" ไว้ให้ก่อน
-    //
-    // แต่แก้ลงได้ สำหรับกรณีที่ตกลงกันว่าจ่ายไม่ครบวันนี้ — ส่วนที่ขาดจะไปโผล่เป็นยอดค้าง
-    // บนหน้าห้องจนกว่าจะเก็บครบ ถ้าไม่มีช่องนี้ ระบบจะเหมาว่าเก็บครบเสมอ แล้วการเตือน
-    // เรื่องเงินประกันค้างก็ไม่มีวันทำงาน
+    // เงินประกันที่รับวันนี้ — ขาดเท่าไหร่ขึ้นเป็นยอดค้าง
     if (depositReceivedCents > 0) {
       recordContractPayment(db, {
         contractId,
@@ -536,13 +426,7 @@ export function createContract(db, input) {
       })
     }
 
-    // *** ค่าเช่าเดือนแรก ***
-    //
-    // เจ้าของหอเก็บค่าเช่าเดือนแรกตอนผู้เช่าย้ายเข้า (ยืนยัน 2026-08-10) จึงต้องออกใบเสร็จ
-    // ไม่งั้นเงินก้อนนี้ไม่โผล่ในรายงานใบเสร็จเลย — รูเดียวกับเงินจองที่แก้ไปแล้ว
-    //
-    // **บิลรายเดือนของเดือนนี้จะไม่คิดค่าเช่าซ้ำ** — createMonthlyInvoicesForApartment
-    // ข้ามสัญญาที่เริ่มในเดือนที่กำลังออกบิล ดูเหตุผลที่นั่น
+    // ค่าเช่าเดือนแรกออกใบเสร็จตอนย้ายเข้า — บิลรายเดือนเดือนนี้จะข้ามห้องนี้
     if (firstMonthRentCents > 0) {
       const [startYear, startMonth] = String(input.startDate).split('-')
       recordContractPayment(db, {
@@ -562,9 +446,6 @@ export function createContract(db, input) {
   return getContractById(db, run())
 }
 
-// ------------------------------------------------------------------
-// รูปแบบที่ส่งออกไปให้หน้าจอ
-// ------------------------------------------------------------------
 export function toPublicContract(db, row) {
   if (!row) return null
 
@@ -602,8 +483,6 @@ export function toPublicContract(db, row) {
     endDate: row.end_date,
     rentAmountCents: row.rent_amount_cents,
     depositAmountCents: row.deposit_amount_cents,
-    // ยอดที่รับมาจริงกับยอดที่ยังค้าง — นับจากใบเสร็จ ไม่ใช่คอลัมน์ที่พิมพ์มือ
-    // หน้าจอใช้ตัวนี้ขึ้นป้ายเตือนว่ายังเก็บเงินประกันไม่ครบ
     deposit: getDepositStatus(db, row.contract_id),
     depositPaymentMethod: row.deposit_payment_method,
     bookingFeeCents: row.booking_fee_cents,
@@ -613,8 +492,7 @@ export function toPublicContract(db, row) {
     electricMeterStart: row.electric_meter_start,
     note: row.note,
     status: row.status,
-    // วันที่ผู้เช่าแจ้งย้ายออก (migration 025) — NULL = ยังไม่ได้แจ้ง
-    // หน้าห้องใช้ตัวนี้ตัดสินว่าการ์ดแจ้งย้ายออกจะขึ้นปุ่มแจ้ง หรือขึ้นวันที่ที่แจ้งไว้แล้ว
+    // NULL = ยังไม่แจ้งย้ายออก
     moveOutNoticeDate: row.move_out_notice_date ?? null,
     termMonths: row.term_months,
     depositMinStayMonths: row.deposit_min_stay_months,

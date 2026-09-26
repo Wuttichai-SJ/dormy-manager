@@ -1,5 +1,3 @@
-// IPC ของโมดูลหอพัก — เปลือกบางๆ ครอบ db/apartments.js
-// กฎเดียวกับ authHandlers: คืน { success, data | error } เท่านั้น ห้าม throw ข้ามสะพาน
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -28,8 +26,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -51,8 +47,6 @@ export function registerApartmentHandlers() {
     return apartment
   })
 
-  // สร้างหอใหม่ = เปิดกิจการเพิ่ม ไม่ใช่งานประจำวัน · และถ้าพนักงานสร้างหอได้แต่แก้ไม่ได้
-  // (apartment:update ถูกล็อก) จะได้หอที่สร้างค้างไว้แล้วเดินต่อไม่ได้
   handle('apartment:create', (payload) => {
     requireOwnerUserId()
     assertValid(payload)
@@ -61,8 +55,7 @@ export function registerApartmentHandlers() {
     return apartment
   })
 
-  // ข้อมูลหอพักมีสวิตช์ VAT อัตราค่าปรับ วันครบกำหนด และชื่อ/ที่อยู่/เบอร์ที่พิมพ์บนบิล
-  // ทั้งหมดเป็นกติกาของหอ = เรื่องของเจ้าของ (ช่อง get/list เปิดไว้ ทุกหน้าจอต้องอ่าน)
+  // แก้ข้อมูลหอเฉพาะเจ้าของหอ · get/list เปิดไว้
   handle('apartment:update', ({ apartmentId, ...payload }) => {
     requireOwnerUserId()
     assertValid(payload)
@@ -78,16 +71,13 @@ export function registerApartmentHandlers() {
     return reorderApartments(getDatabase(), orderedIds)
   })
 
-  // เรียกตอนกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของตัวช่วยตั้งค่า — ก่อนหน้านั้นหอยังเข้าหน้าทำงานไม่ได้
   handleSession('apartment:completeSetup', ({ apartmentId }) => {
     const result = markSetupCompleted(getDatabase(), apartmentId)
     logInfo(`ตั้งค่าหอพักเสร็จ (apartment_id ${apartmentId})`)
     return result
   })
 
-  // นโยบายคืนเงินประกัน — ค่าตั้งต้นที่จะถูกสำเนาลง "สัญญาใบใหม่" เท่านั้น
-  // (สัญญาที่เซ็นไปแล้วยังใช้กฎที่ตกลงกันวันนั้น ดู 004) · อ่านได้ทุกคน เพราะหน้าทำสัญญา
-  // ต้องรู้ว่ากติกาปัจจุบันคืออะไร
+  // ค่าตั้งต้นของสัญญาใหม่เท่านั้น — สัญญาเดิมใช้กฎที่ตรึงไว้
   handleSession('apartment:getDepositPolicy', ({ apartmentId }) =>
     getDepositPolicy(getDatabase(), apartmentId)
   )
@@ -107,8 +97,7 @@ export function registerApartmentHandlers() {
     return saved
   })
 
-  // **เจ้าของหอเท่านั้น** (ดู OWNER_ONLY_ACTIONS) — ลากผู้เช่า สัญญา บิล และใบเสร็จ
-  // ของทั้งหอไปด้วยในคำสั่งเดียว ไม่มีปุ่มเรียกกลับ
+  // เฉพาะเจ้าของหอ — ลบทุกอย่างของหอ ย้อนกลับไม่ได้
   handle('apartment:delete', ({ apartmentId }) => {
     requireOwnerUserId()
     const result = deleteApartment(getDatabase(), apartmentId)

@@ -1,4 +1,3 @@
-// IPC ของการคิดค่าน้ำ/ค่าไฟระดับหอ — เปลือกบางๆ ครอบ db/utilityDefaults.js
 import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -22,8 +21,6 @@ function handle(channel, fn) {
   })
 }
 
-// ช่องที่ห่อด้วยตัวนี้ต้องเข้าสู่ระบบก่อน — เหตุผลเต็ม (ภัยจาก DevTools ตอนหน้าจอค้างที่
-// ล็อกอิน และช่องไหนห้ามใส่การ์ด) อยู่เหนือ requireSessionUserId() ใน authHandlers.js
 function handleSession(channel, fn) {
   handle(channel, (payload) => {
     requireSessionUserId()
@@ -34,7 +31,7 @@ function handleSession(channel, fn) {
 export function registerUtilityHandlers() {
   handleSession('utility:get', ({ apartmentId }) => getUtilityDefaults(getDatabase(), apartmentId))
 
-  // ราคาน้ำ-ไฟเป็นของเจ้าของหอ · ช่อง get เปิดไว้ (หน้าจอกับการออกบิลต้องอ่าน)
+  // แก้ราคาเฉพาะเจ้าของหอ · get เปิดไว้ให้ออกบิลอ่าน
   handle('utility:save', ({ apartmentId, water, electric }) => {
     requireOwnerUserId()
     throwIfErrors(validateUtilityInput({ water, electric }))
@@ -44,7 +41,6 @@ export function registerUtilityHandlers() {
     return saved
   })
 
-  // ทับราคาของห้องทั้งหมดด้วยราคาปัจจุบันของหอ — ผู้ใช้ต้องกดสั่งเอง
   handle('utility:applyToRooms', ({ apartmentId }) => {
     requireOwnerUserId()
     const result = applyDefaultsToRooms(getDatabase(), apartmentId)
