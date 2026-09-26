@@ -55,6 +55,11 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
   // ออกจากหอ ไม่ใช่พิมพ์ได้หลังปิดสัญญาไปแล้วซึ่งผู้เช่าเดินไปแล้ว
   const [previewing, setPreviewing] = useState(false)
 
+  // คำนวณใบสรุปครั้งล่าสุดไม่ผ่าน = ตัวเลขบนจอเป็นของรอบก่อน (ยังไม่รวมสิ่งที่เพิ่งแก้)
+  // เดิมโชว์ error แต่ตัวเลขเก่ายังค้าง + ปุ่มพิมพ์/ยืนยันกดได้ → พิมพ์ใบสรุปผิดยื่นให้ผู้เช่า
+  // แยกจาก `error` (ของการกดยืนยัน) เพราะอันนี้ต้องล็อกปุ่มจนกว่าจะคำนวณผ่านอีกครั้ง
+  const [sheetError, setSheetError] = useState('')
+
   // ดึงใหม่ทุกครั้งที่วันที่ออก รายการ **หรือช่องติ๊กข้ามกฎ** เปลี่ยน
   // (สูตรอยู่ฝั่ง main ที่เดียว หน้าจอไม่คำนวณเองเด็ดขาด)
   //
@@ -67,8 +72,8 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
       adjustments,
       overrideRefundable: override
     })
-    if (!res.success) return setError(res.error)
-    setError('')
+    if (!res.success) return setSheetError(res.error)
+    setSheetError('')
     setSheet(res.data)
   }, [contract.contractId, moveOutDate, adjustments, override])
 
@@ -122,8 +127,11 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
 
   // ด่านทั้งสองต้องผ่านก่อนปุ่มยืนยันจะกดได้ — ปิดปุ่มไว้ดีกว่าปล่อยให้กดแล้วเจอ error
   // (ฝั่ง main บังคับซ้ำอยู่แล้ว ล็อกที่หน้าจออย่างเดียวไม่เคยพอ)
+  const stale = Boolean(sheetError)
+
   const canConfirm =
     sheet &&
+    !stale &&
     !(needsReason && overrideReason.trim() === '') &&
     !(sheet.hasOutstanding && !allowOutstanding) &&
     !(sheet.hasOutstanding && allowOutstanding && outstandingReason.trim() === '')
@@ -137,9 +145,15 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
 
       <h2 className="room-detail-title">ยกเลิกสัญญา / ย้ายออก — ห้อง {room.roomNumber}</h2>
       <Alert>{error}</Alert>
+      {stale && (
+        <Alert kind="warn">
+          {sheet ? 'ตัวเลขด้านล่างยังไม่อัปเดต — ' : ''}
+          {sheetError}
+        </Alert>
+      )}
 
       {!sheet ? (
-        <p className="muted">กำลังคำนวณ...</p>
+        !stale && <p className="muted">กำลังคำนวณ...</p>
       ) : (
         <>
           <section className="panel">
@@ -220,14 +234,16 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
             onOverrideReason={setOverrideReason}
           />
 
+          {/* รายการในการ์ดนี้มาจากสิ่งที่ผู้ใช้กดเพิ่มไว้ (adjustments) ไม่ใช่จากผลคำนวณ —
+              เดิมใช้ sheet.items รายการที่คำนวณไม่ผ่านจึงไม่ขึ้นในตาราง ไม่มีปุ่มลบ แต่ยังค้างใน
+              state ทำให้ทุกการคำนวณล้มซ้ำ หน้าย้ายออกติดอยู่แบบนั้นจนกว่าจะออกจากหน้า */}
           <AdjustmentsCard
-            items={sheet.items}
+            items={adjustments}
             onAdd={(item) => setAdjustments((list) => [...list, item])}
             onRemove={(index) => setAdjustments((list) => list.filter((_, i) => i !== index))}
-            totalCents={sheet.adjustmentsTotalCents}
           />
 
-          <section className="panel move-out-summary">
+          <section className={'panel move-out-summary' + (stale ? ' is-stale' : '')}>
             <p className="move-out-total">
               สรุปค่าใช้จ่าย{' '}
               {sheet.netRefundCents >= 0 ? (
@@ -304,6 +320,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                 type="button"
                 className="btn btn-outline"
                 onClick={() => setPreviewing(true)}
+                disabled={stale}
               >
                 <Icon name="printer" />
                 <span>พิมพ์ใบสรุปให้ผู้เช่า</span>
@@ -318,6 +335,9 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                 {busy ? 'กำลังบันทึก...' : 'ยืนยันย้ายออก'}
               </button>
             </div>
+            {stale && (
+              <p className="field-hint">ตัวเลขยังไม่อัปเดต — แก้ข้อที่ผิดก่อนจึงจะพิมพ์หรือยืนยันได้</p>
+            )}
             {needsReason && overrideReason.trim() === '' && (
               <p className="field-hint">ต้องกรอกเหตุผลที่ตัดสินต่างจากกฎก่อนจึงจะยืนยันได้</p>
             )}
@@ -428,7 +448,8 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
 // ------------------------------------------------------------------
 // รายการเหล่านี้ยังไม่ถูกส่งไป main จนกว่าจะกดยืนยันย้ายออก — จึงตรวจที่หน้าจอ
 // แล้วขึ้น error ใต้ช่องทั้งสองช่องพร้อมกัน (ไม่ใช่ทีละข้อบนสุดของหน้า)
-function AdjustmentsCard({ items, onAdd, onRemove, totalCents }) {
+// items = รายการที่ผู้ใช้เพิ่ม ({ itemType, description, amount } — amount เป็นข้อความบาท)
+function AdjustmentsCard({ items, onAdd, onRemove }) {
   const [tab, setTab] = useState(ITEM_TABS[0])
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -438,7 +459,11 @@ function AdjustmentsCard({ items, onAdd, onRemove, totalCents }) {
     reset()
     const fields = {}
     if (!description.trim()) fields.description = 'กรุณาระบุชื่อรายการ'
-    if (!(Number(amount) > 0)) fields.amount = 'จำนวนเงินต้องมากกว่า 0'
+    // กติกาเดียวกับ toCents ฝั่ง main — เดิมเช็กแค่ Number(amount) > 0 ปล่อย 12.345 / 1e3 ผ่าน
+    // แล้ว main คำนวณใบสรุปไม่ได้
+    const cents = bahtInputToCents(amount)
+    if (cents === null) fields.amount = 'จำนวนเงินต้องเป็นตัวเลขไม่ติดลบ ทศนิยมไม่เกิน 2 ตำแหน่ง'
+    else if (cents === 0) fields.amount = 'จำนวนเงินต้องมากกว่า 0'
     if (Object.keys(fields).length > 0) return fromResult({ fields })
     onAdd({ itemType: tab.key, description, amount })
     setDescription('')
@@ -456,11 +481,11 @@ function AdjustmentsCard({ items, onAdd, onRemove, totalCents }) {
               <tr key={`${item.description}-${index}`}>
                 <td>
                   {item.description}
-                  <span className="field-hint"> {item.itemTypeLabel}</span>
+                  <span className="field-hint"> {itemTypeLabel(item.itemType)}</span>
                 </td>
                 <td className="align-right">
-                  <span className={item.amountCents < 0 ? 'negative' : undefined}>
-                    {formatBaht(item.amountCents)}
+                  <span className={signedCents(item) < 0 ? 'negative' : undefined}>
+                    {formatBaht(signedCents(item))}
                   </span>
                 </td>
                 <td className="align-right">
@@ -525,7 +550,9 @@ function AdjustmentsCard({ items, onAdd, onRemove, totalCents }) {
       </div>
 
       <div className="card-foot">
-        <span className="move-out-adjust-total">รวมเป็นเงิน {formatBaht(totalCents)}</span>
+        <span className="move-out-adjust-total">
+          รวมเป็นเงิน {formatBaht(items.reduce((sum, item) => sum + signedCents(item), 0))}
+        </span>
         <button type="button" className="btn" onClick={add}>
           เพิ่ม
         </button>
@@ -612,4 +639,24 @@ function todayIso() {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+// บาทที่พิมพ์ → สตางค์ ตามกติกาเดียวกับ toCents ใน src/main/money.js
+// (ตัวเลขไม่ติดลบ คั่นหลักพันได้ ทศนิยมไม่เกิน 2 ตำแหน่ง) · ผิดรูปแบบ = null
+function bahtInputToCents(value) {
+  const cleaned = String(value ?? '').replace(/,/g, '').trim()
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null
+  const [baht, satang = ''] = cleaned.split('.')
+  const cents = Number(baht) * 100 + Number(satang.padEnd(2, '0'))
+  return Number.isSafeInteger(cents) ? cents : null
+}
+
+// ส่วนลด/คืนเงินแสดงเป็นลบ แบบเดียวกับที่ main เก็บ (ผู้ใช้กรอกเป็นบวกเสมอ)
+function signedCents(item) {
+  const cents = bahtInputToCents(item.amount) ?? 0
+  return item.itemType === 'discount_refund' ? -cents : cents
+}
+
+function itemTypeLabel(itemType) {
+  return ITEM_TABS.find((t) => t.key === itemType)?.label ?? itemType
 }
