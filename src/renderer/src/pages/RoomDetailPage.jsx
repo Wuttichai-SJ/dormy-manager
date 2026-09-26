@@ -164,7 +164,6 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
               <ContractCard
                 contract={active}
                 onReload={load}
-                onMoveOut={() => setMovingOut(true)}
                 onPrintMoveIn={setMoveInReceipts}
               />
             ) : (
@@ -232,6 +231,14 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
             )}
 
             {active && <MeterCard contract={active} />}
+            {/* แยกเป็นการ์ดของตัวเองใต้เลขมิเตอร์ — เดิมแทรกท้ายการ์ดสัญญา ปนกับข้อมูลสัญญา */}
+            {active && (
+              <MoveOutPanel
+                contract={active}
+                onReload={load}
+                onMoveOut={() => setMovingOut(true)}
+              />
+            )}
           </div>
 
           <div className="room-detail-column">
@@ -251,7 +258,7 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   )
 }
 
-function ContractCard({ contract, onReload, onMoveOut, onPrintMoveIn }) {
+function ContractCard({ contract, onReload, onPrintMoveIn }) {
   const [receiving, setReceiving] = useState(false)
   // ใบรับเงินแรกเข้า — ดึงใบเสร็จสดตอนกดพิมพ์ ไม่ได้เก็บไว้ตั้งแต่ตอนทำสัญญา
   // จะได้เห็นเงินประกันที่เก็บเพิ่มทีหลังด้วย (ดูคอมเมนต์ใน MoveInReceiptDocument)
@@ -325,8 +332,6 @@ function ContractCard({ contract, onReload, onMoveOut, onPrintMoveIn }) {
         </button>
       </div>
 
-      <MoveOutNotice contract={contract} onReload={onReload} onMoveOut={onMoveOut} />
-
       {receiving && (
         <DepositPaymentDialog
           contract={contract}
@@ -348,33 +353,66 @@ function ContractCard({ contract, onReload, onMoveOut, onPrintMoveIn }) {
 // **สองจังหวะแยกกันโดยตั้งใจ** — วันที่แจ้งต้องถูกบันทึกตั้งแต่วันที่ผู้เช่ามาบอกจริง
 // เพราะระยะห่างจากวันนั้นถึงวันออกคือสิ่งที่กฎเงินประกันใช้ตัดสิน ถ้าให้มากรอกตอนกดย้ายออก
 // ก็แก้ให้เข้าทางได้เสมอ
-function MoveOutNotice({ contract, onReload, onMoveOut }) {
+// การ์ดแจ้งย้ายออก — สองสภาพ: ยังไม่แจ้ง (บอกกติกา + ปุ่มบันทึก) / แจ้งแล้ว (วันที่แจ้ง +
+// วันแรกที่ย้ายออกได้โดยแจ้งล่วงหน้าครบ) · ปุ่มย้ายออกแยกไว้ล่างสุด เพราะเป็นทางออก ไม่ใช่ข้อมูล
+//
+// "ย้ายออกได้ตั้งแต่" = วันที่แจ้ง + จำนวนวันที่สัญญากำหนด — เงื่อนไขเดียวกับที่ main ใช้ตัดสิน
+// ตอนย้ายออก (noticeDaysGiven >= requiredNoticeDays ใน db/terminations.js) บอกไว้ล่วงหน้า
+// เจ้าของหอจะได้ตอบผู้เช่าได้ทันทีว่าออกวันไหนถึงไม่ผิดกติกา
+// (อีกเงื่อนไขคือ "อยู่ครบระยะสัญญา" ตัดสินตอนย้ายออกเหมือนเดิม — ดูหน้าย้ายออก)
+function MoveOutPanel({ contract, onReload, onMoveOut }) {
   const [editing, setEditing] = useState(false)
   const noticeDate = contract.moveOutNoticeDate
+  const noticeDays = contract.depositNoticeDays
+  const earliest = noticeDate && noticeDays ? addDays(noticeDate, noticeDays) : null
+  const countdown = earliest ? daysFromToday(earliest) : null
 
   return (
-    <div className="move-out-notice">
-      <h4>แจ้งย้ายออก</h4>
+    <section className="panel">
+      <h3 className="panel-title">แจ้งย้ายออก</h3>
 
       {noticeDate ? (
         <>
-          <p className="move-out-notice-date">{formatDate(noticeDate)}</p>
+          <dl className="booking-facts">
+            <div className="booking-fact">
+              <dt>ผู้เช่าแจ้งเมื่อ</dt>
+              <dd>{formatDate(noticeDate)}</dd>
+            </div>
+            {earliest && (
+              <div className="booking-fact booking-fact-main">
+                <dt>ย้ายออกได้ตั้งแต่</dt>
+                <dd>{formatDate(earliest)}</dd>
+                <span className="booking-fact-sub">
+                  {countdown > 0 ? `อีก ${countdown} วัน · ` : ''}ครบแจ้งล่วงหน้า {noticeDays} วัน
+                </span>
+              </div>
+            )}
+          </dl>
           <button type="button" className="link-btn" onClick={() => setEditing(true)}>
-            แก้ไขวันที่แจ้งย้ายออก
+            แก้ไขวันที่แจ้ง
           </button>
         </>
       ) : (
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>
-          <Icon name="bookings" />
-          <span>แจ้งย้ายออก</span>
-        </button>
+        <div className="move-out-empty">
+          <p className="move-out-empty-title">ผู้เช่ายังไม่ได้แจ้งย้ายออก</p>
+          {noticeDays > 0 && (
+            <p className="move-out-empty-rule">กติกาของสัญญานี้: ต้องแจ้งล่วงหน้าอย่างน้อย {noticeDays} วัน</p>
+          )}
+          <button type="button" className="btn btn-outline" onClick={() => setEditing(true)}>
+            <Icon name="bookings" />
+            <span>บันทึกการแจ้งย้ายออก</span>
+          </button>
+        </div>
       )}
 
       {/* ปุ่มย้ายออกใช้ได้แม้ยังไม่ได้แจ้ง — คนที่ออกเงียบๆ ไม่แจ้งเลยก็ต้องปิดสัญญาได้
           ระบบจะบันทึกว่า "ไม่ได้แจ้งล่วงหน้า" แล้วกฎเงินประกันตัดสินตามนั้นเอง */}
-      <button type="button" className="btn btn-danger btn-sm" onClick={onMoveOut}>
-        ยกเลิกสัญญา / ย้ายออก
-      </button>
+      <div className="move-out-panel-foot">
+        <span>ผู้เช่าย้ายออกแล้ว?</span>
+        <button type="button" className="btn btn-danger btn-sm" onClick={onMoveOut}>
+          ยกเลิกสัญญา / ย้ายออก
+        </button>
+      </div>
 
       {editing && (
         <MoveOutNoticeDialog
@@ -386,7 +424,23 @@ function MoveOutNotice({ contract, onReload, onMoveOut }) {
           }}
         />
       )}
-    </div>
+    </section>
+  )
+}
+
+// วันที่ ISO + จำนวนวัน → วันที่ ISO (นับแบบปฏิทิน ไม่สนเวลา)
+function addDays(iso, days) {
+  const [y, m, d] = String(iso).split('-').map(Number)
+  const next = new Date(Date.UTC(y, m - 1, d + Number(days)))
+  return next.toISOString().slice(0, 10)
+}
+
+// อีกกี่วันจากวันนี้ (ติดลบ = ผ่านมาแล้ว)
+function daysFromToday(iso) {
+  const [y, m, d] = String(iso).split('-').map(Number)
+  const now = new Date()
+  return Math.round(
+    (Date.UTC(y, m - 1, d) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000
   )
 }
 
@@ -433,6 +487,13 @@ function MoveOutNoticeDialog({ contract, onClose, onDone }) {
         <p className="field-hint">
           วันที่มาแจ้ง ไม่ใช่วันย้ายออก · ต้องแจ้งล่วงหน้า {contract.depositNoticeDays} วัน
         </p>
+        {/* บอกผลของวันที่ที่เลือกทันที — คนกรอกจะได้ตอบผู้เช่าตรงนั้นว่าออกได้วันไหน */}
+        {noticeDate && contract.depositNoticeDays > 0 && (
+          <p className="move-out-earliest">
+            ย้ายออกได้ตั้งแต่ <strong>{formatDate(addDays(noticeDate, contract.depositNoticeDays))}</strong>{' '}
+            โดยแจ้งล่วงหน้าครบ
+          </p>
+        )}
       </div>
 
       {/* ผู้เช่าเปลี่ยนใจไม่ย้ายแล้วต้องล้างได้ ไม่งั้นวันที่ค้างอยู่จะไปมีผลกับการตัดสิน

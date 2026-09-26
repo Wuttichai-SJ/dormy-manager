@@ -5,31 +5,45 @@
 /* -----------------------------------------------------
    แจ้งย้ายออก / ยกเลิกสัญญา
    ----------------------------------------------------- */
-/* หัวข้อ "แจ้งย้ายออก" อยู่ท้ายการ์ดสัญญาตามต้นแบบ คั่นด้วยเส้นเพราะเป็นคนละเรื่อง
-   กับรายละเอียดสัญญาด้านบน — นี่คือทางออก ไม่ใช่ข้อมูล */
-.move-out-notice {
-  margin-top: 16px;
+/* การ์ดแจ้งย้ายออก (MoveOutPanel ใน RoomDetailPage) — แยกเป็นการ์ดของตัวเองใต้เลขมิเตอร์
+   กล่องวันที่ใช้ .booking-facts ชุดเดียวกับการ์ดการจอง หน้าตาข้อมูลวันที่ทั้งหน้าจะได้เหมือนกัน */
+.move-out-empty {
+  padding: 4px 0 8px;
+}
+
+.move-out-empty-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.move-out-empty-rule {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ทางออก (ปุ่มแดง) แยกไว้ล่างสุด มีเส้นคั่น — ไม่ปนกับข้อมูลการแจ้ง */
+.move-out-earliest {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--accent-weak);
+  border-radius: var(--radius);
+}
+
+.move-out-panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-}
-
-.move-out-notice h4 {
-  margin: 0;
-  align-self: flex-start;
-  font-size: 14px;
-}
-
-/* วันที่ที่แจ้งไว้เป็นตัวโตกลางการ์ดตามต้นแบบ — เป็นข้อมูลชิ้นเดียวของบล็อกนี้
-   และเป็นตัวเลขที่กฎเงินประกันใช้ตัดสิน จึงต้องอ่านผิดไม่ได้ */
-.move-out-notice-date {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .btn-danger {
