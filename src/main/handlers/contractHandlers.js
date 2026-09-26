@@ -59,6 +59,9 @@ export function registerContractHandlers() {
     // (กฎเดียวกับ paymentHandlers — ไม่งั้นเปิด DevTools แล้วออกใบเสร็จในนามคนอื่นได้)
     const contract = createContract(getDatabase(), {
       ...payload,
+      // fromBookingId ยกเว้นด่าน "ห้องมีคนจองค้าง" ได้ — มาได้ทางเดียวคือ booking:convert
+      // ช่องนี้ทิ้งค่าที่หน้าจอส่งมาเสมอ ไม่งั้นส่งเลขการจองเองแล้วทำสัญญาตรงข้ามคนจองได้
+      fromBookingId: undefined,
       createdBy: requireSessionUserId()
     })
     logInfo(

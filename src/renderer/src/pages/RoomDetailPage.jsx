@@ -32,6 +32,8 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   const [converting, setConverting] = useState(null)
   // เพิ่มขึ้นทีละหนึ่งทุกครั้งที่กด "บันทึกการจองไว้ก่อน" — BookingsCard เปิดหน้าต่างเพิ่มการจองเมื่อเลขเปลี่ยน
   const [bookingRequest, setBookingRequest] = useState(0)
+  // การจองที่ยังค้างของห้องนี้ (มาจาก BookingsCard) — มี = ทำสัญญาตรงไม่ได้ ต้องทำจากการจอง
+  const [openBooking, setOpenBooking] = useState(null)
   // กำลังอยู่ในขั้นตอนย้ายออก (หน้าเต็ม เหมือนตัวช่วยทำสัญญา)
   const [movingOut, setMovingOut] = useState(false)
   // ใบเสร็จของสัญญาที่ดึงมาเพื่อพิมพ์ "ใบรับเงินแรกเข้า" — null = ยังไม่ได้กดพิมพ์
@@ -156,38 +158,58 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
             ) : (
               <section className="panel">
                 <h3 className="panel-title">รายละเอียดสัญญา</h3>
-                <p className="room-detail-empty">ห้องว่าง · เลือกประเภทสัญญา</p>
-                {/* ปุ่มใหญ่สองใบตามต้นแบบ — เลือกประเภทก่อนแล้วค่อยเข้าตัวช่วยกรอก */}
-                <div className="contract-type-picker">
-                  <button
-                    type="button"
-                    className="contract-type contract-type-monthly"
-                    onClick={() => setCreating('monthly')}
-                  >
-                    <Icon name="bookings" />
-                    <span>รายเดือน</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="contract-type contract-type-daily"
-                    onClick={() => setCreating('daily')}
-                  >
-                    <Icon name="meters" />
-                    <span>รายวัน</span>
-                  </button>
-                </div>
-                {/* การจองอยู่การ์ดขวาล่าง คนที่เปิดห้องว่างมาเห็นแต่ปุ่มทำสัญญา ไม่รู้ว่าจองได้ด้วย
-                    (เฟิสทักท้วง 2026-09-26) — บอกไว้ตรงที่ตาอยู่ แล้วเปิดหน้าต่างจองให้เลย */}
-                <p className="room-booking-hint">
-                  ยังไม่เข้าอยู่ตอนนี้?{' '}
-                  <button
-                    type="button"
-                    className="link-btn"
-                    onClick={() => setBookingRequest((n) => n + 1)}
-                  >
-                    บันทึกการจองไว้ก่อน
-                  </button>
-                </p>
+                {/* 🔴 มีคนจองค้าง = ทำสัญญาได้ทางเดียวคือจากการจอง (main ปฏิเสธการทำสัญญาตรงด้วย)
+                    ซ่อนปุ่มรายเดือน/รายวัน แล้วพาไปทำสัญญาให้ผู้จองแทน — เงินจองจะถูกนับเข้าเงินประกัน */}
+                {openBooking ? (
+                  <div className="room-booked-notice">
+                    <p className="room-booked-title">
+                      ห้องนี้มีคนจองอยู่: <strong>{openBooking.customerName}</strong>
+                    </p>
+                    <p className="room-booked-meta">
+                      เข้าพัก {formatDate(openBooking.checkInDate)} · เงินจอง{' '}
+                      {formatBaht(openBooking.bookingFeeCents)} บาท
+                    </p>
+                    <button type="button" className="btn" onClick={() => setConverting(openBooking)}>
+                      ทำสัญญาให้ {openBooking.customerName}
+                    </button>
+                    <p className="room-booked-hint">ผู้จองไม่มาแล้ว? ยกเลิกการจองก่อน แล้วจึงทำสัญญาใหม่</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="room-detail-empty">ห้องว่าง · เลือกประเภทสัญญา</p>
+                    {/* ปุ่มใหญ่สองใบตามต้นแบบ — เลือกประเภทก่อนแล้วค่อยเข้าตัวช่วยกรอก */}
+                    <div className="contract-type-picker">
+                      <button
+                        type="button"
+                        className="contract-type contract-type-monthly"
+                        onClick={() => setCreating('monthly')}
+                      >
+                        <Icon name="bookings" />
+                        <span>รายเดือน</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="contract-type contract-type-daily"
+                        onClick={() => setCreating('daily')}
+                      >
+                        <Icon name="meters" />
+                        <span>รายวัน</span>
+                      </button>
+                    </div>
+                    {/* การจองอยู่การ์ดขวาล่าง คนที่เปิดห้องว่างมาเห็นแต่ปุ่มทำสัญญา ไม่รู้ว่าจองได้ด้วย
+                        (เฟิสทักท้วง 2026-09-26) — บอกไว้ตรงที่ตาอยู่ แล้วเปิดหน้าต่างจองให้เลย */}
+                    <p className="room-booking-hint">
+                      ยังไม่เข้าอยู่ตอนนี้?{' '}
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => setBookingRequest((n) => n + 1)}
+                      >
+                        บันทึกการจองไว้ก่อน
+                      </button>
+                    </p>
+                  </>
+                )}
               </section>
             )}
 
@@ -198,7 +220,12 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
             <ServicesCard contract={active} room={room} />
             {active && <TenantsCard contract={active} />}
             {/* ต้นแบบแสดงคิวจองไว้ในหน้าห้องเสมอ ไม่ว่าห้องจะว่างหรือไม่ */}
-            <BookingsCard room={room} onConvert={setConverting} addRequest={bookingRequest} />
+            <BookingsCard
+              room={room}
+              onConvert={setConverting}
+              onOpenBookingChange={setOpenBooking}
+              addRequest={bookingRequest}
+            />
           </div>
         </div>
       )}

@@ -35,7 +35,9 @@ const EMPTY = {
 }
 
 // addRequest = ตัวเลขจากหน้าห้อง เปลี่ยนเมื่อไหร่ = เปิดหน้าต่างเพิ่มการจอง (ปุ่มลัดในการ์ดสัญญา)
-export default function BookingsCard({ room, onConvert, addRequest = 0 }) {
+// onOpenBookingChange = แจ้งหน้าห้องทุกครั้งที่โหลดรายการใหม่ว่ามีการจองค้างไหม (null = ไม่มี)
+//   หน้าห้องใช้ซ่อนปุ่มทำสัญญาตรง เมื่อมีคนจองอยู่ (ดู createContract ฝั่ง main)
+export default function BookingsCard({ room, onConvert, onOpenBookingChange, addRequest = 0 }) {
   // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
   const [confirmDialog, ask] = useConfirm()
   const [bookings, setBookings] = useState(null)
@@ -50,6 +52,8 @@ export default function BookingsCard({ room, onConvert, addRequest = 0 }) {
     const res = await listBookingsByRoom(room.roomId)
     if (!res.success) return setError(res.error)
     setError('')
+    // ห้องหนึ่งมีการจองค้างได้รายเดียว (createBooking กันไว้)
+    onOpenBookingChange?.(res.data.find((b) => b.isOpen) ?? null)
     setBookings(res.data)
   }, [room.roomId])
 

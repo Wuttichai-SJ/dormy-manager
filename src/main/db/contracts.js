@@ -353,6 +353,25 @@ export function createContract(db, input) {
     throw new Error(`ห้อง ${room.room_number} มีสัญญาที่ยังใช้งานอยู่แล้ว กรุณาแจ้งย้ายออกก่อน`)
   }
 
+  // 🔴 **ห้องที่มีคนจองค้างอยู่ ทำสัญญาได้ทางเดียวคือทำสัญญาจากการจองนั้น** (ตกลงกับเฟิส 2026-09-26)
+  // เดิมไม่กัน — กด "รายเดือน" ทำสัญญาตรงได้ทั้งที่มีคนจองอยู่ ผลคือการจองค้าง "รอยืนยัน"
+  // ทั้งที่ห้องมีคนอยู่แล้ว และเงินจองของผู้จองไม่ถูกนับเข้าเงินประกัน (หายเงียบๆ)
+  // fromBookingId มาจาก convertBookingToContract เท่านั้น — ทางนั้นยกเงินจองมาให้ถูกต้อง
+  // ผู้จองไม่มาแล้ว → ยกเลิกการจองก่อน แล้วค่อยทำสัญญาตรง
+  const openBooking = db
+    .prepare(
+      `SELECT booking_id, customer_name FROM room_bookings
+        WHERE room_id = ? AND status IN ('pending', 'confirmed')`
+    )
+    .all(roomId)
+    .find((b) => b.booking_id !== Number(input.fromBookingId))
+  if (openBooking) {
+    throw new Error(
+      `ห้อง ${room.room_number} มีคนจองรอเข้าพักอยู่ (${openBooking.customer_name}) — ` +
+        'ให้ทำสัญญาจากการจองนั้น หรือยกเลิกการจองก่อน'
+    )
+  }
+
   const tenantIds = [...new Set(input.tenants.map(Number))]
   for (const tenantId of tenantIds) {
     const exists = db.prepare('SELECT 1 FROM tenants WHERE tenant_id = ?').get(tenantId)

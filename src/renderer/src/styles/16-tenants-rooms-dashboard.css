@@ -361,3 +361,27 @@
   gap: 12px;
   white-space: nowrap;
 }
+
+/* ห้องว่างที่มีคนจองค้าง — แทนปุ่มรายเดือน/รายวันในการ์ดสัญญา */
+.room-booked-notice {
+  padding: 8px 0 4px;
+  text-align: center;
+}
+
+.room-booked-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.room-booked-meta {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.room-booked-hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}

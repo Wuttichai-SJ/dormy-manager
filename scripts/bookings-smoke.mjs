@@ -339,5 +339,54 @@ check('ลบการจองที่แปลงเป็นสัญญา�
 })
 
 // -----------------------------------------------------
+// ห้องที่มีคนจองค้าง ทำสัญญาได้ทางเดียวคือทำสัญญาจากการจอง (ตกลงกับเฟิส 2026-09-26)
+// เดิมทำสัญญาตรงได้ แล้วการจองค้าง "รอยืนยัน" ทั้งที่ห้องมีคนอยู่ + เงินจองไม่ถูกนับ
+group('ทำสัญญาตรงในห้องที่มีคนจองค้าง')
+
+const walkIn = tenants.insertTenant(db, { firstName: 'วอล์ก', lastName: 'อิน', phone: '0823334444' })
+const DIRECT = {
+  rentType: 'monthly',
+  startDate: MOVE_IN_DATE,
+  rentAmount: '5000',
+  deposit: '5000',
+  depositPaymentMethod: 'cash',
+  bookingFee: '0',
+  waterMeterStart: 10,
+  electricMeterStart: 20,
+  tenants: [walkIn.tenantId],
+  createdBy: staff.user_id
+}
+// room2 มีการจองค้างของ "คนใหม่" จากกลุ่มสร้างการจองข้างบน
+const room2Open = bookings.listBookingsByRoom(db, room2.roomId).find((b) => b.isOpen)
+
+check('ทำสัญญาตรงไม่ได้ ถ้าห้องมีคนจองค้าง และต้องบอกว่าใครจองอยู่', () => {
+  assert(room2Open, 'ต้องมีการจองค้างใน room2 ก่อนทดสอบ')
+  throws(
+    () => contractsDb.createContract(db, { ...DIRECT, roomId: room2.roomId }),
+    room2Open.customerName,
+    'ควรปฏิเสธและบอกชื่อผู้จอง'
+  )
+})
+
+check('อ้างเลขการจองใบอื่นมาเพื่อข้ามด่านไม่ได้', () => {
+  throws(
+    () =>
+      contractsDb.createContract(db, {
+        ...DIRECT,
+        roomId: room2.roomId,
+        fromBookingId: booking.bookingId
+      }),
+    'มีคนจองรอเข้าพัก',
+    'fromBookingId ต้องตรงกับการจองของห้องนี้เท่านั้น'
+  )
+})
+
+check('ยกเลิกการจองแล้ว ทำสัญญาตรงได้ตามปกติ', () => {
+  bookings.setBookingStatus(db, room2Open.bookingId, 'cancelled')
+  const direct = contractsDb.createContract(db, { ...DIRECT, roomId: room2.roomId })
+  assert(direct.contractId, 'ควรสร้างสัญญาได้หลังยกเลิกการจอง')
+})
+
+// -----------------------------------------------------
 cleanup()
 summarize('โมดูลการจองทำงานครบทุกเส้นทาง')

@@ -208,6 +208,8 @@ export function convertBookingToContract(db, bookingId, contractInput) {
   const run = db.transaction(() => {
     const contract = createContract(db, {
       ...contractInput,
+      // บอก createContract ว่ามาจากการจองใบนี้ — ไม่งั้นมันเห็นการจองค้างในห้องแล้วปฏิเสธ
+      fromBookingId: bookingId,
       roomId: booking.roomId,
       rentType: booking.rentType,
       // เงินจองยกมาจากใบจองเสมอ ไม่ให้หน้าจอส่งค่าอื่นมาทับ — ตัวเลขนี้คือเงินที่รับไปแล้วจริง
