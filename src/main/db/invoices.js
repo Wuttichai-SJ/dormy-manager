@@ -710,7 +710,7 @@ const SETTLEMENT_STATUSES = {
 export function listInvoices(
   db,
   apartmentId,
-  { status, settlement, billingMonth, roomNumber, invoiceNumber, dateFrom, dateTo, today } = {}
+  { status, settlement, billingMonth, billingYear, roomNumber, invoiceNumber, dateFrom, dateTo, today } = {}
 ) {
   const where = ['f.apartment_id = @apartmentId']
   if (status) where.push('i.status = @status')
@@ -725,6 +725,8 @@ export function listInvoices(
   }
 
   if (billingMonth) where.push('i.billing_month = @billingMonth')
+  // ทั้งปี (หน้าใบแจ้งหนี้โหมด "ปี") — billing_month เป็น 'YYYY-MM' จึงเทียบคำนำหน้าได้ตรงๆ
+  if (billingYear) where.push("i.billing_month LIKE @billingYear || '-%'")
   if (roomNumber) where.push('r.room_number LIKE @roomNumber')
   if (invoiceNumber) where.push('i.invoice_number LIKE @invoiceNumber')
   // ช่วงวันที่ออกบิล — เทียบเป็นข้อความได้ตรงๆ เพราะเก็บเป็น 'YYYY-MM-DD' ซึ่งเรียงตามเวลา
@@ -752,6 +754,7 @@ export function listInvoices(
       apartmentId,
       status,
       billingMonth,
+      billingYear: billingYear ? String(billingYear) : null,
       roomNumber: roomNumber ? `%${roomNumber}%` : null,
       invoiceNumber: invoiceNumber ? `%${invoiceNumber}%` : null,
       dateFrom: dateFrom || null,

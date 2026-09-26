@@ -5,6 +5,13 @@ import FieldError, { fieldClass, invalidProps, useFormErrors } from '../componen
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import DateField from '../components/DateField.jsx'
+import PeriodBar, {
+  billingPeriodFilter,
+  formatMonthName,
+  groupByMonth,
+  initialPeriod,
+  periodLabel
+} from '../components/PeriodBar.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS } from '../constants.js'
 import { formatBaht } from '../format.js'
@@ -23,7 +30,7 @@ import {
   previewMonthlyBilling
 } from '../services/invoiceService.js'
 
-const EMPTY_FILTERS = { roomNumber: '', invoiceNumber: '', dateFrom: '', dateTo: '' }
+const EMPTY_FILTERS = { roomNumber: '', invoiceNumber: '' }
 
 // แท็บกรองตามการชำระ — `settlement` ต้องตรงกับ SETTLEMENT_STATUSES ใน db/invoices.js
 //
@@ -60,6 +67,11 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
   // '' = ทั้งหมด · แยกจาก filters ตัวอื่นเพราะปุ่ม "รีเซ็ต" ของแถบค้นหาไม่ควรเด้งแท็บกลับด้วย
   // — แท็บคือ "กำลังดูอะไรอยู่" ส่วนแถบค้นหาคือ "หาอะไรในสิ่งที่ดูอยู่"
   const [settlement, setSettlement] = useState('')
+  // ช่วงเวลาที่ดู — เปิดมาเป็นเดือนนี้ (บิลออกวันที่ 1 รอบเดือนของบิล = เดือนที่ออก)
+  // เดิมเปิดมาเห็นบิลทุกเดือนต่อกันยาว ดูไม่ออกว่าแถวไหนของเดือนไหน (เฟิสขอ 2026-09-26)
+  const [period, setPeriod] = useState(initialPeriod)
+  // เดือนที่ผู้ใช้กดพับ/กางเอง (สลับจากค่าเริ่มต้น) — ล้างทุกครั้งที่เปลี่ยนช่วงเวลา
+  const [toggled, setToggled] = useState(() => new Set())
   // บิลที่กำลังยืนยันจะลบอยู่ — null = ไม่มีหน้าต่างเปิดค้าง
   const [deleting, setDeleting] = useState(null)
   // ชุดเอกสารที่เตรียมไว้พิมพ์ทีเดียวทั้งหอ — null = ไม่ได้อยู่ในโหมดพิมพ์
@@ -75,15 +87,33 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
       settlement: settlement || undefined,
       roomNumber: filters.roomNumber.trim() || undefined,
       invoiceNumber: filters.invoiceNumber.trim() || undefined,
-      // DateField คืน '' จนกว่าจะกรอกวันที่ครบและเป็นวันที่ที่มีอยู่จริง จึงส่งต่อได้เลย
-      dateFrom: filters.dateFrom || undefined,
-      dateTo: filters.dateTo || undefined
+      ...billingPeriodFilter(period)
     })
     setLoading(false)
     if (!res.success) return setError(res.error)
     setError('')
     setInvoices(res.data)
-  }, [apartment.apartmentId, settlement, filters])
+  }, [apartment.apartmentId, settlement, filters, period])
+
+  function changePeriod(next) {
+    setPeriod(next)
+    setToggled(new Set())
+  }
+
+  // ดูหลายเดือน: เดือนล่าสุดกางไว้ เดือนเก่าพับ · กำลังค้นหา = กางหมด (จะได้เห็นที่หาเจอทันที)
+  const groups = groupByMonth(invoices, (inv) => inv.billingMonth)
+  const multiMonth = period.mode !== 'month'
+  const isOpen = (month, index) => {
+    const byDefault = !multiMonth || hasFilters || index === 0
+    return toggled.has(month) ? !byDefault : byDefault
+  }
+  const toggleMonth = (month) =>
+    setToggled((prev) => {
+      const next = new Set(prev)
+      if (next.has(month)) next.delete(month)
+      else next.add(month)
+      return next
+    })
 
   useEffect(() => {
     load()
@@ -205,8 +235,8 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
             <InfoTip
               title="พิมพ์ใบแจ้งหนี้ทุกห้อง"
               points={[
-                'พิมพ์ทุกใบที่เห็นในตาราง ใบละหนึ่งแผ่น',
-                'ต้องการเฉพาะบางชุด ให้เลือกแท็บหรือช่วงวันที่ก่อน',
+                'พิมพ์ทุกใบในช่วงเวลาและแท็บที่เลือก ใบละหนึ่งแผ่น',
+                'ต้องการเฉพาะบางชุด ให้เลือกเดือนหรือแท็บก่อน',
                 'ใบที่ยกเลิกแล้วจะไม่ถูกพิมพ์'
               ]}
             />
@@ -264,9 +294,10 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           <p className="field-hint">ใบที่ยกเลิกพิมพ์ไม่ได้ · ลบถาวรต้องกรอกเหตุผล</p>
         )}
 
-        {/* แถบค้นหาเรียงตามต้นแบบ: เลขที่ห้อง | เลขที่ใบแจ้งหนี้ | วันที่เริ่ม | วันที่สิ้นสุด | รีเซ็ต
-            ช่วงวันที่ใส่ข้างเดียวก็ได้ — ระบุแต่วันเริ่มคือ "ตั้งแต่วันนั้นเป็นต้นไป" */}
+        {/* ช่วงเวลา (เลือกชุดตามเดือน) + ค้นหาในชุดนั้น — ใช้ร่วมกับแท็บการชำระด้านบนได้ */}
         <div className="invoice-filters">
+          <PeriodBar period={period} onChange={changePeriod} />
+
           <div className="field">
             <label htmlFor="filterRoom">เลขที่ห้อง</label>
             <input
@@ -287,24 +318,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="filterFrom">วันที่ออกบิล ตั้งแต่</label>
-            <DateField
-              id="filterFrom"
-              value={filters.dateFrom}
-              onChange={(v) => setFilter('dateFrom', v)}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="filterTo">ถึง</label>
-            <DateField
-              id="filterTo"
-              value={filters.dateTo}
-              onChange={(v) => setFilter('dateTo', v)}
-            />
-          </div>
-
           <button
             type="button"
             className="link-btn invoice-filter-reset"
@@ -315,91 +328,110 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           </button>
         </div>
 
-        {/* ช่วงวันที่กลับหัวไม่เจออะไรเลย ต้องบอกว่าเป็นเพราะอะไร ไม่ใช่ขึ้น "ไม่มีข้อมูล" เฉยๆ */}
-        {filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo && (
-          <Alert kind="warn">วันที่เริ่มอยู่หลังวันที่สิ้นสุด จึงไม่มีใบแจ้งหนี้ใดเข้าเงื่อนไข</Alert>
-        )}
-
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
         ) : invoices.length === 0 ? (
           // ตารางว่างเพราะไม่มีบิลเลย กับว่างเพราะแท็บ/คำค้นกรองจนไม่เหลือ เป็นคนละเรื่อง
           // บอกผิดแล้วผู้ใช้จะเข้าใจว่าออกบิลไม่สำเร็จ ทั้งที่แค่ดูอยู่ผิดแท็บ
+          // บอกช่วงเวลาไปด้วย — ว่างเพราะดูอยู่เดือนที่ยังไม่ออกบิล คนละเรื่องกับไม่มีบิลเลย
           <p className="muted table-empty">
             {hasFilters
               ? 'ไม่พบใบแจ้งหนี้ตามเงื่อนไขที่ค้นหา'
               : settlement === 'outstanding'
                 ? 'ไม่มีใบแจ้งหนี้ที่ค้างชำระ'
                 : settlement === 'paid'
-                  ? 'ยังไม่มีใบแจ้งหนี้ที่ชำระครบแล้ว'
+                  ? 'ไม่มีใบแจ้งหนี้ที่ชำระครบแล้ว'
                   : settlement === 'cancelled'
-                    ? 'ยังไม่มีใบแจ้งหนี้ที่ถูกยกเลิก'
-                    : 'ยังไม่มีใบแจ้งหนี้'}
+                    ? 'ไม่มีใบแจ้งหนี้ที่ถูกยกเลิก'
+                    : 'ไม่มีใบแจ้งหนี้'}
+            {period.mode !== 'all' && ` ของ${periodLabel(period)}`}
+            {period.mode !== 'all' && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => changePeriod({ ...period, mode: 'all' })}
+                >
+                  ดูทุกช่วงเวลา
+                </button>
+              </>
+            )}
           </p>
         ) : (
-          <table className="data-table">
+          <table className="data-table grouped-table">
             <thead>
               <tr>
                 <th>เลขที่</th>
                 <th>วันที่</th>
                 <th>ห้อง</th>
-                <th>รอบเดือน</th>
                 <th>สถานะ</th>
                 <th className="align-right">ยอดรวม</th>
                 <th className="align-right">ค้างชำระ</th>
                 <th className="align-right" />
               </tr>
             </thead>
-            <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.invoiceId}>
-                  <td>{inv.invoiceNumber}</td>
-                  <td>{formatDate(inv.issueDate)}</td>
-                  <td>{inv.roomNumber}</td>
-                  <td>{formatBillingMonth(inv.billingMonth)}</td>
-                  <td>
-                    <span className={`invoice-status invoice-${inv.status}`}>
-                      {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
-                    </span>
-                    {/* เกินกำหนดกี่วัน — หอต้องรู้ว่าใครค้างนานแค่ไหน ไม่ว่าจะเก็บค่าปรับหรือไม่ */}
-                    {inv.overdueDays > 0 && (
-                      <span className="invoice-overdue">เกิน {inv.overdueDays} วัน</span>
-                    )}
-                  </td>
-                  <td className="align-right">{formatBaht(inv.totalAmountCents)}</td>
-                  <td className="align-right">
-                    {inv.outstandingCents > 0 ? (
-                      <strong className="negative">{formatBaht(inv.outstandingCents)}</strong>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  <td className="align-right">
-                    <button
-                      type="button"
-                      className="link-btn"
-                      onClick={() => setOpenInvoiceId(inv.invoiceId)}
-                    >
-                      รายละเอียด
-                    </button>
-                    {/* ลบได้เฉพาะใบที่ยกเลิกแล้ว — ใบที่ยังใช้งานอยู่ต้องยกเลิกก่อน
-                        เป็นด่านที่บังคับให้ตัดสินใจสองครั้งก่อนเอกสารการเงินจะหายไป */}
-                    {/* และเจ้าของหอเท่านั้น — แถวถูกลบจริง เลขที่ที่ยื่นให้ผู้เช่าไปแล้ว
-                        จะชี้ไปที่ความว่างเปล่า (main บังคับที่ invoice:delete) */}
-                    {inv.status === 'cancelled' && user?.isOwner && (
-                      <button
-                        type="button"
-                        className="link-btn link-danger table-action icon-only"
-                        onClick={() => setDeleting(inv)}
-                        aria-label={`ลบใบแจ้งหนี้ ${inv.invoiceNumber}`}
-                      >
-                        <Icon name="trash" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {groups.map((group, index) => {
+              const open = isOpen(group.month, index)
+              return (
+                <tbody key={group.month}>
+                  <MonthGroupRow
+                    group={group}
+                    open={open}
+                    collapsible={multiMonth}
+                    onToggle={() => toggleMonth(group.month)}
+                  />
+                  {open &&
+                    group.items.map((inv) => (
+                      <tr key={inv.invoiceId}>
+                        <td>{inv.invoiceNumber}</td>
+                        <td>{formatDate(inv.issueDate)}</td>
+                        <td>{inv.roomNumber}</td>
+                        <td>
+                          <span className={`invoice-status invoice-${inv.status}`}>
+                            {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
+                          </span>
+                          {/* เกินกำหนดกี่วัน — หอต้องรู้ว่าใครค้างนานแค่ไหน ไม่ว่าจะเก็บค่าปรับหรือไม่ */}
+                          {inv.overdueDays > 0 && (
+                            <span className="invoice-overdue">เกิน {inv.overdueDays} วัน</span>
+                          )}
+                        </td>
+                        <td className="align-right">{formatBaht(inv.totalAmountCents)}</td>
+                        <td className="align-right">
+                          {inv.outstandingCents > 0 ? (
+                            <strong className="negative">{formatBaht(inv.outstandingCents)}</strong>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td className="align-right">
+                          <button
+                            type="button"
+                            className="link-btn"
+                            onClick={() => setOpenInvoiceId(inv.invoiceId)}
+                          >
+                            รายละเอียด
+                          </button>
+                          {/* ลบได้เฉพาะใบที่ยกเลิกแล้ว — ใบที่ยังใช้งานอยู่ต้องยกเลิกก่อน
+                              เป็นด่านที่บังคับให้ตัดสินใจสองครั้งก่อนเอกสารการเงินจะหายไป */}
+                          {/* และเจ้าของหอเท่านั้น — แถวถูกลบจริง เลขที่ที่ยื่นให้ผู้เช่าไปแล้ว
+                              จะชี้ไปที่ความว่างเปล่า (main บังคับที่ invoice:delete) */}
+                          {inv.status === 'cancelled' && user?.isOwner && (
+                            <button
+                              type="button"
+                              className="link-btn link-danger table-action icon-only"
+                              onClick={() => setDeleting(inv)}
+                              aria-label={`ลบใบแจ้งหนี้ ${inv.invoiceNumber}`}
+                            >
+                              <Icon name="trash" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              )
+            })}
           </table>
         )}
       </section>
@@ -416,6 +448,51 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
         />
       )}
     </>
+  )
+}
+
+// หัวกลุ่มเดือนในตาราง — ค้างอยู่ใต้หัวตารางตอนเลื่อน จะรู้ตลอดว่ากำลังดูเดือนไหน
+// บอกจำนวนใบ ยอดรวม และยอดค้างของเดือนนั้น (ไม่นับใบที่ยกเลิก — ไม่มีผลเป็นเงินแล้ว)
+// โหมดรายเดือนมีกลุ่มเดียว จึงไม่ต้องพับได้
+const INVOICE_COLUMNS = 7
+
+function MonthGroupRow({ group, open, collapsible, onToggle }) {
+  const live = group.items.filter((inv) => inv.status !== 'cancelled')
+  const total = live.reduce((sum, inv) => sum + inv.totalAmountCents, 0)
+  const outstanding = live.reduce((sum, inv) => sum + inv.outstandingCents, 0)
+
+  const content = (
+    <>
+      {collapsible && (
+        <span className={open ? 'month-group-chevron month-group-chevron-open' : 'month-group-chevron'}>
+          <Icon name="chevronRight" />
+        </span>
+      )}
+      <span className="month-group-name">รอบ{formatMonthName(group.month)}</span>
+      <span className="month-group-meta">
+        {group.items.length} ใบ · ยอดรวม {formatBaht(total)}
+        {outstanding > 0 && (
+          <>
+            {' · '}
+            <span className="negative">ค้าง {formatBaht(outstanding)}</span>
+          </>
+        )}
+      </span>
+    </>
+  )
+
+  return (
+    <tr className="month-group-row">
+      <th colSpan={INVOICE_COLUMNS} scope="colgroup">
+        {collapsible ? (
+          <button type="button" className="month-group-toggle" aria-expanded={open} onClick={onToggle}>
+            {content}
+          </button>
+        ) : (
+          <div className="month-group-toggle">{content}</div>
+        )}
+      </th>
+    </tr>
   )
 }
 

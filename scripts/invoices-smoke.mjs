@@ -947,6 +947,28 @@ check('วันที่รวมกับเงื่อนไขอื่น�
   assert(combined[0].roomNumber === '102', `ได้ห้อง ${combined[0].roomNumber}`)
 })
 
+// หน้าใบแจ้งหนี้เลือกดูทีละเดือน/ทั้งปี (เฟิสขอ 2026-09-26)
+group('กรองตามรอบเดือน / ทั้งปี')
+
+check('ทั้งปีได้ทุกใบของปีนั้น และแต่ละใบตรงปีจริง', () => {
+  const all = invoices.listInvoices(db, apartmentId)
+  const year = all[0].billingMonth.slice(0, 4)
+  const inYear = invoices.listInvoices(db, apartmentId, { billingYear: year })
+  const expected = all.filter((i) => i.billingMonth.startsWith(`${year}-`))
+  assert(inYear.length === expected.length && inYear.length > 0, `ได้ ${inYear.length} คาด ${expected.length}`)
+})
+
+check('ปีที่ไม่มีบิลได้ผลว่าง', () => {
+  const none = invoices.listInvoices(db, apartmentId, { billingYear: '1999' })
+  assert(none.length === 0, `ได้ ${none.length} ใบ`)
+})
+
+check('รอบเดือนรวมกับค้นหาห้องได้', () => {
+  const month = invoices.listInvoices(db, apartmentId, { roomNumber: '102' })[0].billingMonth
+  const list = invoices.listInvoices(db, apartmentId, { billingMonth: month, roomNumber: '102' })
+  assert(list.length > 0 && list.every((i) => i.billingMonth === month && i.roomNumber === '102'), 'กรองไม่ตรง')
+})
+
 // -----------------------------------------------------
 // 🔴 บั๊กที่เจอจริง 2026-08-10 (หอพักประตู 5): ออกบิลได้ห้องเดียวจากสามห้อง
 // ที่เหลือล้มด้วย UNIQUE constraint failed: invoices.invoice_number

@@ -44,6 +44,8 @@ import info from './assets/icons/heroicons/24/outline/information-circle.svg?raw
 import plus from './assets/icons/heroicons/24/outline/plus.svg?raw'
 import search from './assets/icons/heroicons/24/outline/magnifying-glass.svg?raw'
 import chevronDown from './assets/icons/heroicons/24/outline/chevron-down.svg?raw'
+import chevronLeft from './assets/icons/heroicons/24/outline/chevron-left.svg?raw'
+import chevronRight from './assets/icons/heroicons/24/outline/chevron-right.svg?raw'
 import trash from './assets/icons/heroicons/24/outline/trash.svg?raw'
 import back from './assets/icons/heroicons/24/outline/arrow-left.svg?raw'
 import logoutIcon from './assets/icons/heroicons/24/outline/arrow-right-on-rectangle.svg?raw'
@@ -84,6 +86,8 @@ const ICONS = {
   plus,
   search,
   chevronDown,
+  chevronLeft,
+  chevronRight,
   trash,
   copy,
   back,

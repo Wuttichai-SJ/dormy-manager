@@ -220,3 +220,165 @@
   margin-bottom: 4px;
 }
 
+
+/* ------------------------------------------------------------------
+   แถบเลือกช่วงเวลา (components/PeriodBar.jsx) — ใช้ร่วมกันทุกหน้ารายการ
+   [รายเดือน|รายปี|ทั้งหมด]  ‹ ตุลาคม 2026 ›  เดือนนี้
+   สูงเท่าช่องกรอก (41px) จะได้นั่งแถวเดียวกับช่องค้นหาในกล่องตัวกรอง
+   ------------------------------------------------------------------ */
+.period-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  /* ดันช่องค้นหาที่ตามมาไปชิดขวา — ช่วงเวลาอยู่ซ้ายเพราะเป็นตัวเลือกชุดข้อมูลหลัก */
+  margin-right: auto;
+}
+
+.period-modes {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.period-mode {
+  padding: 7px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.period-mode:hover {
+  color: var(--text);
+}
+
+.period-mode-active,
+.period-mode-active:hover {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-weak);
+}
+
+.period-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.period-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--text-soft);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.period-arrow:hover {
+  color: var(--accent);
+  border-color: var(--border-strong);
+}
+
+.period-arrow svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ชื่อเดือนกว้างคงที่ — ลูกศรขวาจะไม่กระโดดไปมาตอนเลื่อนจาก "พฤษภาคม" ไป "มิถุนายน" */
+.period-label {
+  min-width: 138px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+
+.period-today {
+  margin-left: 6px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------
+   ตารางแบ่งกลุ่มตามเดือน — หัวตารางกับหัวกลุ่มค้างจอตอนเลื่อน (กรอบที่เลื่อนคือ .content)
+   border-collapse ทำให้เส้นขอบของช่องที่ sticky ไม่เลื่อนตาม จึงวาดเส้นด้วย box-shadow แทน
+   ------------------------------------------------------------------ */
+.grouped-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 38px;
+  border-bottom: none;
+  box-shadow: inset 0 -2px 0 var(--border-strong);
+}
+
+.grouped-table .month-group-row th {
+  position: sticky;
+  top: 38px;
+  z-index: 1;
+  padding: 0;
+  background: var(--surface);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.month-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: none;
+}
+
+button.month-group-toggle {
+  cursor: pointer;
+}
+
+button.month-group-toggle:hover {
+  background: var(--bg);
+}
+
+.month-group-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.month-group-meta {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.month-group-chevron {
+  display: inline-flex;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.month-group-chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+.month-group-chevron-open {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .month-group-chevron {
+    transition: none;
+  }
+}
