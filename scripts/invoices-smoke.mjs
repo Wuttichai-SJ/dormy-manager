@@ -19,13 +19,10 @@ const tenants = await import('../src/main/db/tenants.js')
 const contracts = await import('../src/main/db/contracts.js')
 const meter = await import('../src/main/db/meterReadings.js')
 const invoices = await import('../src/main/db/invoices.js')
-// แปลงสตางค์เป็นข้อความบาทด้วยตัวเดียวกับที่โปรแกรมใช้ ไม่หาร 100 เอง (กฎใน money.js)
 const { centsToBaht } = await import('../src/main/money.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-invoices')
 
-// -----------------------------------------------------
-// ตั้งหอให้ครบเหมือนใช้งานจริง: ค่าน้ำ/ค่าไฟ → ผังห้อง → ค่าบริการ → สัญญา
 const apartment = apartments.insertApartment(db, {
   nameTh: 'หอทดสอบออกบิล',
   addressTh: '123 ถนนทดสอบ',
@@ -56,7 +53,6 @@ const trash = services.insertService(db, apartmentId, {
 })
 rooms.attachServicesToRooms(db, [room1.roomId], [wifi.serviceId, trash.serviceId])
 
-// บัญชีรับเงิน + ข้อความแจ้งชำระ — ต้องไปโผล่บนใบแจ้งหนี้ ไม่ใช่อยู่แต่ในหน้าตั้งค่า
 const banks = await import('../src/main/db/bankAccounts.js')
 const mainAccount = banks.insertBankAccount(db, apartmentId, {
   bankName: 'กสิกรไทย',
@@ -82,7 +78,6 @@ const somying = tenants.insertTenant(db, {
   phone: '0891234567'
 })
 
-// เงินประกันที่รับในวันทำสัญญาถูกออกเป็นใบเสร็จให้ทันที จึงต้องมีผู้รับเงินตั้งแต่ต้นไฟล์
 const staffUser = (await import('../src/main/db/users.js')).insertUser(db, {
   fullName: 'ผู้จัดการหอ',
   phone: '0801112222',
@@ -99,7 +94,6 @@ const contract1 = contracts.createContract(db, {
   deposit: '5000',
   depositPaymentMethod: 'cash',
   bookingFee: '0',
-  // เลขมิเตอร์วันเข้าพัก = เลขครั้งก่อนของการจดรอบแรก (ระบบไล่หาให้ ห้ามกรอกทับ)
   waterMeterStart: 2,
   electricMeterStart: 0,
   tenants: [somchai.tenantId],
@@ -127,7 +121,6 @@ meter.saveBatchReadings(db, batch.batchId, 'electric', [
   { roomId: room1.roomId, roomNumber: '101', currentReading: 300 }
 ])
 
-// -----------------------------------------------------
 group('เลขที่เอกสาร')
 
 check('รูปแบบ I + YYYYMM + ลำดับ 4 หลัก', () => {
@@ -145,15 +138,12 @@ check('ขึ้นเดือนใหม่เริ่มนับหนึ�
   assert(next === 'I2026090001', `ได้ ${next}`)
 })
 
-// ไม่ผูกกับลำดับที่แน่นอน เพราะการทำสัญญาข้างบนออกใบเสร็จเงินประกันไปแล้วหลายใบ
-// สิ่งที่ต้องพิสูจน์คือ "คนละตัวนับกับใบแจ้งหนี้" ไม่ใช่ว่าเลขเท่าไหร่
 check('ใบเสร็จใช้ตัวนับคนละชุดกับใบแจ้งหนี้', () => {
   const first = invoices.nextDocumentNumber(db, apartmentId, 'receipt', '2026-08-31')
   const second = invoices.nextDocumentNumber(db, apartmentId, 'receipt', '2026-08-31')
   assert(first.startsWith('R202608'), `ได้ ${first}`)
   assert(Number(second.slice(-4)) === Number(first.slice(-4)) + 1, `${first} → ${second}`)
 
-  // ตัวนับของใบแจ้งหนี้ต้องไม่ขยับตามการออกเลขใบเสร็จ
   const invoiceNumber = invoices.nextDocumentNumber(db, apartmentId, 'invoice', '2026-08-31')
   assert(invoiceNumber === 'I2026080003', `ได้ ${invoiceNumber}`)
 })
@@ -166,7 +156,6 @@ check('ชนิดเอกสารที่ไม่รู้จักต้�
   )
 })
 
-// -----------------------------------------------------
 group('วันครบกำหนดชำระ')
 
 check('ออกบิลหลังวันครบกำหนดของเดือนนี้ ให้เลื่อนไปเดือนหน้า', () => {
@@ -185,21 +174,13 @@ check('วันครบกำหนดนอกช่วง 1-28 ต้อง�
   throws(() => invoices.calculateDueDate('2026-08-01', 31), '1-28', 'ต้องกันวันที่เกิน 28')
 })
 
-// กติกาจริงของหอ ผู้ใช้ระบุ 2026-08-10: "จ่ายไม่เกินวันที่ 10 ของเดือน"
-// ออกบิล 01/03 → ครบกำหนด 10/03 (ตัวอย่างที่ผู้ใช้ยกมาเอง)
-//
-// ตรึงไว้เป็นเทสต์เพราะข้อนี้คือข้อสมมติสุดท้ายที่ค้างมาตลอดโปรเจกต์ ตอนนี้ยืนยันแล้ว
 check('กติกาของหอ: ออกบิลต้นเดือน ครบกำหนดวันที่ 10 ของเดือนเดียวกัน', () => {
   assert(invoices.calculateDueDate('2026-03-01', 10) === '2026-03-10', 'ควรเป็น 2026-03-10')
-  // ออกบิลปลายเดือนก่อนก็ยังได้วันที่ 10 ของเดือนที่ผู้เช่ากำลังจะอยู่
   assert(invoices.calculateDueDate('2026-02-25', 10) === '2026-03-10', 'ควรเป็น 2026-03-10')
-  // วันสุดท้ายที่ยังไม่เลื่อน
   assert(invoices.calculateDueDate('2026-03-09', 10) === '2026-03-10', 'ควรเป็น 2026-03-10')
-  // ออกบิลวันที่ 10 พอดี = วันครบกำหนดผ่านไปแล้ว จึงเลื่อนไปเดือนหน้า
   assert(invoices.calculateDueDate('2026-03-10', 10) === '2026-04-10', 'ควรเป็น 2026-04-10')
 })
 
-// -----------------------------------------------------
 group('ประกอบรายการในบิล')
 
 const built = invoices.buildInvoiceItems(db, {
@@ -216,8 +197,6 @@ check('มีค่าเช่า ค่าน้ำ ค่าไฟ และ�
   assert(types.filter((t) => t === 'service').length === 2, `ค่าบริการได้ ${types}`)
 })
 
-// ชื่อรายการเป็นไทยล้วน ไม่มีอังกฤษพ่วง (ผู้ใช้สั่ง 2026-08-08 — คอลัมน์แคบ อ่านยาก)
-// และเดือนบนเอกสารเป็น พ.ศ. (ผู้ใช้สั่ง 2026-08-10) — ฐานข้อมูลยังเก็บ '2026-08' เหมือนเดิม
 check('ค่าเช่าขึ้นเป็นไทยล้วน พร้อมเดือนแบบ MM-พ.ศ.', () => {
   const rent = built.items.find((i) => i.itemType === 'rent')
   assert(rent.description === 'ค่าเช่าห้อง (เดือน 08-2569)', `ได้ "${rent.description}"`)
@@ -230,8 +209,6 @@ check('ไม่มีคำอังกฤษหลงเหลือในช�
   }
 })
 
-// บิลค่าเช่าเดือนสิงหาคม → ค่าน้ำ-ค่าไฟเป็นของกรกฎาคม (เดือนก่อนหน้าเสมอ)
-// ไม่ขึ้นกับว่าใบจดมิเตอร์ลงวันที่อะไร
 check('ค่าน้ำคิดจากหน่วยที่จด พร้อมเดือนและเลขมิเตอร์ก่อน/หลัง', () => {
   const water = built.items.find((i) => i.itemType === 'water')
   assert(
@@ -247,15 +224,8 @@ check('ค่าไฟคิดจากหน่วยที่จดเช่�
   assert(elec.description.includes('(เดือน 07-2569)'), `ได้ "${elec.description}"`)
 })
 
-// -----------------------------------------------------
-// บิลใบเดียวมีสองเดือนอยู่ในนั้น: ค่าเช่าเป็นของเดือนที่กำลังจะอยู่ ค่าน้ำ-ค่าไฟเป็นของ
-// เดือนที่ผ่านไปแล้ว (ธรรมเนียมจริงของหอ — ผู้ใช้อธิบาย 2026-08-10)
 group('เดือนของค่าน้ำ-ค่าไฟบนบิล')
 
-// ยืนยันกับใบเสร็จจริงของหอแล้ว (2026-08-10): ออกวันที่ 1 ก.พ. → ค่าเช่า ก.พ. + ค่าน้ำ-ไฟ ม.ค.
-//
-// **คิดจากเดือนค่าเช่า ไม่ใช่จากวันจดมิเตอร์** — ผู้ใช้ไม่รู้ว่าหอจดมิเตอร์วันไหน
-// แต่รู้แน่ว่าออกบิลวันที่ 1 เสมอ วันจดมิเตอร์จึงเป็นหลักยึดที่เชื่อไม่ได้
 check('ค่าน้ำ-ค่าไฟเป็นของเดือนก่อนเดือนค่าเช่าเสมอ', () => {
   assert(invoices.utilityMonthOf('2026-02') === '2026-01', invoices.utilityMonthOf('2026-02'))
   assert(invoices.utilityMonthOf('2026-07') === '2026-06', invoices.utilityMonthOf('2026-07'))
@@ -271,8 +241,6 @@ check('เดือนที่ส่งมาไม่ถูกต้องค�
   }
 })
 
-// ออกบิลย้อนหลังก็ยังถูก — ตั้งเดือนค่าเช่าเป็นธันวาคม ค่าน้ำก็ต้องเป็นพฤศจิกายน
-// ไม่ใช่ค้างเป็นเดือนของใบจดมิเตอร์ที่หยิบมาใช้
 check('เปลี่ยนเดือนค่าเช่าแล้ว เดือนของค่าน้ำขยับตามไปด้วยเสมอ', () => {
   const other = invoices.buildInvoiceItems(db, {
     contractId: contract1.contractId,
@@ -285,8 +253,6 @@ check('เปลี่ยนเดือนค่าเช่าแล้ว เ
   assert(water.description.includes('(เดือน 11-2569)'), `ค่าน้ำได้ "${water.description}"`)
 })
 
-// เคสจริงจากใบเสร็จของหอ: จดมิเตอร์วันที่ 28 แล้วออกบิลวันที่ 1 ของเดือนถัดไป
-// กติกาเดิม (วันถัดจากวันจดมิเตอร์) จะได้เดือนค่าเช่าย้อนไปหนึ่งเดือนทุกครั้ง
 check('จดมิเตอร์วันที่ 28 แล้วออกบิลเดือนถัดไป ค่าน้ำต้องเป็นเดือนที่จด', () => {
   const lateBatch = meter.createBatch(db, apartmentId, '2027-06-28')
   meter.saveBatchReadings(db, lateBatch.batchId, 'water', [
@@ -332,8 +298,6 @@ check('ค่าบริการที่ติดธง VAT เท่าน�
   assert(trashItem.isTaxable === false, 'ค่าขยะไม่ได้ติดธง')
 })
 
-// ยืนยันกับบิลจริงของต้นแบบแล้ว: ค่าเช่ายกเว้น แต่ค่าน้ำ/ค่าไฟเสียภาษี
-// (การให้เช่าอสังหาฯ ได้รับยกเว้น VAT ส่วนการขายน้ำ/ไฟเป็นการขายสินค้า)
 check('ค่าเช่าได้รับยกเว้นเสมอ แม้หอจะเปิด VAT', () => {
   const rent = built.items.find((i) => i.itemType === 'rent')
   assert(rent.isTaxable === false, 'ค่าเช่าต้องไม่เสียภาษี')
@@ -346,16 +310,12 @@ check('ค่าน้ำและค่าไฟเสียภาษีเม�
   }
 })
 
-// -----------------------------------------------------
 group('รวมยอด')
 
 check('VAT บวกเพิ่มจากฐานภาษี ไม่ใช่รวมอยู่ในราคาแล้ว', () => {
   const totals = invoices.calculateInvoiceTotals(built.items, 7)
-  // ยกเว้น: ค่าเช่า 5,000 + ค่าขยะ 50 (ไม่ได้ติดธง VAT) = 5,050
   assert(totals.exemptAmountCents === 505000, `exempt ได้ ${totals.exemptAmountCents}`)
-  // ฐานภาษี: น้ำ 1,960 + ไฟ 2,100 + เน็ต 300 = 4,360
   assert(totals.taxableAmountCents === 436000, `taxable ได้ ${totals.taxableAmountCents}`)
-  // VAT 7%: 137.20 + 147.00 + 21.00 = 305.20
   assert(totals.vatAmountCents === 30520, `vat ได้ ${totals.vatAmountCents}`)
   assert(totals.totalAmountCents === 971520, `total ได้ ${totals.totalAmountCents}`)
 })
@@ -368,7 +328,6 @@ check('ส่วนลดที่เป็นยอดติดลบลดย�
   assert(totals.totalAmountCents === 70000, `ได้ ${totals.totalAmountCents}`)
 })
 
-// -----------------------------------------------------
 group('ออกบิลรายเดือน')
 
 const invoice1 = invoices.createMonthlyInvoice(db, {
@@ -391,11 +350,6 @@ check('ยอดบนหัวบิลตรงกับผลรวมขอ�
   assert(invoice1.paidAmountCents === 0, `ได้ ${invoice1.paidAmountCents}`)
 })
 
-// **ปี พ.ศ. อยู่แค่ข้อความบนเอกสาร ฐานข้อมูลยังเป็น ค.ศ. ทั้งหมด** (ผู้ใช้สั่ง 2026-08-10)
-//
-// ถ้าวันหนึ่งมีใครเผลอเก็บ พ.ศ. ลงคอลัมน์จริง การเทียบวันที่จะพังทั้งระบบ — ช่วงวันที่
-// ในการค้นหา ลำดับใบเสร็จ วันครบกำหนด ค่าปรับ ล้วนเทียบข้อความ 'YYYY-MM-DD' ตรงๆ
-// และแถวเก่ากับแถวใหม่จะแยกไม่ออกว่าเป็นปีระบบไหน
 check('ฐานข้อมูลเก็บวันที่และเดือนเป็น ค.ศ. แต่ข้อความบนเอกสารเป็น พ.ศ.', () => {
   const row = db
     .prepare('SELECT billing_month, issue_date, due_date FROM invoices WHERE invoice_id = ?')
@@ -414,7 +368,6 @@ check('บิลจำวันที่จดมิเตอร์ที่ใ�
   assert(invoice1.roomNumber === '101', `ได้ ${invoice1.roomNumber}`)
 })
 
-// ใบแจ้งหนี้ที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น
 check('บิลแนบชื่อผู้เช่าไปด้วย ผู้เช่าหลักมาก่อน', () => {
   assert(invoice1.tenants.length >= 1, `ได้ ${invoice1.tenants.length} คน`)
   assert(invoice1.tenants[0].isPrimary === true, 'ผู้เช่าหลักต้องอยู่ตัวแรก')
@@ -435,7 +388,6 @@ check('หอที่ปิดการแสดงข้อมูลผู้�
     .run(apartmentId)
 })
 
-// ผู้เช่าที่ได้รับบิลต้องโอนเงินได้ทันทีโดยไม่ต้องถามว่าโอนเข้าบัญชีไหน
 check('บิลแนบบัญชีธนาคารและข้อความแจ้งชำระไปด้วย บัญชีหลักมาก่อน', () => {
   assert(invoice1.bankAccounts.length === 2, `ได้ ${invoice1.bankAccounts.length} บัญชี`)
   assert(invoice1.bankAccounts[0].isDefault === true, 'บัญชีหลักต้องอยู่บนสุด')
@@ -487,7 +439,6 @@ check('เดือนที่ออกบิลผิดรูปแบบไ�
   )
 })
 
-// -----------------------------------------------------
 group('ราคาค่าบริการถูกตรึงไว้ที่สัญญา')
 
 check('ขึ้นราคากลางแล้วบิลรอบถัดไปยังคิดราคาเดิมของสัญญา', () => {
@@ -506,7 +457,6 @@ check('ขึ้นราคากลางแล้วบิลรอบถั�
   assert(wifiItem.totalAmountCents === 30000, `ได้ ${wifiItem.totalAmountCents} ควรยังเป็น 300 บาท`)
 })
 
-// -----------------------------------------------------
 group('พรีวิวและออกบิลทั้งหอ')
 
 check('พรีวิวคืนทุกห้องที่มีสัญญา และบอกว่าห้องไหนออกบิลไปแล้ว', () => {
@@ -560,7 +510,6 @@ check('กดซ้ำอีกรอบไม่สร้างอะไรเ�
   assert(again.skipped.length === 2, `ข้าม ${again.skipped.length} ใบ`)
 })
 
-// -----------------------------------------------------
 group('แก้ไขบิลที่ออกไปแล้ว')
 
 check('เพิ่มค่าบริการเข้าบิลแล้วยอดรวมถูกคิดใหม่', () => {
@@ -627,18 +576,14 @@ check('ชนิดรายการที่ไม่รู้จักไม�
   )
 })
 
-// -----------------------------------------------------
 group('ยกเลิกบิล')
 
-// เหตุผลบังคับกรอก (ผู้ใช้สั่ง 2026-08-11) เหมือนที่ลบใบแจ้งหนี้และยกเลิกใบเสร็จบังคับไว้
-// — ยกเลิกบิลทำให้ยอดหนี้ของห้องนั้นหายไปจากรายการค้างชำระ หนักพอกันกับการลบ
 check('ยกเลิกโดยไม่บอกเหตุผลไม่ได้', () => {
   throws(
     () => invoices.cancelInvoice(db, invoice1.invoiceId, { reason: '  ', cancelledBy: staffUser.user_id }),
     'เหตุผล',
     'ต้องบังคับเหตุผล'
   )
-  // ไม่ส่งอะไรมาเลย (ผู้เรียกแบบเก่า) ก็ต้องไม่ผ่าน ไม่ใช่ยกเลิกได้เงียบๆ
   throws(() => invoices.cancelInvoice(db, invoice1.invoiceId), 'เหตุผล', 'ต้องบังคับเหตุผล')
 })
 
@@ -697,8 +642,6 @@ check('ยกเลิกแล้วออกบิลเดือนเดิ�
   assert(reissued.status === 'unpaid', `ได้ ${reissued.status}`)
 })
 
-// -----------------------------------------------------
-// เจ้าของหอที่ไม่ได้ติ๊ก "เปิดการใช้งาน VAT" ต้องไม่เจอ VAT บนบิลจากทางไหนเลย
 group('หอที่ปิด VAT')
 
 const plainApartment = apartments.insertApartment(db, {
@@ -718,7 +661,6 @@ rooms.generateFloorPlan(db, plainId, [{ roomCount: 1 }])
 const plainRoom = rooms.listFloors(db, plainId)[0].rooms[0]
 rooms.setRoomRates(db, [plainRoom.roomId], { monthlyRent: '4000' })
 
-// ค่าบริการตัวนี้ติดธง "คำนวณ VAT" ไว้ แต่หอไม่ได้เปิด VAT — ธงต้องไม่มีผล
 const plainWifi = services.insertService(db, plainId, {
   name: 'ค่าอินเทอร์เน็ต',
   price: '300',
@@ -759,7 +701,6 @@ check('ค่าบริการที่ติดธง VAT ไว้ ไม�
 })
 
 check('ยอดรวมเท่ากับผลบวกของรายการตรงๆ ไม่มีอะไรบวกเพิ่ม', () => {
-  // เช่า 4000 + น้ำ 0 + ไฟ 0 + เน็ต 300 = 4300
   assert(plainInvoice.totalAmountCents === 430000, `ได้ ${plainInvoice.totalAmountCents}`)
   assert(plainInvoice.exemptAmountCents === 430000, `ได้ ${plainInvoice.exemptAmountCents}`)
 })
@@ -788,8 +729,6 @@ check('เพิ่มรายการเองแล้วสั่งให�
   assert(updated.totalAmountCents === 430000 + 100000, `ได้ ${updated.totalAmountCents}`)
 })
 
-// -----------------------------------------------------
-// ลบบิลที่ยกเลิกแล้วออกจากระบบ พร้อมเหตุผลที่บังคับกรอก (ผู้ใช้สั่ง 2026-08-07)
 group('ลบใบแจ้งหนี้')
 
 check('บิลที่ยังไม่ยกเลิก ลบไม่ได้', () => {
@@ -845,8 +784,6 @@ check('เหตุผลถูกเก็บไว้ในประวัต�
 })
 
 check('เลขที่ของใบที่ถูกลบไม่ถูกนำมาใช้ซ้ำ', () => {
-  // เดือน 08 ของห้องนี้มีใบที่ยังใช้งานอยู่แล้ว จึงออกของเดือนอื่นแทน
-  // (ตัวนับเลขที่นับตามเดือนของ "วันที่ออกบิล" ไม่ใช่รอบเดือน จึงยังอยู่ชุด 202608 เหมือนกัน)
   const reissued = invoices.createMonthlyInvoice(db, {
     contractId: contract1.contractId,
     billingMonth: '2026-10',
@@ -871,7 +808,6 @@ check('ลบใบที่ไม่มีอยู่ต้องแจ้ง�
   )
 })
 
-// -----------------------------------------------------
 group('รายการบิล')
 
 check('รายการบิลของหอไม่นับใบที่ยกเลิกออกจากยอดค้าง', () => {
@@ -901,7 +837,6 @@ check('กรองตามเลขที่ใบแจ้งหนี้แ�
   )
 })
 
-// ค้นหาตามวันที่ออกบิล (ผู้ใช้สั่ง 2026-08-07) — ใส่ข้างเดียวก็ต้องทำงาน
 group('ค้นหาตามวันที่ออกบิล')
 
 check('ระบุแต่วันเริ่ม = ตั้งแต่วันนั้นเป็นต้นไป', () => {
@@ -947,7 +882,6 @@ check('วันที่รวมกับเงื่อนไขอื่น�
   assert(combined[0].roomNumber === '102', `ได้ห้อง ${combined[0].roomNumber}`)
 })
 
-// หน้าใบแจ้งหนี้เลือกดูทีละเดือน/ทั้งปี (เฟิสขอ 2026-09-26)
 group('กรองตามรอบเดือน / ทั้งปี')
 
 check('ทั้งปีได้ทุกใบของปีนั้น และแต่ละใบตรงปีจริง', () => {
@@ -969,12 +903,6 @@ check('รอบเดือนรวมกับค้นหาห้องไ�
   assert(list.length > 0 && list.every((i) => i.billingMonth === month && i.roomNumber === '102'), 'กรองไม่ตรง')
 })
 
-// -----------------------------------------------------
-// 🔴 บั๊กที่เจอจริง 2026-08-10 (หอพักประตู 5): ออกบิลได้ห้องเดียวจากสามห้อง
-// ที่เหลือล้มด้วย UNIQUE constraint failed: invoices.invoice_number
-//
-// ต้นเหตุ: document_counters เดินเลขแยกรายหอ แต่ unique index บังคับไม่ซ้ำทั้งฐานข้อมูล
-// หอที่สองจึงเริ่มนับ 0001 ใหม่แล้วไปชนเลขของหอแรกในงวดเดียวกัน (migration 021)
 group('เลขที่เอกสารของสองหอในงวดเดียวกัน')
 
 const rivalApartment = apartments.insertApartment(db, {
@@ -1013,7 +941,6 @@ const rivalContracts = rivalRooms.map((room, index) => {
     waterMeterStart: 0,
     electricMeterStart: 0,
     tenants: [person.tenantId],
-    // ค่าเช่าเดือนแรกออกเป็นใบเสร็จตอนทำสัญญา จึงต้องมีผู้รับเงิน
     createdBy: staffUser.user_id
   })
 })
@@ -1030,15 +957,10 @@ check('หอที่สองออกบิลงวดเดียวกั�
     })
   )
   assert(made.length === 2, `ออกได้ ${made.length} ใบ`)
-  // เลขของแต่ละหอเริ่มที่ 0001 ของตัวเอง ไม่ใช่เดินต่อจากหออื่น
   assert(made[0].invoiceNumber.endsWith('0001'), `ได้ ${made[0].invoiceNumber}`)
   assert(made[1].invoiceNumber.endsWith('0002'), `ได้ ${made[1].invoiceNumber}`)
 })
 
-// ด่านสุดท้ายต้องอยู่ที่ฐานข้อมูล ไม่ใช่พึ่งตัวนับอย่างเดียว — เอกสารการเงินที่เลขซ้ำกัน
-// ในหอเดียวกันคือสิ่งที่ฐานข้อมูลต้องปฏิเสธเอง ไม่ว่าโค้ดข้างบนจะพลาดยังไง
-// ใช้เดือนไกลๆ ที่ยังไม่มีใครออกบิล เพราะยังมี partial unique index อีกอันคุมว่า
-// หนึ่งสัญญาออกบิลรายเดือนได้เดือนละใบ — ข้อนี้กำลังทดสอบเรื่อง "เลขที่" ไม่ใช่เรื่องนั้น
 const insertRaw = (contractId, apartmentIdOfRow, number, month) =>
   db
     .prepare(
@@ -1067,14 +989,10 @@ check('เลขที่ซ้ำในหอเดียวกัน ฐาน
   )
 })
 
-
-// -----------------------------------------------------
-// ตัวกรอง "ค้างชำระ / ชำระแล้ว" บนหน้าใบแจ้งหนี้ (ผู้ใช้สั่ง 2026-08-09)
 group('กรองตามการชำระ')
 
 const payments = await import('../src/main/db/payments.js')
 
-// ทำให้มีครบทั้งสามแบบในหอเดียว: จ่ายครบ / จ่ายบางส่วน / ยกเลิก
 const [toPayFull, toPayPartial] = invoices.listInvoices(db, apartmentId, { status: 'unpaid' })
 
 payments.recordInvoicePayment(db, {
@@ -1099,8 +1017,6 @@ check('แท็บ "ชำระแล้ว" คืนเฉพาะบิล
   assert(paid[0].outstandingCents === 0, `ยอดค้างต้องเป็น 0 ได้ ${paid[0].outstandingCents}`)
 })
 
-// จุดที่พลาดง่ายที่สุดของตัวกรองนี้ — ป้ายสถานะ `unpaid` ก็แปลว่า "ค้างชำระ" เหมือนกัน
-// ถ้ากรองแค่สถานะเดียว บิลที่จ่ายมาครึ่งเดียวจะไม่อยู่ในแท็บไหนเลยแล้วไม่มีใครตามเก็บ
 check('แท็บ "ค้างชำระ" รวมบิลที่จ่ายมาบางส่วนด้วย', () => {
   const outstanding = invoices.listInvoices(db, apartmentId, { settlement: 'outstanding' })
   assert(
@@ -1113,8 +1029,6 @@ check('แท็บ "ค้างชำระ" รวมบิลที่จ่
   )
 })
 
-// ยอดค้างของบิลที่ยกเลิกคำนวณออกมาเป็นบวกได้ (ยอดรวมยังอยู่ ไม่มีใครจ่าย)
-// แต่ไม่ใช่หนี้จริง จึงต้องกรองด้วยสถานะ ไม่ใช่ "ยอดค้าง > 0"
 check('บิลที่ยกเลิกไม่เข้าแท็บค้างชำระและชำระแล้ว', () => {
   const cancelled = invoices.listInvoices(db, apartmentId, { status: 'cancelled' })
   assert(cancelled.length > 0, 'ต้องมีบิลที่ยกเลิกอยู่ในหอนี้ ไม่งั้นเทสต์นี้ไม่ได้ทดสอบอะไร')
@@ -1128,8 +1042,6 @@ check('บิลที่ยกเลิกไม่เข้าแท็บค�
   }
 })
 
-// แท็บของตัวเอง (ผู้ใช้ขอ 2026-08-11) — เดิมบิลที่ยกเลิกต้องไปหาเอาใน "ทั้งหมด"
-// ปนกับบิลที่ยังต้องตามเก็บเงิน ทั้งที่เป็นที่เดียวที่ปุ่มลบถาวรโผล่
 check('แท็บ "ยกเลิกแล้ว" คืนเฉพาะบิลที่ยกเลิก และครบทุกใบ', () => {
   const tab = invoices.listInvoices(db, apartmentId, { settlement: 'cancelled' })
   const byStatus = invoices.listInvoices(db, apartmentId, { status: 'cancelled' })
@@ -1141,9 +1053,6 @@ check('แท็บ "ยกเลิกแล้ว" คืนเฉพาะบ
   )
 })
 
-// **"ทั้งหมด" ต้องยังหมายถึงทั้งหมดจริงๆ** ต่อให้บิลที่ยกเลิกมีแท็บของตัวเองแล้ว —
-// แท็บใหม่เป็นทางลัดไปหาเฉพาะกลุ่ม ไม่ได้ย้ายมันออกจาก "ทั้งหมด"
-// (ป้ายที่เขียนว่าทั้งหมดแล้วซ่อนของบางอย่างไว้ คือป้ายที่โกหก)
 check('ไม่ระบุแท็บ = ได้ทั้งหมด รวมใบที่ยกเลิก', () => {
   const all = invoices.listInvoices(db, apartmentId)
   const outstanding = invoices.listInvoices(db, apartmentId, { settlement: 'outstanding' })
@@ -1164,7 +1073,6 @@ check('แท็บใช้ร่วมกับเงื่อนไขค้�
   assert(list[0].invoiceId === toPayPartial.invoiceId, 'ได้คนละใบ')
 })
 
-// ตัวกรองที่สะกดผิดต้องดังออกมา ไม่ใช่เงียบแล้วคืนบิลทั้งหมดทั้งที่หน้าจอไฮไลต์แท็บอยู่
 check('ค่าแท็บที่ไม่รู้จักต้องเตือน', () => {
   throws(
     () => invoices.listInvoices(db, apartmentId, { settlement: 'overdue' }),
@@ -1173,9 +1081,6 @@ check('ค่าแท็บที่ไม่รู้จักต้องเ�
   )
 })
 
-// -----------------------------------------------------
-// ผู้เช่าจ่ายค่าเช่าเดือนแรกตอนย้ายเข้าแล้ว (createContract ออกใบเสร็จให้) ถ้าออกบิล
-// ของเดือนเดียวกันให้อีก ผู้เช่าจะโดนเก็บค่าเช่าเดือนนั้นสองรอบ
 group('ห้องที่เพิ่งย้ายเข้าเดือนนี้')
 
 const newcomerRoom = rooms.addFloor(db, apartmentId, { roomCount: 1 })
@@ -1206,7 +1111,6 @@ check('จ่ายค่าเช่าเดือนแรกแล้ว ม
     .prepare("SELECT amount_cents, purpose FROM payments WHERE contract_id = ? AND purpose = 'advance'")
     .get(newContract.contractId)
   assert(row !== undefined, 'ต้องมีใบเสร็จค่าเช่าเดือนแรก')
-  // เข้าพักวันที่ 1 → คิดเต็มเดือน
   assert(row.amount_cents === 400000, `ได้ ${row.amount_cents}`)
 })
 
@@ -1220,7 +1124,6 @@ check('พรีวิวออกบิลติดธงว่าห้อง�
   const row = rows.find((r) => r.roomNumber === newcomer.roomNumber)
   assert(row.startsThisMonth === true, 'ต้องติดธงว่าเพิ่งย้ายเข้าเดือนนี้')
 
-  // เดือนถัดไปเข้ารอบบิลปกติ ไม่ติดธงแล้ว
   const october = invoices.previewMonthlyBilling(db, {
     apartmentId,
     meterBatchId: sepBatch.batchId,
@@ -1250,10 +1153,6 @@ check('ออกบิลทั้งหอแล้วข้ามห้อง�
   )
 })
 
-// -----------------------------------------------------
-// บิลที่ถูกลดจนยอดรวมเหลือ 0 — เจ้าของหอใส่ส่วนลดเท่ากับยอดบิลทั้งใบ (addInvoiceItem รองรับ)
-// บิลแบบนี้ต้องนับว่าชำระครบทันที ไม่งั้นจะเคลียร์ไม่ได้เลย เพราะ recordInvoicePayment
-// ไม่รับยอด 0 และไม่รับยอดเกินยอดค้าง (ซึ่งเป็น 0) → ค้างในแท็บค้างชำระและบล็อกการย้ายออกถาวร
 group('บิลที่ยอดรวมเหลือ 0')
 
 const zeroBatch = meter.createBatch(db, apartmentId, '2027-10-31')
@@ -1304,25 +1203,14 @@ check('บิลที่ยกเลิกแล้วไม่ถูกดึ�
     reason: 'ทดสอบว่าสถานะยกเลิกชนะยอด 0',
     cancelledBy: staffUser.user_id
   })
-  // สถานะ 'cancelled' ต้องชนะเสมอ — refreshInvoiceStatus return ออกไปก่อนถึงตรรกะยอด 0
   invoices.refreshInvoiceStatus(db, cancelled.invoiceId, new Date().toISOString())
   const after = invoices.getInvoiceById(db, cancelled.invoiceId)
   assert(after.status === 'cancelled', `ได้ ${after.status}`)
 })
 
-// -----------------------------------------------------
-// อัตรา VAT ถูกตรึงไว้ที่บิลตั้งแต่วันออกบิล (migration 031)
-// -----------------------------------------------------
-// เจ้าของหอยืนยัน: บิลที่ออกไปแล้วต้องคง VAT เดิมตลอด **ต่อให้ผู้เช่ามาจ่ายช้าแล้วโดนค่าปรับ**
-// อัตราใหม่มีผลกับบิลที่ออกในรอบถัดไปเท่านั้น
-//
-// เส้นทางที่อันตรายที่สุดคือ addLateFeeItem -> recalculateTotals ซึ่งคิด VAT ของทั้งใบใหม่
-// ถ้า recalculateTotals ไปหยิบอัตราปัจจุบันของหอมาใช้ บิลเก่าจะเปลี่ยนยอดเองโดยไม่มีใครสั่ง
 group('อัตรา VAT ถูกตรึงไว้ที่บิล')
 
 const vatBatch = meter.createBatch(db, apartmentId, '2028-03-31')
-// ต้องมีเลขมิเตอร์จริง ไม่งั้นค่าน้ำ/ค่าไฟเป็น 0 แล้วบิลไม่มีฐานภาษีให้ทดสอบ
-// (ค่าเช่ายกเว้น VAT เสมอ ฐานภาษีจึงมาจากค่าน้ำ/ค่าไฟล้วน)
 meter.saveBatchReadings(db, vatBatch.batchId, 'water', [
   { roomId: newcomer.roomId, roomNumber: newcomer.roomNumber, currentReading: 60 }
 ])
@@ -1345,7 +1233,6 @@ check('บิลเก็บอัตราของตัวเองไว้�
 const vatAt7Cents = billAt7.vatAmountCents
 const totalAt7Cents = billAt7.totalAmountCents
 
-// เจ้าของหอเปลี่ยนอัตราเป็น 10% หลังจากออกบิลใบบนไปแล้ว
 apartments.updateApartment(db, apartmentId, {
   nameTh: 'หอทดสอบออกบิล',
   addressTh: '123 ถนนทดสอบ',
@@ -1364,7 +1251,6 @@ check('หอเปลี่ยนอัตราแล้ว แต่บิล
 
 check('บิลที่ออกใหม่หลังเปลี่ยนอัตรา ใช้อัตราใหม่', () => {
   const nextBatch = meter.createBatch(db, apartmentId, '2028-04-30')
-  // หน่วยที่ใช้เท่ากับรอบก่อนพอดี ฐานภาษีจึงเท่ากัน ต่างกันแค่อัตรา
   meter.saveBatchReadings(db, nextBatch.batchId, 'water', [
     { roomId: newcomer.roomId, roomNumber: newcomer.roomNumber, currentReading: 120 }
   ])
@@ -1380,7 +1266,6 @@ check('บิลที่ออกใหม่หลังเปลี่ยน�
   })
   assert(billAt10.vatRate === 10, `ได้ ${billAt10.vatRate}`)
 
-  // ฐานภาษีเท่ากันทั้งสองใบ (ค่าน้ำ/ค่าไฟชุดเดียวกัน) ยอด VAT จึงต้องต่างกันตามอัตรา
   const oldBill = invoices.getInvoiceById(db, billAt7.invoiceId)
   if (billAt10.taxableAmountCents === oldBill.taxableAmountCents) {
     assert(
@@ -1390,7 +1275,6 @@ check('บิลที่ออกใหม่หลังเปลี่ยน�
   }
 })
 
-// 🔴 ข้อสำคัญที่สุดของกลุ่มนี้ — ตรงกับสถานการณ์ที่เจ้าของหอระบุมาเป๊ะ
 check('ผู้เช่ามาจ่ายช้าจนโดนค่าปรับ VAT ของบิลเก่าต้องไม่ขยับ', () => {
   invoices.addLateFeeItem(db, billAt7.invoiceId, { amountCents: 5000, overdueDays: 5 })
 
@@ -1400,7 +1284,6 @@ check('ผู้เช่ามาจ่ายช้าจนโดนค่า�
     after.vatAmountCents === vatAt7Cents,
     `ยอด VAT ถูกคิดใหม่: ${vatAt7Cents} -> ${after.vatAmountCents}`
   )
-  // ยอดรวมต้องเพิ่มขึ้นเท่าค่าปรับพอดี ไม่ใช่เพิ่มเพราะ VAT ถูกคิดใหม่ด้วย
   assert(
     after.totalAmountCents === totalAt7Cents + 5000,
     `ยอดรวมควรเพิ่มแค่ค่าปรับ 50 บาท: ${totalAt7Cents} -> ${after.totalAmountCents}`
@@ -1415,13 +1298,11 @@ check('แก้รายการในบิลเก่าด้วยมื�
     amount: '100',
     isTaxable: true
   })
-  // 100 บาท ที่อัตรา 7% = 7 บาท ไม่ใช่ 10 บาท
   assert(
     after.vatAmountCents - before.vatAmountCents === 700,
     `VAT ที่เพิ่มควรเป็น 7 บาท ได้ ${(after.vatAmountCents - before.vatAmountCents) / 100}`
   )
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('โมดูลออกบิลทำงานครบทุกเส้นทาง')

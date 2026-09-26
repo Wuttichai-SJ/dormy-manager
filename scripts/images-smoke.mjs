@@ -16,7 +16,6 @@ const images = await import('../src/main/db/images.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-images')
 
-// PNG 1x1 พิกเซลจริง — เล็กที่สุดที่ยังเป็นไฟล์ png ถูกต้อง
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64'
@@ -29,7 +28,6 @@ const apartment = apartments.insertApartment(db, {
   lateFeePerDay: '0'
 })
 
-// -----------------------------------------------------
 group('ตรวจไฟล์')
 
 check('รับเฉพาะชนิดไฟล์รูปภาพที่รองรับ', () => {
@@ -37,7 +35,6 @@ check('รับเฉพาะชนิดไฟล์รูปภาพที�
   assert(errors.some((e) => e.includes('png, jpg, webp')), errors.join(', '))
 })
 
-// svg ฝังสคริปต์ได้ และเราเอารูปไปแสดงในหน้าจอที่มีสะพาน IPC อยู่
 check('ไม่รับ svg', () => {
   const errors = images.validateImageInput({ mimeType: 'image/svg+xml', bytes: PNG_1X1 })
   assert(errors.length === 1, errors.join(', '))
@@ -54,7 +51,6 @@ check('ไฟล์เกิน 3 MB ไม่ผ่าน และบอกข
   assert(errors.some((e) => e.includes('3 MB')), errors.join(', '))
 })
 
-// -----------------------------------------------------
 group('เก็บและอ่านกลับ')
 
 const stored = images.insertImage(db, { mimeType: 'image/png', bytes: PNG_1X1 })
@@ -64,7 +60,6 @@ check('เก็บแล้วได้ id และขนาดที่ถู
   assert(stored.byteSize === PNG_1X1.length, `ขนาด ${stored.byteSize}`)
 })
 
-// จุดสำคัญ: ไบต์ที่อ่านกลับต้องเท่ากับที่ใส่เข้าไปเป๊ะ ไม่ถูกแปลงเป็นข้อความระหว่างทาง
 check('อ่านกลับมาเป็น data URL ที่ถอดกลับได้ตรงไบต์เดิม', () => {
   const url = images.getImageDataUrl(db, stored.imageId)
   assert(url.startsWith('data:image/png;base64,'), url.slice(0, 40))
@@ -79,7 +74,6 @@ check('อ่านข้อมูลประกอบได้โดยไม�
   assert(info.byteSize === PNG_1X1.length, `${info.byteSize}`)
 })
 
-// รูปทุกจุดในระบบไม่บังคับ — ส่ง null เข้ามาต้องได้ null กลับ ไม่ใช่ระเบิด
 check('id ที่เป็น null คืน null ไม่ใช่ error', () => {
   assert(images.getImageDataUrl(db, null) === null, 'ควรได้ null')
   assert(images.getImageInfo(db, null) === null, 'ควรได้ null')
@@ -97,7 +91,6 @@ check('ไฟล์ที่ไม่ผ่านการตรวจ เก็
   )
 })
 
-// -----------------------------------------------------
 group('ผูกกับหอพัก และเก็บกวาดรูปกำพร้า')
 
 check('QR ของหอเป็นค่าว่างได้ (ไม่บังคับใส่)', () => {
@@ -124,7 +117,6 @@ check('รูปที่ยังมีเจ้าของ ไม่ถูก
   assert(images.getImageInfo(db, stored.imageId) !== null, 'รูปหายไปทั้งที่ยังใช้อยู่')
 })
 
-// เปลี่ยน QR ใหม่แล้วไบต์ของใบเก่าต้องไม่ค้างอยู่ในไฟล์ฐานข้อมูลตลอดไป
 check('รูปที่ไม่มีเจ้าของแล้ว ถูกเก็บกวาดทิ้ง', () => {
   const replacement = images.insertImage(db, { mimeType: 'image/png', bytes: PNG_1X1 })
   db.prepare('UPDATE apartments SET qr_code_image_id = ? WHERE apartment_id = ?').run(
@@ -138,9 +130,6 @@ check('รูปที่ไม่มีเจ้าของแล้ว ถู
   assert(images.getImageInfo(db, replacement.imageId) !== null, 'รูปใหม่ต้องยังอยู่')
 })
 
-// -----------------------------------------------------
-// QR ของหอผูกกับ apartments.qr_code_image_id — ลบหอแล้วรูปต้องไม่ค้างอยู่ในไฟล์ฐานข้อมูล
-// (ไฟล์ฐานข้อมูลถูกคัดลอกทั้งไฟล์ตอนสำรอง รูปที่ไม่มีใครใช้จึงติดไปด้วยทุกครั้ง)
 group('รูป QR กับวงจรชีวิตของหอ')
 
 check('ลบหอแล้วรูป QR ของหอนั้นถูกเก็บกวาดไปด้วย', () => {
@@ -162,6 +151,5 @@ check('ลบหอแล้วรูป QR ของหอนั้นถูก
   assert(images.getImageDataUrl(db, image.imageId) === null, 'รูปควรถูกเก็บกวาดไปพร้อมหอ')
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('การเก็บรูปภาพเป็น BLOB ทำงานครบทุกเส้นทาง')

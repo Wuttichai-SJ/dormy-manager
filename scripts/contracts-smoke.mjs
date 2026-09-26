@@ -19,7 +19,6 @@ const contracts = await import('../src/main/db/contracts.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-contracts')
 
-// ตั้งฉากหลัง: หอ 1 หอ / ชั้น 1 ชั้น / ห้อง 2 ห้อง / ค่าบริการ 1 รายการผูกกับห้องแรก
 const apartment = apartments.insertApartment(db, {
   nameTh: 'หอทดสอบสัญญา',
   addressTh: 'ที่อยู่',
@@ -45,8 +44,6 @@ const somying = tenants.insertTenant(db, {
   phone: '0822222222'
 })
 
-// สัญญาที่มีเงินจอง ระบบจะออกใบเสร็จเงินประกันให้ก้อนนั้นทันที (ดู createContract)
-// ใบเสร็จต้องมีผู้รับเงินเสมอ จึงต้องมีผู้ใช้ในระบบให้อ้างถึง
 const staff = (await import('../src/main/db/users.js')).insertUser(db, {
   fullName: 'ผู้จัดการหอ',
   phone: '0801112222',
@@ -67,17 +64,13 @@ const BASE = {
   createdBy: staff.user_id
 }
 
-// -----------------------------------------------------
 group('ค่าเช่าล่วงหน้าตามสัดส่วนวัน')
 
-// ตัวเลขชุดนี้ถอดจากหน้าจอจริงของต้นแบบ: ค่าเช่า 5,000 เข้าพัก 18 ก.ค. → 2,258.06
 check('เข้าพักกลางเดือน คิดเฉพาะวันที่เหลือ', () => {
-  // เข้า 18 ก.ค. = อยู่ 14 วัน (18-31) → 5000 ÷ 30 × 14 = 2,333.33 → ปัดเป็น 2,333
   const got = contracts.calculateAdvanceRentCents(500000, '2026-07-18')
   assert(got === 233300, `ควรได้ 233300 สตางค์ ได้ ${got}`)
 })
 
-// **กติกาจริงของหอ ยืนยันกับเจ้าของหอ 2026-08-10** — "เข้าอยู่ช่วงวันที่ 2 หรือ 3 ก็คิดเต็มเดือน"
 check('เข้าพักวันที่ 1-3 คิดเต็มเดือน ไม่ปัดลดให้', () => {
   for (const day of ['01', '02', '03']) {
     const got = contracts.calculateAdvanceRentCents(500000, `2026-07-${day}`)
@@ -86,42 +79,29 @@ check('เข้าพักวันที่ 1-3 คิดเต็มเด�
 })
 
 check('เข้าพักวันที่ 4 เริ่มคิดตามวัน', () => {
-  // 4-31 ก.ค. = 28 วัน → 5000 ÷ 30 × 28 = 4,666.67 → ปัดเป็น 4,667 (น้อยกว่าเต็มเดือน)
   const got = contracts.calculateAdvanceRentCents(500000, '2026-07-04')
   assert(got === 466700, `ได้ ${got}`)
   assert(got < 500000, 'ต้องไม่เกินค่าเช่าเต็มเดือน')
 })
 
-// **หารด้วย 30 เสมอ ไม่ใช่จำนวนวันจริงของเดือน** — เจ้าของหอบอกว่า "เอาราคาห้องหาร 30 วัน
-// แล้วนับวันคิด" ต่างจากของเดิมที่หารด้วยจำนวนวันจริง ซึ่งเพี้ยนทุกเดือนที่ไม่มี 30 วัน
 check('หารด้วย 30 เสมอ เดือน 31 วันกับ 28 วันจึงได้ต่อวันเท่ากัน', () => {
-  // 5000 ÷ 30 = 166.67 → ปัดเป็น 167 บาท
   const perDay = 16700
 
-  // ก.ค. 31 วัน เข้าวันสุดท้าย = อยู่ 1 วัน
   assert(contracts.calculateAdvanceRentCents(500000, '2026-07-31') === perDay, 'ก.ค. วันสุดท้าย')
-  // ก.พ. 28 วัน เข้าวันสุดท้าย = อยู่ 1 วัน ต้องได้เท่ากันเป๊ะ
   assert(contracts.calculateAdvanceRentCents(500000, '2026-02-28') === perDay, 'ก.พ. วันสุดท้าย')
 })
 
 check('ปีอธิกสุรทินนับวันที่อยู่จริงถูก แต่ยังหารด้วย 30', () => {
-  // 2028 เป็นปีอธิกสุรทิน ก.พ. มี 29 วัน — เข้า 20 ก.พ. = อยู่ 10 วัน (20-29)
   const got = contracts.calculateAdvanceRentCents(300000, '2028-02-20')
   assert(got === Math.round((300000 * 10) / 30), `ได้ ${got}`)
 
-  // เข้าวันที่ 1 ยังคิดเต็มเดือนเหมือนเดิม
   assert(contracts.calculateAdvanceRentCents(290000, '2028-02-01') === 290000, 'วันที่ 1 เต็มเดือน')
 })
 
-// **ปัดเป็นบาทเต็ม** (โอ๊คสั่ง 2026-09-26) — เศษตั้งแต่ 50 สตางค์ปัดขึ้น ต่ำกว่านั้นปัดลง
 check('ค่าเช่าล่วงหน้าปัดเป็นบาทเต็ม: 0.50 ขึ้นไปปัดขึ้น ต่ำกว่าปัดลง', () => {
-  // ค่าเช่า 4,515 อยู่ 1 วัน = 150.50 พอดี → 151
   assert(contracts.calculateAdvanceRentCents(451500, '2026-09-30') === 15100, 'เศษ .50 ต้องปัดขึ้น')
-  // ค่าเช่า 4,991.70 อยู่ 1 วัน = 166.39 → 166
   assert(contracts.calculateAdvanceRentCents(499170, '2026-09-30') === 16600, 'เศษ .39 ต้องปัดลง')
-  // ค่าเช่า 5,000 เข้า 29 มิ.ย. อยู่ 2 วัน = 333.33 → 333
   assert(contracts.calculateAdvanceRentCents(500000, '2026-06-29') === 33300, '333.33 → 333')
-  // ผลลัพธ์เป็นบาทเต็มเสมอเมื่อคิดตามวัน
   for (let day = 4; day <= 31; day++) {
     const got = contracts.calculateAdvanceRentCents(498750, `2026-07-${String(day).padStart(2, '0')}`)
     assert(got % 100 === 0, `เข้าวันที่ ${day} ยังมีเศษสตางค์: ${got}`)
@@ -132,7 +112,6 @@ check('เข้าวันที่ 1-3 ไม่ปัด — เก็บต
   assert(contracts.calculateAdvanceRentCents(499950, '2026-07-02') === 499950, 'ราคาห้อง 4,999.50 ต้องคงเดิม')
 })
 
-// -----------------------------------------------------
 group('ตรวจข้อมูล')
 
 check('ต้องมีผู้เช่าอย่างน้อยหนึ่งคน', () => {
@@ -167,9 +146,6 @@ check('เลขมิเตอร์ติดลบไม่ได้', () => {
   assert(errors.some((e) => e.includes('เลขมิเตอร์ค่าน้ำ')), errors.join(', '))
 })
 
-// `Number('')` เป็น 0 ซึ่งเป็นเลขมิเตอร์ที่อ่านได้จริง ช่องที่ลืมกรอกจึงเคยผ่านเข้าไปเงียบๆ
-// เป็น 0 ทั้งที่ป้ายเขียนว่า "* จำเป็น" — และเลขนี้เป็นเลขตั้งต้นของบิลใบแรก
-// ห้องที่หน้าปัดเดินอยู่ที่ 8,000 จะกลายเป็นใช้ไป 8,000 หน่วยในบิลแรกของผู้เช่าใหม่
 check('เลขมิเตอร์ที่เว้นว่างไว้ต้องไม่ผ่านเป็น 0 เงียบๆ', () => {
   for (const key of ['waterMeterStart', 'electricMeterStart']) {
     const errors = contracts.validateContractInput({
@@ -194,7 +170,6 @@ check('กรอกศูนย์มาจริงๆ ยังผ่านไ
   assert(!errors.some((e) => e.includes('เลขมิเตอร์')), errors.join(', '))
 })
 
-// -----------------------------------------------------
 group('สร้างสัญญา')
 
 const created = contracts.createContract(db, {
@@ -206,11 +181,9 @@ const created = contracts.createContract(db, {
 check('เก็บเงินเป็นสตางค์ และคิดค่าเช่าล่วงหน้าให้เอง', () => {
   assert(created.rentAmountCents === 500000, `ค่าเช่า ${created.rentAmountCents}`)
   assert(created.depositAmountCents === 500000, `เงินประกัน ${created.depositAmountCents}`)
-  // เข้าพัก 18 ก.ค. = อยู่ 14 วัน → 5000 ÷ 30 × 14 = 2,333.33 (กติกาของหอ ยืนยัน 2026-08-10)
   assert(created.advancePaymentAmountCents === 233300, `ล่วงหน้า ${created.advancePaymentAmountCents}`)
 })
 
-// เลขที่ใบจองออกให้เฉพาะตอนมีเงินจองจริง ไม่ใช่ออกให้ทุกสัญญา
 check('ไม่มีเงินจอง ก็ไม่ต้องมีเลขที่ใบจอง', () => {
   assert(created.bookingReceiptNo === null, `ได้ ${created.bookingReceiptNo}`)
 })
@@ -243,7 +216,6 @@ check('ผู้เช่าหลายคนต่อสัญญา คนแ
   assert(created.tenants.filter((t) => t.isPrimary).length === 1, 'ผู้เช่าหลักต้องมีคนเดียว')
 })
 
-// จุดสำคัญของโมดูลนี้: ราคาค่าบริการถูกตรึงไว้ ณ วันทำสัญญา
 check('ค่าบริการของห้องถูกถ่ายสำเนาลงสัญญา', () => {
   assert(created.services.length === 1, `ได้ ${created.services.length} รายการ`)
   assert(created.services[0].priceCents === 30000, `ราคา ${created.services[0].priceCents}`)
@@ -296,16 +268,11 @@ check('ผู้เช่าที่มีสัญญาแล้ว ลบไ
 
 check('จำนวนสัญญาที่ยังใช้งานอยู่ของผู้เช่าถูกนับถูก', () => {
   const t = tenants.getTenantById(db, somying.tenantId)
-  // ห้อง 101 (ผู้เช่าร่วม) + 102 + 104 (เทสต์เลขที่ใบจองแบบกรอกเอง)
   assert(t.activeContracts === 3, `สมหญิงอยู่ 3 สัญญา ได้ ${t.activeContracts}`)
 })
 
-// -----------------------------------------------------
 group('สำเนากติกาเงินประกันลงสัญญา')
 
-// 🔴 บั๊กที่เจอตอนทำหน้าตั้งค่านโยบาย (2026-08-14): INSERT ของ createContract ไม่ได้ใส่
-// `deposit_refund_policy` เลย สัญญาทุกใบจึงได้ 'on_full_term' จาก DEFAULT ของตาราง
-// ต่อให้หอตั้งไว้เป็นอย่างอื่น — เงียบสนิทเพราะค่า DEFAULT บังเอิญตรงกับกติกาจริงของหอนี้
 check('สัญญาใหม่ได้กติกาปัจจุบันของหอครบทั้งสามค่า', () => {
   const home = apartments.insertApartment(db, {
     nameTh: 'หอทดสอบสำเนากติกา',
@@ -348,7 +315,6 @@ check('สัญญาใหม่ได้กติกาปัจจุบั�
   assert(row.deposit_min_stay_months === 9, `ได้ ${row.deposit_min_stay_months}`)
 })
 
-// **หัวใจของการ snapshot**: ผู้เช่าที่เซ็นตอนกติกาเป็นอย่างหนึ่ง ต้องไม่โดนกติกาใหม่ย้อนหลัง
 check('เปลี่ยนกติกาของหอทีหลัง สัญญาที่ทำไปแล้วต้องไม่เปลี่ยนตาม', () => {
   const home = apartments.insertApartment(db, {
     nameTh: 'หอทดสอบไม่ย้อนหลัง',
@@ -389,6 +355,5 @@ check('เปลี่ยนกติกาของหอทีหลัง ส
   assert(row.deposit_notice_days === 15, `จำนวนวันถูกเขียนทับเป็น ${row.deposit_notice_days}`)
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('โมดูลสัญญาเช่าทำงานครบทุกเส้นทาง')

@@ -31,7 +31,6 @@ function newApartment(name) {
 const apartment = newApartment('หอพักทดสอบ')
 const id = apartment.apartmentId
 
-// ตั้งค่าน้ำ/ไฟไว้ก่อน เพื่อดูว่าห้องที่สร้างได้ค่านี้ไปจริงไหม
 util.saveUtilityDefaults(db, id, {
   water: { enabled: true, billingType: 'actual', unitPrice: '18', showReadingInInvoice: true },
   electric: {
@@ -43,7 +42,6 @@ util.saveUtilityDefaults(db, id, {
   }
 })
 
-// -----------------------------------------------------
 group('เลขห้องอัตโนมัติ')
 
 check('ชั้น 1 ได้ 101 102 103', () => {
@@ -56,7 +54,6 @@ check('ชั้น 2 ได้ 201', () => {
 })
 
 check('ห้องที่ 10 ขึ้นไปยังเรียงถูก (เติมศูนย์ 2 หลัก)', () => {
-  // ถ้าไม่เติมศูนย์ ชั้น 1 ที่มี 12 ห้องจะเรียงเป็น 101, 1010, 1011, 102 ...
   assert(rooms.buildRoomNumber(1, 9) === '110', rooms.buildRoomNumber(1, 9))
   assert(rooms.buildRoomNumber(1, 11) === '112', rooms.buildRoomNumber(1, 11))
 })
@@ -65,7 +62,6 @@ check('ชั้น 10 ได้ 1001', () => {
   assert(rooms.buildRoomNumber(10, 0) === '1001', rooms.buildRoomNumber(10, 0))
 })
 
-// -----------------------------------------------------
 group('ตรวจข้อมูลผังห้อง')
 
 check('ไม่ระบุชั้นเลยไม่ผ่าน', () => {
@@ -91,7 +87,6 @@ check('รายงานข้อผิดพลาดทุกชั้นพ�
   assert(errors[1].includes('ชั้นที่ 3'), errors[1])
 })
 
-// -----------------------------------------------------
 group('สร้างผังห้อง')
 
 const plan = rooms.generateFloorPlan(db, id, [
@@ -142,7 +137,6 @@ check('ทุกห้องได้ค่าน้ำ/ค่าไฟของ
   assert(one.water_unit_price_cents === 1800, `ได้ ${one.water_unit_price_cents}`)
   assert(one.electric_billing_type === 'minimum', one.electric_billing_type)
   assert(one.electric_min_charge_cents === 10000, `ได้ ${one.electric_min_charge_cents}`)
-  // toggle แสดงเลขมิเตอร์ต้องตามหอมาด้วย ไม่ใช่ใช้ค่า default ของตาราง
   assert(one.show_electric_reading_in_invoice === 0, 'ควรคัดลอกค่า toggle มาด้วย')
 })
 
@@ -164,7 +158,6 @@ check('หอที่ยังไม่ตั้งค่าน้ำ/ไฟ �
   assert(setting.water_billing_type === 'actual', setting.water_billing_type)
 })
 
-// -----------------------------------------------------
 group('เลขห้องซ้ำ')
 
 check('เพิ่มห้องเลขซ้ำในหอเดียวกันไม่ได้ แม้อยู่คนละชั้น', () => {
@@ -197,16 +190,9 @@ check('แก้เลขห้องเป็นเลขเดิมของ�
   assert(updated.isActive === false, 'ควรถูกปิดใช้งาน')
 })
 
-// บั๊กที่เจอจริง 2026-08-10 (หอพักประตู 5 ห้อง 102): ห้องถูกปิดใช้งานทั้งที่ยังมีสัญญาอยู่
-// หน้าห้องยังขึ้นว่า "ไม่ว่าง" แต่ห้องหายจากใบจดมิเตอร์ (ซึ่งกรอง is_active = 1)
-// ผู้เช่าเลยอยู่ไปโดยไม่ถูกจดมิเตอร์และไม่มีใครสังเกต
-// ใช้หอแยกของตัวเอง ไม่ไปยุ่งกับห้องที่เทสต์ข้ออื่นใช้อยู่ (สร้างสัญญาแล้วห้องนั้นลบไม่ได้อีก)
-// **import ต้องอยู่นอก check()** — check() เป็น synchronous ส่ง async function เข้าไป
-// จะได้ Promise กลับมาแล้วนับว่าผ่านทันทีโดยไม่รอผล (กติกาชุดทดสอบ)
 const tenantsDb = await import('../src/main/db/tenants.js')
 const contractsDb = await import('../src/main/db/contracts.js')
 
-// ค่าเช่าเดือนแรกถูกออกเป็นใบเสร็จตอนทำสัญญา จึงต้องมีผู้รับเงิน
 const staff = (await import('../src/main/db/users.js')).insertUser(db, {
   fullName: 'ผู้จัดการหอ',
   phone: '0801112222',
@@ -252,7 +238,6 @@ check('ห้องที่ยังมีสัญญาใช้งานอ�
     'ต้องกันไม่ให้ปิดห้องที่มีคนอยู่'
   )
 
-  // เปิดใช้งานอยู่แล้วบันทึกซ้ำได้ตามปกติ ไม่ใช่โดนบล็อกไปด้วย
   const result = rooms.updateRoom(db, room.roomId, {
     roomNumber: room.roomNumber,
     roomTypeName: room.roomTypeName,
@@ -264,7 +249,6 @@ check('ห้องที่ยังมีสัญญาใช้งานอ�
   )
 })
 
-// ห้องว่างที่เลิกใช้จริงๆ ยังต้องปิดได้ ไม่งั้นกฎข้างบนจะกลายเป็นห้ามปิดห้องทั้งระบบ
 check('ห้องที่ไม่มีสัญญาใช้งานอยู่ ปิดใช้งานได้ตามปกติ', () => {
   rooms.addRoom(db, lockRoom.floorId, { roomNumber: '199' })
   const spare = rooms
@@ -282,7 +266,6 @@ check('ห้องที่ไม่มีสัญญาใช้งานอ�
   )
 })
 
-// -----------------------------------------------------
 group('เพิ่มชั้น / เพิ่มห้อง')
 
 check('เพิ่มชั้นใหม่ได้เลขห้องต่อจากชั้นที่มี', () => {
@@ -311,8 +294,6 @@ check('เพิ่มห้องเดี่ยวพร้อมประเ�
   assert(setting === 1, 'ห้องที่เพิ่มทีหลังต้องมีการตั้งค่าค่าน้ำ/ไฟด้วย')
 })
 
-// ปุ่ม "เพิ่มห้อง" ในผังห้องเรียกโดยไม่ส่งเลขห้องมา ระบบต้องตั้งเลขให้เอง
-// และต้องข้ามเลขที่มีคนใช้ไปแล้ว ไม่ใช่ +1 แล้วชนจนโยน error ใส่หน้าคนกด
 check('เพิ่มห้องโดยไม่ระบุเลข ระบบตั้งเลขว่างถัดไปให้เอง', () => {
   const floor1 = rooms.listFloors(db, id)[0]
   const before = new Set(floor1.rooms.map((r) => r.roomNumber))
@@ -323,7 +304,6 @@ check('เพิ่มห้องโดยไม่ระบุเลข ระ
   assert(added.length === 1, `ควรได้ห้องใหม่ 1 ห้อง ได้ ${added.length}`)
   assert(/^1\d\d$/.test(added[0].roomNumber), `เลขห้องควรเป็นของชั้น 1 ได้ ${added[0].roomNumber}`)
 
-  // เก็บกวาดให้เรียบร้อย เทสต์ถัดๆ ไปนับจำนวนห้องของชั้นนี้อยู่
   rooms.deleteRoom(db, added[0].roomId)
 })
 
@@ -342,11 +322,8 @@ check('ชื่อชั้นว่างถูกปฏิเสธ', () => {
   )
 })
 
-// -----------------------------------------------------
 group('หอหลายตึก — ป้ายตึก + เลขนำหน้าเลขห้อง (migration 030)')
 
-// ที่มา: หอ 2 ตึกที่ใช้เลขตัวหน้าบอกตึก (ตึก 1 ชั้น 2 = 1201 · ตึก 2 ชั้น 2 = 2201)
-// ของเดิมทำไม่ได้เลย เพราะเลขนำหน้าคือ "ลำดับที่ของชั้น" จะได้ 2201 ต้องมี 22 ชั้น
 check('สร้างผังสองตึกด้วยเลขนำหน้า ได้เลขห้องตามที่หอใช้จริง', () => {
   const twin = newApartment('หอสองตึก')
   util.saveUtilityDefaults(db, twin.apartmentId, {
@@ -385,7 +362,6 @@ check('ไม่ตั้งเลขนำหน้า = ใช้ลำดั�
   assert(numbers.join(',') === '101,102,201,202', `ได้ ${numbers.join(',')}`)
   assert(plan[0].buildingName === null, `ป้ายตึกต้องเป็น null ได้ ${plan[0].buildingName}`)
   assert(plan[0].numberPrefix === null, `เลขนำหน้าต้องเป็น null ได้ ${plan[0].numberPrefix}`)
-  // effectivePrefix บอกว่าห้องใหม่จะได้เลขขึ้นต้นด้วยอะไร — หน้าจอใช้ค่านี้ขึ้นตัวอย่าง
   assert(plan[1].effectivePrefix === '2', `ได้ ${plan[1].effectivePrefix}`)
 })
 
@@ -405,8 +381,6 @@ check('เพิ่มชั้นใหม่พร้อมเลขนำห�
   const floor = rooms.listFloors(db, tower.apartmentId)[0]
   assert(floor.rooms[0].roomNumber === '2301', `ได้ ${floor.rooms[0].roomNumber}`)
 
-  // 🔴 ปุ่ม "เพิ่มห้อง" ไม่ได้ส่งเลขห้องมา ระบบต้องหาเลขถัดไปของชั้นนั้นเอง —
-  // ถ้ายังคิดจากลำดับที่ของชั้น จะได้ 101 ซึ่งเป็นเลขของตึกอื่น
   const after = rooms.addRoom(db, floor.floorId, {})
   const numbers = after[0].rooms.map((r) => r.roomNumber)
   assert(numbers.join(',') === '2301,2302', `ได้ ${numbers.join(',')}`)
@@ -419,7 +393,6 @@ check('เลขนำหน้าซ้ำกันสองชั้นไม�
     electric: { enabled: false }
   })
 
-  // ซ้ำกันเองภายในชุดที่กำลังสร้าง
   throws(
     () =>
       rooms.generateFloorPlan(db, clash.apartmentId, [
@@ -429,7 +402,6 @@ check('เลขนำหน้าซ้ำกันสองชั้นไม�
     'ถูกใช้กับ',
     'เลขนำหน้าซ้ำในชุดเดียวกันผ่านได้'
   )
-  // validateFloorPlan ต้องดักได้ก่อนถึงฐานข้อมูลด้วย (หน้าจอเรียกตัวนี้ก่อนเสมอ)
   const errors = rooms.validateFloorPlan([
     { numberPrefix: '11', roomCount: 1 },
     { numberPrefix: '11', roomCount: 1 }
@@ -456,9 +428,6 @@ check('เลขนำหน้าที่ยาวเกินหรือม�
   assert(rooms.normalizeRoomNumberPrefix('') === null, 'ว่าง = ไม่ได้ตั้ง')
 })
 
-// 🔴 เลขห้องถูกพิมพ์ลงใบแจ้งหนี้/ใบเสร็จ/ใบจดมิเตอร์ที่ยื่นให้ผู้เช่าไปแล้ว
-// การแก้เลขนำหน้าจึงห้ามไล่เปลี่ยนเลขห้องที่มีอยู่ ไม่งั้นเอกสารในมือผู้เช่ากับในระบบ
-// จะเป็นห้องคนละเลขกันทั้งหอ
 check('แก้เลขนำหน้าแล้วเลขห้องเดิมต้องไม่เปลี่ยน มีผลกับห้องใหม่เท่านั้น', () => {
   const later = newApartment('หอแก้เลขนำหน้า')
   util.saveUtilityDefaults(db, later.apartmentId, {
@@ -478,20 +447,17 @@ check('แก้เลขนำหน้าแล้วเลขห้องเ�
     updated[0].rooms.map((r) => r.roomNumber).join(',') === '101,102',
     `เลขห้องเดิมเปลี่ยนไป: ${updated[0].rooms.map((r) => r.roomNumber).join(',')}`
   )
-  // ห้องใหม่ต้องได้เลขชุดใหม่
   const after = rooms.addRoom(db, floor.floorId, {})
   assert(
     after[0].rooms.some((r) => r.roomNumber === '3101'),
     `ห้องใหม่ควรได้ 3101 ได้ ${after[0].rooms.map((r) => r.roomNumber).join(',')}`
   )
 
-  // ส่งค่าว่างมา = ล้างค่ากลับไปใช้ลำดับที่ของชั้น
   const cleared = rooms.updateFloor(db, floor.floorId, { numberPrefix: '' })
   assert(cleared[0].numberPrefix === null, `ได้ ${cleared[0].numberPrefix}`)
   assert(cleared[0].effectivePrefix === '1', `ได้ ${cleared[0].effectivePrefix}`)
 })
 
-// -----------------------------------------------------
 group('ลบ')
 
 check('ลบห้องที่ยังไม่มีสัญญาได้ และการตั้งค่าค่าน้ำ/ไฟถูกลบตาม', () => {
@@ -524,7 +490,6 @@ check('ลบห้องที่เคยมีสัญญาไม่ได�
        VALUES ('ทดสอบ','ผู้เช่า','0810000000','1234567890123',?)`
     )
     .run(now).lastInsertRowid
-  // ผู้เช่าผูกกับสัญญาผ่าน contract_tenants แล้ว ไม่ใช่คอลัมน์บน contracts (ดู 010_*.sql)
   const contractId = db
     .prepare(
       `INSERT INTO contracts (room_id, rent_type, start_date, rent_amount_cents,
@@ -556,7 +521,6 @@ check('ลบชั้นที่ว่างแล้วได้', () => {
   )
 })
 
-// -----------------------------------------------------
 group('ตั้งค่าหลายห้องพร้อมกัน')
 
 const bulkApartment = newApartment('หอทดสอบตั้งค่าหลายห้อง')
@@ -574,7 +538,6 @@ check('ตั้งค่าเช่าทีเดียวหลายห้�
     updated.every((r) => r.monthlyRentCents === 350000),
     updated.map((r) => r.monthlyRentCents).join(',')
   )
-  // ห้องชั้นอื่นที่ไม่ได้เลือกต้องไม่ถูกแตะ
   assert(
     result[1].rooms.every((r) => r.monthlyRentCents === 0),
     'ห้องที่ไม่ได้เลือกถูกแก้ไปด้วย'
@@ -582,7 +545,6 @@ check('ตั้งค่าเช่าทีเดียวหลายห้�
 })
 
 check('ค่าเช่ารายวันเว้นว่าง = NULL ไม่ใช่ 0', () => {
-  // 0 แปลว่า "รับรายวันแต่ฟรี" ซึ่งคนละความหมายกับ "ไม่รับรายวัน"
   const room = rooms.listFloors(db, bulkApartment.apartmentId)[0].rooms[0]
   assert(room.dailyRentCents === null, `ได้ ${room.dailyRentCents}`)
 })
@@ -632,7 +594,6 @@ check('สถานะที่ไม่รู้จักถูกปฏิเ�
 })
 
 check('ตั้งห้องที่มีสัญญาใช้งานอยู่ให้เป็น "ว่าง" ไม่ได้ และต้องบอกเลขห้อง', () => {
-  // ห้องที่มีคนอยู่แต่ถูกตั้งเป็นว่าง จะโผล่ในรายการห้องว่างแล้วเสี่ยงปล่อยเช่าซ้ำ
   const room = bulkPlan[1].rooms[0]
   const now = new Date().toISOString()
   const tenantId = db
@@ -641,7 +602,6 @@ check('ตั้งห้องที่มีสัญญาใช้งาน�
        VALUES ('ทดสอบ','สอง','0810000001','9999999999999',?)`
     )
     .run(now).lastInsertRowid
-  // ผู้เช่าผูกกับสัญญาผ่าน contract_tenants แล้ว ไม่ใช่คอลัมน์บน contracts (ดู 010_*.sql)
   const contractId = db
     .prepare(
       `INSERT INTO contracts (room_id, rent_type, start_date, rent_amount_cents,
@@ -670,7 +630,6 @@ check('ห้องที่ไม่มีสัญญายังตั้ง�
   )
 })
 
-// -----------------------------------------------------
 group('ค่าบริการรายห้อง')
 
 const svc = await import('../src/main/db/apartmentServices.js')
@@ -694,7 +653,6 @@ check('ผูกค่าบริการเข้าหลายห้อง�
     result[0].rooms.every((r) => r.services.some((s) => s.serviceId === internet.serviceId)),
     'ยังมีห้องที่ไม่ได้รับค่าบริการ'
   )
-  // ห้องชั้นอื่นที่ไม่ได้เลือกต้องไม่ถูกแตะ
   assert(
     result[1].rooms.every((r) => r.services.length === 0),
     'ห้องที่ไม่ได้เลือกถูกผูกไปด้วย'
@@ -702,7 +660,6 @@ check('ผูกค่าบริการเข้าหลายห้อง�
 })
 
 check('ผูกซ้ำห้องเดิมไม่พัง (ข้ามไปเงียบๆ)', () => {
-  // เลือกทั้งชั้นแล้วบางห้องมีอยู่แล้วเป็นเรื่องปกติ ไม่ใช่ข้อผิดพลาด
   const result = rooms.attachServicesToRooms(db, floor1Ids, [
     internet.serviceId,
     parking.serviceId
@@ -724,7 +681,6 @@ check('นำค่าบริการออกจากห้องได้'
     result[0].rooms.every((r) => !r.services.some((s) => s.serviceId === parking.serviceId)),
     'ยังมีห้องที่ค่าบริการไม่ถูกนำออก'
   )
-  // ตัวที่ไม่ได้สั่งนำออกต้องยังอยู่
   assert(
     result[0].rooms.every((r) => r.services.some((s) => s.serviceId === internet.serviceId)),
     'ค่าบริการอื่นถูกนำออกไปด้วย'
@@ -761,6 +717,5 @@ check('ลบค่าบริการที่ผูกกับห้อง�
   )
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('โมดูลผังห้องทำงานครบทุกเส้นทาง')

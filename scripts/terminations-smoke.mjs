@@ -61,8 +61,6 @@ function makeTenant() {
   })
 }
 
-// เงินประกัน 5,000 เก็บครบวันทำสัญญา แจ้งล่วงหน้า 15 วัน (ค่าตั้งต้นของ 004)
-// ระยะสัญญาจริงของหอคือ 12 เดือน — เทสต์บางข้อใช้ 6 เพื่อให้เดินถึงจุด "อยู่ครบ" ได้เร็ว
 function makeContract({ startDate = '2026-01-15', termMonths = 12, deposit = '5000', rent = '5000' } = {}) {
   const room = makeRoom(rent)
   const person = makeTenant()
@@ -83,7 +81,6 @@ function makeContract({ startDate = '2026-01-15', termMonths = 12, deposit = '50
   return { room, contract }
 }
 
-// -----------------------------------------------------
 group('นับเดือนที่อยู่')
 
 check('ยังไม่ถึงวันเดียวกันของเดือนนั้น ถือว่ายังไม่ครบเดือน', () => {
@@ -96,7 +93,6 @@ check('ข้ามปีนับต่อเนื่อง', () => {
   assert(terminations.monthsBetween('2025-11-01', '2026-05-01') === 6, 'ต้องได้ 6')
 })
 
-// -----------------------------------------------------
 group('ผลการตัดสินเรื่องเงินประกัน')
 
 check('อยู่ครบตามสัญญา + แจ้งทัน = คืนเต็ม', () => {
@@ -138,7 +134,6 @@ check('อยู่ครบแต่แจ้งไม่ทัน = ริบ'
   assert(v.forfeitReason === 'insufficient_notice', `ได้ ${v.forfeitReason}`)
 })
 
-// แจ้งพอดี 15 วันต้องผ่าน ไม่ใช่พลาดไปหนึ่งวัน — ขอบเขตแบบนี้คือที่ที่ off-by-one อยู่
 check('แจ้งพอดีตามกำหนดผ่าน', () => {
   const v = terminations.evaluateDepositRefund({
     policy: 'on_full_term',
@@ -198,7 +193,6 @@ check('นโยบาย always / never ชนะทุกเงื่อนไ
   assert(never.forfeitReason === 'policy_never', `ได้ ${never.forfeitReason}`)
 })
 
-// -----------------------------------------------------
 group('แจ้งย้ายออก')
 
 const notice = makeContract({ termMonths: 6 })
@@ -227,7 +221,6 @@ check('แจ้งก่อนวันเริ่มสัญญาไม่�
   )
 })
 
-// -----------------------------------------------------
 group('ย้ายออกแบบคืนเงินเต็ม')
 
 const clean = makeContract({ termMonths: 6 })
@@ -262,7 +255,6 @@ check('ยืนยันแล้วได้ใบเสร็จคืนเ�
   assert(room.status === 'vacant', `ห้องได้ ${room.status}`)
 })
 
-// **นี่คือสิ่งที่ปลดล็อกการทดสอบหมุนเวียนผู้เช่า** — ก่อนหน้านี้ห้องติดกับผู้เช่าคนเดิมถาวร
 check('ห้องที่ย้ายออกแล้ว ทำสัญญาใหม่ได้ทันที', () => {
   const next = makeTenant()
   const fresh = contracts.createContract(db, {
@@ -282,10 +274,8 @@ check('ห้องที่ย้ายออกแล้ว ทำสัญญ
   assert(fresh.status === 'active', `ได้ ${fresh.status}`)
 })
 
-// -----------------------------------------------------
 group('ต่อสัญญาแล้วนับเดือนต่อเนื่อง')
 
-// สัญญา 6 เดือนสองใบต่อกัน — ถ้านับแค่ใบสุดท้ายจะไม่มีใครผ่านเกณฑ์ 12 เดือนเลยตลอดกาล
 check('นับจากวันเริ่มของสัญญาใบแรกในสาย ไม่ใช่ใบปัจจุบัน', () => {
   const first = makeContract({ startDate: '2026-01-01', termMonths: 6 })
   const renewed = db
@@ -306,7 +296,6 @@ check('นับจากวันเริ่มของสัญญาใบ�
       now: new Date().toISOString()
     })
 
-  // ปิดสัญญาใบแรกเพื่อไม่ให้มีสอง active ในห้องเดียว
   db.prepare("UPDATE contracts SET status = 'terminated' WHERE contract_id = ?")
     .run(first.contract.contractId)
 
@@ -317,16 +306,13 @@ check('นับจากวันเริ่มของสัญญาใบ�
   const sheet = terminations.getTerminationSheet(db, renewed.lastInsertRowid, {
     moveOutDate: '2027-01-01'
   })
-  // ใบปัจจุบันเริ่ม ก.ค. อยู่มา 6 เดือน แต่ทั้งสายคือ 12 เดือน
   assert(sheet.monthsStayed === 12, `ได้ ${sheet.monthsStayed} เดือน ควรเป็น 12`)
   assert(sheet.isRenewal === true, 'ต้องรู้ว่าเป็นการต่อสัญญา')
   assert(sheet.isDepositRefundable === true, 'ครบ 12 เดือนแล้วต้องคืน')
 })
 
-// -----------------------------------------------------
 group('ริบเงินประกัน — หนี้ยังเป็นหนี้')
 
-// 🔴 กติกาที่ผู้ใช้ตัดสินใจ 2026-08-11: เงินประกันที่ถูกริบ เอาไปหักหนี้ไม่ได้
 const forfeit = makeContract({ startDate: '2026-03-01', termMonths: 12 })
 const forfeitBatch = meter.createBatch(db, apartmentId, '2026-05-01')
 const forfeitInvoice = invoices.createMonthlyInvoice(db, {
@@ -336,7 +322,6 @@ const forfeitInvoice = invoices.createMonthlyInvoice(db, {
   issueDate: '2026-05-01'
 })
 
-// เจ้าของหอยืนยัน 2026-08-11: หอทำสัญญา 12 เดือน — ตัวเลขนี้คือเกณฑ์จริงที่ใช้ตัดสิน
 check('ออกก่อนครบสัญญา 12 เดือน = ริบ และเงินคืนเป็น 0', () => {
   terminations.setMoveOutNotice(db, forfeit.contract.contractId, '2026-05-01')
   const sheet = terminations.getTerminationSheet(db, forfeit.contract.contractId, {
@@ -346,12 +331,9 @@ check('ออกก่อนครบสัญญา 12 เดือน = ริ
   assert(sheet.isDepositRefundable === false, 'ต้องริบ')
   assert(sheet.forfeitReason === 'early_move_out', `ได้ ${sheet.forfeitReason}`)
   assert(sheet.depositRefundCents === 0, `ได้ ${sheet.depositRefundCents}`)
-  // ไม่มีค่าเสียหาย เงินประกันทั้งก้อนจึงถูกริบ
   assert(sheet.forfeitedCents === 500000, `ริบได้ ${sheet.forfeitedCents}`)
 })
 
-// **บิลค้างไม่เข้าสูตรยอดสุทธิ** — เงินประกันไม่ใช่ของสำหรับจ่ายบิล (กติกาเดียวกับที่ทำให้
-// เงินประกันที่ริบเอาไปหักหนี้ไม่ได้) บิลเป็นหนี้แยกที่ต้องเคลียร์ก่อนอยู่แล้ว
 check('บิลค้างไม่ถูกเอามาลบในยอดสุทธิ แต่ยังรู้ว่าค้างอยู่', () => {
   const sheet = terminations.getTerminationSheet(db, forfeit.contract.contractId, {
     moveOutDate: '2026-06-01'
@@ -361,9 +343,6 @@ check('บิลค้างไม่ถูกเอามาลบในยอ�
   assert(sheet.netRefundCents === 0, `สุทธิได้ ${sheet.netRefundCents} — บิลไม่ควรเข้าสูตร`)
 })
 
-// -----------------------------------------------------
-// 🔴 กติกาที่เจ้าของหอยืนยัน 2026-08-11: ต้องเคลียร์บิลค้างให้หมดก่อนย้ายออก
-// ระบบไม่หักจากเงินประกันให้เอง — ถ้าจะหักจริงต้องไปกดรับเงินที่บิลใบนั้นก่อน
 group('ต้องเคลียร์บิลค้างก่อนย้ายออก')
 
 check('มีบิลค้างอยู่ ย้ายออกไม่ได้ และบอกยอดที่ค้าง', () => {
@@ -391,7 +370,6 @@ check('กดข้ามได้แต่ต้องมีเหตุผล'
   )
 })
 
-// ผู้เช่าหนีไปแล้ว — ถ้าบล็อกตายตัว ห้องนั้นจะปล่อยใหม่ไม่ได้ตลอดไปเพราะหนี้ที่ไม่มีวันได้คืน
 check('ผู้เช่าหนีไป กดข้ามพร้อมเหตุผลแล้วปิดสัญญาได้ แต่บิลยังค้างเหมือนเดิม', () => {
   const result = terminations.completeTermination(db, forfeit.contract.contractId, {
     moveOutDate: '2026-06-01',
@@ -402,13 +380,11 @@ check('ผู้เช่าหนีไป กดข้ามพร้อมเ
   assert(result.refundReceipt === null, 'ยอดติดลบต้องไม่ออกใบเสร็จคืนเงิน')
   assert(result.overrideReason.includes('ติดต่อไม่ได้'), `ได้ ${result.overrideReason}`)
 
-  // **หนี้ต้องไม่หายไปเงียบๆ ในขั้นตอนย้ายออก** — ยังต้องตามเก็บต่อได้
   const invoice = invoices.getInvoiceById(db, forfeitInvoice.invoiceId)
   assert(invoice.status === 'unpaid', `บิลได้ ${invoice.status} ควรยังค้างอยู่`)
   assert(invoice.outstandingCents === 500000, `ยอดค้างได้ ${invoice.outstandingCents}`)
 })
 
-// -----------------------------------------------------
 group('เคลียร์บิลแล้วค่อยย้ายออก')
 
 const settle = makeContract({ startDate: '2026-01-01', termMonths: 6 })
@@ -423,7 +399,6 @@ const settleInvoice = invoices.createMonthlyInvoice(db, {
 check('รับเงินบิลจนครบแล้ว ย้ายออกได้ตามปกติและคืนเงินประกันเต็ม', () => {
   terminations.setMoveOutNotice(db, settle.contract.contractId, '2026-06-15')
 
-  // เส้นทางปกติของหอ: ไปกดรับเงินที่บิลใบนั้นก่อน แล้วค่อยกลับมาย้ายออก
   payments.recordInvoicePayment(db, {
     invoiceId: settleInvoice.invoiceId,
     amount: '5000',
@@ -446,8 +421,6 @@ check('รับเงินบิลจนครบแล้ว ย้ายอ
   assert(invoice.status === 'paid', `บิลได้ ${invoice.status}`)
 })
 
-// เงินที่รับจากบิลเป็นเงินสดจริงที่เข้าหอ ส่วนใบคืนเงินประกันเป็นเงินออก — ทั้งคู่อยู่ในรายงาน
-// ตามความจริง ไม่มีตัวเลขไหนถูกนับซ้ำหรือถูกซ่อน
 check('รายงานใบเสร็จเห็นทั้งเงินที่รับจากบิลและเงินประกันที่คืนไป', () => {
   const report = payments.listReceipts(db, apartmentId, {
     dateFrom: '2026-06-20',
@@ -463,12 +436,10 @@ check('รายงานใบเสร็จเห็นทั้งเงิ�
   )
 })
 
-// -----------------------------------------------------
 group('รายการเก็บเงิน/คืนเงินเพิ่มเติม')
 
 const adjusted = makeContract({ startDate: '2026-01-01', termMonths: 6 })
 
-// สามแท็บมีความหมายทางบัญชีคนละอย่าง ไม่ใช่แค่ป้ายจัดกลุ่ม (เจ้าของหอยืนยัน 2026-08-11)
 check('ค่าเสียหายหักจากเงินประกัน · ค่ามิเตอร์เก็บแยก ไม่แตะเงินประกัน', () => {
   terminations.setMoveOutNotice(db, adjusted.contract.contractId, '2026-06-10')
   const sheet = terminations.getTerminationSheet(db, adjusted.contract.contractId, {
@@ -480,13 +451,11 @@ check('ค่าเสียหายหักจากเงินประก�
   })
   assert(sheet.damageTotalCents === 10000, `ค่าเสียหายได้ ${sheet.damageTotalCents}`)
   assert(sheet.meterTotalCents === 35000, `ค่ามิเตอร์ได้ ${sheet.meterTotalCents}`)
-  // เงินประกัน 5,000 − ค่าเสียหาย 100 = คืน 4,900 · ค่ามิเตอร์ 350 เก็บแยก
   assert(sheet.depositRefundCents === 490000, `เงินประกันคืนได้ ${sheet.depositRefundCents}`)
   assert(sheet.tenantOwesCents === 35000, `ผู้เช่าต้องจ่าย ${sheet.tenantOwesCents}`)
   assert(sheet.netRefundCents === 455000, `สุทธิได้ ${sheet.netRefundCents}`)
 })
 
-// ผู้ใช้กรอกเป็นบวกเสมอ ระบบกลับเครื่องหมายให้ — กติกาเดียวกับส่วนลดบนใบแจ้งหนี้
 check('ส่วนลด/คืนเงินกรอกเป็นบวก แต่เพิ่มยอดเงินคืน', () => {
   const sheet = terminations.getTerminationSheet(db, adjusted.contract.contractId, {
     moveOutDate: '2026-07-01',
@@ -496,8 +465,6 @@ check('ส่วนลด/คืนเงินกรอกเป็นบวก
   assert(sheet.netRefundCents === 520000, `สุทธิได้ ${sheet.netRefundCents}`)
 })
 
-// 🔴 หัวใจของรอบนี้ (ผู้ใช้ทักท้วง 2026-08-11): เงินประกันมีไว้รองรับความเสียหาย
-// ถ้าริบไปแล้วยังเรียกเก็บค่าซ่อมอีก ผู้เช่าจ่ายสองต่อจากเงินก้อนเดียวกัน
 check('ริบเงินประกันแล้ว ค่าเสียหายต้องหักจากเงินที่ริบ ไม่ใช่เรียกเก็บเพิ่ม', () => {
   const forfeited = makeContract({ startDate: '2026-03-01', termMonths: 12 })
   terminations.setMoveOutNotice(db, forfeited.contract.contractId, '2026-05-01')
@@ -511,7 +478,6 @@ check('ริบเงินประกันแล้ว ค่าเสีย
 
   assert(sheet.isDepositRefundable === false, 'ออกก่อนครบ 12 เดือน ต้องริบ')
   assert(sheet.damageTotalCents === 80000, `ค่าเสียหายได้ ${sheet.damageTotalCents}`)
-  // 5,000 − 800 = 4,200 คือส่วนที่ถูกริบ · ผู้เช่าไม่ต้องจ่ายเพิ่มอีกบาทเดียว
   assert(sheet.depositAfterDamageCents === 420000, `คงเหลือได้ ${sheet.depositAfterDamageCents}`)
   assert(sheet.forfeitedCents === 420000, `ริบได้ ${sheet.forfeitedCents}`)
   assert(sheet.excessDamageCents === 0, `ส่วนเกินได้ ${sheet.excessDamageCents}`)
@@ -530,8 +496,6 @@ check('ค่าเสียหายเกินเงินประกัน 
   assert(sheet.netRefundCents === -100000, `สุทธิได้ ${sheet.netRefundCents}`)
 })
 
-// 🔴 ผู้ใช้เจอ 2026-08-11: ติ๊ก "ตัดสินต่างจากกฎ — คืนเงินประกันให้" แล้วยอดสรุปบนจอ
-// ยังขึ้น 0.00 เพราะตัวคำนวณไม่เคยรู้เรื่อง override เลย
 check('ส่ง override มาแล้ว ยอดสรุปต้องเปลี่ยนทันที ไม่ต้องรอกดยืนยัน', () => {
   const early = makeContract({ startDate: '2026-03-01', termMonths: 12 })
   const base = { contractId: early.contract.contractId, moveOutDate: '2026-06-01' }
@@ -547,16 +511,12 @@ check('ส่ง override มาแล้ว ยอดสรุปต้อง�
     moveOutDate: base.moveOutDate,
     overrideRefundable: true
   })
-  // ผลตามกฎยังต้องรายงานว่า "ริบ" เพื่อให้หน้าจอบอกได้ว่าคนตัดสินต่างจากกฎอย่างไร
   assert(overridden.isDepositRefundable === false, 'ผลตามกฎต้องไม่เปลี่ยน')
   assert(overridden.appliedRefundable === true, 'ผลที่ใช้จริงต้องเป็นคืน')
   assert(overridden.depositRefundCents === 500000, `คืนได้ ${overridden.depositRefundCents}`)
   assert(overridden.netRefundCents === 500000, `สุทธิได้ ${overridden.netRefundCents}`)
 })
 
-// ใบสรุปตัวเดียวใช้ทั้งใบพรีวิวก่อนยืนยันและใบที่อ่านจากบันทึก — ชื่อฟิลด์ต้องตรงกัน
-// (เคยพลาด: ใบพรีวิวอ่าน depositSnapshotCents ที่ไม่มีในผลของ getTerminationSheet
-//  แล้วแสดงเงินประกันเป็น 0.00 เงียบๆ เพราะ formatBaht(undefined) ให้ 0)
 check('ใบพรีวิวกับใบที่บันทึกแล้ว ใช้ชื่อฟิลด์ชุดเดียวกัน', () => {
   const same = makeContract({ startDate: '2026-01-01', termMonths: 6 })
   terminations.setMoveOutNotice(db, same.contract.contractId, '2026-06-10')
@@ -585,11 +545,9 @@ check('ใบพรีวิวกับใบที่บันทึกแล�
     assert(saved[field] !== undefined, `ใบที่บันทึกแล้วไม่มี ${field}`)
     assert(sheet[field] === saved[field], `${field}: พรีวิว ${sheet[field]} ≠ บันทึก ${saved[field]}`)
   }
-  // 5,000 − 50 = 4,950
   assert(saved.depositBalanceCents === 495000, `คงเหลือได้ ${saved.depositBalanceCents}`)
 })
 
-// เงินคนละก้อนกับเงินประกัน จึงไม่ถูกริบไปด้วย (จรรยาบรรณ — ผู้ใช้ยืนยัน)
 check('ส่วนลด/คืนเงินยังได้คืน แม้เงินประกันถูกริบ', () => {
   const owed = makeContract({ startDate: '2026-03-01', termMonths: 12 })
   const sheet = terminations.getTerminationSheet(db, owed.contract.contractId, {
@@ -632,9 +590,6 @@ check('รายการที่ไม่มีชื่อ / ยอด 0 / �
   )
 })
 
-// 🔴 ผู้ใช้เจอตอนทดสอบจริง 2026-08-11: เก็บเงินเพิ่มค่าลูกบิด/ยางขอบประตูตอนตรวจห้อง
-// แล้วยอดสุทธิติดลบ ระบบขึ้นแค่ "ผู้เช่ายังค้างจ่าย" โดยไม่มีทางบันทึกว่าเก็บเงินมาแล้ว
-// และผู้เช่าไม่ได้ใบเสร็จว่าจ่ายอะไรไป
 group('ยอดสุทธิติดลบ — ผู้เช่าจ่ายเพิ่ม')
 
 const shortfall = makeContract({ startDate: '2026-01-01', termMonths: 6 })
@@ -643,7 +598,6 @@ check('เก็บเงินส่วนต่างแล้ว ต้อง
   terminations.setMoveOutNotice(db, shortfall.contract.contractId, '2026-06-10')
   const result = terminations.completeTermination(db, shortfall.contract.contractId, {
     moveOutDate: '2026-07-01',
-    // ค่าซ่อม 5,800 เกินเงินประกัน 5,000 → ส่วนเกิน 800 คือเงินที่ผู้เช่าต้องควักเพิ่ม
     adjustments: [
       { itemType: 'service', description: 'ค่าเปลี่ยนประตูทั้งบาน', amount: '5450' },
       { itemType: 'service', description: 'ค่าเปลี่ยนยางขอบประตู', amount: '350' }
@@ -657,7 +611,6 @@ check('เก็บเงินส่วนต่างแล้ว ต้อง
   assert(result.shortfallReceipt.amountCents === 80000, `ได้ ${result.shortfallReceipt.amountCents}`)
   assert(result.unpaidBalanceCents === 0, `ยังค้าง ${result.unpaidBalanceCents} ควรเป็น 0`)
 
-  // ใบเสร็จต้องโผล่ในรายงานด้วย ไม่ใช่มีแต่ในบันทึกการย้ายออก
   const report = payments.listReceipts(db, apartmentId, {
     dateFrom: '2026-07-01',
     dateTo: '2026-07-01'
@@ -668,8 +621,6 @@ check('เก็บเงินส่วนต่างแล้ว ต้อง
   )
 })
 
-// ผู้เช่าที่ริบเงินประกันแล้วยังมีค่ามิเตอร์งวดสุดท้ายค้าง — ค่ามิเตอร์เก็บแยก
-// ไม่ถูกหักจากเงินที่ริบ จึงยังเป็นเงินที่ต้องเก็บจากผู้เช่า
 check('ยังเก็บเงินไม่ได้ ไม่ออกใบเสร็จ แล้วยอดค้างขึ้นในใบสรุป', () => {
   const unpaid = makeContract({ startDate: '2026-03-01', termMonths: 12 })
   const result = terminations.completeTermination(db, unpaid.contract.contractId, {
@@ -686,7 +637,6 @@ check('ยังเก็บเงินไม่ได้ ไม่ออกใ
   assert(result.unpaidBalanceCents === 120000, `ยังค้าง ${result.unpaidBalanceCents}`)
 })
 
-// ใบสรุปที่พิมพ์ให้ผู้เช่าต้องแจกแจงได้ว่าหักอะไรไปบ้าง และเป็นของใคร
 check('ใบสรุปมีข้อมูลครบสำหรับพิมพ์: หอ ผู้เช่า รายการหัก ใบเสร็จ', () => {
   const t = terminations.getTerminationByContract(db, shortfall.contract.contractId)
   assert(t.apartment.name === 'หอทดสอบย้ายออก', `ได้ ${t.apartment.name}`)
@@ -698,7 +648,6 @@ check('ใบสรุปมีข้อมูลครบสำหรับพ�
   assert(t.receipts[0].label === 'รับเงินส่วนต่างตอนย้ายออก', `ได้ ${t.receipts[0].label}`)
 })
 
-// -----------------------------------------------------
 group('รายการเก็บเงิน/คืนเงินเพิ่มเติม (ต่อ)')
 
 check('รายการถูกเก็บลงฐานข้อมูลแยกบรรทัด ไม่ใช่ยอดรวมก้อนเดียว', () => {
@@ -716,7 +665,6 @@ check('รายการถูกเก็บลงฐานข้อมูล�
   assert(result.netRefundCents === 485000, `สุทธิได้ ${result.netRefundCents}`)
 })
 
-// -----------------------------------------------------
 group('เจ้าของกดข้ามผลการตัดสิน')
 
 const override = makeContract({ startDate: '2026-03-01', termMonths: 12 })
@@ -768,10 +716,8 @@ check('สัญญาที่ปิดไปแล้วย้ายออก�
   )
 })
 
-// -----------------------------------------------------
 group('ตามเก็บเงินส่วนต่างทีหลัง')
 
-// ตอนย้ายออกติ๊ก "ยังเก็บไม่ได้" ไว้ แล้วผู้เช่าเอาเงินมาให้ทีหลัง
 function makeUncollected({ startDate = '2026-03-01', moveOutDate = '2026-06-01', meter = '1200' } = {}) {
   const made = makeContract({ startDate, termMonths: 12 })
   const result = terminations.completeTermination(db, made.contract.contractId, {
@@ -783,9 +729,6 @@ function makeUncollected({ startDate = '2026-03-01', moveOutDate = '2026-06-01',
   return { ...made, result }
 }
 
-// 🔴 ข้อที่สำคัญที่สุดของกลุ่มนี้: ใบเสร็จลงวัน **คนละวัน** กับวันย้ายออก
-// ของเดิมไล่หาใบเสร็จด้วย `payment_date = วันที่ย้ายออก` ใบที่ตามเก็บทีหลังจึงหลุดหายไป
-// และยอดค้างจะไม่มีวันลดลงเลยแม้เก็บเงินมาแล้ว
 check('เก็บเงินส่วนต่างทีหลังได้ ยอดค้างเป็นศูนย์ แม้ใบเสร็จลงวันคนละวันกับวันย้ายออก', () => {
   const { contract } = makeUncollected()
   const after = terminations.collectTerminationShortfall(db, contract.contractId, {
@@ -798,14 +741,12 @@ check('เก็บเงินส่วนต่างทีหลังได�
   assert(after.receipt.amountCents === 120000, `ใบเสร็จได้ ${after.receipt.amountCents}`)
   assert(after.receipt.paymentDate === '2026-06-20', `ลงวันที่ ${after.receipt.paymentDate}`)
   assert(after.unpaidBalanceCents === 0, `ยังค้าง ${after.unpaidBalanceCents}`)
-  // ใบเสร็จต้องเข้าไปอยู่ในใบสรุปการย้ายออกใบเดิมด้วย ไม่ใช่ลอยอยู่เฉยๆ
   assert(after.receipts.length === 1, `ใบเสร็จในใบสรุปได้ ${after.receipts.length}`)
   assert(
     after.receipts[0].label === 'รับเงินส่วนต่างตอนย้ายออก',
     `ป้ายได้ ${after.receipts[0].label}`
   )
 
-  // อ่านใหม่จากฐานข้อมูลต้องได้ผลเดียวกัน (ไม่ใช่ถูกเฉพาะค่าที่ฟังก์ชันคืนกลับมา)
   const reread = terminations.getTerminationByContract(db, contract.contractId)
   assert(reread.unpaidBalanceCents === 0, `อ่านใหม่ยังค้าง ${reread.unpaidBalanceCents}`)
 })
@@ -897,8 +838,6 @@ check('ไม่รู้ว่าใครรับเงิน ออกใบ
   )
 })
 
-// ใบเสร็จที่ถูกยกเลิกต้องไม่ถูกนับว่าเก็บเงินมาแล้ว ไม่งั้นยอดค้างจะหายไปทั้งที่เงินไม่เคยเข้า
-// (กติกาเดียวกับทุกคิวรีที่ SUM(payments) — ต้องมี cancelled_at IS NULL)
 check('ยกเลิกใบเสร็จส่วนต่างแล้ว ยอดค้างกลับมาเท่าเดิม', () => {
   const { contract } = makeUncollected()
   const after = terminations.collectTerminationShortfall(db, contract.contractId, {
@@ -918,7 +857,6 @@ check('ยกเลิกใบเสร็จส่วนต่างแล้�
   assert(reread.receipts.length === 0, `ใบที่ยกเลิกต้องไม่อยู่ในใบสรุป (ได้ ${reread.receipts.length})`)
 })
 
-// -----------------------------------------------------
 group('ประวัติการย้ายออก')
 
 check('รายการที่ย้ายออกแล้วขึ้นในประวัติ เรียงจากใหม่ไปเก่า', () => {
@@ -934,8 +872,6 @@ check('รายการที่ย้ายออกแล้วขึ้น�
   }
 })
 
-// ตัวเลขบนตารางกับตัวเลขบนใบสรุปต้องมาจากกติกาเดียวกัน — ถ้าสองที่นี้เพี้ยนกัน
-// จะไม่มีใครรู้ว่าอันไหนถูก และยอดที่ต้องตามเก็บคือเรื่องเงินจริง
 check('ยอด "ยังเก็บไม่ได้" ในตารางตรงกับในใบสรุปทุกแถว', () => {
   const report = terminations.listTerminations(db, apartmentId)
   for (const row of report.terminations) {
@@ -991,7 +927,6 @@ check('กรองด้วยช่วงวันที่ย้ายออ�
     'ต้องได้เฉพาะวันที่ที่กรอง'
   )
 
-  // ใส่ข้างเดียวได้ — ตั้งแต่วันนั้นเป็นต้นไปต้องได้ทั้งหมดที่ไม่เก่ากว่านั้น
   const fromOnly = terminations.listTerminations(db, apartmentId, { dateFrom: pivot })
   assert(
     fromOnly.terminations.every((t) => t.moveOutDate >= pivot),
@@ -999,8 +934,6 @@ check('กรองด้วยช่วงวันที่ย้ายออ�
   )
 })
 
-// บทเรียนจาก migration 021 (เลขเอกสารซ้ำข้ามหอ): อะไรที่ต้องแยกรายหอ ต้องมีเทสต์คุม
-// ตั้งแต่แรก ไม่ใช่รอให้หอที่สองมาเจอเอง
 check('ประวัติของหออื่นไม่ปนเข้ามา', () => {
   const other = apartments.insertApartment(db, {
     nameTh: 'หอที่สอง',
@@ -1050,12 +983,8 @@ check('ไม่ระบุหอ ไล่รายการไม่ได้
   throws(() => terminations.listTerminations(db, null), 'ไม่พบหอพัก', 'ต้องบังคับให้ระบุหอ')
 })
 
-// -----------------------------------------------------
 group('ใบที่ตัดสินไว้ด้วยสูตรคนละรุ่น')
 
-// เจอจริง 2026-08-14: ใบของห้อง 103 ถูกยืนยันไว้ 57 นาทีก่อน `051da46` (commit ที่แก้บั๊ก
-// "จ่ายสองต่อ") เอกสารจึงแจกแจงว่าผู้เช่าต้องชำระ 380 แล้วสรุปว่า 880 โดยไม่มีอะไรอธิบาย
-// ส่วนต่าง 500 — เพราะรายการมาจากสูตรปัจจุบัน ส่วนยอดสุทธิมาจากคอลัมน์ที่บันทึกไว้
 check('ยอดที่บันทึกไม่ตรงกับสูตรปัจจุบัน ต้องติดธงและบอกยอดทั้งสองชุด', () => {
   const made = makeContract({ startDate: '2026-02-01', termMonths: 12 })
   terminations.completeTermination(db, made.contract.contractId, {
@@ -1072,21 +1001,17 @@ check('ยอดที่บันทึกไม่ตรงกับสูต�
   assert(fresh.netRefundCents === -38000, `สูตรปัจจุบันต้องได้ -38000 (ได้ ${fresh.netRefundCents})`)
   assert(fresh.hasNetRefundMismatch === false, 'ใบที่เพิ่งทำต้องไม่ติดธง')
 
-  // เขียนทับด้วยยอดของสูตรเก่า (ริบเงินประกันแล้วยังเก็บค่าทาสีอีก 500)
-  // = จำลองใบที่ยืนยันไว้ก่อนสูตรถูกแก้ ซึ่งเป็นสภาพที่เกิดขึ้นจริงในฐานข้อมูลของผู้ใช้
   db.prepare('UPDATE contract_terminations SET net_refund_amount_cents = ? WHERE contract_id = ?')
     .run(-88000, made.contract.contractId)
 
   const stale = terminations.getTerminationByContract(db, made.contract.contractId)
   assert(stale.hasNetRefundMismatch === true, 'ต้องติดธง')
-  // ยอดที่ตกลงกับผู้เช่าไว้ในวันนั้นยังต้องชนะ — ธงมีไว้บอก ไม่ได้มีไว้เขียนทับ
   assert(stale.netRefundCents === -88000, `ยอดที่บันทึกต้องชนะ (ได้ ${stale.netRefundCents})`)
   assert(
     stale.recomputedNetRefundCents === -38000,
     `ยอดตามสูตรปัจจุบันได้ ${stale.recomputedNetRefundCents}`
   )
   assert(stale.tenantOwesCents === 38000, `รายการแจกแจงยังคิดตามสูตรปัจจุบัน (${stale.tenantOwesCents})`)
-  // ยอดค้างคิดจากยอดที่บันทึกไว้ ไม่ใช่ยอดที่คำนวณใหม่
   assert(stale.unpaidBalanceCents === 88000, `ยอดค้างได้ ${stale.unpaidBalanceCents}`)
 })
 
@@ -1100,13 +1025,11 @@ check('ธงขึ้นถึงตารางประวัติด้ว�
     `ตารางต้องบอกยอดตามสูตรปัจจุบันด้วย (ได้ ${flagged[0].recomputedNetRefundCents})`
   )
 
-  // ใบที่เหลือทั้งหมดต้องไม่ติดธง — ถ้าธงขึ้นมั่วจะกลายเป็นเสียงรบกวนที่คนเลิกอ่าน
   for (const t of report.terminations) {
     if (t.contractId === flagged[0].contractId) continue
     assert(t.hasNetRefundMismatch === false, `ห้อง ${t.roomNumber} ไม่ควรติดธง`)
   }
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('การย้ายออกและคืนเงินประกันทำงานครบทุกเส้นทาง')

@@ -28,10 +28,6 @@ const apartmentId = apartment.apartmentId
 rooms.generateFloorPlan(db, apartmentId, [{ roomCount: 3 }])
 const [room1, room2, room3] = rooms.listFloors(db, apartmentId)[0].rooms
 
-// วันเข้าอยู่ = วันที่ 1 ของเดือนหน้าเสมอ ห้ามตรึงเป็นวันตายตัว เพราะวันจองคือ "วันนี้" เสมอ
-// (ใช้เวลา UTC แบบเดียวกับ bookings.js) ถ้าตรึงไว้ พอเลยวันนั้นไปวันจองจะมาทีหลังวันเข้าอยู่
-// ลำดับใบเสร็จจะสลับ — เทสต์นี้เคยตกทุกวันตั้งแต่ 2026-09-01 ด้วยเหตุนี้
-// วันที่ 1 ยังคงอยู่ในช่วง "เข้าวันที่ 1-3 คิดเต็มเดือน" ยอดเงินในเทสต์จึงไม่เปลี่ยน
 const nowUtc = new Date()
 const MOVE_IN_DATE = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth() + 1, 1))
   .toISOString()
@@ -47,7 +43,6 @@ const BASE = {
   customerPhone: '081-234-5678'
 }
 
-// -----------------------------------------------------
 group('ตรวจข้อมูล')
 
 check('ชื่อและเบอร์ผู้จองบังคับกรอก', () => {
@@ -66,7 +61,6 @@ check('วิธีชำระเงินจองต้องเป็นค�
   assert(errors.some((e) => e.includes('วิธีชำระเงินจอง')), errors.join(', '))
 })
 
-// -----------------------------------------------------
 group('สร้างการจอง')
 
 const booking = bookings.createBooking(db, { ...BASE, roomId: room1.roomId })
@@ -112,11 +106,9 @@ check('ยกเลิกแล้วจองห้องเดิมใหม�
 })
 
 check('นับการจองที่ยังค้างอยู่ทั้งหอได้', () => {
-  // ห้อง 1 (pending) + ห้อง 2 (จองใหม่หลังยกเลิก) = 2 รายการที่ยังค้าง
   assert(bookings.countOpenBookings(db, apartmentId) === 2, `ได้ ${bookings.countOpenBookings(db, apartmentId)}`)
 })
 
-// -----------------------------------------------------
 group('ยืนยัน / ยกเลิก')
 
 check('ยืนยันการจองได้', () => {
@@ -133,12 +125,6 @@ check('ตั้งสถานะเป็นทำสัญญาแล้ว�
   )
 })
 
-// -----------------------------------------------------
-// ผู้ใช้รายงาน 2026-08-10 (หอพักวาสนา): จองห้องแล้วยืนยันเรียบร้อย แต่หน้าห้องยังขึ้นว่า
-// "ว่าง" และการ์ด "จองล่วงหน้า" ไม่มีตัวเลข — เพราะการจองไม่เคยถูกส่งไปถึงรายการห้องเลย
-//
-// **การจองไม่ได้เก็บเป็น rooms.status โดยตั้งใจ** ห้องที่จองไว้ยังว่างจริงๆ (ยังไม่มีใครอยู่)
-// รายการห้องจึงต้องแนบใบจองที่ยังกันห้องอยู่มาให้ แล้วหน้าจอขึ้นป้ายเอง
 group('การจองที่ส่งไปถึงรายการห้อง')
 
 const contractsDb = await import('../src/main/db/contracts.js')
@@ -151,26 +137,18 @@ check('ห้องที่มีการจองค้างอยู่ แ
   assert(listed.booking !== null, 'ห้องที่จองไว้ต้องมีข้อมูลใบจองติดมา')
   assert(listed.booking.customerName === booking.customerName, `ได้ ${listed.booking.customerName}`)
   assert(listed.booking.checkInDate === booking.checkInDate, `ได้ ${listed.booking.checkInDate}`)
-  // สถานะห้องยังเป็น vacant — ป้าย "จองแล้ว" เป็นเรื่องของหน้าจอ ไม่ใช่ค่าที่เก็บไว้
   assert(listed.status === 'vacant', `สถานะห้องได้ ${listed.status}`)
 })
 
-// ห้อง 3 เป็นห้องเดียวที่ไม่เคยถูกจองเลยตลอดไฟล์นี้ (ห้อง 2 มีใบจองค้างอยู่จากข้อ
-// "ยกเลิกแล้วจองห้องเดิมใหม่ได้")
 check('ห้องที่ไม่มีการจอง ไม่มีข้อมูลใบจองติดมา', () => {
   const listed = contractsDb.listRoomsForApartment(db, apartmentId)
   const untouched = listed.find((r) => r.roomId === room3.roomId)
   assert(untouched.booking === null, 'ห้องที่ไม่ได้จองต้องไม่มีใบจองติดมา')
 
-  // และการนับต้องตรงกับจำนวนใบจองที่ยังกันห้องอยู่จริง ไม่ใช่นับจากสถานะห้อง
   const booked = listed.filter((r) => r.booking !== null).length
   assert(booked === bookings.countOpenBookings(db, apartmentId), `นับได้ ${booked}`)
 })
 
-// หอร้อยห้อง คนจองจำเลขห้องตัวเองไม่ได้ — ชื่อคือทางเดียวที่หาห้องเจอ (ผู้ใช้สั่ง 2026-08-10)
-//
-// คนจองยังไม่ใช่ผู้เช่า (ระเบียนผู้เช่าเพิ่งถูกสร้างตอนทำสัญญา) ถ้าค้นแต่ผู้เช่า
-// คนที่จองแล้วยังไม่ย้ายเข้าจะหาไม่เจอเลย ซึ่งเป็นช่วงเดียวที่จำเป็นต้องหาจริงๆ
 check('ค้นหาด้วยชื่อผู้จอง เจอห้องที่เขาจองไว้', () => {
   const byName = contractsDb.listRoomsForApartment(db, apartmentId, { tenant: 'สมชาย' })
   assert(
@@ -194,7 +172,6 @@ check('ชื่อที่ไม่มีใครตรง ต้องไม
   assert(none.length === 0, `ได้ ${none.length} ห้อง`)
 })
 
-// ใบจองที่ยกเลิกไปแล้วต้องไม่ค้างอยู่บนหน้าจอ — นี่คือข้อที่การเก็บเป็น rooms.status จะพลาด
 check('ยกเลิกใบจองแล้ว ห้องกลับมาว่างทันที', () => {
   const spare = bookings.createBooking(db, { ...BASE, roomId: room3.roomId })
   assert(
@@ -211,7 +188,6 @@ check('ยกเลิกใบจองแล้ว ห้องกลับม
   )
 })
 
-// -----------------------------------------------------
 group('แปลงเป็นสัญญา')
 
 const somchai = tenants.insertTenant(db, {
@@ -220,7 +196,6 @@ const somchai = tenants.insertTenant(db, {
   phone: '0812345678'
 })
 
-// เงินจองที่รับไว้แล้วจะถูกออกเป็นใบเสร็จเงินประกันตอนแปลงเป็นสัญญา จึงต้องมีผู้รับเงิน
 const staff = (await import('../src/main/db/users.js')).insertUser(db, {
   fullName: 'ผู้จัดการหอ',
   phone: '0801112222',
@@ -240,15 +215,11 @@ const contract = bookings.convertBookingToContract(db, booking.bookingId, {
   createdBy: staff.user_id
 })
 
-// จุดสำคัญ: เงินจองที่รับไว้แล้วต้องไหลเข้าสัญญา ไม่ใช่หายไป
 check('เงินจองถูกยกไปเป็นเงินจองของสัญญา', () => {
   assert(contract.bookingFeeCents === 100000, `ได้ ${contract.bookingFeeCents}`)
 })
 
-// เงินจองคือเงินประกันส่วนแรก — ต้องนับเป็น "รับแล้ว" ไม่ใช่ให้เจ้าของหอไปเก็บซ้ำ
-// และใบเสร็จต้องลงวันที่ที่รับเงินจริง (วันจอง) ไม่ใช่วันทำสัญญาซึ่งอาจห่างกันหลายเดือน
 check('เงินจองและส่วนที่เหลือถูกออกเป็นใบเสร็จคนละใบ คนละวันที่', () => {
-  // เงินจอง 1,000 + ส่วนที่เหลือ 4,000 ที่เก็บวันเซ็นสัญญา = ครบ 5,000 ไม่มียอดค้าง
   const status = contract.deposit
   assert(status.requiredCents === 500000, `ตกลงไว้ ${status.requiredCents}`)
   assert(status.receivedCents === 500000, `รับแล้ว ${status.receivedCents}`)
@@ -262,15 +233,12 @@ check('เงินจองและส่วนที่เหลือถู�
     .all(contract.contractId)
   assert(rows.length === 2, `ควรมีใบเสร็จเงินประกัน 2 ใบ ได้ ${rows.length}`)
 
-  // เงินจองลงวันที่ที่รับเงินจริง (วันจอง) ส่วนที่เหลือลงวันเซ็นสัญญา — สองวันนี้ห่างกันได้
-  // หลายเดือน ถ้ายุบเป็นวันเดียวรายรับของเดือนที่รับเงินจองจะหายไป
   assert(rows[0].payment_date === booking.bookingDate, `ใบแรกลงวันที่ ${rows[0].payment_date}`)
   assert(rows[0].amount_cents === 100000, `ใบแรก ${rows[0].amount_cents}`)
   assert(rows[1].payment_date === MOVE_IN_DATE, `ใบที่สองลงวันที่ ${rows[1].payment_date}`)
   assert(rows[1].amount_cents === 400000, `ใบที่สอง ${rows[1].amount_cents}`)
 })
 
-// เลขที่ต้องเป็นใบเดียวกัน ไม่ใช่ออกเลขใหม่ — ผู้เช่าถือใบจองที่มีเลขนี้อยู่ในมือ
 check('สัญญาอ้างเลขที่ใบจองใบเดิม ไม่ออกเลขใหม่', () => {
   assert(
     contract.bookingReceiptNo === booking.bookingNumber,
@@ -284,12 +252,6 @@ check('การจองเปลี่ยนสถานะเป็นทำ�
   assert(after.isOpen === false, 'ไม่ควรกันห้องแล้ว')
 })
 
-// ผู้ใช้รายงาน 2026-08-10 (หอพักวาสนา ห้อง 101): วุฒิชัยทำสัญญาเข้าอยู่แล้ว
-// แต่ยังค้างอยู่ใน "รายชื่อคนจองรอเข้าพัก"
-//
-// การ์ดนั้นแยกด้วย isOpen — คนที่เข้าอยู่แล้วต้องหลุดออกจากรายชื่อคนรอ
-// **แต่ใบจองต้องยังอยู่ในระบบ** เพราะสัญญาเก็บเลขที่ใบจองไว้ และใบเสร็จเงินประกัน
-// เขียนว่า "เงินจองตามใบจอง B..." ถ้าใบหายจะตามที่มาของเงินก้อนนั้นไม่ได้
 check('ใบจองที่ทำสัญญาแล้วหลุดจากรายชื่อคนรอ แต่ยังอยู่ในประวัติ', () => {
   const all = bookings.listBookingsByRoom(db, room1.roomId)
   const converted = all.find((b) => b.bookingId === booking.bookingId)
@@ -300,7 +262,6 @@ check('ใบจองที่ทำสัญญาแล้วหลุดจ�
     all.filter((b) => b.isOpen).length === 0,
     'ห้องนี้ไม่ควรเหลือคนรอเข้าพักแล้ว'
   )
-  // เลขที่ใบจองยังโยงกับสัญญาอยู่ — เป็นเหตุผลที่ห้ามลบใบทิ้ง
   assert(
     contract.bookingReceiptNo === converted.bookingNumber,
     `สัญญาอ้าง ${contract.bookingReceiptNo} แต่ใบจองคือ ${converted.bookingNumber}`
@@ -338,9 +299,6 @@ check('ลบการจองที่แปลงเป็นสัญญา�
   )
 })
 
-// -----------------------------------------------------
-// ห้องที่มีคนจองค้าง ทำสัญญาได้ทางเดียวคือทำสัญญาจากการจอง (ตกลงกับเฟิส 2026-09-26)
-// เดิมทำสัญญาตรงได้ แล้วการจองค้าง "รอยืนยัน" ทั้งที่ห้องมีคนอยู่ + เงินจองไม่ถูกนับ
 group('ทำสัญญาตรงในห้องที่มีคนจองค้าง')
 
 const walkIn = tenants.insertTenant(db, { firstName: 'วอล์ก', lastName: 'อิน', phone: '0823334444' })
@@ -356,7 +314,6 @@ const DIRECT = {
   tenants: [walkIn.tenantId],
   createdBy: staff.user_id
 }
-// room2 มีการจองค้างของ "คนใหม่" จากกลุ่มสร้างการจองข้างบน
 const room2Open = bookings.listBookingsByRoom(db, room2.roomId).find((b) => b.isOpen)
 
 check('ทำสัญญาตรงไม่ได้ ถ้าห้องมีคนจองค้าง และต้องบอกว่าใครจองอยู่', () => {
@@ -387,6 +344,5 @@ check('ยกเลิกการจองแล้ว ทำสัญญาต
   assert(direct.contractId, 'ควรสร้างสัญญาได้หลังยกเลิกการจอง')
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('โมดูลการจองทำงานครบทุกเส้นทาง')

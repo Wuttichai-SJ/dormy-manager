@@ -1,12 +1,4 @@
-// สคริปต์ทดสอบระบบเข้าสู่ระบบแบบ end-to-end บนฐานข้อมูลชั่วคราว
-// รันด้วย: npm run test:auth
-//
-// ทำไมต้องรันผ่าน electron แทน node เปล่าๆ: better-sqlite3 ในโปรเจกต์นี้เป็นไฟล์ prebuilt
-// ที่คอมไพล์มาสำหรับ ABI ของ Electron (ดู .npmrc) node ปกติจึงโหลด .node ไฟล์นี้ไม่ได้
-// สคริปต์เลยตรวจตัวเองแล้วเรียก electron ในโหมด ELECTRON_RUN_AS_NODE ให้อัตโนมัติ
-//
-// ทดสอบเฉพาะชั้น auth.js / db/users.js / migrate.js ซึ่งไม่ import electron
-// จึงไม่ต้องเปิดหน้าต่างหรือรอ app.whenReady()
+// ทดสอบระบบเข้าสู่ระบบบนฐานข้อมูลชั่วคราว — รันด้วย: npm run test:auth
 import { spawnSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
@@ -31,9 +23,6 @@ const { runMigrations } = await import('../src/main/db/migrate.js')
 const users = await import('../src/main/db/users.js')
 const auth = await import('../src/main/auth.js')
 
-// -----------------------------------------------------
-// ตัวช่วยเล็กๆ แทนการลง test framework (นโยบาย dependency: เพิ่มให้น้อยที่สุด)
-// -----------------------------------------------------
 let passed = 0
 const failures = []
 
@@ -65,9 +54,6 @@ function throws(fn, expectedPart, message) {
   throw new Error(`${message} — ไม่ throw เลยทั้งที่ควร throw`)
 }
 
-// -----------------------------------------------------
-// เปิดฐานข้อมูลชั่วคราว แล้วรัน migration ชุดเดียวกับแอปจริง
-// -----------------------------------------------------
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dormy-auth-'))
 const dbPath = path.join(tmpDir, 'test.sqlite')
 const db = new Database(dbPath)
@@ -231,8 +217,6 @@ check('รหัสสำรองผิดใช้ไม่ได้', () => {
   )
 })
 
-// รหัสสำรอง "ใบที่ใช้ได้อยู่ตอนนี้" — ทุกครั้งที่ตั้งรหัสผ่านใหม่สำเร็จ ใบนี้จะถูกแทนที่
-// ตัวแปรนี้จึงต้องอัปเดตทุกรอบ เหมือนที่ผู้ใช้จริงต้องฉีกกระดาษใบเก่าทิ้งแล้วจดใบใหม่
 let currentCode = recoveryCode
 
 check('รหัสสำรองพิมพ์เล็ก/ไม่มีขีดก็ใช้ได้ แล้วตั้งรหัสผ่านใหม่ได้', () => {
@@ -320,7 +304,6 @@ check('รหัสผ่านถูกต้องได้ใบใหม่ 
   assert(Boolean(ticket), 'ใบใหม่ใช้กู้คืนไม่ได้')
 })
 
-// -----------------------------------------------------
 console.log('\nบทบาทผู้ใช้ (เจ้าของหอ / พนักงาน)')
 
 check('ผู้ใช้คนแรกของเครื่องเป็นเจ้าของหอเสมอ และมีรหัสสำรอง', () => {
@@ -330,8 +313,6 @@ check('ผู้ใช้คนแรกของเครื่องเป็�
   assert(users.toPublicUser(row).isOwner === true, 'ธง isOwner ต้องเป็นจริง')
 })
 
-// 🔴 ตารางที่ลอกมาจากสคีมาต้นแบบแต่ไม่เคยมีโค้ดแตะ ถูกทิ้งไปใน 027 —
-// ถ้ามันกลับมาแปลว่ามีคนเผลอเอา 001_init.sql มารันใหม่ทับ
 check('ตาราง RBAC ของต้นแบบถูกทิ้งไปแล้ว', () => {
   const left = db
     .prepare(
@@ -355,7 +336,6 @@ check('เจ้าของสร้างบัญชีพนักงาน�
   staff = result.user
   assert(staff.role === 'staff', `ได้บทบาท ${staff.role}`)
   assert(staff.isOwner === false, 'พนักงานต้องไม่ติดธง isOwner')
-  // พนักงานกู้รหัสผ่านเองไม่ได้โดยการออกแบบ — เจ้าของเป็นคนตั้งใหม่ให้
   assert(result.recoveryCode === null, 'พนักงานต้องไม่ได้รหัสสำรอง')
   assert(!users.getUserById(db, staff.userId).recovery_code_hash, 'ต้องไม่มี hash รหัสสำรอง')
 })
@@ -416,7 +396,6 @@ check('ไม่ส่งบทบาทมาที่ชั้น db ได้
   assert(row.role === 'staff', `ได้ ${row.role}`)
 })
 
-// 🔴 กติกาที่กันไม่ให้ล็อกตัวเองออกจากสิทธิ์เจ้าของถาวร
 check('ลดเจ้าของคนสุดท้ายเป็นพนักงานไม่ได้', () => {
   throws(
     () =>
@@ -449,7 +428,6 @@ check('เลื่อนพนักงานขึ้นเป็นเจ้�
   assert(result.user.role === 'owner', `ได้ ${result.user.role}`)
   assert(Boolean(result.recoveryCode), 'ต้องออกรหัสสำรองให้เจ้าของคนใหม่')
 
-  // รหัสที่ออกให้ต้องใช้กู้รหัสผ่านได้จริง ไม่ใช่แค่สตริงที่โชว์บนจอ
   const { ticket } = auth.verifyRecoveryCode(db, {
     identifier: '0899990001',
     recoveryCode: result.recoveryCode
@@ -465,7 +443,6 @@ check('มีเจ้าของสองคนแล้ว ลดคนหน
     role: 'staff'
   })
   assert(result.user.role === 'staff', `ได้ ${result.user.role}`)
-  // ลดกลับเป็นพนักงานแล้วไม่ออกรหัสสำรองใบใหม่ (ของเดิมยังอยู่ ไม่ได้หายไปไหน)
   assert(result.recoveryCode === null, 'ไม่ควรออกรหัสสำรองตอนลดบทบาท')
 })
 
@@ -497,9 +474,6 @@ check('รหัสผ่านใหม่ที่สั้นเกินไ�
   )
 })
 
-// 🔴 ด่านที่กันไม่ให้ "ตั้งรหัสผ่านใหม่" กลายเป็นทางลัดข้ามการยืนยันรหัสเดิม
-// ทางนี้ไม่ถามรหัสเดิมโดยตั้งใจ (พนักงานลืมรหัส = ไม่มีใครรู้รหัสเดิมอยู่แล้ว)
-// แต่ถ้าชี้กลับมาที่ตัวเองได้ ใครก็ยึดบัญชีจากเครื่องที่เปิดค้างไว้ได้โดยไม่ต้องรู้รหัสเดิม
 check('เจ้าของตั้งรหัสผ่านใหม่ให้ตัวเองทางนี้ไม่ได้', () => {
   throws(
     () =>
@@ -511,7 +485,6 @@ check('เจ้าของตั้งรหัสผ่านใหม่ใ�
     'ตัวเองทางนี้ไม่ได้',
     'ตั้งรหัสให้ตัวเองผ่านได้'
   )
-  // รหัสเดิมของเจ้าของต้องไม่ถูกแตะเลยหลังโดนปฏิเสธ
   const session = auth.login(db, { identifier: '0812345678', password: 'third-password-3' })
   assert(session.userId === owner.userId, 'รหัสผ่านเดิมของเจ้าของถูกเปลี่ยนไปแล้ว')
 })
@@ -559,7 +532,6 @@ check('listUsers เรียงเจ้าของขึ้นก่อน �
   const list = users.listUsers(db)
   assert(list.length >= 3, `ได้ ${list.length} บัญชี`)
   assert(list[0].role === 'owner', 'เจ้าของต้องอยู่บนสุด')
-  // เจ้าของทุกคนต้องมาก่อนพนักงานคนแรก ไม่ใช่แค่แถวบนสุดบังเอิญถูก
   const firstStaff = list.findIndex((row) => row.role === 'staff')
   if (firstStaff !== -1) {
     assert(
@@ -574,7 +546,6 @@ check('listUsers เรียงเจ้าของขึ้นก่อน �
   }
 })
 
-// -----------------------------------------------------
 db.close()
 fs.rmSync(tmpDir, { recursive: true, force: true })
 

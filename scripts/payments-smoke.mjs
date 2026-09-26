@@ -20,7 +20,6 @@ const contracts = await import('../src/main/db/contracts.js')
 const meter = await import('../src/main/db/meterReadings.js')
 const invoices = await import('../src/main/db/invoices.js')
 const payments = await import('../src/main/db/payments.js')
-// แปลงสตางค์เป็นข้อความบาทด้วยตัวเดียวกับที่โปรแกรมใช้ ไม่หาร 100 เอง (กฎใน money.js)
 const { centsToBaht } = await import('../src/main/money.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-payments')
@@ -71,7 +70,6 @@ const contract1 = contracts.createContract(db, {
   waterMeterStart: 0,
   electricMeterStart: 0,
   tenants: [tenant.tenantId],
-  // เงินประกันที่รับวันทำสัญญาถูกออกเป็นใบเสร็จให้ทันที จึงต้องมีผู้รับเงิน
   createdBy: staff.user_id
 })
 const contract2 = contracts.createContract(db, {
@@ -99,11 +97,9 @@ const invoice = invoices.createMonthlyInvoice(db, {
 const BASE = {
   paymentMethod: 'cash',
   paymentDate: '2026-09-01',
-  // getUserById คืนแถวดิบ ไม่ได้แปลงชื่อคอลัมน์
   createdBy: staff.user_id
 }
 
-// -----------------------------------------------------
 group('ตรวจข้อมูล')
 
 check('ช่องทางการชำระเงินต้องเป็นค่าที่รู้จัก', () => {
@@ -161,7 +157,6 @@ check('รับเงินเกินยอดค้างไม่ได้ 
   )
 })
 
-// -----------------------------------------------------
 group('รับชำระบางส่วน')
 
 const firstPayment = payments.recordInvoicePayment(db, {
@@ -210,7 +205,6 @@ check('รับเงินส่วนที่เหลือเกินย�
   )
 })
 
-// -----------------------------------------------------
 group('รับชำระจนครบ')
 
 check('จ่ายส่วนที่เหลือแล้วบิลเป็นชำระแล้ว ยอดค้างเป็นศูนย์', () => {
@@ -245,8 +239,6 @@ check('รายการรับเงินใต้บิลเรียง�
   assert(list[1].paymentDate === '2026-09-03', `ใบสอง ${list[1].paymentDate}`)
 })
 
-// -----------------------------------------------------
-// ไม่มีการคืนเงินค่าบิลแล้ว (ผู้ใช้ตัดสินใจ 2026-08-08) — เหลือแต่ทางรับเงินเข้าอย่างเดียว
 group('ไม่มีการคืนเงินค่าบิล')
 
 check('โมดูลไม่เปิดทางคืนเงินค่าบิลไว้เลย', () => {
@@ -256,7 +248,6 @@ check('โมดูลไม่เปิดทางคืนเงินค่�
   )
 })
 
-// -----------------------------------------------------
 group('ใบเสร็จของสัญญา')
 
 const depositReceipt = payments.recordContractPayment(db, {
@@ -274,9 +265,6 @@ check('ออกใบเสร็จเงินประกันได้โ�
   assert(depositReceipt.roomNumber === '102', `ได้ ${depositReceipt.roomNumber}`)
 })
 
-// ไม่ผูกกับลำดับที่แน่นอน — การทำสัญญาข้างบนออกใบเสร็จเงินประกันไปแล้วสองใบ
-// สิ่งที่ต้องพิสูจน์คือใบเสร็จของสัญญากับของบิลใช้ตัวนับชุดเดียวกัน (ขึ้นต้น R เหมือนกัน
-// และเลขไม่ชนกัน) ไม่ใช่ว่าเลขเท่าไหร่
 check('ใบเสร็จของสัญญาใช้ตัวนับชุดเดียวกับใบเสร็จบิล', () => {
   assert(depositReceipt.receiptNumber.startsWith('R202608'), `ได้ ${depositReceipt.receiptNumber}`)
 
@@ -303,9 +291,6 @@ check('สัญญาที่ไม่มีอยู่ออกใบเส�
   )
 })
 
-// -----------------------------------------------------
-// ยอดบิลเปลี่ยนได้หลังรับเงินไปแล้ว (เจ้าของหอเพิ่มค่าซ่อมเข้าบิลที่จ่ายครบแล้ว)
-// สถานะต้องตามไปด้วย ไม่ใช่ค้างเป็น "ชำระแล้ว" ทั้งที่มียอดค้างโผล่ขึ้นมาใหม่
 group('แก้ยอดบิลหลังรับเงินแล้ว')
 
 const editable = invoices.createMonthlyInvoice(db, {
@@ -346,8 +331,6 @@ check('ลบรายการนั้นออก ยอดกลับมา
   assert(after.outstandingCents === 0, `ได้ ${after.outstandingCents}`)
 })
 
-// -----------------------------------------------------
-// ค่าปรับชำระล่าช้า — คิดตอนรับเงิน ไม่ใช่ตอนออกบิล (ผู้ใช้ตัดสินใจ 2026-08-08)
 group('ค่าปรับชำระล่าช้า')
 
 check('หอที่ปิดค่าปรับไว้ ไม่เสนอค่าปรับเลยแม้เกินกำหนด', () => {
@@ -400,7 +383,6 @@ check('ผ่อนผันยาวกว่าที่เกินมา ก
   assert(fee.amountCents === 0, `ได้ ${fee.amountCents}`)
 })
 
-// เปิดค่าปรับให้หอทดสอบ แล้วเดินเส้นทางจริง
 db.prepare(
   `UPDATE apartments SET is_auto_late_fee_enabled = 1, late_fee_per_day_cents = 1000,
      late_fee_grace_days = 0 WHERE apartment_id = ?`
@@ -414,7 +396,6 @@ const lateInvoice = invoices.createMonthlyInvoice(db, {
 })
 
 check('บิลที่เกินกำหนดเสนอค่าปรับตามจำนวนวันที่เกิน', () => {
-  // ครบกำหนด 05/11/2026 · จ่าย 15/11/2026 = เกิน 10 วัน × 10 บาท
   const rule = invoices.getLateFeeForInvoice(db, lateInvoice.invoiceId, '2026-11-15')
   assert(rule.enabled === true, 'หอเปิดค่าปรับแล้ว')
   assert(rule.overdueDays === 10, `ได้ ${rule.overdueDays}`)
@@ -467,8 +448,6 @@ check('เก็บค่าปรับเกินกว่ากฎของ�
   )
 })
 
-// เทสต์กันการถอยหลังของธุรกรรมที่ห่อ recordInvoicePayment ไว้ (เหตุผลเต็มอยู่ในคอมเมนต์
-// ที่ฟังก์ชันนั้น) — ค่าปรับต้องไม่ค้างบนบิลเมื่อการรับเงินถูกปฏิเสธ
 check('กรอกยอดเกินยอดค้าง ค่าปรับต้องถูก rollback ไม่ค้างอยู่บนบิล', () => {
   const overflow = invoices.createMonthlyInvoice(db, {
     contractId: contract2.contractId,
@@ -483,10 +462,8 @@ check('กรอกยอดเกินยอดค้าง ค่าปรั
       payments.recordInvoicePayment(db, {
         ...BASE,
         invoiceId: overflow.invoiceId,
-        // ครบกำหนด 05/12/2026 · จ่าย 15/12/2026 = เกิน 10 วัน × 10 บาท = เก็บได้ 100 บาท
         paymentDate: '2026-12-15',
         lateFee: '100',
-        // ยอดค้าง + ค่าปรับ 100 บาท + อีก 1 บาท = เกินไปหนึ่งบาท ต้องถูกปฏิเสธ
         amount: centsToBaht(before.totalAmountCents + 10000 + 100)
       }),
     'ไม่เกินยอดค้างชำระ',
@@ -504,13 +481,11 @@ check('กรอกยอดเกินยอดค้าง ค่าปรั
   )
   assert(after.status === 'unpaid', `สถานะต้องยังค้างชำระ ได้ ${after.status}`)
 
-  // และเมื่อกรอกยอดที่ถูกต้อง ค่าปรับต้องคิดใหม่ได้ตั้งแต่ต้น ไม่ค้างว่าเคยเก็บไปแล้ว
   const rule = invoices.getLateFeeForInvoice(db, overflow.invoiceId, '2026-12-15')
   assert(rule.alreadyChargedCents === 0, `ยังนับว่าเคยเก็บ ${rule.alreadyChargedCents}`)
   assert(rule.suggestedCents === 10000, `เสนอเก็บ ${rule.suggestedCents}`)
 })
 
-// -----------------------------------------------------
 group('บิลที่ถูกยกเลิก')
 
 check('บิลที่ยกเลิกแล้วรับชำระไม่ได้', () => {
@@ -532,7 +507,6 @@ check('บิลที่ยกเลิกแล้วรับชำระไ�
   )
 })
 
-// -----------------------------------------------------
 group('รายงานใบเสร็จรับเงิน')
 
 check('กรองตามช่วงวันที่ได้ และนับจำนวนใบถูกต้อง', () => {
@@ -540,7 +514,6 @@ check('กรองตามช่วงวันที่ได้ และน
     dateFrom: '2026-09-01',
     dateTo: '2026-09-30'
   })
-  // ก.ย.: รับ 2,000 + รับ 3,000 = 2 ใบ
   assert(report.receiptCount === 2, `ได้ ${report.receiptCount} ใบ`)
   assert(report.totalAmountCents === 500000, `ได้ ${report.totalAmountCents}`)
 })
@@ -563,7 +536,6 @@ check('วันขอบทั้งสองข้างนับรวมด�
   assert(oneDay.receipts[0].paymentDate === '2026-09-01', oneDay.receipts[0].paymentDate)
 })
 
-// ใบเสร็จที่จะเอาไปพิมพ์ต้องมีชื่อหอกับชื่อผู้เช่าติดมาด้วย ไม่งั้นเอกสารไม่มีหัวและไม่รู้ว่าของใคร
 check('ใบเสร็จแนบข้อมูลหอและชื่อผู้เช่ามาให้หน้าพิมพ์', () => {
   const report = payments.listReceipts(db, apartmentId)
   const withInvoice = report.receipts.find((r) => r.sourceType === 'invoice')
@@ -571,14 +543,8 @@ check('ใบเสร็จแนบข้อมูลหอและชื่�
   assert(Boolean(withInvoice.tenantName), 'ต้องมีชื่อผู้เช่า')
 })
 
-// ใบเสร็จยอดติดลบยังมีได้จากการคืนเงินประกันตอนย้ายออก (ผูกกับสัญญา ไม่ใช่กับบิล)
-// ยอดรวมจึงต้องหักใบพวกนั้นออก เพื่อให้เป็น "เงินที่เข้าหอจริง" ไม่ใช่ผลบวกของใบที่ออก
 check('ยอดรวมหักใบคืนเงินประกันออก จึงเป็นเงินที่เข้าหอจริง', () => {
   const report = payments.listReceipts(db, apartmentId)
-  // เงินประกันวันทำสัญญา 5,000 × 2 ห้อง = 10,000
-  // · ค่าเช่าเดือนแรก 5,000 × 2 ห้อง = 10,000 (เข้าพัก 1 ส.ค. จึงคิดเต็มเดือน)
-  // · ก.ย. 2,000 + 3,000 · สัญญา ส.ค. +5,000 · สัญญา ก.พ. -5,000 · ต.ค. 5,000
-  // · พ.ย. 5,100 (ค่าเช่า 5,000 + ค่าปรับ 100) = 35,100
   assert(report.totalAmountCents === 3510000, `ได้ ${report.totalAmountCents}`)
   assert(
     report.receipts.some((r) => r.isRefund),
@@ -588,8 +554,6 @@ check('ยอดรวมหักใบคืนเงินประกัน�
 
 check('ไม่กรองเดือนได้ใบเสร็จทุกใบของหอ รวมใบของสัญญาด้วย', () => {
   const report = payments.listReceipts(db, apartmentId)
-  // เงินประกันวันทำสัญญา 2 ใบ + ค่าเช่าเดือนแรก 2 ใบ + ก.ย. 2 ใบ
-  // + สัญญา 2 ใบ (ส.ค. รับ, ก.พ. คืน) + ต.ค. 1 ใบ + พ.ย. 1 ใบ (บิลที่มีค่าปรับ)
   assert(report.receiptCount === 10, `ได้ ${report.receiptCount} ใบ`)
   assert(
     report.receipts.some((r) => r.sourceType === 'contract'),
@@ -602,9 +566,6 @@ check('เรียงใบใหม่สุดขึ้นก่อน', () =
   assert(report.receipts[0].paymentDate === '2027-02-01', `ได้ ${report.receipts[0].paymentDate}`)
 })
 
-// -----------------------------------------------------
-// รับเงินหลายห้องพร้อมกัน (ผู้เช่าหลายคนมาจ่ายที่โต๊ะเดียว) — ตามหน้า "รับเงินหลายห้อง"
-// ของต้นแบบ
 group('รับเงินหลายห้อง')
 
 const mayBatch = meter.createBatch(db, apartmentId, '2027-05-01')
@@ -635,7 +596,6 @@ check('ตารางของหน้ารับเงินหลายห�
     sheet.every((row) => row.outstandingCents === 500000),
     'ทั้งสองห้องต้องค้างอยู่ห้องละ 5,000'
   )
-  // ค่าปรับติดมากับแถวเลย หน้าจอจะได้ไม่ต้องยิงถามทีละห้อง
   assert(
     sheet.every((row) => row.lateFee !== null),
     'บิลที่ยังค้างต้องมีข้อมูลค่าปรับติดมาด้วย'
@@ -650,7 +610,6 @@ check('ไม่เลือกห้องเลย ต้องเตือน
   )
 })
 
-// ใบเดียวกันสองแถวจะรับเงินซ้ำ และแถวที่สองอาจผ่านการตรวจยอดค้างไปได้ถ้ารวมกันแล้วยังไม่เกิน
 check('ใบแจ้งหนี้ซ้ำในชุดเดียวกัน ต้องเตือน', () => {
   throws(
     () =>
@@ -679,8 +638,6 @@ check('ช่องทางการชำระเงินตรวจคร�
   )
 })
 
-// **หัวใจของฟังก์ชันนี้** — ถ้าห้องที่สองกรอกผิด ต้องไม่มีใบเสร็จของห้องแรกค้างอยู่
-// เจ้าของหอที่เห็น error แล้วแก้ยอดกดใหม่ จะรับเงินห้องแรกซ้ำโดยไม่รู้ตัว
 check('ห้องเดียวกรอกผิด ทั้งชุดต้องไม่ถูกบันทึกเลย', () => {
   const before = countPayments()
   throws(
@@ -690,7 +647,6 @@ check('ห้องเดียวกรอกผิด ทั้งชุดต
         paymentDate: '2027-05-03',
         rows: [
           { invoiceId: may1.invoiceId, roomNumber: '101', amount: '5000' },
-          // ห้อง 102 ค้างอยู่ 5,000 — กรอก 9,000 คือเกินยอดค้าง
           { invoiceId: may2.invoiceId, roomNumber: '102', amount: '9000' }
         ]
       }),
@@ -735,7 +691,6 @@ check('ช่องทาง วันที่ และหมายเหต�
   }
 })
 
-// จ่ายเต็มกับจ่ายบางส่วนในชุดเดียวกันต้องได้สถานะคนละอย่าง ไม่ใช่เหมารวม
 check('สถานะบิลถูกคิดใหม่รายใบตามยอดที่รับจริง', () => {
   assert(invoices.getInvoiceById(db, may1.invoiceId).status === 'paid', 'ห้อง 101 จ่ายครบ')
   const second = invoices.getInvoiceById(db, may2.invoiceId)
@@ -764,12 +719,8 @@ check('รับเงินส่วนที่เหลือของห้�
   assert(invoices.getInvoiceById(db, may2.invoiceId).status === 'paid', 'ต้องกลายเป็นจ่ายครบ')
 })
 
-// -----------------------------------------------------
-// เคสจริงที่ผู้ใช้ยกมา 2026-08-10: ผู้เช่ามาดูห้อง 01/03 วางเงินจอง 2,000 (= ครึ่งหนึ่งของ
-// เงินประกัน 4,000) แล้วเข้าอยู่จริง 25/05 — เจ้าของหอต้องไม่ลืมเก็บอีก 2,000
 group('เงินประกันที่ยังเก็บไม่ครบ')
 
-// หอนี้มีผังห้องอยู่แล้ว จึงเพิ่มเป็นชั้นใหม่ ไม่ใช่สร้างผังทับ
 const floorsAfter = rooms.addFloor(db, apartmentId, { roomCount: 1 })
 const depositRoom = floorsAfter[floorsAfter.length - 1].rooms[0]
 rooms.setRoomRates(db, [depositRoom.roomId], { monthlyRent: '3500' })
@@ -787,11 +738,8 @@ const depositContract = contracts.createContract(db, {
   rentAmount: '3500',
   deposit: '4000',
   depositPaymentMethod: 'cash',
-  // เงินจอง 2,000 ที่รับไปแล้วตั้งแต่วันมาดูห้อง
   bookingFee: '2000',
   bookingPaidDate: '2026-03-01',
-  // วันเซ็นสัญญายังไม่ได้เก็บส่วนที่เหลือ (ผู้เช่าขอไปโอนทีหลัง) — กรณีที่การเตือน
-  // ยอดค้างมีไว้เพื่อสิ่งนี้ ถ้าไม่ส่งช่องนี้มา ระบบจะเหมาว่าเก็บครบตามปกติ
   depositReceived: '0',
   waterMeterStart: 0,
   electricMeterStart: 0,
@@ -799,11 +747,6 @@ const depositContract = contracts.createContract(db, {
   createdBy: staff.user_id
 })
 
-// ผู้ใช้รายงาน 2026-08-10 (หอพักวาสนา): สายรุ้งเดินเข้ามาดูห้องแล้วเข้าอยู่เลย จ่ายเงินประกัน
-// ครบตั้งแต่วันทำสัญญา แต่ระบบยังขึ้นว่าค้าง 4,000
-//
-// เพราะเดิมออกใบเสร็จให้เฉพาะ "เงินจอง" — คนที่ไม่ได้จองมาก่อนจึงไม่มีใบเสร็จสักใบ
-// แล้วยอด "รับแล้ว" ซึ่งนับจากใบเสร็จก็เป็น 0 ทั้งที่เงินอยู่ในมือเจ้าของหอแล้ว
 check('เดินเข้ามาทำสัญญาเลย จ่ายครบ ต้องไม่ค้างเงินประกัน', () => {
   const walkInRoom = rooms.addFloor(db, apartmentId, { roomCount: 1 })
   const target = walkInRoom[walkInRoom.length - 1].rooms[0]
@@ -821,7 +764,6 @@ check('เดินเข้ามาทำสัญญาเลย จ่าย
     rentAmount: '3500',
     deposit: '4000',
     depositPaymentMethod: 'cash',
-    // ไม่เคยจองมาก่อน
     bookingFee: '0',
     waterMeterStart: 0,
     electricMeterStart: 0,
@@ -834,7 +776,6 @@ check('เดินเข้ามาทำสัญญาเลย จ่าย
   assert(walkIn.deposit.isSettled === true, 'ต้องถือว่าเก็บครบแล้ว')
 })
 
-// ช่อง "รับเงินประกันวันนี้" ต้องกรอกได้เมื่อเก็บไม่ครบ ไม่งั้นการเตือนยอดค้างไม่มีวันทำงาน
 check('เก็บได้ไม่ครบในวันทำสัญญา ยอดที่ขาดขึ้นเป็นยอดค้าง', () => {
   const partialRooms = rooms.addFloor(db, apartmentId, { roomCount: 1 })
   const target = partialRooms[partialRooms.length - 1].rooms[0]
@@ -903,7 +844,6 @@ check('เงินจองที่รับไปแล้ว ถูกออ
   assert(status.isSettled === false, 'ยังเก็บไม่ครบ')
 })
 
-// เงินเข้าหอวันที่ 01/03 ไม่ใช่วันทำสัญญา 25/05 — ถ้าลงวันผิด รายรับเดือนมีนาคมจะหายทั้งก้อน
 check('ใบเสร็จเงินจองลงวันที่รับเงินจริง ไม่ใช่วันทำสัญญา', () => {
   const list = payments.listReceipts(db, apartmentId, {
     dateFrom: '2026-03-01',
@@ -942,8 +882,6 @@ check('รับส่วนที่เหลือแล้วยอดค้�
   assert(room.depositOutstandingCents === 0, `ป้ายในตารางยังขึ้น ${room.depositOutstandingCents}`)
 })
 
-// ค่าเช่าล่วงหน้าผูกกับสัญญาเหมือนกัน แต่ไม่ใช่เงินประกัน — ถ้านับรวมจะทำให้ยอดค้าง
-// หายไปทั้งที่ยังไม่ได้เก็บเงินประกันจริง
 check('ใบเสร็จค่าเช่าล่วงหน้าไม่ถูกนับเป็นเงินประกัน', () => {
   payments.recordContractPayment(db, {
     contractId: depositContract.contractId,
@@ -986,10 +924,6 @@ check('ประเภทเงินที่ไม่รู้จักต้�
   )
 })
 
-// -----------------------------------------------------
-// ยกเลิกใบเสร็จ — ช่องโหว่ที่อุด: คีย์เงินผิดแล้วเดิมแก้ไม่ได้เลย
-// **กลุ่มนี้ต้องอยู่ท้ายสุด** เพราะการยกเลิกทำให้ยอดรวมของหอเปลี่ยน
-// ข้อทดสอบก่อนหน้าที่นับ receiptCount/totalAmountCents ทั้งหอจะพังถ้าย้ายขึ้นไปข้างบน
 group('ยกเลิกใบเสร็จ')
 
 const cancelFloors = rooms.addFloor(db, apartmentId, { roomCount: 1 })
@@ -1043,7 +977,6 @@ check('เหตุผลบังคับกรอก ยกเลิกโด
   )
 })
 
-// ผู้ยกเลิกมาจากเซสชันฝั่ง main เหมือนผู้รับเงิน ไม่งั้นบันทึกการยกเลิกก็เชื่อไม่ได้
 check('ไม่รู้ว่าใครยกเลิกก็ยกเลิกไม่ได้', () => {
   throws(
     () => payments.cancelPayment(db, wrongReceipt.paymentId, { reason: 'คีย์ผิด' }),
@@ -1090,7 +1023,6 @@ check('ยกเลิกซ้ำไม่ได้', () => {
   )
 })
 
-// แถวไม่ถูกลบ — เจ้าของหอที่ถือกระดาษใบนั้นอยู่ในมือต้องหาเจอว่าเลขที่นี้คืออะไร
 check('ใบที่ยกเลิกยังอยู่ในรายการใต้บิล ไม่ได้หายไป', () => {
   const list = payments.listPaymentsForInvoice(db, febInvoice.invoiceId)
   const found = list.find((p) => p.paymentId === wrongReceipt.paymentId)
@@ -1134,13 +1066,9 @@ check('รายงานยังแสดงใบที่ยกเลิก 
   assert(report.receipts.length === 2, `ในตารางได้ ${report.receipts.length} แถว`)
   assert(report.receiptCount === 1, `นับเป็นใบเสร็จ ${report.receiptCount} ใบ`)
   assert(report.cancelledCount === 1, `นับใบที่ยกเลิกได้ ${report.cancelledCount}`)
-  // 4,000 ของใบใหม่เท่านั้น ใบที่ยกเลิก 1,500 ต้องไม่ถูกบวก
   assert(report.totalAmountCents === 400000, `ยอดรวมได้ ${report.totalAmountCents}`)
 })
 
-// -----------------------------------------------------
-// ค่าปรับเข้าบิลตอนรับเงินเท่านั้น ถ้าใบเสร็จทุกใบถูกยกเลิก ค่าปรับต้องออกไปด้วย
-// ไม่งั้นบิลจะค้างหนี้ที่งอกมาจากการรับเงินที่ถูกลบล้างไปแล้ว
 const aprInvoice = invoices.createMonthlyInvoice(db, {
   contractId: cancelContract.contractId,
   billingMonth: '2028-04',
@@ -1148,7 +1076,6 @@ const aprInvoice = invoices.createMonthlyInvoice(db, {
   issueDate: '2028-04-01'
 })
 
-// ครบกำหนด 05/04/2028 · จ่าย 20/04 = เกิน 15 วัน × 10 บาท = 150
 const feePayment = payments.recordInvoicePayment(db, {
   ...BASE,
   invoiceId: aprInvoice.invoiceId,
@@ -1197,15 +1124,12 @@ check('ยกเลิกใบสุดท้ายแล้วค่าปร�
   assert(inv.status === 'unpaid', `สถานะได้ ${inv.status}`)
 })
 
-// ค่าปรับที่ถูกถอดออกต้องกลับมาคิดใหม่ตามวันที่รับเงินจริงในรอบหน้า ไม่ใช่ค้างว่าเก็บไปแล้ว
 check('รอบหน้าค่าปรับถูกคิดใหม่ตั้งแต่ต้น ไม่ค้างว่าเคยเก็บไปแล้ว', () => {
   const rule = invoices.getLateFeeForInvoice(db, aprInvoice.invoiceId, '2028-04-20')
   assert(rule.alreadyChargedCents === 0, `ยังนับว่าเคยเก็บ ${rule.alreadyChargedCents}`)
   assert(rule.suggestedCents === 15000, `เสนอเก็บ ${rule.suggestedCents}`)
 })
 
-// -----------------------------------------------------
-// ใบเสร็จของสัญญาก็ยกเลิกได้ — เงินประกันที่คีย์ผิดต้องกลับไปเป็นยอดค้างตามเดิม
 check('ยกเลิกใบเสร็จเงินประกัน ยอดค้างเงินประกันกลับมา', () => {
   const target = payments
     .listReceipts(db, apartmentId, { dateFrom: '2026-05-25', dateTo: '2026-05-25' })
@@ -1222,24 +1146,19 @@ check('ยกเลิกใบเสร็จเงินประกัน ย
   assert(status.outstandingCents === 200000, `ค้าง ${status.outstandingCents}`)
   assert(status.isSettled === false, 'ต้องกลับไปเป็นเก็บไม่ครบ')
 
-  // ป้ายเตือนในรายการห้องอ่านจากคิวรีคนละตัว ต้องตรงกันด้วย
   const room = contracts
     .listRoomsForApartment(db, apartmentId)
     .find((r) => r.roomId === depositRoom.roomId)
   assert(room.depositOutstandingCents === 200000, `ป้ายในตารางขึ้น ${room.depositOutstandingCents}`)
 })
 
-// ยอดบิลค้างในรายการห้องเป็นคิวรีคนละตัวกับ getInvoiceById — อุดจุดเดียวไม่พอ
 check('ยอดบิลค้างในรายการห้องนับใบที่ยกเลิกออกด้วย', () => {
   const room = contracts
     .listRoomsForApartment(db, apartmentId)
     .find((r) => r.roomId === cancelRoom.roomId)
-  // ก.พ. จ่ายครบแล้ว · เม.ย. ค้างเต็ม 4,000 หลังยกเลิกใบเสร็จทั้งสองใบ
   assert(room.invoiceOutstandingCents === 400000, `ได้ ${room.invoiceOutstandingCents}`)
 })
 
-// บิลที่เคยออกใบเสร็จจะลบทิ้งไม่ได้ตลอดไป ต่อให้ใบเสร็จถูกยกเลิกจนยอดเป็น 0 แล้ว
-// เพราะเลขที่ใบเสร็จนั้นยื่นให้ผู้เช่าไปแล้ว และแถวใบเสร็จยังอ้าง invoice_id อยู่
 check('บิลที่เคยออกใบเสร็จลบไม่ได้ แม้ใบเสร็จถูกยกเลิกหมดแล้ว', () => {
   invoices.cancelInvoice(db, aprInvoice.invoiceId, {
     reason: 'ยกเลิกใบเสร็จหมดแล้ว ยกเลิกบิลตาม',
@@ -1256,18 +1175,12 @@ check('บิลที่เคยออกใบเสร็จลบไม่�
   )
 })
 
-// -----------------------------------------------------
-// ใบเสร็จทุกใบของสัญญา — ใช้ทำ "ใบรับเงินแรกเข้า" กระดาษใบเดียวที่รวมทุกก้อน
-// -----------------------------------------------------
-// depositContract ข้างบนเป็นเคสที่ครบที่สุดพอดี: เงินจอง 2,000 รับไว้ 01/03 (คนละวันกับ
-// วันทำสัญญา 25/05) และเงินประกันวันเซ็นสัญญาเก็บไม่ครบ (depositReceived: '0')
 group('ใบเสร็จทุกใบของสัญญา')
 
 check('ดึงใบเสร็จของสัญญาได้ครบทุกก้อน เรียงตามวันที่รับเงินจริง', () => {
   const rows = payments.listContractReceipts(db, depositContract.contractId)
   assert(rows.length >= 2, `ควรมีอย่างน้อยเงินจองกับค่าเช่าเดือนแรก ได้ ${rows.length}`)
 
-  // เงินจองรับไว้ 01/03 ก่อนวันทำสัญญา 25/05 จึงต้องขึ้นเป็นบรรทัดแรก
   assert(rows[0].paymentDate === '2026-03-01', `บรรทัดแรกควรเป็นเงินจอง ได้ ${rows[0].paymentDate}`)
 
   const dates = rows.map((r) => r.paymentDate)
@@ -1280,7 +1193,6 @@ check('ทุกบรรทัดมีข้อความบอกว่า�
   for (const r of rows) {
     assert(String(r.remark ?? '').trim() !== '', `ใบ ${r.receiptNumber} ไม่มี remark`)
   }
-  // เอกสารรวมใช้ remark เป็นชื่อรายการ ถ้าทุกใบเขียนเหมือนกันก็แยกไม่ออกว่าจ่ายอะไรบ้าง
   const remarks = rows.map((r) => r.remark.trim())
   assert(new Set(remarks).size === remarks.length, `ข้อความซ้ำกัน: ${remarks.join(' / ')}`)
 })
@@ -1289,8 +1201,6 @@ check('ยอดรวมของเอกสารเท่ากับผล�
   const rows = payments.listContractReceipts(db, depositContract.contractId)
   const total = rows.reduce((sum, r) => sum + r.amountCents, 0)
 
-  // เทียบกับตารางตรงๆ ไม่ใช่ rows ก้อนเดียวมาบวกสองรอบ — ไม่งั้นเทียบตัวเองกับตัวเอง
-  // แล้วผ่านทุกกรณี ถึง listContractReceipts จะลืมใบไปทั้งใบก็ตรวจไม่เจอ
   const raw = db
     .prepare(
       `SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS total
@@ -1327,6 +1237,5 @@ check('ข้อมูลหอติดมากับใบเสร็จ เ
   assert(rows[0].roomNumber, 'ไม่มีเลขห้องติดมาด้วย')
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('โมดูลรับชำระเงินทำงานครบทุกเส้นทาง')

@@ -37,7 +37,6 @@ const apartmentId = apartment.apartmentId
 rooms.generateFloorPlan(db, apartmentId, [{ roomCount: 3 }])
 const [room1, room2, room3] = rooms.listFloors(db, apartmentId)[0].rooms
 
-// -----------------------------------------------------
 group('คำนวณหน่วยที่ใช้')
 
 check('หักเลขครั้งก่อนออกจากเลขปัจจุบัน', () => {
@@ -58,13 +57,9 @@ check('เลขปัจจุบันน้อยกว่าครั้ง�
 })
 
 check('ติ๊กเกินรอบแล้วคิดจากจุดหมุนกลับตามจำนวนหลักของมิเตอร์', () => {
-  // มิเตอร์ 5 หลัก 99,850 → หมุนกลับที่ 100,000 → ใช้ไป 150 + 120 = 270
   assert(meter.calculateUnitsUsed(99850, 120, { isOverCycle: true, meterDigits: 5 }) === 270, 'ควรได้ 270')
 })
 
-// เดิมระบบเดาจำนวนหลักจากเลขครั้งก่อน — ครั้งก่อน 850 มี 3 หลัก จึงเดาว่าหมุนกลับที่ 1,000
-// แล้วได้ 270 ซึ่ง "ดูสมเหตุสมผล" ทั้งที่มิเตอร์ 5 หลักต้องเดินไป 99,270 หน่วยถึงจะกลับมา
-// ที่ 120 ได้ ตัวเลขที่ควรตะโกนว่า "ติ๊กผิดแล้ว" กลับถูกกลบจนเงียบ
 check('ใช้จำนวนหลักของมิเตอร์จริง ไม่ใช่จำนวนหลักของเลขครั้งก่อน', () => {
   const units = meter.calculateUnitsUsed(850, 120, { isOverCycle: true, meterDigits: 5 })
   assert(units === 99270, `ได้ ${units} ควรเป็น 99270 (ไม่ใช่ 270 ที่ได้จากการเดา 3 หลัก)`)
@@ -81,8 +76,6 @@ check('มิเตอร์คนละจำนวนหลัก ให้ค
   )
 })
 
-// -----------------------------------------------------
-// เพดานหน้าปัด — ความผิดพลาดที่เกิดบ่อยที่สุดตอนไล่พิมพ์เลขทั้งหอคือกด 0 เกินไปหนึ่งตัว
 group('เลขที่กรอกเกินหน้าปัด')
 
 check('เลขเกินหน้าปัดต้องไม่ผ่าน และบอกเพดานที่รับได้', () => {
@@ -103,7 +96,6 @@ check('ไม่ส่งจำนวนหลักมา ใช้ 5 หลั
   throws(() => meter.calculateUnitsUsed(0, 100000), 'เกินหน้าปัดมิเตอร์ 5 หลัก', 'ต้องใช้ 5 หลัก')
 })
 
-// 10 ** 0 = 1 จะทำให้ทุกเลขมิเตอร์ "เกินหน้าปัด" แล้วบันทึกอะไรไม่ได้เลยทั้งหอ
 check('จำนวนหลักที่เพี้ยนถูกปัดกลับเป็น 5 ไม่ใช่ปล่อยให้พังทั้งระบบ', () => {
   for (const bad of [0, -3, 99, null, 'ห้า', NaN]) {
     const units = meter.calculateUnitsUsed(99850, 120, { isOverCycle: true, meterDigits: bad })
@@ -119,13 +111,9 @@ check('เลขมิเตอร์ติดลบไม่ได้', () => {
   throws(() => meter.calculateUnitsUsed(-1, 10), 'ติดลบ', 'ต้องกันเลขติดลบ')
 })
 
-// -----------------------------------------------------
-// เปลี่ยนมิเตอร์ลูกใหม่ — มองจากตัวเลขสองตัวจะเหมือน "เกินรอบมิเตอร์" ทุกประการ
-// (เลขปัจจุบันน้อยกว่าครั้งก่อน) แต่คิดหน่วยคนละสูตร เลือกผิดคือบิลผิดเป็นหลักหมื่น
 group('คำนวณหน่วยตอนเปลี่ยนมิเตอร์ใหม่')
 
 check('รวมหน่วยของลูกเก่ากับลูกใหม่เข้าด้วยกัน', () => {
-  // ครั้งก่อน 1,000 → ถอดลูกเก่าตอน 1,250 (ใช้ไป 250) → ลูกใหม่เริ่ม 0 อ่านได้ 40
   const units = meter.calculateUnitsUsed(1000, 40, {
     isMeterReplaced: true,
     removedReading: 1250,
@@ -134,15 +122,12 @@ check('รวมหน่วยของลูกเก่ากับลูก�
   assert(units === 290, `ได้ ${units} ควรเป็น 290`)
 })
 
-// นี่คือเหตุผลทั้งหมดที่ตัวเลือกนี้มีอยู่ ถ้าเจ้าของหอเปลี่ยนมิเตอร์แล้วเลือก "เกินรอบมิเตอร์"
-// เพราะไม่มีตัวเลือกอื่นให้เลือก ระบบจะคิดหน่วยเกินไปเกือบเต็มหน้าปัดโดยไม่เตือนอะไรเลย
 check('สูตรเกินรอบให้คำตอบคนละเรื่องกับสูตรเปลี่ยนมิเตอร์ ในตัวเลขชุดเดียวกัน', () => {
   const asOverCycle = meter.calculateUnitsUsed(1000, 40, { isOverCycle: true, meterDigits: 5 })
   assert(asOverCycle === 99040, `ได้ ${asOverCycle} ควรเป็น 99040`)
 })
 
 check('มิเตอร์ลูกใหม่ที่มีเลขค้างมาก่อน ไม่ถูกคิดเงินกับผู้เช่า', () => {
-  // ช่างทดสอบมิเตอร์มาก่อนติดตั้ง เข็มจึงค้างที่ 5 — ผู้เช่าใช้จริงแค่ 35 หน่วยของลูกใหม่
   const units = meter.calculateUnitsUsed(1000, 40, {
     isMeterReplaced: true,
     removedReading: 1250,
@@ -226,7 +211,6 @@ check('เลขตอนเปลี่ยนมิเตอร์ก็ต้�
   )
 })
 
-// -----------------------------------------------------
 group('ใบจดมิเตอร์')
 
 const batch1 = meter.createBatch(db, apartmentId, '2026-08-31')
@@ -254,7 +238,6 @@ check('รายการใบจดเรียงใหม่สุดขึ�
   assert(list[0].readingDate === '2026-08-31', `ใบแรกคือ ${list[0].readingDate}`)
 })
 
-// -----------------------------------------------------
 group('หน้ากรอกเลขมิเตอร์')
 
 const sheet = meter.getBatchSheet(db, batch1.batchId, 'water')
@@ -278,7 +261,6 @@ check('ฝั่งมิเตอร์ที่ไม่รู้จักต�
   )
 })
 
-// -----------------------------------------------------
 group('บันทึกเลขมิเตอร์')
 
 const saved = meter.saveBatchReadings(db, batch1.batchId, 'water', [
@@ -289,7 +271,6 @@ const saved = meter.saveBatchReadings(db, batch1.batchId, 'water', [
 check('บันทึกแล้วคำนวณหน่วยให้ และห้องที่ไม่ได้ส่งมาไม่ถูกแตะ', () => {
   const r101 = saved.rooms.find((r) => r.roomNumber === '101')
   const r103 = saved.rooms.find((r) => r.roomNumber === '103')
-  // ห้องนี้ไม่เคยจดและไม่มีสัญญา เลขครั้งก่อนจึงเป็น 0 → ใช้ไป 100 หน่วยเต็ม
   assert(r101.unitsUsed === 100, `ได้ ${r101.unitsUsed}`)
   assert(r101.isSaved === true, 'ห้อง 101 ต้องถือว่าบันทึกแล้ว')
   assert(r103.isSaved === false, 'ห้อง 103 ไม่ได้ส่งมา ต้องยังไม่บันทึก')
@@ -322,7 +303,6 @@ check('บันทึกฝั่งไฟไม่ล้างเลขน้�
 })
 
 check('แถวเดียวผิด ต้องไม่มีแถวไหนถูกเขียนเลย', () => {
-  // ห้อง 101 ปิดรอบก่อนไว้ที่ 50 — กรอก 5 ในรอบถัดไปคือเลขเดินถอยหลังโดยไม่ติ๊กเกินรอบ
   const bad = meter.createBatch(db, apartmentId, '2026-09-15')
   throws(
     () =>
@@ -352,7 +332,6 @@ check('ห้องที่ไม่ได้อยู่ในหอของ�
   )
 })
 
-// -----------------------------------------------------
 group('เลขจดครั้งก่อนที่ระบบหาให้')
 
 check('ใบถัดไปดึงเลขปัจจุบันของใบก่อนหน้ามาเป็นเลขครั้งก่อน', () => {
@@ -380,7 +359,6 @@ check('ห้องที่มีสัญญาแต่ยังไม่เ�
     waterMeterStart: 77,
     electricMeterStart: 4200,
     tenants: [somying.tenantId],
-    // เงินประกันที่รับวันทำสัญญาถูกออกเป็นใบเสร็จให้ทันที จึงต้องมีผู้รับเงิน
     createdBy: staff.user_id
   })
   const batch3 = meter.createBatch(db, apartmentId, '2026-10-31')
@@ -395,8 +373,6 @@ check('ห้องที่มีสัญญาแต่ยังไม่เ�
   )
 })
 
-// บั๊กที่ผู้ใช้เจอจริง 2026-08-07: บันทึกฝั่งน้ำก่อน แล้วฝั่งไฟไม่เติมเลขครั้งก่อนให้
-// เพราะแถวถูกเขียนไว้แล้วโดยฝั่งไฟยังเป็นค่าว่าง — ต้องแยก "ยังไม่จด" ออกจาก "จดได้ 0"
 check('บันทึกฝั่งน้ำแล้ว ฝั่งไฟยังต้องเติมเลขครั้งก่อนให้อยู่', () => {
   const first = meter.createBatch(db, apartmentId, '2027-01-31')
   meter.saveBatchReadings(db, first.batchId, 'water', [
@@ -406,7 +382,6 @@ check('บันทึกฝั่งน้ำแล้ว ฝั่งไฟย
     { roomId: room2.roomId, roomNumber: '102', currentReading: 700 }
   ])
 
-  // รอบถัดไป: ห้องนี้ต้องได้เลขปิดของรอบก่อนทั้งสองฝั่ง
   const second = meter.createBatch(db, apartmentId, '2027-02-28')
   meter.saveBatchReadings(db, second.batchId, 'water', [
     { roomId: room2.roomId, roomNumber: '102', currentReading: 25 }
@@ -423,7 +398,6 @@ check('บันทึกฝั่งน้ำแล้ว ฝั่งไฟย
 })
 
 check('รอบที่จดแต่ฝั่งน้ำ ต้องไม่บังเลขไฟของรอบที่เก่ากว่า', () => {
-  // รอบ 2027-03 จดแต่น้ำ — รอบ 2027-04 ฝั่งไฟต้องย้อนไปเอาเลขของ 2027-02 (=700)
   const marchBatch = meter.createBatch(db, apartmentId, '2027-03-31')
   meter.saveBatchReadings(db, marchBatch.batchId, 'water', [
     { roomId: room2.roomId, roomNumber: '102', currentReading: 30 }
@@ -435,12 +409,9 @@ check('รอบที่จดแต่ฝั่งน้ำ ต้องไม
   assert(r102.previousReading === 700, `ได้ ${r102.previousReading} ควรเป็น 700`)
 })
 
-// เลขครั้งก่อนคือเลขปิดของรอบที่แล้ว ไม่ใช่ตัวเลขที่ใครจะกรอกทับได้ (ผู้ใช้สั่ง 2026-08-07)
-// ล็อกที่หน้าจออย่างเดียวไม่พอ — ฝั่ง main ต้องไม่รับค่าที่ส่งมาด้วย
 check('ส่งเลขครั้งก่อนมาเองก็ไม่ถูกใช้ ระบบยึดเลขปิดของรอบก่อนเสมอ', () => {
   const batch4 = meter.createBatch(db, apartmentId, '2026-11-30')
   meter.saveBatchReadings(db, batch4.batchId, 'water', [
-    // ยัด previousReading มั่วๆ เข้ามา — ต้องถูกเมิน
     { roomId: room1.roomId, roomNumber: '101', previousReading: 999, currentReading: 1000 }
   ])
   const sheet4 = meter.getBatchSheet(db, batch4.batchId, 'water')
@@ -449,13 +420,11 @@ check('ส่งเลขครั้งก่อนมาเองก็ไม�
   assert(r101.unitsUsed === 950, `หน่วยต้องคิดจาก 50 ไม่ใช่ 999 — ได้ ${r101.unitsUsed}`)
 })
 
-// -----------------------------------------------------
 group('ลบใบจดมิเตอร์')
 
 check('ลบใบที่ยังไม่ได้ออกบิลได้ และเลขที่จดไว้หายไปด้วย', () => {
   const batch = meter.createBatch(db, apartmentId, '2026-12-31')
   meter.saveBatchReadings(db, batch.batchId, 'water', [
-    // รอบก่อนปิดที่ 1000 เลขรอบนี้จึงต้องมากกว่านั้น
     { roomId: room1.roomId, roomNumber: '101', currentReading: 1005 }
   ])
   meter.deleteBatch(db, batch.batchId)
@@ -470,10 +439,8 @@ check('ลบใบที่ไม่มีอยู่ต้องแจ้ง�
   throws(() => meter.deleteBatch(db, 9999), 'ไม่พบใบจดมิเตอร์', 'ต้องแจ้งเตือน')
 })
 
-// -----------------------------------------------------
 group('บันทึกการเปลี่ยนมิเตอร์')
 
-// ห้อง 101 ฝั่งน้ำปิดรอบล่าสุด (2026-11-30) ไว้ที่ 1,000
 const swapBatch = meter.createBatch(db, apartmentId, '2027-07-31')
 
 check('บันทึกการเปลี่ยนมิเตอร์แล้วได้หน่วยรวมของทั้งสองลูก', () => {
@@ -492,8 +459,6 @@ check('บันทึกการเปลี่ยนมิเตอร์แ�
   assert(r101.unitsUsed === 290, `ได้ ${r101.unitsUsed} ควรเป็น 290`)
 })
 
-// ตัวเลขสองตัวนี้ต้องอยู่ในฐานข้อมูล ไม่ใช่ใช้คำนวณแล้วทิ้ง — ปีหน้ามีคนถามว่าทำไม
-// เลขมิเตอร์ห้องนี้กระโดดจาก 1,250 มา 40 แล้วต้องตอบได้จากข้อมูลที่มี
 check('เลขตอนถอดลูกเก่าและเลขเริ่มลูกใหม่ถูกเก็บไว้ อ่านกลับมาได้', () => {
   const again = meter.getBatchSheet(db, swapBatch.batchId, 'water')
   const r101 = again.rooms.find((r) => r.roomNumber === '101')
@@ -533,8 +498,6 @@ check('กรอกเลขการเปลี่ยนมิเตอร์�
   )
 })
 
-// -----------------------------------------------------
-// จำนวนหลักต้องเดินทางจาก "ค่าตั้งค่าของหอ" มาถึงสูตรจริง ไม่ใช่ตั้งไว้แล้วไม่มีใครอ่าน
 group('จำนวนหลักของมิเตอร์ที่ตั้งไว้ที่หอ')
 
 check('ใบจดมิเตอร์บอกจำนวนหลักของหอมาให้หน้าจอด้วย', () => {
@@ -544,7 +507,6 @@ check('ใบจดมิเตอร์บอกจำนวนหลักข�
 })
 
 check('แก้จำนวนหลักที่หอแล้ว การบันทึกเลขมิเตอร์เปลี่ยนตามทันที', () => {
-  // ตั้งเป็น 4 หลัก → 12,345 กลายเป็นเลขที่หน้าปัดอ่านไม่ได้
   db.prepare('UPDATE apartments SET meter_digits = 4 WHERE apartment_id = ?').run(apartmentId)
 
   const batch = meter.createBatch(db, apartmentId, '2027-10-31')
@@ -562,7 +524,6 @@ check('แก้จำนวนหลักที่หอแล้ว การ
   db.prepare('UPDATE apartments SET meter_digits = 5 WHERE apartment_id = ?').run(apartmentId)
 })
 
-// หน้าจอส่งอะไรมาก็ไม่มีผล — เหตุผลเดียวกับเลขครั้งก่อน (ล็อกที่หน้าจออย่างเดียวไม่พอ)
 check('ส่งจำนวนหลักมาเองจากหน้าจอก็ไม่ถูกใช้', () => {
   const batch = meter.createBatch(db, apartmentId, '2027-11-30')
   throws(
@@ -575,17 +536,11 @@ check('ส่งจำนวนหลักมาเองจากหน้า�
   )
 })
 
-// -----------------------------------------------------
-// 🔴 บั๊กที่เจอ 2026-08-10 ตอนตอบคำถาม แก้ 2026-08-11:
-// ห้องที่เคยมีใบจดมิเตอร์มาก่อน จะเมินเลขมิเตอร์วันเข้าพักในสัญญาเสมอ (`lastReading ??
-// contractStart`) ผู้เช่าใหม่ที่ย้ายเข้าห้องมือสองจึงโดนคิดหน่วยที่ผู้เช่าคนก่อนใช้ค้างไว้
-// รวมถึงหน่วยที่หอใช้เองระหว่างทำความสะอาด/ซ่อมห้อง
 group('เปลี่ยนผู้เช่ากลางคัน — โซ่มิเตอร์ต้องเริ่มใหม่')
 
 const turnoverFloors = rooms.addFloor(db, apartmentId, { roomCount: 1 })
 const turnoverRoom = turnoverFloors[turnoverFloors.length - 1].rooms[0]
 
-// ผู้เช่าคนเก่าอยู่มาแล้ว ปิดรอบล่าสุดไว้ที่ 500
 const oldBatch = meter.createBatch(db, apartmentId, '2028-01-31')
 meter.saveBatchReadings(db, oldBatch.batchId, 'water', [
   { roomId: turnoverRoom.roomId, roomNumber: turnoverRoom.roomNumber, currentReading: 500 }
@@ -597,7 +552,6 @@ const newTenant = tenants.insertTenant(db, {
   phone: '0844444444'
 })
 
-// คนใหม่ย้ายเข้า 10 ก.พ. — วันนั้นหน้าปัดอยู่ที่ 520 (หอใช้ไป 20 หน่วยตอนล้างห้อง)
 contracts.createContract(db, {
   roomId: turnoverRoom.roomId,
   rentType: 'monthly',
@@ -622,8 +576,6 @@ check('ผู้เช่าใหม่เริ่มนับจากเล�
   assert(row.supersededReading === 500, `เลขที่ถูกข้ามได้ ${row.supersededReading}`)
 })
 
-// ต้องประกาศออกมา ไม่ใช่เปลี่ยนตัวเลขให้เงียบๆ — ถ้าเลขในสัญญากรอกผิด บิลใบแรก
-// ของผู้เช่าใหม่จะพุ่งโดยไม่มีอะไรบอก
 check('ใบจดบอกออกมาว่าห้องไหนถูกตัดโซ่ เพราะเปลี่ยนผู้เช่า', () => {
   const sheet = meter.getBatchSheet(db, afterMoveIn.batchId, 'water')
   const warned = sheet.newTenantRooms.find((r) => r.roomNumber === turnoverRoom.roomNumber)
@@ -647,7 +599,6 @@ check('หน่วยที่คิดจริงตอนบันทึก 
   assert(row.unitsUsed === 40, `ได้ ${row.unitsUsed} ควรเป็น 40 (560−520) ไม่ใช่ 60`)
 })
 
-// เริ่มใหม่ครั้งเดียวตอนย้ายเข้า รอบต่อๆ ไปเดินโซ่ตามปกติ ไม่ใช่ดึงเลขสัญญามาทุกเดือน
 check('รอบถัดไปเดินต่อจากเลขที่จดหลังผู้เช่าใหม่เข้าอยู่แล้ว', () => {
   const later = meter.createBatch(db, apartmentId, '2028-03-31')
   const sheet = meter.getBatchSheet(db, later.batchId, 'water')
@@ -658,7 +609,6 @@ check('รอบถัดไปเดินต่อจากเลขที่�
   assert(sheet.newTenantRooms.length === 0, 'ไม่ควรมีห้องไหนอยู่ในรายการเตือนแล้ว')
 })
 
-// จดในวันที่ย้ายเข้าพอดี = เลขนั้นเป็นของผู้เช่าคนใหม่แล้ว จึงเดินโซ่ต่อได้ ไม่ต้องรีเซ็ต
 check('ใบจดที่ลงวันเดียวกับวันเข้าพัก ถือเป็นเลขของผู้เช่าคนใหม่', () => {
   const sameDayFloors = rooms.addFloor(db, apartmentId, { roomCount: 1 })
   const sameDayRoom = sameDayFloors[sameDayFloors.length - 1].rooms[0]
@@ -695,6 +645,5 @@ check('ใบจดที่ลงวันเดียวกับวันเ�
   assert(row.previousSource === 'batch', `ได้ ${row.previousSource} — ไม่ควรถือว่าโซ่ขาด`)
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('โมดูลจดมิเตอร์ทำงานครบทุกเส้นทาง')

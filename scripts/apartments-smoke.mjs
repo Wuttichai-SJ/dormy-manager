@@ -16,7 +16,6 @@ const { toCents, centsToBaht } = await import('../src/main/money.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-apartments')
 
-// -----------------------------------------------------
 group('การแปลงเงิน (สตางค์)')
 
 check('บาททศนิยมแปลงเป็นสตางค์ถูกต้อง', () => {
@@ -24,7 +23,6 @@ check('บาททศนิยมแปลงเป็นสตางค์ถ�
   assert(toCents('1500.50') === 150050, `1500.50 -> ${toCents('1500.50')}`)
   assert(toCents('0') === 0, 'ศูนย์ต้องได้ 0')
   assert(toCents('0.05') === 5, `0.05 -> ${toCents('0.05')}`)
-  // ทศนิยมตำแหน่งเดียวต้องเติมศูนย์ ไม่ใช่ตีความเป็น 5 สตางค์
   assert(toCents('10.5') === 1050, `10.5 -> ${toCents('10.5')}`)
 })
 
@@ -45,7 +43,6 @@ check('แปลงกลับเป็นบาทคงสตางค์ไ�
   assert(centsToBaht(150000) === '1500.00', centsToBaht(150000))
 })
 
-// -----------------------------------------------------
 group('ตรวจข้อมูลก่อนบันทึก')
 
 check('รายงานข้อผิดพลาดครบทุกข้อในครั้งเดียว', () => {
@@ -59,7 +56,6 @@ check('รายงานข้อผิดพลาดครบทุกข้�
 })
 
 check('วันครบกำหนดเกินวันที่ 28 ถูกปฏิเสธ', () => {
-  // เดือนกุมภาพันธ์ไม่มีวันที่ 29-31 ถ้ายอมให้ตั้งไว้ ระบบจะคิดค่าปรับผิดทั้งหอ
   for (const day of [0, 29, 30, 31, 1.5]) {
     const errors = apartments.validateApartmentInput({
       nameTh: 'หอทดสอบ',
@@ -81,7 +77,6 @@ check('วันที่ 1-28 และค่าปรับ 0 ผ่านไ�
   assert(errors.length === 0, errors.join(' | '))
 })
 
-// จำนวนหลักไปเป็นเลขยกกำลังของจุดหมุนกลับ ค่าเพี้ยนคือบิลเพี้ยนทั้งหอ
 check('จำนวนหลักของมิเตอร์นอกช่วงที่รับได้ ถูกปฏิเสธ', () => {
   for (const digits of [0, 2, 9, 12, 5.5]) {
     const errors = apartments.validateApartmentInput({
@@ -105,7 +100,6 @@ check('ไม่ส่งจำนวนหลักมา = ไม่ได้�
   assert(errors.length === 0, errors.join(' | '))
 })
 
-// -----------------------------------------------------
 group('สร้าง / อ่าน / แก้ไข')
 
 const first = apartments.insertApartment(db, {
@@ -129,7 +123,6 @@ check('แปลง 0/1 เป็น boolean ให้หน้าจอ', () =>
   assert(first.isVatEnabled === false, 'is_vat_enabled ควรเป็น false')
 })
 
-// หอที่หอเจ้าของใช้จริงเป็นมิเตอร์ 5 หลัก หอใหม่จึงไม่ต้องมาตั้งเอง
 check('ไม่ระบุจำนวนหลักของมิเตอร์ ได้ 5 หลักเป็นค่าเริ่มต้น', () => {
   assert(first.meterDigits === 5, `ได้ ${first.meterDigits}`)
 })
@@ -188,7 +181,6 @@ check('รายการเรียงตาม display_order และนั�
   const list = apartments.listApartments(db)
   assert(list.length === 3, `คาด 3 หอ ได้ ${list.length}`)
   assert(list[0].nameTh === 'หอพักทดสอบ ก', `ตัวแรกคือ ${list[0].nameTh}`)
-  // หอเปล่าต้องยังขึ้นในรายการ (นับได้ 0) ไม่ใช่หายไปทั้งแถวเพราะ JOIN ไม่เจอห้อง
   assert(list[0].totalRooms === 0, `totalRooms = ${list[0].totalRooms}`)
   assert(list[0].vacantRooms === 0, `vacantRooms = ${list[0].vacantRooms}`)
 })
@@ -225,8 +217,6 @@ check('แก้ไขหอที่ไม่มีอยู่ต้องแ�
   )
 })
 
-// เจอจริง 2026-08-08: เจ้าของหอติ๊ก "ต้องการเก็บค่าปรับ" แต่ช่องค่าปรับยังเป็น 0.00
-// ระบบจึงไม่เคยคิดค่าปรับให้ และไม่มีอะไรบอกว่าทำไม — ดูเหมือนฟีเจอร์เสีย
 check('เปิดเก็บค่าปรับแต่ตั้งอัตราไว้ 0 ต้องไม่ผ่าน', () => {
   const errors = apartments.validateApartmentInput({
     nameTh: 'หอทดสอบ',
@@ -252,7 +242,6 @@ check('ปิดเก็บค่าปรับแล้วตั้งอั�
   assert(errors.length === 0, errors.join(' | '))
 })
 
-// -----------------------------------------------------
 group('จัดเรียงลำดับ')
 
 check('สลับลำดับแล้วรายการเรียงตามที่สั่ง', () => {
@@ -265,9 +254,6 @@ check('สลับลำดับแล้วรายการเรียง�
   )
 })
 
-// -----------------------------------------------------
-// หอต้องเข้าหน้าทำงาน (ที่มีเมนูข้าง) ไม่ได้จนกว่าจะกด "เสร็จสิ้น" ที่ขั้นสุดท้ายของ
-// ตัวช่วยตั้งค่า — เดิมเดาจาก "มีห้องแล้ว = เสร็จ" ซึ่งปล่อยหอที่ค่าเช่ายังเป็น 0 ผ่านไปได้
 group('ปิดงานตั้งค่า')
 
 check('หอที่เพิ่งสร้างยังไม่นับว่าตั้งค่าเสร็จ', () => {
@@ -298,7 +284,6 @@ check('ปิดงานตั้งค่าให้หอที่ไม่�
   throws(() => apartments.markSetupCompleted(db, 9999), 'ไม่พบหอพัก', 'ควรแจ้งว่าไม่พบ')
 })
 
-// -----------------------------------------------------
 group('ลบ')
 
 check('ลบหอที่ยังไม่มีชั้น/ห้องได้', () => {
@@ -327,9 +312,6 @@ check('ลบหอที่ไม่มีอยู่ต้องแจ้ง�
   throws(() => apartments.deleteApartment(db, 9999), 'ไม่พบหอพัก', 'ควรแจ้งว่าไม่พบ')
 })
 
-// เคยพลาดมาแล้ว: deleteApartment ลืม apartment_utility_defaults ทำให้หอที่เดินตัวช่วย
-// ตั้งค่าไปถึงขั้น "ค่าน้ำ/ค่าไฟ" ลบไม่ออก และเด้ง "FOREIGN KEY constraint failed"
-// ออกหน้าจอ เทสต์นี้จึงสร้างหอที่มี "ลูก" ครบทุกตารางที่ผูก apartment_id แล้วสั่งลบ
 check('ลบหอที่ตั้งค่าน้ำ/ค่าไฟ ค่าบริการ และบัญชีไว้แล้วได้ (ไม่ติด FK)', () => {
   const created = apartments.insertApartment(db, {
     nameTh: 'หอพักทดสอบ ลบพร้อมลูก',
@@ -363,7 +345,6 @@ check('ลบหอที่ตั้งค่าน้ำ/ค่าไฟ ค�
   assert(leftovers.length === 0, `ยังเหลือข้อมูลค้าง ${leftovers.join(', ')}`)
 })
 
-// -----------------------------------------------------
 group('นับห้องว่าง')
 
 check('นับเฉพาะห้องสถานะ vacant', () => {
@@ -390,7 +371,6 @@ check('นับเฉพาะห้องสถานะ vacant', () => {
   assert(listed.vacantRooms === 2, `vacantRooms = ${listed.vacantRooms}`)
 })
 
-// -----------------------------------------------------
 group('นโยบายคืนเงินประกันของหอ')
 
 const policyHome = apartments.insertApartment(db, {
@@ -404,7 +384,6 @@ check('ค่าตั้งต้นตรงกับกติกาที่�
   const policy = apartments.getDepositPolicy(db, policyHome.apartmentId)
   assert(policy.policy === 'on_full_term', `ได้ ${policy.policy}`)
   assert(policy.noticeDays === 15, `ได้ ${policy.noticeDays}`)
-  // null = ใช้ระยะสัญญาของแต่ละใบเป็นเกณฑ์ ซึ่งเป็นค่าที่หอนี้ใช้อยู่
   assert(policy.minStayMonths === null, `ได้ ${policy.minStayMonths}`)
   assert(policy.policyLabel === 'คืนเมื่ออยู่ครบตามสัญญา', `ได้ ${policy.policyLabel}`)
 })
@@ -418,7 +397,6 @@ check('บันทึกแล้วอ่านกลับมาได้ แ
   assert(saved.noticeDays === 30, `ได้ ${saved.noticeDays}`)
   assert(saved.minStayMonths === 6, `ได้ ${saved.minStayMonths}`)
 
-  // ส่งสตริงว่างมา = กลับไปใช้ระยะสัญญาเป็นเกณฑ์ ไม่ใช่ 0 เดือน
   const cleared = apartments.saveDepositPolicy(db, policyHome.apartmentId, {
     policy: 'always',
     noticeDays: 15,
@@ -447,7 +425,6 @@ check('นโยบายที่ไม่รู้จัก / วันติ�
     'ไม่ติดลบ',
     'วันติดลบผ่านได้'
   )
-  // 🔴 พิมพ์ 150 แทน 15 แล้วปล่อยผ่าน = ผู้เช่าทุกคนถูกริบเงินประกันโดยไม่มีใครรู้ว่าทำไม
   throws(
     () =>
       apartments.saveDepositPolicy(db, policyHome.apartmentId, {
@@ -478,10 +455,6 @@ check('หอที่ไม่มีอยู่ อ่านหรือบั
   )
 })
 
-// -----------------------------------------------------
-// -----------------------------------------------------
-// อัตรา VAT (migration 031)
-// -----------------------------------------------------
 group('อัตรา VAT')
 
 const vatBase = {
@@ -492,9 +465,6 @@ const vatBase = {
 }
 
 check('อัตราที่ใช้ได้จริงต้องผ่านทุกตัว รวมเลขที่ทศนิยมลอยทำพัง', () => {
-  // 🔴 8.2 / 2.3 / 16.4 คือเลขที่เคยถูกปฏิเสธผิดๆ เพราะเช็กด้วย Math.round(r*100) !== r*100
-  //    (8.2 * 100 = 819.9999999999999 ในเลขทศนิยมฐานสอง)
-  //    ส่วน 7 / 7.1 / 10 ผ่านอยู่แล้ว — ลองเล่นด้วยเลขที่คุ้นเคยจึงไม่มีวันเจอบั๊กนี้
   for (const rate of ['0', '7', '7.1', '7.5', '8.2', '2.3', '10', '12.9', '16.4', '100']) {
     const errors = apartments.validateApartmentInput({ ...vatBase, vatRate: rate })
     assert(errors.length === 0, `อัตรา ${rate} ควรผ่าน แต่ได้: ${errors.join(' / ')}`)
@@ -529,7 +499,6 @@ check('เก็บและอ่านอัตรากลับมาได�
   })
   assert(withRate.vatRate === 8.2, `ได้ ${withRate.vatRate}`)
 
-  // เว้นว่าง = ไม่ได้มาแก้ช่องนี้ ต้องไม่กลายเป็น 0 (Number('') === 0)
   const blank = apartments.insertApartment(db, {
     ...vatBase,
     nameTh: 'หอ VAT เว้นว่าง',
@@ -538,6 +507,5 @@ check('เก็บและอ่านอัตรากลับมาได�
   assert(blank.vatRate === 7, `เว้นว่างควรได้ 7 ได้ ${blank.vatRate}`)
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('โมดูลหอพักทำงานครบทุกเส้นทาง')

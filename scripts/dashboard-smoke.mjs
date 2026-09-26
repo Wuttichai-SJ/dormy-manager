@@ -1,8 +1,4 @@
 // ทดสอบหน้าภาพรวม — รันด้วย: npm run test:dashboard
-//
-// เทสต์ชุดนี้ส่วนใหญ่เป็น **การไล่เทียบว่าตัวเลขบนหน้าแรกเท่ากับตัวเลขบนหน้าที่มันสรุป**
-// ไม่ใช่การเทียบกับเลขที่เขียนไว้ในเทสต์ เพราะความผิดที่กลัวที่สุดของหน้านี้ไม่ใช่
-// "คำนวณผิด" แต่คือ "คำนวณด้วยกติกาคนละชุดกับหน้ารายงาน" แล้วสองหน้าบอกไม่เหมือนกัน
 import {
   assert,
   check,
@@ -31,7 +27,6 @@ const dashboard = await import('../src/main/db/dashboard.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-dashboard')
 
-// วันที่ตรึงไว้ ไม่ใช่ "วันนี้" — ไม่งั้นเทสต์จะผ่านวันนี้แล้วพังเดือนหน้าเอง
 const TODAY = '2026-08-17'
 const THIS_MONTH = '2026-08'
 const LAST_MONTH = '2026-07'
@@ -63,7 +58,6 @@ rooms.setRoomRates(
   { monthlyRent: '5000' }
 )
 
-// เบอร์โทรห้ามซ้ำกันข้ามผู้เช่า จึงเดินเลขให้เอง
 let phoneSeq = 0
 function makeTenant(firstName) {
   phoneSeq += 1
@@ -91,13 +85,10 @@ function makeContract(roomId, startDate) {
   })
 }
 
-// สองห้องแรกอยู่มาก่อนเดือนที่สรุป = ห้องที่ต้องออกบิลเดือนนี้
 const contract1 = makeContract(room1.roomId, '2026-06-01')
 const contract2 = makeContract(room2.roomId, '2026-06-01')
-// ห้องที่สามเพิ่งย้ายเข้าเดือนนี้ = จ่ายค่าเช่าเดือนแรกไปแล้วตอนย้ายเข้า ต้องไม่ถูกนับ
 const contract3 = makeContract(room3.roomId, '2026-08-05')
 
-// ห้องที่สี่ว่างแต่มีคนจองไว้ — ยังต้องนับเป็นห้องว่าง
 bookings.createBooking(db, {
   roomId: room4.roomId,
   rentType: 'monthly',
@@ -112,14 +103,12 @@ rooms.setRoomStatus(db, [room5.roomId], 'maintenance')
 
 const julyBatch = meter.createBatch(db, apartmentId, '2026-07-01')
 
-// บิลของเดือนก่อน ยังไม่จ่าย = ค้างนานสุด
 const overdueInvoice = invoices.createMonthlyInvoice(db, {
   contractId: contract1.contractId,
   billingMonth: LAST_MONTH,
   meterBatchId: julyBatch.batchId,
   issueDate: '2026-07-01'
 })
-// บิลเดือนนี้ จ่ายมาบางส่วน
 const partialInvoice = invoices.createMonthlyInvoice(db, {
   contractId: contract1.contractId,
   billingMonth: THIS_MONTH,
@@ -133,7 +122,6 @@ const partialPayment = payments.recordInvoicePayment(db, {
   paymentDate: '2026-08-10',
   createdBy: staff.user_id
 })
-// บิลของเดือนก่อนที่จ่ายครบแล้ว = ต้องไม่อยู่ในยอดค้าง แต่ต้องอยู่ในรายรับเดือนก่อน
 const paidInvoice = invoices.createMonthlyInvoice(db, {
   contractId: contract2.contractId,
   billingMonth: LAST_MONTH,
@@ -147,7 +135,6 @@ payments.recordInvoicePayment(db, {
   paymentDate: '2026-07-20',
   createdBy: staff.user_id
 })
-// บิลที่ยังไม่ถึงกำหนดชำระ (ครบกำหนด 05/09) — ค้างชำระเหมือนกันแต่ยังไม่เกินกำหนด
 invoices.createMonthlyInvoice(db, {
   contractId: contract3.contractId,
   billingMonth: '2026-09',
@@ -157,7 +144,6 @@ invoices.createMonthlyInvoice(db, {
 
 const summaryAsOf = (today = TODAY) => dashboard.getDashboardSummary(db, apartmentId, { today })
 
-// -----------------------------------------------------
 group('เดือนที่ใช้สรุป')
 
 check('เดือนที่สรุปมาจากวันที่ที่ส่งเข้าไป และเดือนก่อนหน้าข้ามปีได้', () => {
@@ -165,12 +151,10 @@ check('เดือนที่สรุปมาจากวันที่ท�
   assert(august.billingMonth === THIS_MONTH, `ได้ ${august.billingMonth}`)
   assert(august.previousMonth === LAST_MONTH, `ได้ ${august.previousMonth}`)
 
-  // ม.ค. ต้องย้อนไปเป็น ธ.ค. ปีก่อน ไม่ใช่ '2026-00'
   const january = summaryAsOf('2026-01-15')
   assert(january.previousMonth === '2025-12', `ได้ ${january.previousMonth}`)
 })
 
-// วันสุดท้ายของเดือนต้องให้ Date คิด ไม่ฮาร์ดโค้ด 30/31 และต้องถูกทั้งปีอธิกสุรทิน
 check('ช่วงวันของรายรับจบที่วันสุดท้ายของเดือนจริง', () => {
   assert(summaryAsOf().revenue.to === '2026-08-31', `ส.ค. ได้ ${summaryAsOf().revenue.to}`)
   assert(summaryAsOf('2026-02-10').revenue.to === '2026-02-28', 'ก.พ. ปีปกติต้องจบ 28')
@@ -186,10 +170,8 @@ check('ไม่ระบุหอ / วันที่ไม่ถูกต้�
   )
 })
 
-// -----------------------------------------------------
 group('ยอดค้างชำระ')
 
-// 🔴 ตัวเลขบนหน้าแรกต้องเท่ากับที่หน้าใบแจ้งหนี้แสดงเมื่อกรองแท็บ "ค้างชำระ" เสมอ
 check('ยอดค้าง/จำนวนใบ ตรงกับหน้าใบแจ้งหนี้ที่กรองค้างชำระ', () => {
   const summary = summaryAsOf()
   const list = invoices.listInvoices(db, apartmentId, {
@@ -200,14 +182,12 @@ check('ยอดค้าง/จำนวนใบ ตรงกับหน้�
   const total = list.reduce((sum, inv) => sum + inv.outstandingCents, 0)
   assert(summary.outstanding.totalCents === total, `หน้าแรก ${summary.outstanding.totalCents} ≠ ${total}`)
   assert(summary.outstanding.invoiceCount === list.length, `จำนวนใบ ${summary.outstanding.invoiceCount} ≠ ${list.length}`)
-  // 5000 (บิลเดือนก่อน) + 3000 (ที่เหลือของบิลเดือนนี้) + 5000 (ใบที่ยังไม่ถึงกำหนด)
   assert(summary.outstanding.totalCents === 1300000, `ยอดค้างได้ ${summary.outstanding.totalCents}`)
 })
 
 check('นับใบที่เกินกำหนดแยกจากจำนวนใบค้างทั้งหมด', () => {
   const summary = summaryAsOf()
   assert(summary.outstanding.invoiceCount === 3, `ค้างทั้งหมดได้ ${summary.outstanding.invoiceCount}`)
-  // ใบที่ครบกำหนด 05/09 ยังไม่เกินกำหนด ณ วันที่ 17/08
   assert(summary.outstanding.overdueCount === 2, `เกินกำหนดได้ ${summary.outstanding.overdueCount}`)
 })
 
@@ -220,7 +200,6 @@ check('ตารางบิลค้างเรียงจากค้าง�
   for (let i = 1; i < rows.length; i += 1) {
     assert(rows[i - 1].overdueDays >= rows[i].overdueDays, 'ลำดับไม่ได้เรียงจากค้างนานสุด')
   }
-  // 0 = ยังไม่ถึงกำหนด — หน้าจอเขียนว่า "ยังไม่ถึงกำหนด" ไม่ใช่ "0 วัน"
   assert(rows[rows.length - 1].overdueDays === 0, 'ใบที่ยังไม่ถึงกำหนดต้องได้ 0')
 })
 
@@ -235,7 +214,6 @@ check('ตารางบิลค้างยาวสุด 5 แถว แต
       })
     )
   }
-  // สร้างบิลค้างเพิ่มให้เกิน 5 ใบ โดยออกของเดือนอื่นเพื่อไม่ชนดัชนี "หนึ่งเดือนหนึ่งใบ"
   const added = ['2026-10', '2026-11', '2026-12'].map((month) =>
     invoices.createMonthlyInvoice(db, {
       contractId: contract2.contractId,
@@ -249,7 +227,6 @@ check('ตารางบิลค้างยาวสุด 5 แถว แต
   assert(summary.topOverdue.length === dashboard.TOP_OVERDUE_LIMIT, `ได้ ${summary.topOverdue.length} แถว`)
   assert(summary.outstanding.invoiceCount === 6, `ตัวนับได้ ${summary.outstanding.invoiceCount}`)
 
-  // เก็บกวาดกลับ ไม่ให้บิลชุดนี้ไปกวนเทสต์ข้อถัดๆ ไป
   for (const invoice of added) {
     invoices.cancelInvoice(db, invoice.invoiceId, { reason: 'ล้างข้อมูลเทสต์', cancelledBy: staff.user_id })
   }
@@ -257,8 +234,6 @@ check('ตารางบิลค้างยาวสุด 5 แถว แต
   void extra
 })
 
-// บิลที่ยกเลิกแล้วไม่ใช่หนี้ ต่อให้ยอดค้างคำนวณออกมาเป็นบวก (เหตุผลเดียวกับ
-// SETTLEMENT_STATUSES ที่กรองด้วยสถานะ ไม่ใช่ด้วย "ยอดค้าง > 0")
 check('บิลที่ยกเลิกแล้วหายจากยอดค้างทันที', () => {
   const before = summaryAsOf().outstanding
   const throwaway = invoices.createMonthlyInvoice(db, {
@@ -281,17 +256,14 @@ check('บิลที่ยกเลิกแล้วหายจากยอ�
   assert(after.totalCents === before.totalCents, `ยอดค้างได้ ${after.totalCents}`)
 })
 
-// -----------------------------------------------------
 group('ห้อง')
 
 check('นับห้องตามสถานะ และห้องที่มีคนจองยังนับเป็นห้องว่าง', () => {
   const { rooms: stat } = summaryAsOf()
   assert(stat.total === 5, `ห้องทั้งหมดได้ ${stat.total}`)
   assert(stat.occupied === 3, `มีคนอยู่ได้ ${stat.occupied}`)
-  // ห้อง 104 ว่างแต่มีใบจอง · ห้อง 105 ปิดปรับปรุง จึงเหลือห้องว่างจริงใบเดียว
   assert(stat.vacant === 1, `ห้องว่างได้ ${stat.vacant}`)
   assert(stat.maintenance === 1, `ปิดปรับปรุงได้ ${stat.maintenance}`)
-  // 🔴 การจองไม่ได้ถูกเก็บเป็น rooms.status — ต้องนับจากใบจองเสมอ
   assert(stat.booked === 1, `จองแล้วได้ ${stat.booked}`)
   assert(stat.occupancyPercent === 60, `อัตราการเข้าพักได้ ${stat.occupancyPercent}`)
 })
@@ -311,7 +283,6 @@ check('หอที่ยังไม่มีห้องไม่หารด�
   assert(summary.topOverdue.length === 0, 'หอเปล่าต้องไม่มีบิลค้าง')
 })
 
-// -----------------------------------------------------
 group('สิ่งที่ต้องทำ — จดมิเตอร์')
 
 check('ยังไม่มีใบจดของเดือนนี้ = ยังไม่ได้จด แต่ยังบอกวันของใบล่าสุดได้', () => {
@@ -320,8 +291,6 @@ check('ยังไม่มีใบจดของเดือนนี้ = �
   assert(task.latestBatchDate === '2026-07-01', `ใบล่าสุดได้ ${task.latestBatchDate}`)
 })
 
-// 🔴 "สร้างใบไว้แต่ยังไม่กรอกเลขห้องไหนเลย" ต้องแยกจาก "จดแล้ว" ไม่งั้นคนกดสร้างใบเปล่า
-// ตอนต้นเดือนแล้วหน้าแรกจะขึ้นติ๊กถูก ทั้งที่งานยังไม่ได้เริ่ม
 const augustBatch = meter.createBatch(db, apartmentId, '2026-08-01')
 
 check('ใบของเดือนนี้ที่ยังไม่ได้กรอกเลขห้องไหน ต้องยังไม่นับว่าเสร็จ', () => {
@@ -341,12 +310,7 @@ check('กรอกเลขมิเตอร์แล้วจำนวนห�
   assert(task.roomCount === 2, `ได้ ${task.roomCount}`)
 })
 
-// 🔴 บั๊กที่เจอจากการใช้งานจริง 2026-08-17 (เฟิสแคปหน้าจอมา): ของเดิมเทียบเดือนของ
-// **ใบล่าสุดใบเดียว** จึงมองไม่เห็นใบของเดือนนี้เลยเมื่อมีใบของเดือนหลังกว่าอยู่ข้างหน้า
-// — เกิดได้ทั้งจากการสร้างใบของเดือนถัดไปล่วงหน้าวันสุดท้ายของเดือน และจากการพิมพ์ปีผิด
-// ครั้งเดียว ซึ่งจะทำให้แถวนี้เตือนผิดทุกเดือนไปอีกเป็นปี
 check('มีใบของเดือนถัดไป/ปีถัดไปอยู่ข้างหน้า ใบของเดือนนี้ต้องยังถูกเจอ', () => {
-  // สร้างใบของเดือนถัดไปล่วงหน้า (เรื่องปกติ) + ใบที่พิมพ์ปีผิดเป็น 2027 (อุบัติเหตุ)
   meter.createBatch(db, apartmentId, '2026-09-01')
   meter.createBatch(db, apartmentId, '2027-09-01')
 
@@ -354,13 +318,10 @@ check('มีใบของเดือนถัดไป/ปีถัดไป
   assert(task.hasBatchThisMonth === true, 'ใบของเดือนนี้หายไปเพราะมีใบของเดือนหลังกว่า')
   assert(task.batchDate === '2026-08-01', `ใบของเดือนนี้ได้ ${task.batchDate}`)
   assert(task.roomCount === 2, `จำนวนห้องต้องเป็นของใบเดือนนี้ ได้ ${task.roomCount}`)
-  // ใบล่าสุดของหอยังเป็นใบปี 2027 ตามความจริง แค่ต้องไม่ถูกใช้ตัดสินว่าเดือนนี้จดแล้วหรือยัง
   assert(task.latestBatchDate === '2027-09-01', `ใบล่าสุดได้ ${task.latestBatchDate}`)
 })
 
 check('เดือนเดียวมีใบเปล่ากับใบที่กรอกแล้วปนกัน ต้องนับใบที่กรอกแล้ว', () => {
-  // ใบเปล่าที่สร้างทีหลังในเดือนเดียวกัน (คีย์วันผิดแล้วสร้างใหม่) ต้องไม่ทำให้เดือนที่
-  // จดครบแล้วกลับไปขึ้นว่า "ยังไม่ได้กรอกเลขห้องไหนเลย"
   meter.createBatch(db, apartmentId, '2026-08-20')
 
   const { meter: task } = summaryAsOf().tasks
@@ -369,12 +330,8 @@ check('เดือนเดียวมีใบเปล่ากับใบ�
   assert(task.roomCount === 2, `ได้ ${task.roomCount}`)
 })
 
-// -----------------------------------------------------
 group('สิ่งที่ต้องทำ — ออกบิล')
 
-// 🔴 เทสต์ที่สำคัญที่สุดของไฟล์นี้: หน้าแรกนับหัวห้องด้วย SQL ของตัวเอง ส่วนตัวช่วยออกบิล
-// ใช้ previewMonthlyBilling — ถ้าสองที่ใช้กติกาคนละชุด หน้าแรกจะบอกว่า "ยังเหลือห้อง"
-// ตลอดไป แล้วคนจะกดปุ่มออกบิลซ้ำทุกวันเพื่อตามหาห้องที่ระบบตั้งใจข้าม
 function billingFromPreview(month = THIS_MONTH) {
   const rows = invoices.previewMonthlyBilling(db, {
     apartmentId,
@@ -399,12 +356,10 @@ check('จำนวนห้องที่ต้องออกบิล/ออ
 
 check('สัญญาที่เริ่มเดือนนี้ไม่ถูกนับว่าต้องออกบิล', () => {
   const { billing } = summaryAsOf().tasks
-  // มีสัญญา active 3 ใบ แต่ห้อง 103 เพิ่งย้ายเข้า 05/08 = จ่ายค่าเช่าเดือนแรกแล้ว
   assert(billing.expected === 2, `ต้องออกบิลได้ ${billing.expected} ห้อง`)
   assert(billing.issued === 1, `ออกแล้วได้ ${billing.issued} ห้อง`)
   assert(billing.remaining === 1, `เหลือได้ ${billing.remaining} ห้อง`)
 
-  // เดือนถัดไปห้อง 103 เข้ารอบบิลปกติ
   const september = dashboard.getDashboardSummary(db, apartmentId, { today: '2026-09-02' })
   assert(september.tasks.billing.expected === 3, `เดือนหน้าต้องออกบิล ${september.tasks.billing.expected} ห้อง`)
 })
@@ -431,12 +386,8 @@ check('บิลที่ยกเลิกแล้วไม่นับว่�
   assert(billingFromPreview().issued === back.issued, 'สองที่นับไม่ตรงกันหลังยกเลิกบิล')
 })
 
-// -----------------------------------------------------
 group('สิ่งที่ต้องทำ — งานซ่อม / ตามเก็บเงินย้ายออก')
 
-// สองตัวนี้เป็นการส่งต่อค่าจากหน้าของมันเอง เทสต์จึงเทียบกับต้นทางตรงๆ —
-// สิ่งที่กันคือการพิมพ์ชื่อฟิลด์ผิดแล้วได้ undefined ซึ่ง formatBaht กลืนเป็น 0.00 เงียบๆ
-// (บทเรียน depositReceivedCents / depositSnapshotCents ของใบสรุปย้ายออก)
 check('งานซ่อมค้างและค่าซ่อมรวม ตรงกับหน้าแจ้งซ่อม', () => {
   maintenance.createMaintenanceRequest(db, {
     roomId: room1.roomId,
@@ -457,8 +408,6 @@ check('งานซ่อมค้างและค่าซ่อมรวม 
   const task = summaryAsOf().tasks.maintenance
   assert(task.openCount === report.openCount, `งานค้าง ${task.openCount} ≠ ${report.openCount}`)
   assert(task.openCount === 1, `งานค้างได้ ${task.openCount}`)
-  // ค่าซ่อมเป็น **รายจ่ายของหอ** ไม่ใช่ลูกหนี้ (เจ้าของหอยืนยัน 2026-08-17
-  // ว่าค่าเสื่อมสภาพในห้องหอออกเอง) — ตัวเลขนี้จึงไม่เกี่ยวกับยอดค้างชำระเลย
   assert(
     task.repairCostTotalCents === report.repairCostTotalCents,
     `ค่าซ่อมรวม ${task.repairCostTotalCents} ≠ ${report.repairCostTotalCents}`
@@ -474,15 +423,11 @@ check('ยอดตามเก็บเงินย้ายออก ตรง
     task.unpaidTotalCents === report.unpaidTotalCents,
     `ยอด ${task.unpaidTotalCents} ≠ ${report.unpaidTotalCents}`
   )
-  // ต้องเป็นตัวเลข ไม่ใช่ undefined ที่หน้าจอจะแสดงเป็น 0.00 เหมือนกันแต่ผิด
   assert(typeof task.unpaidTotalCents === 'number', `ได้ ${typeof task.unpaidTotalCents}`)
 })
 
-// -----------------------------------------------------
 group('รายรับ')
 
-// 🔴 "รายรับ" ของหน้าแรกต้องเป็นตัวเดียวกับ "ยอดรับเงินสุทธิ" ของรายงานใบเสร็จ =
-// หักใบคืนเงิน + ไม่นับใบที่ยกเลิก ไม่ใช่ผลบวกของใบที่ออก
 check('รายรับเดือนนี้/เดือนก่อน ตรงกับรายงานใบเสร็จช่วงเดียวกัน', () => {
   const summary = summaryAsOf()
   const thisMonth = payments.listReceipts(db, apartmentId, {
@@ -512,7 +457,6 @@ check('ผลต่างเทียบเดือนก่อนเป็น�
     `ได้ ${summary.revenue.deltaCents}`
   )
 
-  // เดือนที่ไม่มีเงินเข้าเลย แต่เดือนก่อนมี = ผลต่างต้องติดลบ ไม่ใช่ 0
   const quiet = summaryAsOf('2026-09-05')
   assert(quiet.revenue.monthCents === 0, `ก.ย. ต้องไม่มีเงินเข้า ได้ ${quiet.revenue.monthCents}`)
   assert(quiet.revenue.deltaCents < 0, `ผลต่างต้องติดลบ ได้ ${quiet.revenue.deltaCents}`)
@@ -533,8 +477,6 @@ check('รับเงินเพิ่มแล้วรายรับเด�
   assert(after.deltaCents === before.deltaCents + 123400, `ผลต่างได้ ${after.deltaCents}`)
 })
 
-// ใบเสร็จที่ถูกยกเลิกยังอยู่ในรายงานให้เห็น (เลขที่ที่หายไปคือเลขที่ตามไม่ได้)
-// แต่ต้องไม่ถูกนับเป็นเงินที่หอได้รับที่ไหนเลย รวมถึงหน้าแรก
 check('ยกเลิกใบเสร็จแล้วรายรับลดลง และยอดค้างกลับมา', () => {
   const before = summaryAsOf()
   payments.cancelPayment(db, partialPayment.paymentId, {
@@ -550,10 +492,8 @@ check('ยกเลิกใบเสร็จแล้วรายรับล�
   )
 })
 
-// -----------------------------------------------------
 group('หออื่นไม่ปนกัน')
 
-// บทเรียนของ migration 021: ตัวเลขที่ไม่ได้ผูกหอจะรวมทั้งระบบมาให้โดยดูเหมือนถูก
 check('ตัวเลขของหออื่นไม่ปนเข้ามา', () => {
   const other = apartments.insertApartment(db, {
     nameTh: 'หอที่สอง',
@@ -604,12 +544,10 @@ check('ตัวเลขของหออื่นไม่ปนเข้า�
   assert(after.tasks.maintenance.openCount === before.tasks.maintenance.openCount, 'งานซ่อมปนกับหออื่น')
   assert(after.revenue.monthCents === before.revenue.monthCents, 'รายรับปนกับหออื่น')
 
-  // และหอที่สองต้องเห็นของตัวเองครบ ไม่ใช่ว่างเปล่า
   const theirs = dashboard.getDashboardSummary(db, other.apartmentId, { today: TODAY })
   assert(theirs.rooms.total === 1, `หอที่สองได้ ${theirs.rooms.total} ห้อง`)
   assert(theirs.tasks.maintenance.openCount === 1, `หอที่สองได้ ${theirs.tasks.maintenance.openCount} งาน`)
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('หน้าภาพรวมสรุปตัวเลขตรงกับทุกหน้าที่มันสรุป')

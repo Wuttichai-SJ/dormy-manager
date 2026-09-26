@@ -27,7 +27,6 @@ const apartment = apartments.insertApartment(db, {
 })
 const id = apartment.apartmentId
 
-// -----------------------------------------------------
 group('ค่าเริ่มต้นเมื่อยังไม่เคยตั้ง')
 
 check('คืนค่าเริ่มต้นแทน null เพื่อให้หน้าจอมีอะไรแสดงเสมอ', () => {
@@ -37,7 +36,6 @@ check('คืนค่าเริ่มต้นแทน null เพื่อ�
   assert(defaults.electric.enabled === true, 'ค่าไฟควรเปิดไว้เป็นค่าเริ่มต้น')
 })
 
-// -----------------------------------------------------
 group('ตรวจข้อมูลตามโหมด')
 
 check('โหมด actual บังคับราคาต่อหน่วยอย่างเดียว', () => {
@@ -88,7 +86,6 @@ check('ประเภทการคิดที่ไม่รู้จัก�
   assert(errors.length === 1, `คาด 1 ข้อ ได้ ${errors.length}`)
 })
 
-// -----------------------------------------------------
 group('บันทึก')
 
 const saved = util.saveUtilityDefaults(db, id, {
@@ -109,7 +106,6 @@ check('เก็บราคาเป็นสตางค์ทั้งสอ�
 })
 
 check('ช่องที่โหมดไม่ได้ใช้ถูกล้างเป็น 0 ไม่เก็บค่าค้าง', () => {
-  // น้ำเป็น actual จึงไม่ควรมีขั้นต่ำหรือค่าเหมาจ่ายติดมา
   assert(saved.water.minChargeCents === 0, `ได้ ${saved.water.minChargeCents}`)
   assert(saved.water.flatRateCents === 0, `ได้ ${saved.water.flatRateCents}`)
   assert(saved.electric.flatRateCents === 0, `ได้ ${saved.electric.flatRateCents}`)
@@ -120,8 +116,6 @@ check('เก็บ toggle แสดงเลขมิเตอร์แยก�
   assert(saved.electric.showReadingInInvoice === false, 'ไฟไม่ควรแสดงเลขมิเตอร์')
 })
 
-// หน้าจอตั้งค่าน้ำกับค่าไฟทีละฝั่ง จึงส่งมาแค่ฝั่งเดียว/ช่องเดียว
-// เคยพลาด: ตรวจรวมทุกครั้ง ฝั่งที่ยังไม่มีราคาเลยบล็อกฝั่งที่กำลังกรอก = "ระบุอะไรไม่ได้เลย"
 group('บันทึกทีละฝั่ง')
 
 check('ส่งมาฝั่งเดียว อีกฝั่งต้องไม่ถูกล้าง', () => {
@@ -154,7 +148,6 @@ check('ฝั่งที่ยังไม่มีราคา ต้องไ
     dueDateDay: 5,
     lateFeePerDay: '0'
   })
-  // หอใหม่ยังไม่มีราคาสักฝั่ง — ตั้งค่าน้ำอย่างเดียวต้องผ่าน
   const errors = util.validateUtilityInput({
     water: { enabled: true, billingType: 'actual', unitPrice: '20' }
   })
@@ -179,13 +172,11 @@ check('บันทึกซ้ำเป็นการทับของเด�
   const now = util.getUtilityDefaults(db, id)
   assert(now.water.billingType === 'flat', `ได้ ${now.water.billingType}`)
   assert(now.water.flatRateCents === 15000, `ได้ ${now.water.flatRateCents}`)
-  // สลับจาก actual มา flat แล้ว ราคาต่อหน่วยเดิมต้องไม่ค้างอยู่
   assert(now.water.unitPriceCents === 0, `ราคาต่อหน่วยเดิมยังค้าง: ${now.water.unitPriceCents}`)
   assert(now.electric.enabled === false, 'ค่าไฟควรถูกปิด')
   assert(now.isConfigured === true, 'ควรบอกว่าตั้งค่าแล้ว')
 })
 
-// -----------------------------------------------------
 group('สูตรคิดเงิน')
 
 const actual = { enabled: true, billingType: 'actual', unitPriceCents: 1800 }
@@ -198,27 +189,20 @@ check('actual = หน่วย x ราคาต่อหน่วย', () => {
 })
 
 check('actual รองรับหน่วยทศนิยม และปัดเป็นสตางค์เต็ม', () => {
-  // 10.5 x 18.00 = 189.00
   assert(util.calculateUtilityCharge(actual, 10.5) === 18900, `ได้ ${util.calculateUtilityCharge(actual, 10.5)}`)
-  // 3.33 x 18.00 = 59.94
   assert(util.calculateUtilityCharge(actual, 3.33) === 5994, `ได้ ${util.calculateUtilityCharge(actual, 3.33)}`)
 })
 
 check('minimum: ใช้เยอะกว่าขั้นต่ำ คิดตามจริง', () => {
-  // 20 x 8 = 160 บาท > ขั้นต่ำ 100
   assert(util.calculateUtilityCharge(minimum, 20) === 16000, `ได้ ${util.calculateUtilityCharge(minimum, 20)}`)
 })
 
 check('minimum: ใช้น้อยกว่าขั้นต่ำ คิดเท่าขั้นต่ำ', () => {
-  // 5 x 8 = 40 บาท < ขั้นต่ำ 100 -> เก็บ 100
   assert(util.calculateUtilityCharge(minimum, 5) === 10000, `ได้ ${util.calculateUtilityCharge(minimum, 5)}`)
-  // ไม่ใช้เลยก็ยังต้องจ่ายขั้นต่ำ
   assert(util.calculateUtilityCharge(minimum, 0) === 10000, `ได้ ${util.calculateUtilityCharge(minimum, 0)}`)
 })
 
 check('ขั้นต่ำเป็นบาท ไม่ใช่จำนวนหน่วย', () => {
-  // ถ้าตีความผิดเป็น "ขั้นต่ำ 100 หน่วย" ผลจะเป็น 100 x 8 = 800 บาท
-  // ค่าที่ถูกต้องคือ 100 บาท — เทสต์นี้กันการตีความผิดนั้นโดยเฉพาะ
   assert(util.calculateUtilityCharge(minimum, 1) === 10000, 'ต้องได้ 100 บาท ไม่ใช่ 800 บาท')
 })
 
@@ -232,14 +216,9 @@ check('ปิดการคิด = 0 เสมอ', () => {
 })
 
 check('หน่วยติดลบถูกปฏิเสธ ไม่ใช่คิดเงินคืน', () => {
-  // มิเตอร์เดินถอยหลังแปลว่าจดผิดหรือเปลี่ยนมิเตอร์ ต้องให้คนดู ไม่ใช่ออกบิลติดลบ
   throws(() => util.calculateUtilityCharge(actual, -5), 'ติดลบ', 'ควรปฏิเสธหน่วยติดลบ')
 })
 
-// -----------------------------------------------------
-// -----------------------------------------------------
-// ห้องที่ถูกสร้างก่อนหอจะตั้งราคา จะติด "ราคา 0" ไว้แล้วออกบิลเป็น 0 เงียบๆ
-// (เจอจริงกับหอนาโรในฐานข้อมูลของผู้ใช้ 2026-08-07)
 group('นำราคาของหอไปใช้กับห้องที่มีอยู่')
 
 check('ห้องที่สร้างก่อนตั้งราคา ได้ราคา 0 ติดตัวมา', () => {
@@ -257,7 +236,6 @@ check('ห้องที่สร้างก่อนตั้งราคา 
   assert(settings.water_unit_price_cents === 0, `ได้ ${settings.water_unit_price_cents}`)
   assert(settings.is_water_enabled === 1, 'เปิดเก็บเงินไว้ แต่ราคาเป็น 0 — นี่คือกับดัก')
 
-  // ตั้งราคาทีหลัง แล้วสั่งให้ไปใช้กับห้องที่มีอยู่
   util.saveUtilityDefaults(db, fresh.apartmentId, {
     water: { enabled: true, billingType: 'actual', unitPrice: '25' },
     electric: { enabled: true, billingType: 'actual', unitPrice: '9' }
@@ -314,6 +292,5 @@ check('เปิดเก็บเงินแต่ทุกราคาเป�
   )
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('การคิดค่าน้ำ/ค่าไฟทำงานครบทุกโหมด')

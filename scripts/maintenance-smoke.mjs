@@ -49,7 +49,6 @@ function makeRoom(targetApartmentId = apartmentId) {
 
 const PNG = { mimeType: 'image/png', bytes: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]) }
 
-// -----------------------------------------------------
 group('รับแจ้งซ่อม')
 
 check('ไม่ระบุวันนัด = รอดำเนินการ · ระบุวันนัด = นัดช่างแล้ว', () => {
@@ -60,7 +59,6 @@ check('ไม่ระบุวันนัด = รอดำเนินกา�
     description: 'ก๊อกน้ำรั่ว'
   })
   assert(waiting.status === 'pending', `ได้ ${waiting.status}`)
-  // 🔴 NULL = ยังไม่ได้นัด ไม่ใช่วันที่มั่วๆ ที่คนคีย์ใส่ไปก่อน (เหตุผลของ migration 028)
   assert(waiting.appointmentDate === null, `ได้ ${waiting.appointmentDate}`)
   assert(waiting.isOpen === true, 'งานที่เพิ่งแจ้งต้องนับเป็นงานค้าง')
 
@@ -148,7 +146,6 @@ check('อาการว่าง / ห้องไม่มีจริง / �
   )
 })
 
-// -----------------------------------------------------
 group('นัดช่าง / แก้ข้อมูล')
 
 check('ใส่วันนัดทีหลังแล้วสถานะเดินตาม และลบวันนัดออกได้', () => {
@@ -166,7 +163,6 @@ check('ใส่วันนัดทีหลังแล้วสถานะ�
   assert(booked.status === 'scheduled', `ได้ ${booked.status}`)
   assert(booked.description === 'ประตูปิดไม่สนิท', 'อาการเดิมต้องไม่หาย')
 
-  // ส่ง null = ยกเลิกการนัด ไม่ใช่ "ไม่ได้ส่งมา" (undefined) ซึ่งแปลว่าไม่แตะ
   const unbooked = maintenance.updateMaintenanceRequest(db, request.maintenanceId, {
     appointmentDate: null
   })
@@ -174,7 +170,6 @@ check('ใส่วันนัดทีหลังแล้วสถานะ�
   assert(unbooked.appointmentDate === null, 'วันนัดต้องถูกล้าง')
 })
 
-// -----------------------------------------------------
 group('ปิดงาน')
 
 check('ปิดงานแล้วบันทึกวันที่ซ่อมเสร็จและค่าซ่อม', () => {
@@ -196,8 +191,6 @@ check('ปิดงานแล้วบันทึกวันที่ซ่�
   assert(done.repairCostCents === 35000, `ได้ ${done.repairCostCents}`)
 })
 
-// 🔴 บทเรียนเดียวกับเลขมิเตอร์: ช่องที่เว้นว่างต้องไม่กลายเป็น 0 เงียบๆ
-// ไม่งั้นยอดค่าซ่อมรวมของหอจะดูน้อยกว่าความจริงตลอดไป และแยกไม่ออกว่างานไหนซ่อมฟรีจริง
 check('ค่าซ่อมเว้นว่าง = ยังไม่รู้ (null) · กรอก 0 = ซ่อมแล้วไม่เสียเงิน', () => {
   const room = makeRoom()
   const blank = maintenance.completeMaintenance(
@@ -259,7 +252,6 @@ check('งานที่ปิดแล้วแก้ไขไม่ได้ 
   )
 })
 
-// -----------------------------------------------------
 group('ยกเลิก / เปิดใหม่')
 
 check('ยกเลิกแล้วไม่นับเป็นงานค้าง และปิดงานต่อไม่ได้', () => {
@@ -300,8 +292,6 @@ check('เปิดงานที่ปิดไปแล้วใหม่ ต
 
   const reopened = maintenance.reopenMaintenance(db, request.maintenanceId)
   assert(reopened.status === 'pending', `ได้ ${reopened.status}`)
-  // ถ้าไม่ล้าง งานที่เปิดใหม่จะพกวันที่ซ่อมเสร็จกับค่าซ่อมของรอบก่อนติดมา
-  // แล้วยอดค่าซ่อมรวมจะนับซ้ำเมื่อปิดงานอีกครั้ง
   assert(reopened.repairedDate === null, `ได้ ${reopened.repairedDate}`)
   assert(reopened.repairCostCents === null, `ได้ ${reopened.repairCostCents}`)
 
@@ -312,7 +302,6 @@ check('เปิดงานที่ปิดไปแล้วใหม่ ต
   )
 })
 
-// -----------------------------------------------------
 group('รูปประกอบ')
 
 check('แนบรูปได้ ลบได้ และเกินเพดานไม่ได้', () => {
@@ -340,8 +329,6 @@ check('แนบรูปได้ ลบได้ และเกินเพ�
     after.imageIds.length === maintenance.MAX_IMAGES_PER_REQUEST - 1,
     `ลบแล้วเหลือ ${after.imageIds.length}`
   )
-  // รูปที่หลุดจากงานแล้วต้องไม่ค้างอยู่ในตาราง images ไม่งั้นไฟล์ฐานข้อมูลจะพกรูป
-  // ที่ไม่มีใครใช้ติดไปกับไฟล์สำรองทุกครั้ง
   const orphan = db.prepare('SELECT COUNT(*) AS n FROM images WHERE image_id = ?').get(first.imageId).n
   assert(orphan === 0, 'รูปกำพร้าไม่ถูกเก็บกวาด')
 })
@@ -364,9 +351,6 @@ check('ลบงานทิ้งแล้วรูปของงานนั�
   assert(left === 0, 'รูปของงานที่ถูกลบยังค้างอยู่')
 })
 
-// 🔴 บทเรียนจาก deleteApartment ที่เคยลืม apartment_utility_defaults:
-// ตารางใหม่ที่ผูกกับห้อง ต้องถูกล้างใน deleteRoom ด้วย ไม่งั้น FK บล็อกแล้วโยนข้อความดิบ
-// ของ SQLite ออกไปที่หน้าจอ ซึ่งเจ้าของหออ่านไม่รู้เรื่องและดูเหมือนปุ่มลบเสีย
 check('ลบห้องที่มีงานแจ้งซ่อมอยู่ได้ ไม่ติด FOREIGN KEY', () => {
   const room = makeRoom()
   const request = maintenance.createMaintenanceRequest(db, {
@@ -384,7 +368,6 @@ check('ลบห้องที่มีงานแจ้งซ่อมอย�
   assert(left === 0, 'งานซ่อมของห้องที่ถูกลบยังค้างอยู่')
 })
 
-// -----------------------------------------------------
 group('รายการและตัวกรอง')
 
 check('ตัวกรอง open ได้เฉพาะงานที่ยังต้องตามต่อ', () => {
@@ -396,8 +379,6 @@ check('ตัวกรอง open ได้เฉพาะงานที่ย�
   )
 })
 
-// การ์ดสรุปต้องนับจากทั้งหอ ไม่ใช่จากผลที่กรองอยู่ — ไม่งั้นกรอง "ซ่อมเสร็จแล้ว"
-// แล้วตัวเลข "งานค้าง" จะกลายเป็น 0 ทั้งที่ยังค้างอยู่จริง
 check('การ์ดสรุปนับจากทั้งหอ ไม่ใช่จากผลที่กรอง', () => {
   const all = maintenance.listMaintenanceRequests(db, apartmentId)
   const filtered = maintenance.listMaintenanceRequests(db, apartmentId, { status: 'done' })
@@ -507,6 +488,5 @@ check('ค่าซ่อมรวมนับเฉพาะงานที่�
   assert(open.isOpen === true, 'งานที่ยังไม่ปิดต้องนับเป็นค้าง')
 })
 
-// -----------------------------------------------------
 cleanup()
 summarize('งานแจ้งซ่อมทำงานครบทุกเส้นทาง')

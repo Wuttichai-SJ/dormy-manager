@@ -1,11 +1,4 @@
-// เครื่องมือช่วยดู/ลบหอพักในฐานข้อมูลจริงของเครื่องนี้ ใช้ตอนที่หน้าจอลบให้ไม่ได้
-//
-//   node scripts/inspect-apartment.mjs                   → รายชื่อหอทั้งหมด + จำนวนของที่ผูกอยู่
-//   node scripts/inspect-apartment.mjs --delete-id <id>  → ลบหอนั้นพร้อมชั้น/ห้อง/ค่าบริการที่ผูกไว้
-//   เติม --prod เพื่อทำกับ dormy.sqlite (ฐานข้อมูลจริง) แทน dormy-dev.sqlite
-//
-// เขียนผลลงไฟล์ scripts/.inspect-out.txt ด้วย เพราะ Electron บน Windows เป็น GUI subsystem
-// stdout ไม่โผล่ที่เทอร์มินัล (ดู README) — ลบไฟล์ก่อนรันใหม่ทุกครั้ง ไม่งั้นอ่านผลเก่า
+// ดู/ลบหอในฐานข้อมูลจริง: node scripts/inspect-apartment.mjs [--delete-id <id>] [--prod] · ผลเขียนลง scripts/.inspect-out.txt
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,7 +13,6 @@ const outFile = path.join(dir, '.inspect-out.txt')
 const lines = []
 const say = (line) => lines.push(line)
 
-// ฐานข้อมูลของโหมด dev แยกจากของจริงคนละไฟล์ (ดู src/main/database.js)
 const appData = process.env.APPDATA || path.join(process.env.USERPROFILE, 'AppData/Roaming')
 const dbFile = path.join(appData, 'dormy-manager', process.argv.includes('--prod') ? 'dormy.sqlite' : 'dormy-dev.sqlite')
 
@@ -46,8 +38,7 @@ for (const r of rows) {
   say(`${String(r.id).padEnd(3)} | ${r.name.padEnd(20)} | ${String(r.floors).padEnd(3)} | ${String(r.rooms).padEnd(4)} | ${String(r.services).padEnd(8)} | ${r.banks}`)
 }
 
-// รับเป็น id เท่านั้น ไม่รับชื่อ — ชื่อภาษาไทยที่ส่งผ่าน argv บน Windows เพี้ยนได้
-// (cmd/PowerShell ส่งมาคนละ code page) แล้วจะกลายเป็น "ไม่พบหอ" ทั้งที่มีอยู่
+// รับ id เท่านั้น — ชื่อภาษาไทยผ่าน argv บน Windows เพี้ยนได้
 const deleteAt = process.argv.indexOf('--delete-id')
 if (deleteAt !== -1) {
   const target = Number(process.argv[deleteAt + 1])
@@ -56,7 +47,7 @@ if (deleteAt !== -1) {
     say('')
     say(`!! ไม่พบหอ id ${target}`)
   } else {
-    // ลบจากใบไปหาราก เพราะ FK เปิดอยู่ — ห้องต้องไปก่อนชั้น ชั้นต้องไปก่อนหอ
+    // ลบจากใบไปราก (FK): ห้อง → ชั้น → หอ
     const run = db.transaction(() => {
       const floorIds = db
         .prepare('SELECT floor_id FROM floors WHERE apartment_id = ?')
