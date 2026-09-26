@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import { centsToInput, formatBaht } from '../format.js'
@@ -24,6 +25,7 @@ const DEPOSIT_METHODS = [
 ]
 
 export default function ContractWizard({ apartment, room, rentType, booking, onCancel, onDone }) {
+  const [confirmDialog, ask] = useConfirm()
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -123,6 +125,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
 
   return (
     <div className="contract-wizard">
+      {confirmDialog}
       <ol className="contract-steps">
         {STEPS.map((label, index) => (
           <li key={label} className={'contract-step' + (index === step ? ' current' : '')}>
@@ -323,7 +326,19 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                 onChange={(next) =>
                   setTenants((list) => list.map((t, i) => (i === index ? next : t)))
                 }
-                onRemove={() => setTenants((list) => list.filter((_, i) => i !== index))}
+                onRemove={() =>
+                  ask({
+                    title: index === 0 ? 'นำผู้เช่าหลักออก?' : `นำผู้อยู่ร่วมคนที่ ${index} ออก?`,
+                    message: 'ข้อมูลที่กรอกไว้ของคนนี้จะหายไป',
+                    confirmLabel: 'นำออก',
+                    busyLabel: 'กำลังนำออก...',
+                    icon: 'close',
+                    onConfirm: () => {
+                      setTenants((list) => list.filter((_, i) => i !== index))
+                      return { success: true }
+                    }
+                  })
+                }
               />
             ))}
 

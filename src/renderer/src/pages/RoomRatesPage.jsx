@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import Modal from '../components/Modal.jsx'
 import { formatBaht } from '../format.js'
@@ -350,6 +351,7 @@ function RateDialog({ onClose, onSubmit, busy, form }) {
 // ถ้าซ่อนบริการที่มีครบแล้วจากช่องเลือก จะไม่มีทางนำออกได้เลย
 function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, error }) {
   const [serviceId, setServiceId] = useState('')
+  const [confirmDialog, ask] = useConfirm()
 
   const total = rooms.length
   const countOf = (id) => rooms.filter((r) => r.services.some((s) => s.serviceId === id)).length
@@ -406,7 +408,20 @@ function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, er
                   type="button"
                   className="link-btn link-danger"
                   disabled={busy}
-                  onClick={() => onDetach(s.serviceId)}
+                  onClick={() =>
+                    ask({
+                      title: `นำ "${s.name}" ออกจากห้องที่เลือก?`,
+                      message: `${s.count} ห้องจะไม่มีบริการนี้ · สัญญาที่ทำไปแล้วไม่เปลี่ยน`,
+                      confirmLabel: 'นำออก',
+                      busyLabel: 'กำลังนำออก...',
+                      icon: 'close',
+                      // ผล/ error ของการนำออกไปขึ้นที่หน้าต่างค่าบริการข้างใต้ (act ของหน้า)
+                      onConfirm: async () => {
+                        await onDetach(s.serviceId)
+                        return { success: true }
+                      }
+                    })
+                  }
                 >
                   นำออก
                 </button>
@@ -415,6 +430,7 @@ function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, er
           </ul>
         </div>
       )}
+      {confirmDialog}
     </Modal>
   )
 }

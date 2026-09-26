@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import DateField from '../components/DateField.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -29,6 +30,8 @@ const ITEM_TABS = [
 ]
 
 export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }) {
+  // ยืนยันย้ายออก = ปิดสัญญา + ออกใบเสร็จ + คืนห้อง ย้อนกลับไม่ได้ จึงถามก่อนเสมอ (เฟิสขอ 2026-09-26)
+  const [confirmDialog, ask] = useConfirm()
   const [moveOutDate, setMoveOutDate] = useState(todayIso())
   const [adjustments, setAdjustments] = useState([])
   const [sheet, setSheet] = useState(null)
@@ -81,6 +84,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
     load()
   }, [load])
 
+  // คืนผลให้หน้าต่างยืนยัน — ล้มเหลว error ขึ้นในหน้าต่าง · สำเร็จหน้านี้เปลี่ยนเป็นใบสรุปเอง
   async function submit() {
     setError('')
     setBusy(true)
@@ -96,9 +100,31 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
       paymentMethod
     })
     setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) return res
     showToast(`ย้ายออกห้อง ${room.roomNumber} เรียบร้อย`)
     setResult(res.data)
+    return res
+  }
+
+  // สรุปเงินก้อนสุดท้ายไว้ในคำถาม — คนกดจะได้ทวนตัวเลขอีกรอบก่อนปิดสัญญา
+  function confirmMoveOut() {
+    const net = sheet.netRefundCents
+    const money =
+      net > 0
+        ? `คืนเงินผู้เช่า ${formatBaht(net)} บาท`
+        : net < 0
+          ? collectShortfall
+            ? `รับเงินส่วนต่างจากผู้เช่า ${formatBaht(-net)} บาท`
+            : `ผู้เช่าค้างจ่าย ${formatBaht(-net)} บาท (ยังไม่ได้รับ)`
+          : 'ไม่มีเงินคืนหรือเก็บเพิ่ม'
+    ask({
+      title: `ยืนยันย้ายออกห้อง ${room.roomNumber}?`,
+      message: `${money} · สัญญาจะถูกปิดและห้องกลับเป็นห้องว่าง ย้อนกลับไม่ได้`,
+      confirmLabel: 'ยืนยันย้ายออก',
+      busyLabel: 'กำลังบันทึก...',
+      icon: 'moveOuts',
+      onConfirm: submit
+    })
   }
 
   if (result) {
@@ -144,6 +170,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
       </button>
 
       <h2 className="room-detail-title">ยกเลิกสัญญา / ย้ายออก — ห้อง {room.roomNumber}</h2>
+      {confirmDialog}
       <Alert>{error}</Alert>
       {stale && (
         <Alert kind="warn">
@@ -329,7 +356,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
               <button
                 type="button"
                 className="btn btn-danger"
-                onClick={submit}
+                onClick={confirmMoveOut}
                 disabled={busy || !canConfirm}
               >
                 {busy ? 'กำลังบันทึก...' : 'ยืนยันย้ายออก'}
@@ -450,6 +477,7 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
 // แล้วขึ้น error ใต้ช่องทั้งสองช่องพร้อมกัน (ไม่ใช่ทีละข้อบนสุดของหน้า)
 // items = รายการที่ผู้ใช้เพิ่ม ({ itemType, description, amount } — amount เป็นข้อความบาท)
 function AdjustmentsCard({ items, onAdd, onRemove }) {
+  const [confirmDialog, ask] = useConfirm()
   const [tab, setTab] = useState(ITEM_TABS[0])
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -473,6 +501,7 @@ function AdjustmentsCard({ items, onAdd, onRemove }) {
   return (
     <section className="panel">
       <h3 className="panel-title">รายการเก็บเงิน / คืนเงินเพิ่มเติม</h3>
+      {confirmDialog}
 
       {items.length > 0 && (
         <table className="data-table">
@@ -492,7 +521,17 @@ function AdjustmentsCard({ items, onAdd, onRemove }) {
                   <button
                     type="button"
                     className="link-btn link-danger table-action icon-only"
-                    onClick={() => onRemove(index)}
+                    onClick={() =>
+                      ask({
+                        title: `ลบรายการ "${item.description}"?`,
+                        message: 'ยอดสรุปการย้ายออกจะถูกคิดใหม่',
+                        confirmLabel: 'ลบรายการ',
+                        onConfirm: () => {
+                          onRemove(index)
+                          return { success: true }
+                        }
+                      })
+                    }
                     aria-label={`ลบรายการ ${item.description}`}
                   >
                     <Icon name="trash" />

@@ -35,9 +35,15 @@ export default function ConfirmDialog({
 
   useEffect(() => {
     cancelRef.current?.focus()
-    const onKey = (e) => e.key === 'Escape' && !busy && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // ฟังแบบ capture แล้วหยุดไว้ที่นี่ — หน้าต่างยืนยันบางอันซ้อนอยู่บน Modal (เช่นนำบริการออก)
+    // ถ้าปล่อยผ่าน Esc ครั้งเดียวจะปิดทั้ง Modal ข้างใต้ไปด้วย
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      if (!busy) onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [busy, onClose])
 
   async function confirm() {

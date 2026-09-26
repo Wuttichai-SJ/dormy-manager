@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
+import { useConfirm } from '../components/ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -390,6 +391,7 @@ function MoveOutNotice({ contract, onReload, onMoveOut }) {
 }
 
 function MoveOutNoticeDialog({ contract, onClose, onDone }) {
+  const [confirmDialog, ask] = useConfirm()
   const [noticeDate, setNoticeDate] = useState(contract.moveOutNoticeDate ?? todayIso())
   const [busy, setBusy] = useState(false)
   const { errors, formError, fromResult, clear, reset } = useFormErrors(['noticeDate'])
@@ -439,12 +441,30 @@ function MoveOutNoticeDialog({ contract, onClose, onDone }) {
         <button
           type="button"
           className="link-btn link-danger"
-          onClick={() => save(null)}
+          onClick={() =>
+            ask({
+              title: 'ยกเลิกการแจ้งย้ายออก?',
+              message: `ลบวันที่แจ้ง ${formatDate(contract.moveOutNoticeDate)} ออก · ผู้เช่าอยู่ต่อตามสัญญาเดิม`,
+              confirmLabel: 'ยกเลิกการแจ้ง',
+              busyLabel: 'กำลังยกเลิก...',
+              dismissLabel: 'เก็บไว้',
+              icon: 'close',
+              onConfirm: async () => {
+                const res = await setMoveOutNotice(contract.contractId, null)
+                if (res.success) {
+                  showToast('ยกเลิกการแจ้งย้ายออกแล้ว')
+                  onDone()
+                }
+                return res
+              }
+            })
+          }
           disabled={busy}
         >
           ยกเลิกการแจ้งย้ายออก (ผู้เช่าไม่ย้ายแล้ว)
         </button>
       )}
+      {confirmDialog}
     </Modal>
   )
 }
