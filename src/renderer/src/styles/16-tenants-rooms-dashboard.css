@@ -62,6 +62,13 @@
   margin-top: 16px;
 }
 
+/* `.modal-body .field + .field` (11-modal-toggle) ไว้เว้นช่องที่เรียงลงมาทีละบรรทัด แต่มันโดน
+   ช่องที่ 2-3 ในแถวเดียวกันด้วย ช่องพวกนั้นเลยต่ำกว่าช่องแรก 16px (เฟิสเจอที่หน้าต่างเพิ่มการจอง)
+   ในแถวเดียวกันต้องเริ่มที่ระดับเดียวกัน */
+.modal-body .field-row > .field + .field {
+  margin-top: 0;
+}
+
 /* -----------------------------------------------------
    หน้าห้องพัก (หน้าหลักของระบบ ตามต้นแบบ)
    ----------------------------------------------------- */
@@ -199,3 +206,158 @@
   color: var(--text-soft);
 }
 
+/* -----------------------------------------------------
+   การจองห้อง (components/BookingsCard.jsx) + ทางลัดจากการ์ดสัญญา
+   ----------------------------------------------------- */
+.room-booking-hint {
+  margin: 20px 0 0;
+  font-size: 14px;
+  text-align: center;
+  color: var(--text-soft);
+}
+
+.room-booking-hint .link-btn {
+  font-size: 14px;
+}
+
+.booking-empty {
+  padding: 16px 0 8px;
+  text-align: center;
+}
+
+.booking-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 10px;
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-radius: 50%;
+}
+
+.booking-empty-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.booking-empty-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.booking-empty-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* กลุ่มช่องในหน้าต่าง (ผู้จอง / การเข้าพัก / เงินจอง) — หัวกลุ่มเล็กสีกลาง คั่นด้วยเส้นบาง */
+.form-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.form-group + .form-group {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.form-group legend {
+  padding: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+/* รายการจอง — การ์ดละหนึ่งการจอง (แทนตาราง 6 คอลัมน์ที่แคบเกินในคอลัมน์ขวา) */
+.booking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking-item {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.booking-item.booking-past {
+  opacity: 0.65;
+}
+
+.booking-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.booking-item-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.booking-item-phone {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ป้ายสถานะห้ามหักบรรทัด — "รอยืนยัน" หักเป็นสองบรรทัดในตารางเดิม */
+.booking-item .booking-status {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.booking-item-facts {
+  display: flex;
+  gap: 32px;
+  margin: 12px 0;
+}
+
+.booking-item-facts dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.booking-item-facts dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.booking-item-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.booking-item-ref {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.booking-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}

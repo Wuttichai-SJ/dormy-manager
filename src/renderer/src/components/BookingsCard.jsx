@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import Icon from '../Icon.jsx'
 import Alert from './Alert.jsx'
 import { useConfirm } from './ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from './FieldError.jsx'
@@ -33,7 +34,8 @@ const EMPTY = {
   note: ''
 }
 
-export default function BookingsCard({ room, onConvert }) {
+// addRequest = ตัวเลขจากหน้าห้อง เปลี่ยนเมื่อไหร่ = เปิดหน้าต่างเพิ่มการจอง (ปุ่มลัดในการ์ดสัญญา)
+export default function BookingsCard({ room, onConvert, addRequest = 0 }) {
   // หน้าต่างยืนยันก่อนลบ/ยกเลิก — ดู components/ConfirmDialog.jsx
   const [confirmDialog, ask] = useConfirm()
   const [bookings, setBookings] = useState(null)
@@ -93,25 +95,28 @@ export default function BookingsCard({ room, onConvert }) {
   // เงินก้อนนั้นมาจากไหน จึงพับเก็บไว้ให้กดดูได้
   const open = (bookings ?? []).filter((b) => b.isOpen)
   const past = (bookings ?? []).filter((b) => !b.isOpen)
+
+  // เติมราคาห้องให้ก่อน แก้ได้ — ต่อรองราคากันได้ตั้งแต่ตอนจอง
+  const startAdding = useCallback(() => {
+    addForm.reset()
+    setAdding({ ...EMPTY, rentPrice: centsToInput(room.monthlyRentCents) })
+    // addForm.reset มาจาก useCallback คงที่ — ไม่ต้องอยู่ใน deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.monthlyRentCents])
+
+  useEffect(() => {
+    if (addRequest > 0) startAdding()
+  }, [addRequest, startAdding])
   const shown = showPast ? [...open, ...past] : open
 
   return (
     <section className="panel">
       {confirmDialog}
       <div className="panel-head-row">
-        <h3 className="panel-title">รายชื่อคนจองรอเข้าพัก</h3>
-        <button
-          type="button"
-          className="btn btn-sm"
-          onClick={() =>
-            setAdding({
-              ...EMPTY,
-              // เติมราคาห้องให้ก่อน แก้ได้ — ต่อรองราคากันได้ตั้งแต่ตอนจอง
-              rentPrice: centsToInput(room.monthlyRentCents)
-            })
-          }
-        >
-          เพิ่ม
+        <h3 className="panel-title">การจองห้อง</h3>
+        <button type="button" className="btn btn-sm" onClick={startAdding}>
+          <Icon name="plus" />
+          <span>เพิ่มการจอง</span>
         </button>
       </div>
 
@@ -120,57 +125,55 @@ export default function BookingsCard({ room, onConvert }) {
       {bookings === null ? (
         <p className="muted">กำลังโหลด...</p>
       ) : shown.length === 0 ? (
-        <p className="muted">
-          {past.length > 0 ? 'ไม่มีคนจองรอเข้าพักในตอนนี้' : 'ยังไม่มีรายการจองห้องนี้'}
-        </p>
+        // จอว่างที่บอกว่าที่นี่ทำอะไรได้ — เดิมเป็นข้อความเทาบรรทัดเดียว คนไม่รู้ว่าระบบมีการจอง
+        <div className="booking-empty">
+          <span className="booking-empty-icon" aria-hidden="true">
+            <Icon name="bookings" />
+          </span>
+          <p className="booking-empty-title">
+            {past.length > 0 ? 'ไม่มีคนจองรอเข้าพักตอนนี้' : 'ยังไม่มีการจองห้องนี้'}
+          </p>
+          <p className="booking-empty-hint">ผู้เช่าวางเงินจองไว้ก่อนเข้าพัก บันทึกไว้ที่นี่</p>
+        </div>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>เลขที่ / วันที่จอง</th>
-              <th>ลูกค้า</th>
-              <th>วันที่เข้าพัก</th>
-              <th className="align-right">เงินจอง</th>
-              <th>สถานะ</th>
-              <th className="align-right">จัดการ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((b) => (
-              <tr key={b.bookingId} className={b.isOpen ? undefined : 'booking-past'}>
-                <td>
-                  {/* ใบที่จองไว้ก่อนระบบจะออกเลขให้ไม่มีเลข — ขึ้นขีดแทน ไม่ใช่ช่องว่างเปล่า */}
-                  <div>{b.bookingNumber ?? '—'}</div>
-                  <div className="muted room-cell-sub">{b.bookingDate}</div>
-                </td>
-                <td>
-                  <div>{b.customerName}</div>
-                  <div className="muted room-cell-sub">{formatPhone(b.customerPhone)}</div>
-                </td>
-                <td>{b.checkInDate}</td>
-                <td className="align-right">{formatBaht(b.bookingFeeCents)}</td>
-                <td>
-                  <span className={`booking-status booking-${b.status}`}>{b.statusLabel}</span>
-                </td>
-                <td className="align-right">
-                  {/* ทำสัญญาได้เฉพาะใบที่ยังกันห้องอยู่ และเฉพาะตอนที่ห้องยังไม่มีสัญญา */}
+        // การ์ดละหนึ่งการจอง ไม่ใช่ตาราง 6 คอลัมน์ — การ์ดนี้อยู่คอลัมน์ขวาที่แคบ ตารางเดิมบีบจน
+        // ชื่อ วันที่ และปุ่มหักเป็นหลายบรรทัด (เฟิสทักท้วง 2026-09-26)
+        // บรรทัดบน = ใครจอง + สถานะ · กลาง = เข้าวันไหน จ่ายเท่าไหร่ · ล่าง = เลขที่ + ปุ่ม
+        <ul className="booking-list">
+          {shown.map((b) => (
+            <li key={b.bookingId} className={'booking-item' + (b.isOpen ? '' : ' booking-past')}>
+              <div className="booking-item-head">
+                <div>
+                  <strong className="booking-item-name">{b.customerName}</strong>
+                  <span className="booking-item-phone">{formatPhone(b.customerPhone)}</span>
+                </div>
+                <span className={`booking-status booking-${b.status}`}>{b.statusLabel}</span>
+              </div>
+
+              <dl className="booking-item-facts">
+                <div>
+                  <dt>เข้าพัก</dt>
+                  <dd>{formatDate(b.checkInDate)}</dd>
+                </div>
+                <div>
+                  <dt>เงินจอง</dt>
+                  <dd>{formatBaht(b.bookingFeeCents)} บาท</dd>
+                </div>
+              </dl>
+
+              <div className="booking-item-foot">
+                {/* ใบที่จองไว้ก่อนระบบจะออกเลขให้ไม่มีเลข — ขึ้นขีดแทน ไม่ใช่ช่องว่างเปล่า */}
+                <span className="booking-item-ref">
+                  {b.bookingNumber ?? '—'} · จอง {formatDate(b.bookingDate)}
+                </span>
+
+                <div className="booking-item-actions">
+                  {/* ทำสัญญาได้เฉพาะใบที่ยังกันห้องอยู่ */}
                   {b.isOpen && (
                     <>
-                      {b.status === 'pending' && (
-                        <button
-                          type="button"
-                          className="link-btn"
-                          onClick={() => act(() => setBookingStatus(b.bookingId, 'confirmed'), 'ยืนยันการจองแล้ว')}
-                        >
-                          ยืนยัน
-                        </button>
-                      )}
-                      <button type="button" className="link-btn table-action" onClick={() => onConvert(b)}>
-                        ทำสัญญา
-                      </button>
                       <button
                         type="button"
-                        className="link-btn link-danger table-action"
+                        className="link-btn link-danger"
                         onClick={() =>
                           ask({
                             title: `ยกเลิกการจองของ ${b.customerName}?`,
@@ -185,6 +188,18 @@ export default function BookingsCard({ room, onConvert }) {
                         }
                       >
                         ยกเลิก
+                      </button>
+                      {b.status === 'pending' && (
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => act(() => setBookingStatus(b.bookingId, 'confirmed'), 'ยืนยันการจองแล้ว')}
+                        >
+                          ยืนยันการจอง
+                        </button>
+                      )}
+                      <button type="button" className="btn btn-sm" onClick={() => onConvert(b)}>
+                        ทำสัญญา
                       </button>
                     </>
                   )}
@@ -201,14 +216,14 @@ export default function BookingsCard({ room, onConvert }) {
                         })
                       }
                     >
-                      ลบ
+                      ลบรายการ
                     </button>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* ใบจองที่จบไปแล้วยังกดดูได้ ไม่ได้หายไปจากระบบ — สัญญาอ้างเลขที่ใบจองอยู่ และ
@@ -265,134 +280,164 @@ function BookingDialog({ value, onChange, onClose, onSubmit, busy, form }) {
   const inv = (key) => invalidProps(`booking-${key}`, errors[key])
 
   return (
-    <Modal title="เพิ่มรายการจอง" busy={busy} error={form.formError} onClose={onClose} onSubmit={onSubmit}>
-      <div className="field-row">
-        <div className={fieldClass('field field-required', errors.customerName)}>
-          <label htmlFor="booking-customerName">
-            ชื่อผู้จอง <span className="required">* จำเป็น</span>
-          </label>
-          <input
-            id="booking-customerName"
-            value={value.customerName}
-            onChange={(e) => set('customerName', e.target.value)}
-            autoFocus
-            {...inv('customerName')}
-          />
-          {err('customerName')}
-        </div>
-        <div className={fieldClass('field field-required', errors.customerPhone)}>
-          <label htmlFor="booking-customerPhone">
-            เบอร์ติดต่อ <span className="required">* จำเป็น</span>
-          </label>
-          <input
-            id="booking-customerPhone"
-            value={value.customerPhone}
-            onChange={(e) => set('customerPhone', e.target.value)}
-            inputMode="tel"
-            {...inv('customerPhone')}
-          />
-          {err('customerPhone')}
-        </div>
-      </div>
-
-      <div className="field-row">
-        <div className={fieldClass('field field-required', errors.rentType)}>
-          <label htmlFor="booking-rentType">
-            ประเภทการเช่า <span className="required">* จำเป็น</span>
-          </label>
-          <select
-            id="booking-rentType"
-            value={value.rentType}
-            onChange={(e) => set('rentType', e.target.value)}
-            {...inv('rentType')}
-          >
-            <option value="monthly">รายเดือน</option>
-            <option value="daily">รายวัน</option>
-          </select>
-          {err('rentType')}
-        </div>
-        <div className={fieldClass('field field-required', errors.checkInDate)}>
-          <label htmlFor="booking-checkInDate">
-            วันที่เข้าพัก <span className="required">* จำเป็น</span>
-          </label>
-          <DateField
-            id="booking-checkInDate"
-            value={value.checkInDate}
-            onChange={(v) => set('checkInDate', v)}
-          />
-          {err('checkInDate')}
-        </div>
-        <div className={fieldClass('field', errors.checkOutDate)}>
-          <label htmlFor="booking-checkOutDate">วันที่ออก</label>
-          <DateField
-            id="booking-checkOutDate"
-            value={value.checkOutDate}
-            onChange={(v) => set('checkOutDate', v)}
-          />
-          {err('checkOutDate')}
-        </div>
-      </div>
-
-      <div className="field-row">
-        <div className={fieldClass('field field-required', errors.rentPrice)}>
-          <label htmlFor="booking-rentPrice">
-            ราคาห้อง <span className="required">* จำเป็น</span>
-          </label>
-          <div className="input-with-suffix">
+    <Modal
+      title="เพิ่มการจอง"
+      icon="bookings"
+      submitLabel="บันทึกการจอง"
+      busy={busy}
+      error={form.formError}
+      onClose={onClose}
+      onSubmit={onSubmit}
+    >
+      {/* แบ่งเป็นสามกลุ่มตามลำดับที่คุยกับผู้จองจริง: ใครจอง → เข้าวันไหน → จ่ายเท่าไหร่
+          เดิมเป็นช่องเรียงต่อกันเก้าช่อง ไม่มีอะไรบอกว่าช่องไหนเป็นเรื่องเดียวกัน */}
+      <fieldset className="form-group">
+        <legend>ผู้จอง</legend>
+        <div className="field-row">
+          <div className={fieldClass('field field-required', errors.customerName)}>
+            <label htmlFor="booking-customerName">
+              ชื่อผู้จอง <span className="required">* จำเป็น</span>
+            </label>
             <input
-              id="booking-rentPrice"
-              value={value.rentPrice}
-              onChange={(e) => set('rentPrice', e.target.value)}
-              inputMode="decimal"
-              {...inv('rentPrice')}
+              id="booking-customerName"
+              value={value.customerName}
+              onChange={(e) => set('customerName', e.target.value)}
+              autoFocus
+              {...inv('customerName')}
             />
-            <span className="input-suffix">บาท</span>
+            {err('customerName')}
           </div>
-          {err('rentPrice')}
-        </div>
-        <div className={fieldClass('field field-required', errors.bookingFee)}>
-          <label htmlFor="booking-bookingFee">
-            เงินจอง <span className="required">* จำเป็น</span>
-            <InfoTip title="เงินจอง" points={['หักออกจากยอดที่เก็บเพิ่มตอนทำสัญญา']} />
-          </label>
-          <div className="input-with-suffix">
+          <div className={fieldClass('field field-required', errors.customerPhone)}>
+            <label htmlFor="booking-customerPhone">
+              เบอร์ติดต่อ <span className="required">* จำเป็น</span>
+            </label>
             <input
-              id="booking-bookingFee"
-              value={value.bookingFee}
-              onChange={(e) => set('bookingFee', e.target.value)}
-              inputMode="decimal"
-              {...inv('bookingFee')}
+              id="booking-customerPhone"
+              value={value.customerPhone}
+              onChange={(e) => set('customerPhone', e.target.value)}
+              inputMode="tel"
+              {...inv('customerPhone')}
             />
-            <span className="input-suffix">บาท</span>
+            {err('customerPhone')}
           </div>
-          {err('bookingFee')}
         </div>
-        <div className={fieldClass('field field-required', errors.paymentMethod)}>
-          <label htmlFor="booking-paymentMethod">
-            ชำระโดย <span className="required">* จำเป็น</span>
-          </label>
-          {/* ต้องมาจาก PAYMENT_METHODS เหมือนอีก 6 หน้าที่มีช่องนี้ ไม่ใช่พิมพ์ <option> เอง
-              เดิมพิมพ์เองแล้วคำเพี้ยน: ที่นี่ขึ้น "โอนเงิน" แต่ทุกหน้าอื่นขึ้น "เงินโอน" */}
-          <select
-            id="booking-paymentMethod"
-            value={value.paymentMethod}
-            onChange={(e) => set('paymentMethod', e.target.value)}
-            {...inv('paymentMethod')}
-          >
-            {PAYMENT_METHODS.map((method) => (
-              <option key={method.key} value={method.key}>
-                {method.label}
-              </option>
-            ))}
-          </select>
-          {err('paymentMethod')}
-        </div>
-      </div>
+      </fieldset>
 
-      <div className="field">
-        <label htmlFor="booking-note">หมายเหตุ</label>
-        <input id="booking-note" value={value.note} onChange={(e) => set('note', e.target.value)} />
-      </div>
+      <fieldset className="form-group">
+        <legend>การเข้าพัก</legend>
+        <div className="field-row">
+          <div className={fieldClass('field field-required', errors.rentType)}>
+            <label htmlFor="booking-rentType">
+              ประเภทการเช่า <span className="required">* จำเป็น</span>
+            </label>
+            <select
+              id="booking-rentType"
+              value={value.rentType}
+              onChange={(e) => set('rentType', e.target.value)}
+              {...inv('rentType')}
+            >
+              <option value="monthly">รายเดือน</option>
+              <option value="daily">รายวัน</option>
+            </select>
+            {err('rentType')}
+          </div>
+          <div className={fieldClass('field field-required', errors.checkInDate)}>
+            <label htmlFor="booking-checkInDate">
+              วันที่เข้าพัก <span className="required">* จำเป็น</span>
+            </label>
+            <DateField
+              id="booking-checkInDate"
+              value={value.checkInDate}
+              onChange={(v) => set('checkInDate', v)}
+            />
+            {err('checkInDate')}
+          </div>
+          <div className={fieldClass('field', errors.checkOutDate)}>
+            <label htmlFor="booking-checkOutDate">วันที่ออก</label>
+            <DateField
+              id="booking-checkOutDate"
+              value={value.checkOutDate}
+              onChange={(v) => set('checkOutDate', v)}
+            />
+            {err('checkOutDate')}
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="form-group">
+        <legend>เงินจอง</legend>
+        <div className="field-row">
+          <div className={fieldClass('field field-required', errors.rentPrice)}>
+            <label htmlFor="booking-rentPrice">
+              ราคาห้อง <span className="required">* จำเป็น</span>
+            </label>
+            <div className="input-with-suffix">
+              <input
+                id="booking-rentPrice"
+                value={value.rentPrice}
+                onChange={(e) => set('rentPrice', e.target.value)}
+                inputMode="decimal"
+                {...inv('rentPrice')}
+              />
+              <span className="input-suffix">บาท</span>
+            </div>
+            {err('rentPrice')}
+          </div>
+          <div className={fieldClass('field field-required', errors.bookingFee)}>
+            <label htmlFor="booking-bookingFee">
+              เงินจอง <span className="required">* จำเป็น</span>
+              <InfoTip title="เงินจอง" points={['หักออกจากยอดที่เก็บเพิ่มตอนทำสัญญา']} />
+            </label>
+            <div className="input-with-suffix">
+              <input
+                id="booking-bookingFee"
+                value={value.bookingFee}
+                onChange={(e) => set('bookingFee', e.target.value)}
+                inputMode="decimal"
+                {...inv('bookingFee')}
+              />
+              <span className="input-suffix">บาท</span>
+            </div>
+            {err('bookingFee')}
+          </div>
+          <div className={fieldClass('field field-required', errors.paymentMethod)}>
+            <label htmlFor="booking-paymentMethod">
+              ชำระโดย <span className="required">* จำเป็น</span>
+            </label>
+            {/* ต้องมาจาก PAYMENT_METHODS เหมือนอีก 6 หน้าที่มีช่องนี้ ไม่ใช่พิมพ์ <option> เอง
+                เดิมพิมพ์เองแล้วคำเพี้ยน: ที่นี่ขึ้น "โอนเงิน" แต่ทุกหน้าอื่นขึ้น "เงินโอน" */}
+            <select
+              id="booking-paymentMethod"
+              value={value.paymentMethod}
+              onChange={(e) => set('paymentMethod', e.target.value)}
+              {...inv('paymentMethod')}
+            >
+              {PAYMENT_METHODS.map((method) => (
+                <option key={method.key} value={method.key}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+            {err('paymentMethod')}
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor="booking-note">หมายเหตุ</label>
+          <input
+            id="booking-note"
+            value={value.note}
+            onChange={(e) => set('note', e.target.value)}
+            placeholder="เช่น เข้าอยู่พร้อมเพื่อน / ขอห้องชั้นล่าง"
+          />
+        </div>
+      </fieldset>
     </Modal>
   )
+}
+
+// วันที่บนหน้าจอเป็น ค.ศ. dd/mm/yyyy เหมือนหน้าอื่นของระบบ — เดิมโชว์ ISO (2026-09-30) ตรงๆ
+function formatDate(iso) {
+  if (!iso) return '-'
+  const [y, m, d] = String(iso).split('-')
+  return `${d}/${m}/${y}`
 }
