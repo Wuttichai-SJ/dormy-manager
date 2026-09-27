@@ -39,6 +39,7 @@ files:
   - '!electron.vite.config.mjs'
   - '!vite.config.mjs'
   - '!.npmrc'
+  - '!installer/*'
 
 # 🔴 ไฟล์ .node คือไบนารีของ better-sqlite3 — ต้องอยู่ **นอก** ไฟล์ asar
 #
@@ -66,6 +67,8 @@ win:
   target: nsis
 
 nsis:
+  # บังคับติดตั้งแบบเฉพาะผู้ใช้นี้ ไม่แสดงหน้าเลือก all users
+  include: installer/installer.nsh
   # ติดตั้งแบบ "ต่อผู้ใช้" ไม่ต้องขอสิทธิ์ผู้ดูแลเครื่อง — เจ้าของหอลงเองได้โดยไม่ต้องมี
   # รหัส admin และไม่มีหน้าต่าง UAC สีฟ้าที่ทำให้คนกลัวว่าเป็นไวรัส
   perMachine: false
