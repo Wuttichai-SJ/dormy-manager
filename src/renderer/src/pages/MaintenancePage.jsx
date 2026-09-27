@@ -6,6 +6,14 @@ import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
 import ConfirmDialog, { useConfirm } from '../components/ConfirmDialog.jsx'
+import PeriodBar, {
+  MonthGroupRow,
+  formatMonthName,
+  initialPeriod,
+  periodDateRange,
+  periodLabel,
+  useMonthGroups
+} from '../components/PeriodBar.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { MAINTENANCE_STATUS_FILTERS } from '../constants.js'
 import { centsToInput, formatBaht } from '../format.js'
@@ -24,9 +32,15 @@ import {
   updateMaintenance
 } from '../services/maintenanceService.js'
 
+const OPEN_FILTERS = ['open', 'pending', 'scheduled']
+
 // งานซ่อมผูกกับห้อง ไม่ใช่สัญญา · ค่าซ่อมยังไม่เข้าบิล
 export default function MaintenancePage({ apartment }) {
   const [filters, setFilters] = useState({ status: 'open', search: '' })
+  // งานที่ยังค้าง (รอดำเนินการ/นัดแล้ว) แสดงทั้งหมดเสมอ — ช่วงเวลาใช้กับสถานะอื่น (ตามวันที่แจ้ง)
+  const [period, setPeriod] = useState(initialPeriod)
+  const usePeriod = !OPEN_FILTERS.includes(filters.status)
+  const range = usePeriod ? periodDateRange(period) : { from: '', to: '' }
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -37,17 +51,65 @@ export default function MaintenancePage({ apartment }) {
     setLoading(true)
     const res = await listMaintenance(apartment.apartmentId, {
       status: filters.status || undefined,
-      search: filters.search || undefined
+      search: filters.search || undefined,
+      dateFrom: range.from || undefined,
+      dateTo: range.to || undefined
     })
     setLoading(false)
     if (!res.success) return setError(res.error)
     setError('')
     setReport(res.data)
-  }, [apartment.apartmentId, filters])
+  }, [apartment.apartmentId, filters, range.from, range.to])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const rows = report?.requests ?? []
+  const { groups, collapsible, isOpen, toggle, resetToggles } = useMonthGroups(
+    rows,
+    (row) => String(row.reportedDate ?? '').slice(0, 7),
+    period,
+    Boolean(filters.search)
+  )
+
+  function changePeriod(next) {
+    setPeriod(next)
+    resetToggles()
+  }
+
+  const renderRow = (row, index) => (
+    <tr key={row.maintenanceId} className={row.isOpen ? undefined : 'receipt-row-cancelled'}>
+      <td className="invoice-col-no">{index + 1}</td>
+      <td>{formatDate(row.reportedDate)}</td>
+      <td>{row.roomNumber}</td>
+      <td>{row.tenantName ?? '-'}</td>
+      <td className="maintenance-description">
+        {row.description}
+        {row.imageCount > 0 && (
+          <span className="room-badge">รูป {row.imageCount}</span>
+        )}
+      </td>
+      <td>{row.appointmentDate ? formatDate(row.appointmentDate) : '—'}</td>
+      <td>{row.statusLabel}</td>
+      <td className="align-right">
+        {row.repairCostCents === null ? (
+          <span className="muted">-</span>
+        ) : (
+          formatBaht(row.repairCostCents)
+        )}
+      </td>
+      <td className="align-right">
+        <button
+          type="button"
+          className="link-btn"
+          onClick={() => setOpenId(row.maintenanceId)}
+        >
+          รายละเอียด
+        </button>
+      </td>
+    </tr>
+  )
 
   if (openId) {
     return (
@@ -59,7 +121,6 @@ export default function MaintenancePage({ apartment }) {
     )
   }
 
-  const rows = report?.requests ?? []
 
   return (
     <>
@@ -86,6 +147,7 @@ export default function MaintenancePage({ apartment }) {
         </div>
 
         <div className="invoice-filters">
+          {usePeriod && <PeriodBar period={period} onChange={changePeriod} />}
           <div className="field">
             <label htmlFor="maintenanceStatus">สถานะ</label>
             <select
@@ -115,7 +177,10 @@ export default function MaintenancePage({ apartment }) {
             <button
               type="button"
               className="btn btn-outline btn-sm"
-              onClick={() => setFilters({ status: 'open', search: '' })}
+              onClick={() => {
+                setFilters({ status: 'open', search: '' })
+                changePeriod(initialPeriod())
+              }}
             >
               รีเซ็ต
             </button>
@@ -137,9 +202,21 @@ export default function MaintenancePage({ apartment }) {
             {filters.status === 'open' && !filters.search
               ? 'ไม่มีงานซ่อมค้างอยู่'
               : 'ไม่พบงานซ่อมตามเงื่อนไขที่เลือก'}
+            {usePeriod && period.mode !== 'all' && (
+              <>
+                {` ใน${periodLabel(period)} · `}
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => changePeriod({ ...period, mode: 'all' })}
+                >
+                  ดูทุกช่วงเวลา
+                </button>
+              </>
+            )}
           </p>
         ) : (
-          <table className="data-table">
+          <table className={usePeriod ? 'data-table grouped-table' : 'data-table'}>
             <thead>
               <tr>
                 <th className="invoice-col-no">#</th>
@@ -153,40 +230,26 @@ export default function MaintenancePage({ apartment }) {
                 <th></th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={row.maintenanceId} className={row.isOpen ? undefined : 'receipt-row-cancelled'}>
-                  <td className="invoice-col-no">{index + 1}</td>
-                  <td>{formatDate(row.reportedDate)}</td>
-                  <td>{row.roomNumber}</td>
-                  <td>{row.tenantName ?? '-'}</td>
-                  <td className="maintenance-description">
-                    {row.description}
-                    {row.imageCount > 0 && (
-                      <span className="room-badge">รูป {row.imageCount}</span>
-                    )}
-                  </td>
-                  <td>{row.appointmentDate ? formatDate(row.appointmentDate) : '—'}</td>
-                  <td>{row.statusLabel}</td>
-                  <td className="align-right">
-                    {row.repairCostCents === null ? (
-                      <span className="muted">-</span>
-                    ) : (
-                      formatBaht(row.repairCostCents)
-                    )}
-                  </td>
-                  <td className="align-right">
-                    <button
-                      type="button"
-                      className="link-btn"
-                      onClick={() => setOpenId(row.maintenanceId)}
-                    >
-                      รายละเอียด
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {usePeriod ? (
+              groups.map((group, groupIndex) => {
+                const open = isOpen(group.month, groupIndex)
+                return (
+                  <tbody key={group.month}>
+                    <MonthGroupRow
+                      label={`แจ้ง${formatMonthName(group.month)}`}
+                      meta={`${group.items.length} งาน`}
+                      colSpan={9}
+                      open={open}
+                      collapsible={collapsible}
+                      onToggle={() => toggle(group.month)}
+                    />
+                    {open && group.items.map((row, index) => renderRow(row, index))}
+                  </tbody>
+                )
+              })
+            ) : (
+              <tbody>{rows.map((row, index) => renderRow(row, index))}</tbody>
+            )}
           </table>
         )}
       </section>
