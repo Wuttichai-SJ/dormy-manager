@@ -65,6 +65,8 @@ extraResources:
 
 win:
   target: nsis
+  # ไอคอนโปรแกรม — แก้ที่ installer/icon.svg แล้วรัน `npx electron installer/render-icon.cjs`
+  icon: installer/icon.png
 
 nsis:
   # บังคับติดตั้งแบบเฉพาะผู้ใช้นี้ ไม่แสดงหน้าเลือก all users
