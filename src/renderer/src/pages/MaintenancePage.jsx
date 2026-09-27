@@ -172,19 +172,17 @@ export default function MaintenancePage({ apartment }) {
               placeholder="เช่น 101 หรือ น้ำรั่ว"
             />
           </div>
-          <div className="field">
-            <label>&nbsp;</label>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              onClick={() => {
-                setFilters({ status: 'open', search: '' })
-                changePeriod(initialPeriod())
-              }}
-            >
-              รีเซ็ต
-            </button>
-          </div>
+          <button
+            type="button"
+            className="link-btn invoice-filter-reset"
+            onClick={() => {
+              setFilters({ status: 'open', search: '' })
+              changePeriod(initialPeriod())
+            }}
+            disabled={filters.status === 'open' && !filters.search}
+          >
+            รีเซ็ต
+          </button>
         </div>
 
         <div className="panel-head-row">
@@ -204,10 +202,10 @@ export default function MaintenancePage({ apartment }) {
               : 'ไม่พบงานซ่อมตามเงื่อนไขที่เลือก'}
             {usePeriod && period.mode !== 'all' && (
               <>
-                {` ใน${periodLabel(period)} · `}
+                {` ใน${periodLabel(period)}`}
                 <button
                   type="button"
-                  className="link-btn"
+                  className="link-btn table-empty-action"
                   onClick={() => changePeriod({ ...period, mode: 'all' })}
                 >
                   ดูทุกช่วงเวลา

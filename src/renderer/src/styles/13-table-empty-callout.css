@@ -41,7 +41,7 @@
 }
 
 .table-action {
-  margin-left: 12px;
+  margin-left: 6px;
 }
 
 .table-empty {
@@ -354,4 +354,10 @@ button.month-group-toggle:hover {
   .month-group-chevron {
     transition: none;
   }
+}
+
+/* ปุ่มในข้อความตอนไม่มีข้อมูล เช่น "ดูทุกช่วงเวลา" */
+.table-empty-action {
+  margin-left: 10px;
+  vertical-align: middle;
 }

@@ -228,10 +228,9 @@ export default function ReceiptsPage({ apartment, user }) {
             ไม่มีใบเสร็จ{period.mode !== 'all' && `ของ${periodLabel(period)}`}
             {period.mode !== 'all' && (
               <>
-                {' · '}
                 <button
                   type="button"
-                  className="link-btn"
+                  className="link-btn table-empty-action"
                   onClick={() => changePeriod({ ...period, mode: 'all' })}
                 >
                   ดูทุกช่วงเวลา

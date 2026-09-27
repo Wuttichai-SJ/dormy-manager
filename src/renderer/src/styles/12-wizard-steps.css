@@ -278,9 +278,11 @@
   padding: 8px 0;
 }
 
-.plan-room-delete {
+.link-btn.plan-room-delete {
   margin-left: auto;
-  padding: 8px;
+  padding: 0 8px;
+  background: none;
+  border-color: transparent;
 }
 
 .plan-room-delete svg {

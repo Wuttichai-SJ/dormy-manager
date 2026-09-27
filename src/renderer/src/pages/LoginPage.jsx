@@ -65,7 +65,7 @@ export default function LoginPage({ lastIdentifier = '', onSuccess, onForgotPass
             <span>จดจำชื่อผู้ใช้</span>
           </label>
 
-          <button type="button" className="link-btn" onClick={onForgotPassword}>
+          <button type="button" className="link-btn link-text" onClick={onForgotPassword}>
             ลืมรหัสผ่าน?
           </button>
         </div>

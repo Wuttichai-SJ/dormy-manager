@@ -82,6 +82,11 @@
   color: var(--err);
 }
 
+.link-btn.link-danger:hover:not(:disabled) {
+  background: var(--err-weak);
+  border-color: var(--err);
+}
+
 .link-back-inline {
   display: inline-flex;
   align-items: center;

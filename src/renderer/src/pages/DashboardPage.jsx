@@ -111,7 +111,8 @@ export default function DashboardPage({ apartment, onNavigate, onOpenInvoice }) 
           <h2 className="panel-title">บิลค้างชำระนานสุด</h2>
           {outstanding.invoiceCount > topOverdue.length && (
             <button type="button" className="link-btn" onClick={() => onNavigate('invoices')}>
-              ดูทั้งหมด ({outstanding.invoiceCount} ใบ) →
+              <span>ดูทั้งหมด ({outstanding.invoiceCount} ใบ)</span>
+              <Icon name="chevronRight" />
             </button>
           )}
         </div>

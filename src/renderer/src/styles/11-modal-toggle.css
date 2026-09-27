@@ -328,6 +328,9 @@
 }
 
 .link-btn.icon-only {
+  padding: 0;
+  background: none;
+  border-color: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -299,10 +299,9 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
             {period.mode !== 'all' && ` ของ${periodLabel(period)}`}
             {period.mode !== 'all' && (
               <>
-                {' · '}
                 <button
                   type="button"
-                  className="link-btn"
+                  className="link-btn table-empty-action"
                   onClick={() => changePeriod({ ...period, mode: 'all' })}
                 >
                   ดูทุกช่วงเวลา

@@ -62,13 +62,71 @@
   gap: 10px;
 }
 
+/* ปุ่มรองขนาดเล็ก — การกระทำในแถวตาราง/ในการ์ด (รายละเอียด แก้ไข ลบ ยกเลิก ดูทั้งหมด) */
 .link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--accent);
+  white-space: nowrap;
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.link-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.link-btn:hover:not(:disabled) {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+}
+
+.link-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.link-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ปุ่มที่อยู่ติดกันในแถวเดียว */
+.link-btn + .link-btn {
+  margin-left: 6px;
+}
+
+/* ลิงก์นำทาง (ย้อนกลับ / ลืมรหัสผ่าน) ยังเป็นข้อความ ไม่ใช่ปุ่ม */
+.link-btn.link-text,
+.link-btn.link-back,
+.link-btn.link-back-inline,
+.page-back .link-btn {
+  height: auto;
+  padding: 0;
+  font-weight: 400;
   background: none;
   border: none;
-  padding: 0;
-  color: var(--accent);
-  font-size: 13px;
-  cursor: pointer;
+}
+
+.link-btn.link-text:hover,
+.link-btn.link-back:hover,
+.link-btn.link-back-inline:hover,
+.page-back .link-btn:hover {
+  background: none;
   text-decoration: underline;
 }
 
