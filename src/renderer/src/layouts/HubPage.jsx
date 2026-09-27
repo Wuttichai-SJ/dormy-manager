@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
 import ApartmentsPage from '../pages/ApartmentsPage.jsx'
 import UsersPage from '../pages/UsersPage.jsx'
+import BackupsPage from '../pages/BackupsPage.jsx'
 
 // หน้าแรกหลังเข้าสู่ระบบ — ต้องเลือกหอก่อนเข้าทำงาน
 export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartment }) {
@@ -41,6 +42,16 @@ export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartm
             <span>จัดการผู้ใช้งาน</span>
           </button>
         )}
+        {/* ไฟล์สำรองเป็นของทั้งเครื่อง — เข้าได้โดยไม่ต้องเลือกหอก่อน */}
+        {user.isOwner && (
+          <button
+            className={'hub-tab' + (tab === 'backups' ? ' active' : '')}
+            onClick={() => setTab('backups')}
+          >
+            <Icon name="download" />
+            <span>สำรองข้อมูล</span>
+          </button>
+        )}
       </nav>
 
       <main className="hub-content">
@@ -51,8 +62,10 @@ export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartm
             onCreated={onSetupApartment}
             onSetup={onSetupApartment}
           />
-        ) : (
+        ) : tab === 'users' ? (
           <UsersPage user={user} />
+        ) : (
+          <BackupsPage user={user} />
         )}
       </main>
     </div>

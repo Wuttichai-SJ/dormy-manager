@@ -8,7 +8,6 @@ import QrCodePage from './QrCodePage.jsx'
 import FloorPlanPage from './FloorPlanPage.jsx'
 import RoomRatesPage from './RoomRatesPage.jsx'
 import SecuritySettingsPage from './SecuritySettingsPage.jsx'
-import BackupsPage from './BackupsPage.jsx'
 
 // หัวข้อเมนูตั้งค่า (วาดใน WorkspaceShell) · รายการที่ยังไม่ทำแสดงจางๆ
 export const SETTINGS_GROUPS = [
@@ -22,9 +21,8 @@ export const SETTINGS_GROUPS = [
       { key: 'qrCode', label: 'QR Code รับเงิน', ready: true, ownerOnly: true },
       { key: 'meterRules', label: 'การคิดค่ามิเตอร์', ready: true, ownerOnly: true },
       { key: 'deposit', label: 'เงินประกันและการคืนเงิน', ready: true, ownerOnly: true },
-      { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true },
-      // ผู้ใช้งานระบบอยู่ที่ HubPage (ของทั้งระบบ ไม่ผูกหอ)
-      { key: 'backups', label: 'สำรองข้อมูล', ready: true, ownerOnly: true }
+      { key: 'security', label: 'บัญชีผู้ใช้และความปลอดภัย', ready: true }
+      // ผู้ใช้งานระบบและสำรองข้อมูลอยู่ที่ HubPage (ของทั้งเครื่อง ไม่ผูกหอ)
     ]
   },
   {
@@ -54,8 +52,6 @@ export function SettingsSection({ section, apartment, user, onApartmentDeleted }
       return <DepositPolicyPage apartment={apartment} />
     case 'security':
       return <SecuritySettingsPage user={user} />
-    case 'backups':
-      return <BackupsPage user={user} />
     case 'plan':
       return <FloorPlanPage apartment={apartment} />
     // key บังคับสร้างใหม่ทุกครั้งที่สลับโหมด
