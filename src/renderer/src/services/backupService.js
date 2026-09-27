@@ -29,3 +29,8 @@ export function exportBackup(fileName) {
 export function importBackup() {
   return invoke('backup:import')
 }
+
+// เครื่องใหม่ที่ยังไม่มีบัญชี — คืน { cancelled } หรือ { ok, apartments, users }
+export function restoreFirstRun() {
+  return invoke('backup:restoreFirstRun')
+}

@@ -106,6 +106,7 @@ export function inspectBackup(filePath, knownMigrations = null) {
 
     const applied = probe.prepare('SELECT name FROM _migrations ORDER BY name').all().map((r) => r.name)
     const apartments = probe.prepare('SELECT COUNT(*) AS n FROM apartments').get().n
+    const users = tables.has('users') ? probe.prepare('SELECT COUNT(*) AS n FROM users').get().n : 0
 
     // ไม่กู้คืนไฟล์จากแอปรุ่นใหม่กว่า (migration ย้อนกลับไม่ได้)
     if (knownMigrations) {
@@ -118,7 +119,7 @@ export function inspectBackup(filePath, knownMigrations = null) {
       }
     }
 
-    return { migrations: applied.length, appliedMigrations: applied, apartments }
+    return { migrations: applied.length, appliedMigrations: applied, apartments, users }
   } catch (err) {
     if (err.message.includes('ไฟล์นี้ไม่ใช่') || err.message.includes('รุ่นใหม่กว่า')) throw err
     throw new Error('เปิดไฟล์สำรองไม่ได้ — ไฟล์อาจเสียหายหรือไม่ใช่ไฟล์ฐานข้อมูล')
@@ -218,5 +219,13 @@ export function importBackup(userDataPath, sourcePath, migrationsDir = null, { i
     : `นำเข้าจาก ${path.basename(source)}`
   fs.writeFileSync(`${target}.txt`, label, 'utf-8')
 
-  return { ...describeBackup(dir, fileName), apartments: info.apartments }
+  return { ...describeBackup(dir, fileName), apartments: info.apartments, users: info.users }
+}
+
+// กู้คืนหน้าลงทะเบียนได้เฉพาะเครื่องที่ยังไม่มีบัญชี — มีบัญชีแล้วต้องเข้าสู่ระบบก่อน
+export function assertFreshDatabase(db) {
+  const { n } = db.prepare('SELECT COUNT(*) AS n FROM users').get()
+  if (n > 0) {
+    throw new Error('เครื่องนี้มีบัญชีผู้ใช้แล้ว — เข้าสู่ระบบแล้วกู้คืนจากหน้าสำรองข้อมูล')
+  }
 }

@@ -316,6 +316,34 @@ check('นำเข้าไฟล์ที่อยู่ในโฟลเด�
 
 fs.rmSync(usb, { recursive: true, force: true })
 
+group('กู้คืนจากหน้าลงทะเบียน (เครื่องใหม่)')
+
+const auth = await import('../src/main/auth.js')
+const fresh = await openTempDatabase('dormy-fresh')
+
+check('เครื่องที่ยังไม่มีบัญชี กู้คืนได้', () => {
+  backups.assertFreshDatabase(fresh.db)
+})
+
+check('เครื่องที่มีบัญชีแล้ว กู้คืนจากหน้าลงทะเบียนไม่ได้', () => {
+  auth.setupFirstUser(fresh.db, {
+    fullName: 'เจ้าของ ทดสอบ',
+    phone: '0811111111',
+    email: '',
+    password: 'password123'
+  })
+  throws(() => backups.assertFreshDatabase(fresh.db), 'มีบัญชีผู้ใช้แล้ว', 'ควรกัน')
+})
+
+const withUser = await backups.createBackup(fresh.db, userData, { label: 'มีบัญชี' })
+
+check('ตรวจไฟล์สำรองบอกจำนวนบัญชีผู้ใช้ในไฟล์ด้วย', () => {
+  const { info } = backups.prepareRestore(userData, withUser.fileName)
+  assert(info.users === 1, `ได้ ${info.users} บัญชี`)
+})
+
+fresh.cleanup()
+
 cleanup()
 fs.rmSync(userData, { recursive: true, force: true })
 summarize('การสำรอง/กู้คืนข้อมูลทำงานครบทุกเส้นทาง')

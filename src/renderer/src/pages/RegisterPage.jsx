@@ -1,12 +1,14 @@
 import React, { useState } from 'react'
+import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
 import { setupFirstUser } from '../services/authService.js'
+import { restoreFirstRun } from '../services/backupService.js'
 
 // แสดงครั้งเดียวตอนยังไม่มีบัญชีในเครื่อง
-export default function RegisterPage({ onReady }) {
+export default function RegisterPage({ onReady, onRestored }) {
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
@@ -17,6 +19,17 @@ export default function RegisterPage({ onReady }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null) /* { user, recoveryCode } */
+
+  // เครื่องใหม่: เอาข้อมูลจากไฟล์สำรองเครื่องเดิมมาใช้ แทนการสร้างบัญชีใหม่
+  async function restore() {
+    setError('')
+    setBusy(true)
+    const res = await restoreFirstRun()
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    if (res.data.cancelled) return
+    onRestored?.(res.data)
+  }
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -131,6 +144,17 @@ export default function RegisterPage({ onReady }) {
         <p className="auth-footnote">
           ข้อมูลเก็บไว้ในเครื่องนี้เท่านั้น ไม่ส่งออกไปที่ใด
         </p>
+
+        <div className="auth-restore">
+          <p className="auth-restore-title">ย้ายมาจากเครื่องเดิม?</p>
+          <p className="auth-restore-text">
+            กู้คืนจากไฟล์สำรอง แล้วเข้าสู่ระบบด้วยบัญชีเดิมได้เลย ไม่ต้องลงทะเบียนใหม่
+          </p>
+          <button type="button" className="btn btn-outline btn-block" disabled={busy} onClick={restore}>
+            <Icon name="upload" />
+            <span>กู้คืนจากไฟล์สำรอง</span>
+          </button>
+        </div>
       </form>
     </div>
   )

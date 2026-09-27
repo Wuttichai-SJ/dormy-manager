@@ -167,3 +167,31 @@
   border-top: 1px solid var(--border-strong);
 }
 
+
+/* ทางเลือกรองใต้ฟอร์มลงทะเบียน: กู้คืนจากไฟล์สำรองของเครื่องเดิม */
+.auth-restore {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.auth-restore-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.auth-restore-text {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.auth-restore .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}

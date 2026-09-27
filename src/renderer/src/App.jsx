@@ -7,6 +7,7 @@ import HubPage from './layouts/HubPage.jsx'
 import WorkspaceShell from './layouts/WorkspaceShell.jsx'
 import SetupWizard from './layouts/SetupWizard.jsx'
 import { getAuthStatus, logout } from './services/authService.js'
+import { showToast } from './components/Toast.jsx'
 
 // ยังไม่มีบัญชี → ลงทะเบียน · ยังไม่ล็อกอิน → เข้าสู่ระบบ · ยังไม่เลือกหอ → HubPage · เลือกแล้ว → WorkspaceShell
 export default function App() {
@@ -75,7 +76,15 @@ export default function App() {
   }
 
   if (status.phase === 'register') {
-    return <RegisterPage onReady={handleAuthenticated} />
+    return (
+      <RegisterPage
+        onReady={handleAuthenticated}
+        onRestored={({ apartments }) => {
+          showToast(`กู้คืนข้อมูลแล้ว (${apartments} หอ) — เข้าสู่ระบบด้วยบัญชีเดิม`)
+          loadStatus()
+        }}
+      />
+    )
   }
 
   if (status.phase === 'login') {
