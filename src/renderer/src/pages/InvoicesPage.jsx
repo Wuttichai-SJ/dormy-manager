@@ -831,7 +831,14 @@ function BillingWizard({ apartment, onClose }) {
                           {formatBaht(row.electricChargeCents)}
                         </span>
                       </td>
-                      <td className="align-right">{formatBaht(row.totalAmountCents)}</td>
+                      {/* ไม่ออกบิลรอบนี้ — ไม่แสดงยอด */}
+                      <td className="align-right">
+                        {row.startsThisMonth && !row.existingInvoiceId ? (
+                          <span className="muted">—</span>
+                        ) : (
+                          formatBaht(row.totalAmountCents)
+                        )}
+                      </td>
                       <td className="align-right">
                         {row.existingInvoiceId ? (
                           <span className="billing-done">
@@ -839,7 +846,7 @@ function BillingWizard({ apartment, onClose }) {
                             <span>{row.existingInvoiceNumber}</span>
                           </span>
                         ) : row.startsThisMonth ? (
-                          <span className="muted billing-skip">จ่ายค่าเช่าเดือนแรกแล้ว</span>
+                          <span className="muted billing-skip">ย้ายเข้าเดือนนี้ · จ่ายค่าเช่าแล้ว</span>
                         ) : (
                           <button
                             type="button"
