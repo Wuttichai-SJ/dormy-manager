@@ -203,3 +203,24 @@
   user-select: all;
 }
 
+
+/* ป้าย "ล่าสุด" ต่อท้ายวันที่ของไฟล์สำรองใบใหม่สุด */
+.backup-latest {
+  margin-left: 8px;
+  color: var(--ok);
+  background: var(--ok-weak);
+  vertical-align: middle;
+}
+
+/* แถบเลือกช่วงเวลา + ค้นหา — เต็มความกว้างการ์ด (การ์ดตั้งค่าบีบลูกเหลือ 2/3)
+   ช่องค้นหาไม่พอที่ก็ขึ้นบรรทัดใหม่ ไม่ถูกบีบ */
+.form-section-body > .backup-filters {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.backup-filters .field {
+  flex: 1 1 240px;
+  min-width: 240px;
+  width: auto;
+}

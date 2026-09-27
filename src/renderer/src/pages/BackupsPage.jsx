@@ -4,6 +4,13 @@ import Alert from '../components/Alert.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
+import PeriodBar, {
+  MonthGroupRow,
+  currentMonth,
+  formatMonthName,
+  periodLabel,
+  useMonthGroups
+} from '../components/PeriodBar.jsx'
 import { showToast } from '../components/Toast.jsx'
 import {
   createBackup,
@@ -21,6 +28,29 @@ export default function BackupsPage({ user }) {
   const [busy, setBusy] = useState(false)
   const [labelling, setLabelling] = useState(null)
   const [deleting, setDeleting] = useState(null)
+  // เปิดมาที่ทั้งหมด (ใบล่าสุดอยู่บนสุด) · ค้นจากบันทึกช่วยจำได้
+  const [period, setPeriod] = useState(() => ({ mode: 'all', month: currentMonth() }))
+  const [search, setSearch] = useState('')
+
+  const all = state?.backups ?? []
+  const keyword = search.trim().toLowerCase()
+  const shown = all.filter(
+    (b) =>
+      inPeriod(localMonth(b.createdAt), period) &&
+      (!keyword || `${b.label ?? ''} ${b.fileName}`.toLowerCase().includes(keyword))
+  )
+  const latestName = all[0]?.fileName
+  const { groups, collapsible, isOpen, toggle, resetToggles } = useMonthGroups(
+    shown,
+    (b) => localMonth(b.createdAt),
+    period,
+    Boolean(keyword)
+  )
+
+  function changePeriod(next) {
+    setPeriod(next)
+    resetToggles()
+  }
 
   const load = useCallback(async () => {
     const res = await listBackups()
@@ -133,12 +163,40 @@ export default function BackupsPage({ user }) {
         </div>
 
         <div className="form-section-body">
+          {state !== null && all.length > 0 && (
+            <div className="invoice-filters backup-filters">
+              <PeriodBar period={period} onChange={changePeriod} />
+              <div className="field">
+                <label htmlFor="backupSearch">ค้นจากบันทึกช่วยจำ</label>
+                <input
+                  id="backupSearch"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="เช่น ก่อนขึ้นค่าเช่า"
+                />
+              </div>
+            </div>
+          )}
+
           {state === null ? (
             <p className="muted">กำลังโหลด...</p>
-          ) : state.backups.length === 0 ? (
+          ) : all.length === 0 ? (
             <p className="muted">ยังไม่มีไฟล์สำรอง</p>
+          ) : shown.length === 0 ? (
+            <p className="muted table-empty">
+              {keyword ? 'ไม่พบไฟล์สำรองที่ตรงกับคำค้น' : `ไม่มีไฟล์สำรองใน${periodLabel(period)}`}
+              {period.mode !== 'all' && (
+                <button
+                  type="button"
+                  className="link-btn table-empty-action"
+                  onClick={() => changePeriod({ ...period, mode: 'all' })}
+                >
+                  ดูทุกช่วงเวลา
+                </button>
+              )}
+            </p>
           ) : (
-            <table className="data-table">
+            <table className="data-table grouped-table">
               <thead>
                 <tr>
                   <th>วันที่สำรอง</th>
@@ -147,38 +205,54 @@ export default function BackupsPage({ user }) {
                   <th className="align-right">จัดการ</th>
                 </tr>
               </thead>
-              <tbody>
-                {state.backups.map((b) => (
-                  <tr key={b.fileName}>
-                    <td>{formatDateTime(b.createdAt)}</td>
-                    <td>{b.label ?? <span className="muted">—</span>}</td>
-                    <td className="align-right">{formatSize(b.sizeBytes)}</td>
-                    {/* กู้คืน/ลบ เฉพาะเจ้าของหอ · สร้างได้ทุกคน */}
-                    <td className="align-right">
-                      {user?.isOwner ? (
-                        <>
-                          <button type="button" className="link-btn" onClick={() => exportOne(b)}>
-                            <Icon name="download" />
-                            <span>ส่งออก</span>
-                          </button>
-                          <button type="button" className="link-btn" onClick={() => restore(b)}>
-                            กู้คืน
-                          </button>
-                          <button
-                            type="button"
-                            className="link-btn link-danger table-action"
-                            onClick={() => setDeleting(b)}
-                          >
-                            ลบ
-                          </button>
-                        </>
-                      ) : (
-                        <span className="muted">เจ้าของหอเท่านั้น</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              {groups.map((group, index) => {
+                const open = isOpen(group.month, index)
+                return (
+                  <tbody key={group.month}>
+                    <MonthGroupRow
+                      label={formatMonthName(group.month)}
+                      meta={`${group.items.length} ไฟล์`}
+                      colSpan={4}
+                      open={open}
+                      collapsible={collapsible}
+                      onToggle={() => toggle(group.month)}
+                    />
+                    {open &&
+                      group.items.map((b) => (
+                        <tr key={b.fileName}>
+                          <td>
+                            {formatDateTime(b.createdAt)}
+                            {b.fileName === latestName && <span className="tag backup-latest">ล่าสุด</span>}
+                          </td>
+                          <td>{b.label ?? <span className="muted">—</span>}</td>
+                          <td className="align-right">{formatSize(b.sizeBytes)}</td>
+                          <td className="align-right">
+                            {user?.isOwner ? (
+                              <>
+                                <button type="button" className="link-btn" onClick={() => exportOne(b)}>
+                                  <Icon name="download" />
+                                  <span>ส่งออก</span>
+                                </button>
+                                <button type="button" className="link-btn" onClick={() => restore(b)}>
+                                  กู้คืน
+                                </button>
+                                <button
+                                  type="button"
+                                  className="link-btn link-danger table-action"
+                                  onClick={() => setDeleting(b)}
+                                >
+                                  ลบ
+                                </button>
+                              </>
+                            ) : (
+                              <span className="muted">เจ้าของหอเท่านั้น</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                )
+              })}
             </table>
           )}
         </div>
@@ -222,10 +296,23 @@ export default function BackupsPage({ user }) {
   )
 }
 
+// dd/mm/yyyy HH:mm เวลาเครื่อง (ค.ศ. เหมือนวันที่อื่นบนจอ)
 function formatDateTime(iso) {
   const d = new Date(iso)
   const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// เดือนตามเวลาเครื่อง — createdAt เป็น UTC ใบที่สำรองหลังเที่ยงคืนต้องอยู่วันใหม่
+function localMonth(iso) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function inPeriod(month, period) {
+  if (period.mode === 'month') return month === period.month
+  if (period.mode === 'year') return month.startsWith(period.month.slice(0, 4))
+  return true
 }
 
 function formatSize(bytes) {
