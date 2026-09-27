@@ -4,6 +4,14 @@ import Alert from '../components/Alert.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import DateField from '../components/DateField.jsx'
 import Modal from '../components/Modal.jsx'
+import PeriodBar, {
+  MonthGroupRow,
+  currentMonth,
+  formatMonthName,
+  periodDateRange,
+  periodLabel,
+  useMonthGroups
+} from '../components/PeriodBar.jsx'
 import MoveOutDocument from '../components/MoveOutDocument.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -17,30 +25,44 @@ import {
 } from '../services/terminationService.js'
 
 export default function MoveOutHistoryPage({ apartment, user }) {
-  const [filters, setFilters] = useState({ search: '', from: '', to: '' })
+  const [search, setSearch] = useState('')
+  // เปิดมาที่ "ทั้งหมด" — การ์ดยังเก็บไม่ได้นับตามช่วงที่เลือก ห้ามซ่อนยอดค้างของเดือนเก่า
+  const [period, setPeriod] = useState(() => ({ mode: 'all', month: currentMonth() }))
+  const range = periodDateRange(period)
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [openContractId, setOpenContractId] = useState(null)
 
-  const rangeReversed = Boolean(filters.from && filters.to && filters.from > filters.to)
-
   const load = useCallback(async () => {
     setLoading(true)
     const res = await listTerminations(apartment.apartmentId, {
-      search: filters.search || undefined,
-      dateFrom: filters.from || undefined,
-      dateTo: filters.to || undefined
+      search: search || undefined,
+      dateFrom: range.from || undefined,
+      dateTo: range.to || undefined
     })
     setLoading(false)
     if (!res.success) return setError(res.error)
     setError('')
     setReport(res.data)
-  }, [apartment.apartmentId, filters])
+  }, [apartment.apartmentId, search, range.from, range.to])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const rows = report?.terminations ?? []
+  const { groups, collapsible, isOpen, toggle, resetToggles } = useMonthGroups(
+    rows,
+    (t) => String(t.moveOutDate ?? '').slice(0, 7),
+    period,
+    Boolean(search)
+  )
+
+  function changePeriod(next) {
+    setPeriod(next)
+    resetToggles()
+  }
 
   if (openContractId) {
     return (
@@ -53,16 +75,10 @@ export default function MoveOutHistoryPage({ apartment, user }) {
     )
   }
 
-  const rows = report?.terminations ?? []
-
   return (
     <>
-
       <section className="panel">
         <Alert>{error}</Alert>
-        {rangeReversed && (
-          <Alert kind="warn">วันที่เริ่มต้นอยู่หลังวันที่สิ้นสุด</Alert>
-        )}
         {(report?.mismatchCount ?? 0) > 0 && (
           <Alert kind="warn">
             มี {report.mismatchCount} ใบ (⚠) ที่ยอดสุทธิไม่ตรงกับสูตรปัจจุบัน — เปิดดูเพื่อเทียบตัวเลข
@@ -70,42 +86,28 @@ export default function MoveOutHistoryPage({ apartment, user }) {
         )}
 
         <div className="invoice-filters">
+          <PeriodBar period={period} onChange={changePeriod} />
           <div className="field">
             <label htmlFor="moveOutSearch">เลขห้อง หรือชื่อผู้เช่า</label>
             <input
               id="moveOutSearch"
               type="text"
-              value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="เช่น 101 หรือ สมชาย"
             />
           </div>
-          <div className="field">
-            <label htmlFor="moveOutFrom">วันที่ย้ายออก ตั้งแต่</label>
-            <DateField
-              id="moveOutFrom"
-              value={filters.from}
-              onChange={(v) => setFilters((f) => ({ ...f, from: v }))}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="moveOutTo">ถึง</label>
-            <DateField
-              id="moveOutTo"
-              value={filters.to}
-              onChange={(v) => setFilters((f) => ({ ...f, to: v }))}
-            />
-          </div>
-          <div className="field">
-            <label>&nbsp;</label>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              onClick={() => setFilters({ search: '', from: '', to: '' })}
-            >
-              รีเซ็ต
-            </button>
-          </div>
+          <button
+            type="button"
+            className="link-btn invoice-filter-reset"
+            onClick={() => {
+              setSearch('')
+              changePeriod({ mode: 'all', month: currentMonth() })
+            }}
+            disabled={!search && period.mode === 'all'}
+          >
+            รีเซ็ต
+          </button>
         </div>
 
         <div className="room-stats">
@@ -135,12 +137,14 @@ export default function MoveOutHistoryPage({ apartment, user }) {
           <p className="muted">กำลังโหลด...</p>
         ) : rows.length === 0 ? (
           <p className="muted table-empty">
-            {filters.search || filters.from || filters.to
+            {search
               ? 'ไม่พบรายการย้ายออกตามเงื่อนไขที่ค้นหา'
-              : 'ยังไม่มีผู้เช่าย้ายออกจากหอนี้'}
+              : period.mode === 'all'
+                ? 'ยังไม่มีผู้เช่าย้ายออกจากหอนี้'
+                : `ไม่มีผู้เช่าย้ายออกใน${periodLabel(period)}`}
           </p>
         ) : (
-          <table className="data-table">
+          <table className="data-table grouped-table">
             <thead>
               <tr>
                 <th className="invoice-col-no">#</th>
@@ -155,62 +159,92 @@ export default function MoveOutHistoryPage({ apartment, user }) {
                 <th></th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((t, index) => (
-                <tr key={t.terminationId}>
-                  <td className="invoice-col-no">{index + 1}</td>
-                  <td>{formatDate(t.moveOutDate)}</td>
-                  <td>{t.roomNumber}</td>
-                  <td>{t.tenantName ?? '-'}</td>
-                  <td className="align-right">{t.monthsStayed}</td>
-                  <td className="align-right">{formatBaht(t.depositSnapshotCents)}</td>
-                  <td>
-                    {t.isDepositRefundable ? (
-                      'คืนเงินประกัน'
-                    ) : (
-                      <span className="negative" title={t.forfeitReasonLabel ?? ''}>
-                        ริบเงินประกัน
-                      </span>
-                    )}
-                    {t.isManualOverride && <span className="room-badge">ตัดสินเอง</span>}
-                  </td>
-                  <td className="align-right">
-                    {/* บวก = หอคืนให้ผู้เช่า · ลบ = ผู้เช่าจ่ายเพิ่ม */}
-                    <span className={t.netRefundCents < 0 ? 'negative' : undefined}>
-                      {formatBaht(t.netRefundCents)}
-                    </span>
-                    {t.hasNetRefundMismatch && (
-                      <span
-                        className="negative"
-                        title={`คิดด้วยกติกาปัจจุบันจะได้ ${formatBaht(t.recomputedNetRefundCents)}`}
-                      >
-                        {' '}
-                        ⚠
-                      </span>
-                    )}
-                  </td>
-                  <td className="align-right">
-                    {t.unpaidBalanceCents > 0 ? (
-                      <span className="negative">{formatBaht(t.unpaidBalanceCents)}</span>
-                    ) : (
-                      <span className="muted">-</span>
-                    )}
-                  </td>
-                  <td className="align-right">
-                    <button
-                      type="button"
-                      className="link-btn"
-                      onClick={() => setOpenContractId(t.contractId)}
-                    >
-                      รายละเอียด
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {groups.map((group, groupIndex) => {
+              const open = isOpen(group.month, groupIndex)
+              return (
+                <tbody key={group.month}>
+                  <MonthGroupRow
+                    label={`ย้ายออก${formatMonthName(group.month)}`}
+                    meta={<MoveOutMonthMeta items={group.items} />}
+                    colSpan={10}
+                    open={open}
+                    collapsible={collapsible}
+                    onToggle={() => toggle(group.month)}
+                  />
+                  {open &&
+                    group.items.map((t, index) => (
+                      <tr key={t.terminationId}>
+                        <td className="invoice-col-no">{index + 1}</td>
+                        <td>{formatDate(t.moveOutDate)}</td>
+                        <td>{t.roomNumber}</td>
+                        <td>{t.tenantName ?? '-'}</td>
+                        <td className="align-right">{t.monthsStayed}</td>
+                        <td className="align-right">{formatBaht(t.depositSnapshotCents)}</td>
+                        <td>
+                          {t.isDepositRefundable ? (
+                            'คืนเงินประกัน'
+                          ) : (
+                            <span className="negative" title={t.forfeitReasonLabel ?? ''}>
+                              ริบเงินประกัน
+                            </span>
+                          )}
+                          {t.isManualOverride && <span className="room-badge">ตัดสินเอง</span>}
+                        </td>
+                        <td className="align-right">
+                          {/* บวก = หอคืนให้ผู้เช่า · ลบ = ผู้เช่าจ่ายเพิ่ม */}
+                          <span className={t.netRefundCents < 0 ? 'negative' : undefined}>
+                            {formatBaht(t.netRefundCents)}
+                          </span>
+                          {t.hasNetRefundMismatch && (
+                            <span
+                              className="negative"
+                              title={`คิดด้วยกติกาปัจจุบันจะได้ ${formatBaht(t.recomputedNetRefundCents)}`}
+                            >
+                              {' '}
+                              ⚠
+                            </span>
+                          )}
+                        </td>
+                        <td className="align-right">
+                          {t.unpaidBalanceCents > 0 ? (
+                            <span className="negative">{formatBaht(t.unpaidBalanceCents)}</span>
+                          ) : (
+                            <span className="muted">-</span>
+                          )}
+                        </td>
+                        <td className="align-right">
+                          <button
+                            type="button"
+                            className="link-btn"
+                            onClick={() => setOpenContractId(t.contractId)}
+                          >
+                            รายละเอียด
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              )
+            })}
           </table>
         )}
       </section>
+    </>
+  )
+}
+
+// สรุปของเดือน — ยอดค้างเก็บต้องเห็นแม้กลุ่มถูกพับ
+function MoveOutMonthMeta({ items }) {
+  const unpaid = items.reduce((sum, t) => sum + (t.unpaidBalanceCents > 0 ? t.unpaidBalanceCents : 0), 0)
+  return (
+    <>
+      {items.length} ราย
+      {unpaid > 0 && (
+        <>
+          {' · '}
+          <span className="negative">ยังเก็บไม่ได้ {formatBaht(unpaid)}</span>
+        </>
+      )}
     </>
   )
 }
