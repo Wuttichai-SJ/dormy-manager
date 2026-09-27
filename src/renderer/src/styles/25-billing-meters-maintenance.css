@@ -199,6 +199,25 @@
   list-style: none;
 }
 
+/* หัวกลุ่มรายปี — ค้างจอตอนเลื่อน */
+.meter-year + .meter-year {
+  margin-top: 12px;
+}
+
+.meter-year-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.meter-year-head:hover {
+  background: var(--bg);
+}
+
 .meter-batch {
   display: flex;
   align-items: center;

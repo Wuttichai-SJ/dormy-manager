@@ -6,6 +6,7 @@ import InfoTip from '../components/InfoTip.jsx'
 import Modal from '../components/Modal.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import DateField from '../components/DateField.jsx'
+import { groupByMonth } from '../components/PeriodBar.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { METER_SIDES, ROOM_STATUS_LABELS, previewUnitsUsed } from '../constants.js'
 import {
@@ -26,6 +27,8 @@ export default function MetersPage({ apartment }) {
   const [readingDate, setReadingDate] = useState(today())
   const createForm = useFormErrors(['readingDate'])
   const [openSheet, setOpenSheet] = useState(null)
+  // ปีที่ผู้ใช้พับ/กางเอง (สลับจากค่าเริ่มต้น: ปีล่าสุดกาง ปีเก่าพับ)
+  const [toggledYears, setToggledYears] = useState(() => new Set())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,6 +63,17 @@ export default function MetersPage({ apartment }) {
     load()
     return res
   }
+
+  // ใบจดมีราวเดือนละใบ — แบ่งกลุ่มรายปีพอ
+  const years = groupByMonth(batches, (b) => String(b.readingDate ?? '').slice(0, 4))
+  const isYearOpen = (year, index) => (toggledYears.has(year) ? index !== 0 : index === 0)
+  const toggleYear = (year) =>
+    setToggledYears((prev) => {
+      const next = new Set(prev)
+      if (next.has(year)) next.delete(year)
+      else next.add(year)
+      return next
+    })
 
   if (openSheet) {
     return (
@@ -102,45 +116,70 @@ export default function MetersPage({ apartment }) {
         ) : batches.length === 0 ? (
           <p className="muted table-empty">ยังไม่มีใบจดมิเตอร์</p>
         ) : (
-          <ul className="meter-batch-list">
-            {batches.map((batch) => (
-              <li key={batch.batchId} className="meter-batch">
-                <div className="meter-batch-info">
-                  <strong>วันที่จด: {formatDate(batch.readingDate)}</strong>
-                  <span className="muted">
-                    บันทึกแล้ว {batch.roomCount} ห้อง · สร้างเมื่อ {formatDateTime(batch.createdAt)}
+          years.map((group, index) => {
+            const open = isYearOpen(group.month, index)
+            return (
+              <div key={group.month} className="meter-year">
+                <button
+                  type="button"
+                  className="month-group-toggle meter-year-head"
+                  aria-expanded={open}
+                  onClick={() => toggleYear(group.month)}
+                >
+                  <span
+                    className={
+                      open ? 'month-group-chevron month-group-chevron-open' : 'month-group-chevron'
+                    }
+                  >
+                    <Icon name="chevronRight" />
                   </span>
-                </div>
+                  <span className="month-group-name">ปี {group.month}</span>
+                  <span className="month-group-meta">{group.items.length} ใบ</span>
+                </button>
+                {open && (
+                  <ul className="meter-batch-list">
+                    {group.items.map((batch) => (
+                      <li key={batch.batchId} className="meter-batch">
+                        <div className="meter-batch-info">
+                          <strong>วันที่จด: {formatDate(batch.readingDate)}</strong>
+                          <span className="muted">
+                            บันทึกแล้ว {batch.roomCount} ห้อง · สร้างเมื่อ {formatDateTime(batch.createdAt)}
+                          </span>
+                        </div>
 
-                <div className="meter-batch-actions">
-                  {METER_SIDES.map((side) => (
-                    <button
-                      key={side.key}
-                      type="button"
-                      className={`btn btn-outline meter-side-btn meter-side-${side.key}`}
-                      onClick={() => setOpenSheet({ batchId: batch.batchId, side: side.key })}
-                    >
-                      <Icon name={side.icon} />
-                      <span>{side.label}</span>
-                    </button>
-                  ))}
+                        <div className="meter-batch-actions">
+                          {METER_SIDES.map((side) => (
+                            <button
+                              key={side.key}
+                              type="button"
+                              className={`btn btn-outline meter-side-btn meter-side-${side.key}`}
+                              onClick={() => setOpenSheet({ batchId: batch.batchId, side: side.key })}
+                            >
+                              <Icon name={side.icon} />
+                              <span>{side.label}</span>
+                            </button>
+                          ))}
 
-                  {batch.isUsedForBilling ? (
-                    <span className="tag">ออกบิลแล้ว</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="link-btn link-danger table-action icon-only"
-                      onClick={() => setDeleting(batch)}
-                      aria-label={`ลบใบจดมิเตอร์วันที่ ${formatDate(batch.readingDate)}`}
-                    >
-                      <Icon name="trash" />
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+                        {batch.isUsedForBilling ? (
+                          <span className="tag">ออกบิลแล้ว</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="link-btn link-danger table-action icon-only"
+                            onClick={() => setDeleting(batch)}
+                            aria-label={`ลบใบจดมิเตอร์วันที่ ${formatDate(batch.readingDate)}`}
+                          >
+                            <Icon name="trash" />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })
         )}
       </section>
 
