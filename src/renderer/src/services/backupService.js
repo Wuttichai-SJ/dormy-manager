@@ -19,3 +19,13 @@ export function deleteBackup(fileName) {
 export function revealBackupFolder() {
   return invoke('backup:reveal')
 }
+
+// คืน { cancelled } หรือ { filePath }
+export function exportBackup(fileName) {
+  return invoke('backup:export', { fileName })
+}
+
+// คืน { cancelled } หรือข้อมูลไฟล์ที่นำเข้า
+export function importBackup() {
+  return invoke('backup:import')
+}

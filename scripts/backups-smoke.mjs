@@ -261,6 +261,61 @@ check('ชื่อไฟล์ที่ผู้ใช้ตั้งเอง 
   assert(!fs.existsSync(path.join(dir, 'จาก USB.sqlite')), 'ควรลบได้')
 })
 
+group('ส่งออกไป USB และนำเข้ากลับมา')
+
+const usb = fs.mkdtempSync(path.join(os.tmpdir(), 'dormy-usb-'))
+const toExport = await backups.createBackup(db, userData, { label: 'ส่งออกไป USB' })
+
+check('ส่งออกได้ไฟล์เดียวกันทุกไบต์ พร้อมป้ายกำกับ', () => {
+  const dir = backups.resolveBackupDir(userData)
+  const out = backups.exportBackup(userData, toExport.fileName, path.join(usb, 'หอ-กันยา'))
+  assert(out.filePath.endsWith('.sqlite'), 'ควรเติม .sqlite ให้')
+  assert(
+    fs.readFileSync(out.filePath).equals(fs.readFileSync(path.join(dir, toExport.fileName))),
+    'ไฟล์ที่ส่งออกไม่ตรงกับต้นฉบับ'
+  )
+  assert(fs.readFileSync(`${out.filePath}.txt`, 'utf-8') === 'ส่งออกไป USB', 'ป้ายกำกับไม่ติดไปด้วย')
+})
+
+check('ส่งออกด้วยชื่อที่หลุดนอกโฟลเดอร์สำรองไม่ได้', () => {
+  throws(
+    () => backups.exportBackup(userData, '../live.sqlite', path.join(usb, 'x.sqlite')),
+    'ชื่อไฟล์สำรองไม่ถูกต้อง',
+    'ควรปฏิเสธ'
+  )
+})
+
+check('นำเข้าจาก USB แล้วขึ้นในรายการ กู้คืนได้', () => {
+  const imported = backups.importBackup(userData, path.join(usb, 'หอ-กันยา.sqlite'))
+  assert(imported.fileName === 'นำเข้า-หอ-กันยา.sqlite', imported.fileName)
+  assert(imported.label === 'ส่งออกไป USB', `ป้ายกำกับ: ${imported.label}`)
+  assert(backups.listBackups(userData).some((b) => b.fileName === imported.fileName), 'ไม่อยู่ในรายการ')
+  const { info } = backups.prepareRestore(userData, imported.fileName)
+  assert(info.apartments >= 0, 'ควรตรวจไฟล์ผ่าน')
+})
+
+check('นำเข้าไฟล์ชื่อเดิมซ้ำ ได้ชื่อใหม่ ไม่ทับของเดิม', () => {
+  const again = backups.importBackup(userData, path.join(usb, 'หอ-กันยา.sqlite'))
+  assert(again.fileName === 'นำเข้า-หอ-กันยา-2.sqlite', again.fileName)
+})
+
+check('นำเข้าไฟล์ SQLite ที่ไม่ใช่ของโปรแกรมนี้ไม่ได้ และไม่ทิ้งไฟล์ค้าง', () => {
+  const before = backups.listBackups(userData).length
+  throws(() => backups.importBackup(userData, stranger), 'ไม่ใช่ไฟล์สำรองของ Dormy Manager', 'ควรกัน')
+  assert(backups.listBackups(userData).length === before, 'มีไฟล์ค้างในรายการ')
+})
+
+check('นำเข้าไฟล์ที่อยู่ในโฟลเดอร์สำรองอยู่แล้วไม่ได้', () => {
+  const dir = backups.resolveBackupDir(userData)
+  throws(
+    () => backups.importBackup(userData, path.join(dir, toExport.fileName)),
+    'อยู่ในรายการสำรองอยู่แล้ว',
+    'ควรกัน'
+  )
+})
+
+fs.rmSync(usb, { recursive: true, force: true })
+
 cleanup()
 fs.rmSync(userData, { recursive: true, force: true })
 summarize('การสำรอง/กู้คืนข้อมูลทำงานครบทุกเส้นทาง')

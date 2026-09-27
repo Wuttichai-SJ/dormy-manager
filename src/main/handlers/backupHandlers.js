@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { closeDatabase, getDatabase, resolveDbPath, resolveMigrationsDir } from '../database.js'
 import { logError, logInfo } from '../logger.js'
@@ -6,6 +7,8 @@ import { clearSession, requireOwnerUserId, requireSessionUserId } from './authHa
 import {
   createBackup,
   deleteBackup,
+  exportBackup,
+  importBackup,
   inspectBackup,
   listBackups,
   prepareRestore,
@@ -55,6 +58,40 @@ export function registerBackupHandlers() {
     const result = deleteBackup(userData(), fileName, backupOpts())
     logInfo(`ลบไฟล์สำรอง ${fileName}`)
     return result
+  })
+
+  // เฉพาะเจ้าของหอ — ไฟล์สำรองคือข้อมูลทั้งหอที่ออกจากเครื่องไปได้
+  handle('backup:export', async ({ fileName }) => {
+    requireOwnerUserId()
+    const win = BrowserWindow.getFocusedWindow()
+    const options = {
+      title: 'ส่งออกไฟล์สำรอง',
+      defaultPath: path.join(app.getPath('documents'), String(fileName ?? 'ไฟล์สำรอง.sqlite')),
+      filters: [{ name: 'ไฟล์สำรอง Dormy Manager', extensions: ['sqlite'] }]
+    }
+    const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return { cancelled: true }
+
+    const exported = exportBackup(userData(), fileName, result.filePath, backupOpts())
+    logInfo(`ส่งออกไฟล์สำรอง ${fileName} ไปที่ ${exported.filePath}`)
+    return exported
+  })
+
+  // เฉพาะเจ้าของหอ
+  handle('backup:import', async () => {
+    requireOwnerUserId()
+    const win = BrowserWindow.getFocusedWindow()
+    const options = {
+      title: 'นำเข้าไฟล์สำรอง',
+      properties: ['openFile'],
+      filters: [{ name: 'ไฟล์สำรอง Dormy Manager', extensions: ['sqlite'] }]
+    }
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    if (result.canceled || result.filePaths.length === 0) return { cancelled: true }
+
+    const imported = importBackup(userData(), result.filePaths[0], resolveMigrationsDir(), backupOpts())
+    logInfo(`นำเข้าไฟล์สำรอง ${result.filePaths[0]} เป็น ${imported.fileName}`)
+    return imported
   })
 
   handleSession('backup:reveal', () => {

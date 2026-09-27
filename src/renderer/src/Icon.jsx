@@ -37,6 +37,7 @@ import electric from './assets/icons/heroicons/24/solid/bolt.svg?raw'
 import water from './assets/icons/custom/water-drop.svg?raw'
 import printer from './assets/icons/heroicons/24/outline/printer.svg?raw'
 import download from './assets/icons/heroicons/24/outline/arrow-down-tray.svg?raw'
+import upload from './assets/icons/heroicons/24/outline/arrow-up-tray.svg?raw'
 
 const ICONS = {
   dashboard,
@@ -76,7 +77,8 @@ const ICONS = {
   electric,
   calendar,
   printer,
-  download
+  download,
+  upload
 }
 
 export default function Icon({ name, className = '' }) {

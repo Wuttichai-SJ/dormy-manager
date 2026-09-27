@@ -8,6 +8,8 @@ import { showToast } from '../components/Toast.jsx'
 import {
   createBackup,
   deleteBackup,
+  exportBackup,
+  importBackup,
   listBackups,
   restoreBackup,
   revealBackupFolder
@@ -47,6 +49,25 @@ export default function BackupsPage({ user }) {
     // ยืนยันกู้คืนด้วยกล่องของระบบฝั่ง main — หน้านี้จะถูก reload
     const res = await restoreBackup(backup.fileName)
     if (!res.success) return setError(res.error)
+  }
+
+  async function exportOne(backup) {
+    setError('')
+    const res = await exportBackup(backup.fileName)
+    if (!res.success) return setError(res.error)
+    if (res.data.cancelled) return
+    showToast(`ส่งออกไฟล์สำรองไปที่ ${res.data.filePath} แล้ว`)
+  }
+
+  async function importOne() {
+    setError('')
+    setBusy(true)
+    const res = await importBackup()
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    if (res.data.cancelled) return
+    showToast(`นำเข้าไฟล์สำรองแล้ว (ข้อมูล ${res.data.apartments} หอ)`)
+    load()
   }
 
   async function remove(backup) {
@@ -90,7 +111,13 @@ export default function BackupsPage({ user }) {
             <button type="button" className="btn" disabled={busy} onClick={() => setLabelling('')}>
               {busy ? 'กำลังสำรอง...' : 'สำรองข้อมูลตอนนี้'}
             </button>
-            <button type="button" className="btn-outline" onClick={() => revealBackupFolder()}>
+            {user?.isOwner && (
+              <button type="button" className="btn btn-outline" disabled={busy} onClick={importOne}>
+                <Icon name="upload" />
+                <span>นำเข้าไฟล์สำรอง</span>
+              </button>
+            )}
+            <button type="button" className="btn btn-outline" onClick={() => revealBackupFolder()}>
               เปิดโฟลเดอร์สำรอง
             </button>
           </div>
@@ -130,6 +157,10 @@ export default function BackupsPage({ user }) {
                     <td className="align-right">
                       {user?.isOwner ? (
                         <>
+                          <button type="button" className="link-btn" onClick={() => exportOne(b)}>
+                            <Icon name="download" />
+                            <span>ส่งออก</span>
+                          </button>
                           <button type="button" className="link-btn" onClick={() => restore(b)}>
                             กู้คืน
                           </button>

@@ -164,3 +164,59 @@ export function deleteBackup(userDataPath, fileName, { isDev = false } = {}) {
   if (fs.existsSync(`${full}.txt`)) fs.rmSync(`${full}.txt`)
   return { ok: true }
 }
+
+// คัดลอกไฟล์สำรองออกไปที่อื่น (เช่น USB) พร้อมป้ายกำกับ
+export function exportBackup(userDataPath, fileName, destPath, { isDev = false } = {}) {
+  const source = resolveBackupFile(userDataPath, fileName, { isDev })
+  if (!fs.existsSync(source)) throw new Error('ไม่พบไฟล์สำรองที่ต้องการส่งออก')
+
+  let dest = path.resolve(String(destPath ?? ''))
+  if (!dest.toLowerCase().endsWith('.sqlite')) dest += '.sqlite'
+  if (dest === source) throw new Error('เลือกที่เก็บนอกโฟลเดอร์สำรองของโปรแกรม')
+
+  fs.copyFileSync(source, dest)
+  if (fs.existsSync(`${source}.txt`)) fs.copyFileSync(`${source}.txt`, `${dest}.txt`)
+  return { filePath: dest }
+}
+
+// นำไฟล์สำรองจากที่อื่นเข้ามาในรายการ — ตรวจก่อนว่าเป็นไฟล์ของโปรแกรมนี้และไม่ใช่รุ่นใหม่กว่า
+export function importBackup(userDataPath, sourcePath, migrationsDir = null, { isDev = false } = {}) {
+  const source = path.resolve(String(sourcePath ?? ''))
+  const info = inspectBackup(source, migrationsDir ? listKnownMigrations(migrationsDir) : null)
+
+  const dir = ensureDir(resolveBackupDir(userDataPath, { isDev }))
+  if (path.dirname(source) === path.resolve(dir)) throw new Error('ไฟล์นี้อยู่ในรายการสำรองอยู่แล้ว')
+
+  const base =
+    path
+      .basename(source)
+      .replace(/\.sqlite$/i, '')
+      .replace(/[\/:*?"<>|]/g, '')
+      .trim() || 'ไฟล์สำรอง'
+
+  let fileName
+  for (let sequence = 1; ; sequence++) {
+    fileName = sequence === 1 ? `นำเข้า-${base}.sqlite` : `นำเข้า-${base}-${sequence}.sqlite`
+    try {
+      fs.closeSync(fs.openSync(path.join(dir, fileName), 'wx'))
+      break
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err
+    }
+  }
+
+  const target = path.join(dir, fileName)
+  try {
+    fs.copyFileSync(source, target)
+  } catch (err) {
+    fs.rmSync(target, { force: true })
+    throw err
+  }
+
+  const label = fs.existsSync(`${source}.txt`)
+    ? fs.readFileSync(`${source}.txt`, 'utf-8')
+    : `นำเข้าจาก ${path.basename(source)}`
+  fs.writeFileSync(`${target}.txt`, label, 'utf-8')
+
+  return { ...describeBackup(dir, fileName), apartments: info.apartments }
+}
