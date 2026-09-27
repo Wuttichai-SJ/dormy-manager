@@ -7,11 +7,12 @@ import { useConfirm } from '../components/ConfirmDialog.jsx'
 import Modal from '../components/Modal.jsx'
 import DateField from '../components/DateField.jsx'
 import PeriodBar, {
+  MonthGroupRow,
   billingPeriodFilter,
   formatMonthName,
-  groupByMonth,
   initialPeriod,
-  periodLabel
+  periodLabel,
+  useMonthGroups
 } from '../components/PeriodBar.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { INVOICE_STATUS_LABELS } from '../constants.js'
@@ -54,8 +55,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
   const [settlement, setSettlement] = useState('')
   // เปิดมาเป็นเดือนนี้
   const [period, setPeriod] = useState(initialPeriod)
-  // เดือนที่ผู้ใช้พับ/กางเอง — ล้างเมื่อเปลี่ยนช่วงเวลา
-  const [toggled, setToggled] = useState(() => new Set())
   const [deleting, setDeleting] = useState(null)
   const [printSet, setPrintSet] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -77,25 +76,17 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     setInvoices(res.data)
   }, [apartment.apartmentId, settlement, filters, period])
 
+  const { groups, collapsible, isOpen, toggle, resetToggles } = useMonthGroups(
+    invoices,
+    (inv) => inv.billingMonth,
+    period,
+    hasFilters
+  )
+
   function changePeriod(next) {
     setPeriod(next)
-    setToggled(new Set())
+    resetToggles()
   }
-
-  // ดูหลายเดือน: เดือนล่าสุดกาง เดือนเก่าพับ · ค้นหาอยู่ = กางหมด
-  const groups = groupByMonth(invoices, (inv) => inv.billingMonth)
-  const multiMonth = period.mode !== 'month'
-  const isOpen = (month, index) => {
-    const byDefault = !multiMonth || hasFilters || index === 0
-    return toggled.has(month) ? !byDefault : byDefault
-  }
-  const toggleMonth = (month) =>
-    setToggled((prev) => {
-      const next = new Set(prev)
-      if (next.has(month)) next.delete(month)
-      else next.add(month)
-      return next
-    })
 
   useEffect(() => {
     load()
@@ -337,10 +328,12 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
               return (
                 <tbody key={group.month}>
                   <MonthGroupRow
-                    group={group}
+                    label={`รอบ${formatMonthName(group.month)}`}
+                    meta={<InvoiceMonthMeta items={group.items} />}
+                    colSpan={7}
                     open={open}
-                    collapsible={multiMonth}
-                    onToggle={() => toggleMonth(group.month)}
+                    collapsible={collapsible}
+                    onToggle={() => toggle(group.month)}
                   />
                   {open &&
                     group.items.map((inv) => (
@@ -408,46 +401,21 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
   )
 }
 
-// หัวกลุ่มเดือน (ค้างจอตอนเลื่อน) — ยอดไม่นับใบที่ยกเลิก
-const INVOICE_COLUMNS = 7
-
-function MonthGroupRow({ group, open, collapsible, onToggle }) {
-  const live = group.items.filter((inv) => inv.status !== 'cancelled')
+// สรุปของเดือน — ยอดไม่นับใบที่ยกเลิก
+function InvoiceMonthMeta({ items }) {
+  const live = items.filter((inv) => inv.status !== 'cancelled')
   const total = live.reduce((sum, inv) => sum + inv.totalAmountCents, 0)
   const outstanding = live.reduce((sum, inv) => sum + inv.outstandingCents, 0)
-
-  const content = (
-    <>
-      {collapsible && (
-        <span className={open ? 'month-group-chevron month-group-chevron-open' : 'month-group-chevron'}>
-          <Icon name="chevronRight" />
-        </span>
-      )}
-      <span className="month-group-name">รอบ{formatMonthName(group.month)}</span>
-      <span className="month-group-meta">
-        {group.items.length} ใบ · ยอดรวม {formatBaht(total)}
-        {outstanding > 0 && (
-          <>
-            {' · '}
-            <span className="negative">ค้าง {formatBaht(outstanding)}</span>
-          </>
-        )}
-      </span>
-    </>
-  )
-
   return (
-    <tr className="month-group-row">
-      <th colSpan={INVOICE_COLUMNS} scope="colgroup">
-        {collapsible ? (
-          <button type="button" className="month-group-toggle" aria-expanded={open} onClick={onToggle}>
-            {content}
-          </button>
-        ) : (
-          <div className="month-group-toggle">{content}</div>
-        )}
-      </th>
-    </tr>
+    <>
+      {items.length} ใบ · ยอดรวม {formatBaht(total)}
+      {outstanding > 0 && (
+        <>
+          {' · '}
+          <span className="negative">ค้าง {formatBaht(outstanding)}</span>
+        </>
+      )}
+    </>
   )
 }
 

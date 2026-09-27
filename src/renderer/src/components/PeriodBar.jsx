@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
 
 // แบ่งตามเดือนแทนการแบ่งหน้า · period = { mode: 'month' | 'year' | 'all', month: 'YYYY-MM' }
@@ -130,4 +130,54 @@ export function groupByMonth(rows, monthOf) {
   return [...groups.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
     .map(([month, items]) => ({ month, items }))
+}
+
+// ดูหลายเดือน: เดือนล่าสุดกาง เดือนเก่าพับ · expandAll (เช่นกำลังค้นหา) = กางหมด
+// ผู้เรียกต้องเรียก resetToggles() เมื่อเปลี่ยนช่วงเวลา
+export function useMonthGroups(rows, monthOf, period, expandAll = false) {
+  const [toggled, setToggled] = useState(() => new Set())
+  const groups = groupByMonth(rows, monthOf)
+  const collapsible = period.mode !== 'month'
+  const isOpen = (month, index) => {
+    const byDefault = !collapsible || expandAll || index === 0
+    return toggled.has(month) ? !byDefault : byDefault
+  }
+  const toggle = (month) =>
+    setToggled((prev) => {
+      const next = new Set(prev)
+      if (next.has(month)) next.delete(month)
+      else next.add(month)
+      return next
+    })
+  const resetToggles = () => setToggled(new Set())
+  return { groups, collapsible, isOpen, toggle, resetToggles }
+}
+
+// หัวกลุ่มเดือนในตาราง (ค้างจอใต้หัวตาราง) — meta = ข้อความสรุปของเดือน
+export function MonthGroupRow({ label, meta, colSpan, open, collapsible, onToggle }) {
+  const content = (
+    <>
+      {collapsible && (
+        <span className={open ? 'month-group-chevron month-group-chevron-open' : 'month-group-chevron'}>
+          <Icon name="chevronRight" />
+        </span>
+      )}
+      <span className="month-group-name">{label}</span>
+      <span className="month-group-meta">{meta}</span>
+    </>
+  )
+
+  return (
+    <tr className="month-group-row">
+      <th colSpan={colSpan} scope="colgroup">
+        {collapsible ? (
+          <button type="button" className="month-group-toggle" aria-expanded={open} onClick={onToggle}>
+            {content}
+          </button>
+        ) : (
+          <div className="month-group-toggle">{content}</div>
+        )}
+      </th>
+    </tr>
+  )
 }

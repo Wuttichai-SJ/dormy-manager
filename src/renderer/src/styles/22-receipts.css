@@ -117,16 +117,6 @@
   gap: 8px;
 }
 
-.quick-ranges {
-  width: auto !important;
-}
-
-.quick-range-buttons {
-  display: flex;
-  gap: 14px;
-  padding-bottom: 9px;
-}
-
 .invoice-cancel-info {
   margin: 8px 0 0;
   display: grid;

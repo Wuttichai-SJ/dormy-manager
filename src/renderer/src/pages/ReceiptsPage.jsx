@@ -3,7 +3,14 @@ import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import CancelReceiptDialog from '../components/CancelReceiptDialog.jsx'
-import DateField from '../components/DateField.jsx'
+import PeriodBar, {
+  MonthGroupRow,
+  formatMonthName,
+  initialPeriod,
+  periodDateRange,
+  periodLabel,
+  useMonthGroups
+} from '../components/PeriodBar.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
 import ReceiptDocument from '../components/ReceiptDocument.jsx'
 import { showToast } from '../components/Toast.jsx'
@@ -29,7 +36,8 @@ const CSV_COLUMNS = [
 ]
 
 export default function ReceiptsPage({ apartment, user }) {
-  const [range, setRange] = useState(currentMonthRange)
+  const [period, setPeriod] = useState(initialPeriod)
+  const range = periodDateRange(period)
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -70,13 +78,23 @@ export default function ReceiptsPage({ apartment, user }) {
     setReport(res.data)
     // เปลี่ยนช่วงวันที่แล้วล้างรายการที่ติ๊กไว้
     setSelected(new Set())
-  }, [apartment.apartmentId, range])
+  }, [apartment.apartmentId, range.from, range.to])
 
   useEffect(() => {
     load()
   }, [load])
 
   const receipts = report?.receipts ?? []
+  const { groups, collapsible, isOpen, toggle: toggleMonth, resetToggles } = useMonthGroups(
+    receipts,
+    (r) => String(r.paymentDate ?? '').slice(0, 7),
+    period
+  )
+
+  function changePeriod(next) {
+    setPeriod(next)
+    resetToggles()
+  }
   const chosen = receipts.filter((r) => selected.has(r.paymentId))
   // ใบที่ยกเลิกติ๊กพิมพ์ไม่ได้
   const printable = receipts.filter((r) => !r.isCancelled)
@@ -99,7 +117,7 @@ export default function ReceiptsPage({ apartment, user }) {
     setError('')
     setBusy(true)
     const res = await exportCsv({
-      fileName: `ใบเสร็จรับเงิน ${range.from || 'ทั้งหมด'} ถึง ${range.to || 'ปัจจุบัน'}`,
+      fileName: `ใบเสร็จรับเงิน ${periodLabel(period)}`,
       columns: CSV_COLUMNS,
       rows: receipts.map((r) => ({
         ...r,
@@ -149,37 +167,7 @@ export default function ReceiptsPage({ apartment, user }) {
         <Alert>{error}</Alert>
 
         <div className="invoice-filters">
-          <div className="field">
-            <label htmlFor="receiptFrom">วันที่รับเงิน ตั้งแต่</label>
-            <DateField
-              id="receiptFrom"
-              value={range.from}
-              onChange={(v) => setRange((r) => ({ ...r, from: v }))}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="receiptTo">ถึง</label>
-            <DateField
-              id="receiptTo"
-              value={range.to}
-              onChange={(v) => setRange((r) => ({ ...r, to: v }))}
-            />
-          </div>
-
-          <div className="field quick-ranges">
-            <label>ตัวเลือกด่วน</label>
-            <div className="quick-range-buttons">
-              <button type="button" className="link-btn" onClick={() => setRange(lastDaysRange(7))}>
-                7 วันล่าสุด
-              </button>
-              <button type="button" className="link-btn" onClick={() => setRange(currentMonthRange())}>
-                เดือนปัจจุบัน
-              </button>
-              <button type="button" className="link-btn" onClick={() => setRange({ from: '', to: '' })}>
-                ทั้งหมด
-              </button>
-            </div>
-          </div>
+          <PeriodBar period={period} onChange={changePeriod} />
         </div>
 
         {/* ยอดรวม = เงินที่เข้าหอจริง (หักใบคืนเงิน ไม่นับใบที่ยกเลิก) */}
@@ -236,9 +224,23 @@ export default function ReceiptsPage({ apartment, user }) {
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
         ) : receipts.length === 0 ? (
-          <p className="muted table-empty">ไม่มีใบเสร็จในช่วงวันที่ที่เลือก</p>
+          <p className="muted table-empty">
+            ไม่มีใบเสร็จ{period.mode !== 'all' && `ของ${periodLabel(period)}`}
+            {period.mode !== 'all' && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => changePeriod({ ...period, mode: 'all' })}
+                >
+                  ดูทุกช่วงเวลา
+                </button>
+              </>
+            )}
+          </p>
         ) : (
-          <table className="data-table">
+          <table className="data-table grouped-table">
             <thead>
               <tr>
                 <th className="receipt-check">
@@ -260,57 +262,71 @@ export default function ReceiptsPage({ apartment, user }) {
                 <th></th>
               </tr>
             </thead>
-            <tbody>
-              {receipts.map((r, index) => (
-                <tr
-                  key={r.paymentId}
-                  className={
-                    (r.isRefund ? 'receipt-row-refund ' : '') +
-                    (r.isCancelled ? 'receipt-row-cancelled' : '')
-                  }
-                >
-                  <td className="receipt-check">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(r.paymentId)}
-                      onChange={() => toggle(r.paymentId)}
-                      disabled={r.isCancelled}
-                      aria-label={`เลือกใบเสร็จ ${r.receiptNumber}`}
-                    />
-                  </td>
-                  <td className="invoice-col-no">{index + 1}</td>
-                  <td>{r.receiptNumber}</td>
-                  <td>{formatDate(r.paymentDate)}</td>
-                  <td>{r.roomNumber ?? '-'}</td>
-                  <td>{r.paymentMethodLabel}</td>
-                  <td className="align-right">
-                    <span className={r.isRefund ? 'negative' : undefined}>
-                      {formatBaht(r.amountCents)}
-                    </span>
-                  </td>
-                  <td>{r.sourceLabel}</td>
-                  <td>{r.createdByName ?? '-'}</td>
-                  <td className="align-right">
-                    {r.isCancelled ? (
-                      <span className="receipt-cancelled-tag" title={r.cancelReason ?? ''}>
-                        ยกเลิกแล้ว
-                      </span>
-                    ) : (
-                      // เฉพาะเจ้าของหอ
-                      user?.isOwner && (
-                        <button
-                          type="button"
-                          className="link-btn link-danger"
-                          onClick={() => setCancelling(r)}
-                        >
-                          ยกเลิก
-                        </button>
-                      )
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {groups.map((group, groupIndex) => {
+              const open = isOpen(group.month, groupIndex)
+              return (
+                <tbody key={group.month}>
+                  <MonthGroupRow
+                    label={formatMonthName(group.month)}
+                    meta={<ReceiptMonthMeta items={group.items} />}
+                    colSpan={10}
+                    open={open}
+                    collapsible={collapsible}
+                    onToggle={() => toggleMonth(group.month)}
+                  />
+                  {open &&
+                    group.items.map((r, index) => (
+                      <tr
+                        key={r.paymentId}
+                        className={
+                          (r.isRefund ? 'receipt-row-refund ' : '') +
+                          (r.isCancelled ? 'receipt-row-cancelled' : '')
+                        }
+                      >
+                        <td className="receipt-check">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(r.paymentId)}
+                            onChange={() => toggle(r.paymentId)}
+                            disabled={r.isCancelled}
+                            aria-label={`เลือกใบเสร็จ ${r.receiptNumber}`}
+                          />
+                        </td>
+                        <td className="invoice-col-no">{index + 1}</td>
+                        <td>{r.receiptNumber}</td>
+                        <td>{formatDate(r.paymentDate)}</td>
+                        <td>{r.roomNumber ?? '-'}</td>
+                        <td>{r.paymentMethodLabel}</td>
+                        <td className="align-right">
+                          <span className={r.isRefund ? 'negative' : undefined}>
+                            {formatBaht(r.amountCents)}
+                          </span>
+                        </td>
+                        <td>{r.sourceLabel}</td>
+                        <td>{r.createdByName ?? '-'}</td>
+                        <td className="align-right">
+                          {r.isCancelled ? (
+                            <span className="receipt-cancelled-tag" title={r.cancelReason ?? ''}>
+                              ยกเลิกแล้ว
+                            </span>
+                          ) : (
+                            // เฉพาะเจ้าของหอ
+                            user?.isOwner && (
+                              <button
+                                type="button"
+                                className="link-btn link-danger"
+                                onClick={() => setCancelling(r)}
+                              >
+                                ยกเลิก
+                              </button>
+                            )
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              )
+            })}
           </table>
         )}
       </section>
@@ -333,24 +349,15 @@ export default function ReceiptsPage({ apartment, user }) {
   )
 }
 
-function iso(date) {
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-function currentMonthRange() {
-  const now = new Date()
-  return {
-    from: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
-    to: iso(new Date(now.getFullYear(), now.getMonth() + 1, 0))
-  }
-}
-
-function lastDaysRange(days) {
-  const now = new Date()
-  const start = new Date(now)
-  start.setDate(start.getDate() - (days - 1))
-  return { from: iso(start), to: iso(now) }
+// สรุปของเดือน — ยอดสุทธิไม่นับใบที่ยกเลิก (ใบคืนเงินเป็นลบ)
+function ReceiptMonthMeta({ items }) {
+  const live = items.filter((r) => !r.isCancelled)
+  const net = live.reduce((sum, r) => sum + r.amountCents, 0)
+  return (
+    <>
+      {live.length} ใบ · รับสุทธิ {formatBaht(net)}
+    </>
+  )
 }
 
 function formatDate(value) {
