@@ -131,7 +131,23 @@ function createWindow() {
   }
 }
 
+// เปิดได้ทีละโปรแกรม — กันสองโปรเซสเขียนฐานข้อมูลเดียวกัน · เปิดซ้ำ = ดึงหน้าต่างเดิมขึ้นมา
+// เฉพาะตอนแพ็ก: lock ผูกกับโฟลเดอร์ userData ซึ่ง dev ใช้ร่วมกับตัวจริง
+const isOnlyInstance = !app.isPackaged || app.requestSingleInstanceLock()
+if (!isOnlyInstance) {
+  logInfo('มีโปรแกรมเปิดอยู่แล้ว — ปิดตัวที่เปิดซ้ำ')
+  app.quit()
+}
+
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+})
+
 app.whenReady().then(() => {
+  if (!isOnlyInstance) return
   logInfo(`แอปเริ่มทำงาน — electron ${process.versions.electron}, log ที่ ${getLogPath()}`)
 
   try {
