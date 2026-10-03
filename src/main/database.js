@@ -20,10 +20,15 @@ export function resolveDbPath() {
 
 export function openDatabase(dbPath, migrationsDir = resolveMigrationsDir()) {
   const instance = new Database(dbPath)
-  instance.pragma('journal_mode = WAL')
-  instance.pragma('foreign_keys = ON')
-  runMigrations(instance, migrationsDir)
-  return instance
+  try {
+    instance.pragma('journal_mode = WAL')
+    instance.pragma('foreign_keys = ON')
+    runMigrations(instance, migrationsDir)
+    return instance
+  } catch (error) {
+    instance.close()
+    throw error
+  }
 }
 
 export function getDatabase() {
