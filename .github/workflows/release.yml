@@ -18,9 +18,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload installer as artifact
         if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DormyManager-Setup
           path: release/*.exe
@@ -100,4 +100,14 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release/*.exe --generate-notes --draft
+        run: |
+          # กด Re-run ซ้ำได้: มี draft ของ tag นี้อยู่แล้วก็อัปโหลดทับ ไม่สร้างอันใหม่
+          state=$(gh release view "$GITHUB_REF_NAME" --json isDraft -q .isDraft 2>/dev/null || echo none)
+          if [ "$state" = "none" ]; then
+            gh release create "$GITHUB_REF_NAME" release/*.exe --generate-notes --draft
+          elif [ "$state" = "true" ]; then
+            gh release upload "$GITHUB_REF_NAME" release/*.exe --clobber
+          else
+            echo "::error::release $GITHUB_REF_NAME is already published - bump the version instead of re-running"
+            exit 1
+          fi
