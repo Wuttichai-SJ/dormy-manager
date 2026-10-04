@@ -37,7 +37,50 @@ jobs:
           fi
 
       - run: npm ci
-      - run: npm test
+
+      # รันครบทุกชุดแม้ชุดแรกจะพัง แล้วสรุปข้อที่ไม่ผ่านขึ้นหน้า run (ไม่ต้องไล่อ่าน log)
+      - name: Test
+        shell: bash
+        run: |
+          failed=0
+          printf '## ผลเทสต์\n\n| ชุด | ผล |\n|---|---|\n' >> "$GITHUB_STEP_SUMMARY"
+          : > reasons.txt
+
+          for file in scripts/*-smoke.mjs; do
+            suite=$(basename "$file" -smoke.mjs)
+            echo "::group::$suite"
+            node "$file" 2>&1 | tee out.txt
+            status=${PIPESTATUS[0]}
+            echo "::endgroup::"
+
+            if [ "$status" -eq 0 ]; then
+              echo "| $suite | ✅ ผ่าน |" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            failed=1
+            echo "| $suite | ❌ ไม่ผ่าน |" >> "$GITHUB_STEP_SUMMARY"
+
+            # บรรทัด "  FAIL ชื่อข้อ" ตามด้วยบรรทัดเหตุผล (รูปแบบจาก scripts/lib/harness.mjs)
+            awk '/^  FAIL /{name=substr($0,8); getline; sub(/^ +/,""); print name " — " $0}' out.txt > fails.txt
+            # ไม่มีบรรทัด FAIL = สคริปต์ล้มกลางทาง เอาบรรทัด Error แรก (ไม่มีก็บรรทัดสุดท้าย) มาแทน
+            if [ ! -s fails.txt ]; then
+              reason=$(grep -m 1 -E '^[A-Za-z]*Error' out.txt || grep -v '^[[:space:]]*$' out.txt | tail -n 1)
+              echo "เทสต์หยุดกลางคัน — $reason" > fails.txt
+            fi
+
+            while IFS= read -r line; do
+              echo "::error title=$suite::$line"
+              echo "- **$suite**: $line" >> reasons.txt
+            done < fails.txt
+          done
+
+          if [ "$failed" -eq 1 ]; then
+            printf '\n### ข้อที่ไม่ผ่าน\n\n' >> "$GITHUB_STEP_SUMMARY"
+            cat reasons.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+          rm -f out.txt fails.txt reasons.txt
+          exit "$failed"
 
       # --publish never: ห้าม electron-builder อัปโหลดเอง ขั้นล่างเป็นคนอัปโหลด
       - run: npm run dist -- --publish never
