@@ -18,9 +18,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload installer as artifact
         if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: DormyManager-Setup
           path: release/*.exe
