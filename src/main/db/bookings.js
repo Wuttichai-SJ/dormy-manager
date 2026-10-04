@@ -81,13 +81,16 @@ export function createBooking(db, input) {
   const roomId = Number(input.roomId)
   const room = db
     .prepare(
-      `SELECT r.room_id, r.room_number, f.apartment_id
+      `SELECT r.room_id, r.room_number, f.apartment_id, r.is_active
          FROM rooms r
          JOIN floors f ON f.floor_id = r.floor_id
         WHERE r.room_id = ?`
     )
     .get(roomId)
   if (!room) throw new Error('ไม่พบห้องพักที่ต้องการจอง')
+  if (room.is_active !== 1) {
+    throw new Error(`ห้อง ${room.room_number} ปิดใช้งานอยู่ ไม่สามารถจองได้`)
+  }
 
   // ห้องหนึ่งมีการจองค้างได้รายเดียว
   const open = db

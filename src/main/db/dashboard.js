@@ -41,7 +41,8 @@ export function getDashboardSummary(db, apartmentId, { today } = {}) {
   const revenueThis = listReceipts(db, apartmentId, thisMonth)
   const revenueLast = listReceipts(db, apartmentId, lastMonth)
 
-  const rooms = listRoomsForApartment(db, apartmentId)
+  // ห้องที่ปิดใช้งานไม่นับในภาพรวม
+  const rooms = listRoomsForApartment(db, apartmentId).filter((room) => room.isActive)
   const byStatus = (status) => rooms.filter((room) => room.status === status).length
 
   const batches = listBatches(db, apartmentId)
