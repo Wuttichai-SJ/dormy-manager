@@ -90,10 +90,12 @@ export default function BookingsCard({ room, onConvert, onOpenBookingChange, add
       {confirmDialog}
       <div className="panel-head-row">
         <h3 className="panel-title">การจองห้อง</h3>
-        <button type="button" className="btn btn-sm" onClick={startAdding}>
-          <Icon name="plus" />
-          <span>เพิ่มการจอง</span>
-        </button>
+        {room.isActive !== false && (
+          <button type="button" className="btn btn-sm" onClick={startAdding}>
+            <Icon name="plus" />
+            <span>เพิ่มการจอง</span>
+          </button>
+        )}
       </div>
 
       <Alert>{error}</Alert>
