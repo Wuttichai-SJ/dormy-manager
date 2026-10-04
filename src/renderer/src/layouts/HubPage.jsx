@@ -3,6 +3,7 @@ import Icon from '../Icon.jsx'
 import ApartmentsPage from '../pages/ApartmentsPage.jsx'
 import UsersPage from '../pages/UsersPage.jsx'
 import BackupsPage from '../pages/BackupsPage.jsx'
+import { APP_VERSION } from '../constants.js'
 
 // หน้าแรกหลังเข้าสู่ระบบ — ต้องเลือกหอก่อนเข้าทำงาน
 export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartment }) {
@@ -11,7 +12,9 @@ export default function HubPage({ user, onLogout, onOpenApartment, onSetupApartm
   return (
     <div className="hub">
       <header className="hub-topbar">
-        <div className="brand-mark">Dormy Manager</div>
+        <div className="brand-mark">
+          Dormy Manager <span className="brand-version">v{APP_VERSION}</span>
+        </div>
         <div className="topbar-user">
           <Icon name="account" />
           <span>{user.fullName}</span>

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import { login } from '../services/authService.js'
+import { APP_VERSION } from '../constants.js'
 
 export default function LoginPage({ lastIdentifier = '', onSuccess, onForgotPassword }) {
   const [identifier, setIdentifier] = useState(lastIdentifier)
@@ -73,6 +74,8 @@ export default function LoginPage({ lastIdentifier = '', onSuccess, onForgotPass
         <button type="submit" className="btn btn-block" disabled={busy}>
           {busy ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
         </button>
+
+        <p className="auth-footnote">เวอร์ชัน {APP_VERSION}</p>
       </form>
     </div>
   )

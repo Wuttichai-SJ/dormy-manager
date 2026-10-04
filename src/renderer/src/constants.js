@@ -1,5 +1,8 @@
 // ค่าที่ต้องตรงกับฝั่ง main — แก้ที่ main ต้องแก้ที่นี่ด้วย (main เป็นฝ่ายตรวจจริง)
 
+// = version ใน package.json (vite.config.mjs ฝังให้ตอน build)
+export const APP_VERSION = __APP_VERSION__
+
 // = MAX_DUE_DATE_DAY ใน main/db/apartments.js
 export const MAX_DUE_DATE_DAY = 28
 
