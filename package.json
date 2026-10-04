@@ -1,6 +1,6 @@
 {
   "name": "dormy-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Offline-first dormitory management desktop app (ElectronJS + React 19 + better-sqlite3)",
   "author": "Wuttichai-SJ",
   "license": "UNLICENSED",
