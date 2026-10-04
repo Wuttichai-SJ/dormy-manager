@@ -1,0 +1,60 @@
+# ประกอบตัวติดตั้ง .exe บนเครื่องของ GitHub — ขั้นตอนออกรุ่นดู BUILD.md
+name: Release
+
+on:
+  # push tag เช่น v1.0.2 = ออกรุ่น (ได้ draft release พร้อม .exe)
+  push:
+    tags:
+      - 'v*'
+  # กดรันเองในแท็บ Actions = ลอง build เฉยๆ ไม่สร้าง release
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # ต้องเป็น Windows — ตัวติดตั้งเป็น NSIS และเทสต์ใช้ better-sqlite3 ที่ build มาสำหรับ Electron
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # ชื่อไฟล์ .exe ใช้เลขจาก package.json จึงต้องตรงกับ tag
+      - name: Check tag matches package.json
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "v$PKG_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+
+      # --publish never: ห้าม electron-builder อัปโหลดเอง ขั้นล่างเป็นคนอัปโหลด
+      - run: npm run dist -- --publish never
+
+      - name: Upload installer as artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DormyManager-Setup
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      # draft = คนนอกยังไม่เห็น ลองติดตั้งก่อนแล้วค่อยกด Publish
+      - name: Create draft release
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/*.exe --generate-notes --draft

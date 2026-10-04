@@ -72,6 +72,20 @@
 4. `npm run dist`
 5. ชื่อไฟล์จะขึ้นตาม `artifactName: DormyManager-Setup-${version}.${ext}` เอง
 
+### 4.1 ออกรุ่นผ่าน GitHub Actions (`.github/workflows/release.yml`)
+
+ทำข้อ 1–2 ข้างบน commit แล้ว push จากนั้น
+
+```
+git tag v1.0.2
+git push origin v1.0.2
+```
+
+GitHub จะรันเทสต์ ประกอบ `.exe` แล้วสร้าง **draft release** แนบไฟล์ให้ — ลองติดตั้งจากไฟล์
+ใน draft ก่อน แล้วกด Publish เอง · tag ต้องตรงกับ `version` ใน `package.json` ไม่ตรง workflow จะหยุด
+
+อยากลอง build เฉยๆ ไม่ออกรุ่น: แท็บ Actions → Release → Run workflow แล้วโหลด `.exe` จาก artifact ของ run นั้น
+
 ---
 
 ## 5. ตอนอัปเกรด Electron
