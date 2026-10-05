@@ -344,5 +344,20 @@ check('ยกเลิกการจองแล้ว ทำสัญญาต
   assert(direct.contractId, 'ควรสร้างสัญญาได้หลังยกเลิกการจอง')
 })
 
+group('ห้องที่ปิดใช้งาน')
+
+check('ห้องที่ปิดใช้งานจองไม่ได้', () => {
+  const floorId = rooms.listFloors(db, apartmentId)[0].floorId
+  rooms.addRoom(db, floorId, { roomNumber: '990' })
+  const closed = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomNumber === '990')
+  rooms.updateRoom(db, closed.roomId, { roomNumber: '990', roomTypeName: closed.roomTypeName, isActive: false })
+
+  throws(
+    () => bookings.createBooking(db, { ...BASE, roomId: closed.roomId }),
+    'ปิดใช้งาน',
+    'ห้องที่ปิดใช้งานต้องจองไม่ได้'
+  )
+})
+
 cleanup()
 summarize('โมดูลการจองทำงานครบทุกเส้นทาง')

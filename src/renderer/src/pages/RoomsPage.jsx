@@ -106,7 +106,9 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                 <tr key={room.roomId}>
                   <td>
                     <span className="room-cell-number">{room.roomNumber}</span>
-                    {room.status === 'vacant' && room.booking ? (
+                    {room.isActive === false ? (
+                      <span className="room-badge status-inactive">ปิดใช้งาน</span>
+                    ) : room.status === 'vacant' && room.booking ? (
                       <span className="room-badge status-booked">จองแล้ว</span>
                     ) : (
                       <span className={`room-badge status-${room.status}`}>

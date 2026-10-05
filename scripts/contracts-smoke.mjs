@@ -355,5 +355,23 @@ check('เปลี่ยนกติกาของหอทีหลัง ส
   assert(row.deposit_notice_days === 15, `จำนวนวันถูกเขียนทับเป็น ${row.deposit_notice_days}`)
 })
 
+group('ห้องที่ปิดใช้งาน')
+
+check('ห้องที่ปิดใช้งานทำสัญญาไม่ได้ และรายการห้องบอกว่าปิดอยู่', () => {
+  rooms.addRoom(db, floor.floorId, { roomNumber: '990' })
+  const closed = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomNumber === '990')
+  rooms.updateRoom(db, closed.roomId, { roomNumber: '990', roomTypeName: closed.roomTypeName, isActive: false })
+
+  throws(
+    () => contracts.createContract(db, { ...BASE, roomId: closed.roomId, tenants: [somying.tenantId] }),
+    'ปิดใช้งาน',
+    'ห้องที่ปิดใช้งานต้องทำสัญญาไม่ได้'
+  )
+
+  const listed = contracts.listRoomsForApartment(db, apartmentId)
+  assert(listed.find((r) => r.roomId === closed.roomId).isActive === false, 'ห้อง 990 ต้องบอกว่าปิดใช้งาน')
+  assert(listed.find((r) => r.roomId === room1.roomId).isActive === true, 'ห้องอื่นต้องยังเปิดใช้งาน')
+})
+
 cleanup()
 summarize('โมดูลสัญญาเช่าทำงานครบทุกเส้นทาง')

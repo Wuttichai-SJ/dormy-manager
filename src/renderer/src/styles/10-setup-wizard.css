@@ -330,6 +330,11 @@
   background: #2563a8;
 }
 
+.room-badge.status-inactive {
+  color: #fff;
+  background: var(--text-muted);
+}
+
 .select-bar {
   position: sticky;
   bottom: 0;

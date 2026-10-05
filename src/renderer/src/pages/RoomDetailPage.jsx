@@ -66,15 +66,23 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   const active = data?.active ?? null
 
   // ป้ายสถานะคิดจากสัญญา/การจองล่าสุด — ปิดปรับปรุงอ่านจาก room.status
+  // ปิดใช้งานที่ตั้งค่า > ผังห้อง — ทำสัญญา/จองไม่ได้
+  const inactive = room.isActive === false
   const headerStatus = active
     ? 'occupied'
-    : room.status === 'maintenance'
-      ? 'maintenance'
-      : openBooking
-        ? 'booked'
-        : 'vacant'
+    : inactive
+      ? 'inactive'
+      : room.status === 'maintenance'
+        ? 'maintenance'
+        : openBooking
+          ? 'booked'
+          : 'vacant'
   const headerLabel =
-    headerStatus === 'booked' ? 'จองแล้ว' : (ROOM_STATUS_LABELS[headerStatus] ?? headerStatus)
+    headerStatus === 'booked'
+      ? 'จองแล้ว'
+      : headerStatus === 'inactive'
+        ? 'ปิดใช้งาน'
+        : (ROOM_STATUS_LABELS[headerStatus] ?? headerStatus)
 
   if (movingOut && active) {
     return (
@@ -170,6 +178,10 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
                       ทำสัญญาหรือยกเลิกการจองได้ที่ "การจองห้อง" ด้านขวา
                     </p>
                   </div>
+                ) : inactive ? (
+                  <p className="room-detail-empty">
+                    ห้องนี้ปิดใช้งานอยู่ · เปิดใช้งานได้ที่ ตั้งค่า &gt; ผังห้อง
+                  </p>
                 ) : (
                   <>
                     <p className="room-detail-empty">ห้องว่าง · เลือกประเภทสัญญา</p>

@@ -549,5 +549,24 @@ check('ตัวเลขของหออื่นไม่ปนเข้า�
   assert(theirs.tasks.maintenance.openCount === 1, `หอที่สองได้ ${theirs.tasks.maintenance.openCount} งาน`)
 })
 
+group('ห้องที่ปิดใช้งาน')
+
+check('ห้องที่ปิดใช้งานไม่นับเป็นห้องว่างและไม่นับในจำนวนห้อง', () => {
+  const before = summaryAsOf()
+
+  const floorId = rooms.listFloors(db, apartmentId)[0].floorId
+  rooms.addRoom(db, floorId, { roomNumber: '990' })
+  const added = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomNumber === '990')
+  const opened = summaryAsOf()
+  assert(opened.rooms.total === before.rooms.total + 1, `เพิ่มห้องแล้วได้ ${opened.rooms.total}`)
+  assert(opened.rooms.vacant === before.rooms.vacant + 1, `เพิ่มห้องแล้วว่าง ${opened.rooms.vacant}`)
+
+  rooms.updateRoom(db, added.roomId, { roomNumber: '990', roomTypeName: added.roomTypeName, isActive: false })
+  const closed = summaryAsOf()
+  assert(closed.rooms.total === before.rooms.total, `ปิดใช้งานแล้วได้ ${closed.rooms.total}`)
+  assert(closed.rooms.vacant === before.rooms.vacant, `ปิดใช้งานแล้วว่าง ${closed.rooms.vacant}`)
+  assert(closed.rooms.occupancyPercent === before.rooms.occupancyPercent, 'อัตราเข้าพักต้องไม่ถูกห้องที่ปิดดึงลง')
+})
+
 cleanup()
 summarize('หน้าภาพรวมสรุปตัวเลขตรงกับทุกหน้าที่มันสรุป')

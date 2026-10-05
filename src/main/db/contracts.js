@@ -113,7 +113,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
   const rows = db
     .prepare(
       `SELECT
-         r.room_id, r.room_number, r.status, r.monthly_rent_cents, r.daily_rent_cents,
+         r.room_id, r.room_number, r.status, r.is_active, r.monthly_rent_cents, r.daily_rent_cents,
          rt.name AS room_type_name,
          f.floor_name,
          c.contract_id, c.rent_type, c.start_date, c.end_date, c.rent_amount_cents,
@@ -203,6 +203,7 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
       floorName: row.floor_name,
       roomTypeName: row.room_type_name ?? null,
       status: row.status,
+      isActive: row.is_active === 1,
       monthlyRentCents: row.monthly_rent_cents,
       dailyRentCents: row.daily_rent_cents,
       services: servicesByRoom.get(row.room_id) ?? [],
@@ -261,12 +262,15 @@ export function createContract(db, input) {
   const roomId = Number(input.roomId)
   const room = db
     .prepare(
-      `SELECT r.room_id, r.room_number, r.status, f.apartment_id
+      `SELECT r.room_id, r.room_number, r.status, f.apartment_id, r.is_active
          FROM rooms r JOIN floors f ON f.floor_id = r.floor_id
         WHERE r.room_id = ?`
     )
     .get(roomId)
   if (!room) throw new Error('ไม่พบห้องพักที่ต้องการทำสัญญา')
+  if (room.is_active !== 1) {
+    throw new Error(`ห้อง ${room.room_number} ปิดใช้งานอยู่ ทำสัญญาไม่ได้`)
+  }
 
   // ห้องหนึ่งมีสัญญา active ได้ใบเดียว
   const existing = db
