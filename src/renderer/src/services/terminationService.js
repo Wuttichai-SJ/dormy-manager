@@ -6,12 +6,20 @@ export function setMoveOutNotice(contractId, noticeDate) {
 }
 
 // overrideRefundable: null = ตามกฎ · true/false = เจ้าของตัดสินเอง (ต้องส่งเสมอ)
-export function getTerminationSheet({ contractId, moveOutDate, adjustments, overrideRefundable }) {
+// finalReadings: เลขมิเตอร์วันย้ายออก { water: { current, isOverCycle, include }, electric: {...} }
+export function getTerminationSheet({
+  contractId,
+  moveOutDate,
+  adjustments,
+  overrideRefundable,
+  finalReadings
+}) {
   return invoke('termination:sheet', {
     contractId,
     moveOutDate,
     adjustments,
-    overrideRefundable
+    overrideRefundable,
+    finalReadings
   })
 }
 

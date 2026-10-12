@@ -1031,5 +1031,202 @@ check('ธงขึ้นถึงตารางประวัติด้ว�
   }
 })
 
+group('ค่าน้ำ-ค่าไฟงวดสุดท้ายคิดจากมิเตอร์ของห้อง')
+
+function makeMeterDorm(name, isVatEnabled, defaults) {
+  const dorm = apartments.insertApartment(db, {
+    nameTh: name,
+    addressTh: 'ที่อยู่',
+    dueDateDay: 5,
+    lateFeePerDay: '0',
+    isVatEnabled
+  })
+  utility.saveUtilityDefaults(db, dorm.apartmentId, defaults)
+  return dorm.apartmentId
+}
+
+function makeMeterContract(dormId, { waterStart = 0, electricStart = 0 } = {}) {
+  const floors = rooms.addFloor(db, dormId, { roomCount: 1 })
+  const room = floors[floors.length - 1].rooms[0]
+  rooms.setRoomRates(db, [room.roomId], { monthlyRent: '5000' })
+  const contract = contracts.createContract(db, {
+    roomId: room.roomId,
+    rentType: 'monthly',
+    startDate: '2026-09-01',
+    rentAmount: '5000',
+    deposit: '5000',
+    depositPaymentMethod: 'cash',
+    bookingFee: '0',
+    termMonths: 1,
+    waterMeterStart: waterStart,
+    electricMeterStart: electricStart,
+    tenants: [makeTenant().tenantId],
+    createdBy: staff.user_id
+  })
+  return { room, contract }
+}
+
+const meterDormId = makeMeterDorm('หอทดสอบมิเตอร์ย้ายออก', true, {
+  water: { enabled: true, billingType: 'minimum', unitPrice: '17', minCharge: '100' },
+  electric: { enabled: true, billingType: 'actual', unitPrice: '7' }
+})
+const metered = makeMeterContract(meterDormId, { waterStart: 7456, electricStart: 7523 })
+const meteredId = metered.contract.contractId
+
+check('ยังไม่กรอกเลขมิเตอร์ = ไม่มีรายการ แต่บอกเลขครั้งก่อนและเรตของห้อง', () => {
+  const sheet = terminations.getTerminationSheet(db, meteredId, { moveOutDate: '2026-10-20' })
+  const water = sheet.meter.sides.find((s) => s.side === 'water')
+  assert(sheet.meter.sides.length === 2, `ได้ ${sheet.meter.sides.length} ฝั่ง`)
+  assert(water.previousReading === 7456, `เลขครั้งก่อนได้ ${water.previousReading}`)
+  assert(water.previousSource === 'contract', `ที่มาได้ ${water.previousSource}`)
+  assert(water.unitPriceCents === 1700, `เรตได้ ${water.unitPriceCents}`)
+  assert(water.isCharged === false, 'ยังไม่กรอกต้องไม่คิดเงิน')
+  assert(sheet.meterTotalCents === 0, `ค่ามิเตอร์ได้ ${sheet.meterTotalCents}`)
+  assert(sheet.items.length === 0, `ได้ ${sheet.items.length} รายการ`)
+})
+
+check('คิดด้วยสูตรเดียวกับบิลรายเดือน: ขั้นต่ำ + VAT ของหอ', () => {
+  const sheet = terminations.getTerminationSheet(db, meteredId, {
+    moveOutDate: '2026-10-20',
+    finalReadings: { water: { current: '7460' }, electric: { current: 7530 } }
+  })
+  const water = sheet.meter.sides.find((s) => s.side === 'water')
+  const electric = sheet.meter.sides.find((s) => s.side === 'electric')
+
+  assert(water.unitsUsed === 4, `น้ำใช้ ${water.unitsUsed} หน่วย`)
+  assert(water.isMinimumApplied === true, '4 × 17 = 68 ต่ำกว่าขั้นต่ำ 100 ต้องขึ้นธง')
+  assert(water.chargeCents === 10000, `น้ำก่อน VAT ได้ ${water.chargeCents}`)
+  assert(water.vatCents === 700, `VAT น้ำได้ ${water.vatCents}`)
+  assert(water.totalCents === 10700, `น้ำรวมได้ ${water.totalCents}`)
+
+  assert(electric.unitsUsed === 7, `ไฟใช้ ${electric.unitsUsed} หน่วย`)
+  assert(electric.isMinimumApplied === false, 'ไฟคิดตามจริง ไม่มีขั้นต่ำ')
+  assert(electric.totalCents === 5243, `ไฟรวมได้ ${electric.totalCents}`)
+
+  assert(sheet.meterTotalCents === 15943, `ค่ามิเตอร์รวมได้ ${sheet.meterTotalCents}`)
+  assert(sheet.tenantOwesCents === 15943, `ผู้เช่าต้องจ่าย ${sheet.tenantOwesCents}`)
+
+  const waterItem = sheet.items.find((i) => i.itemType === 'water')
+  assert(waterItem.description.includes('4 หน่วย (7456 - 7460)'), waterItem.description)
+  assert(waterItem.description.includes('คิดขั้นต่ำ 100.00 บาท'), waterItem.description)
+})
+
+check('เลขวันย้ายออกน้อยกว่าครั้งก่อน = แจ้งที่ฝั่งนั้น และยืนยันย้ายออกไม่ได้', () => {
+  const sheet = terminations.getTerminationSheet(db, meteredId, {
+    moveOutDate: '2026-10-20',
+    finalReadings: { water: { current: '7000' } }
+  })
+  const water = sheet.meter.sides.find((s) => s.side === 'water')
+  assert(water.error && water.error.includes('น้อยกว่าครั้งก่อน'), `ได้ ${water.error}`)
+  assert(sheet.meterError === water.error, 'ต้องยกข้อผิดพลาดขึ้นมาที่ใบสรุป')
+  assert(sheet.meterTotalCents === 0, 'เลขผิดต้องไม่ถูกคิดเงิน')
+
+  throws(
+    () =>
+      terminations.completeTermination(db, meteredId, {
+        moveOutDate: '2026-10-20',
+        finalReadings: { water: { current: '7000' } },
+        createdBy: staff.user_id
+      }),
+    'ค่าน้ำ-ค่าไฟงวดสุดท้าย',
+    'เลขมิเตอร์ผิดต้องย้ายออกไม่ได้'
+  )
+})
+
+const octoberBatch = meter.createBatch(db, meterDormId, '2026-10-31')
+meter.saveBatchReadings(db, octoberBatch.batchId, 'water', [
+  { roomId: metered.room.roomId, roomNumber: metered.room.roomNumber, currentReading: 7470 }
+])
+meter.saveBatchReadings(db, octoberBatch.batchId, 'electric', [
+  { roomId: metered.room.roomId, roomNumber: metered.room.roomNumber, currentReading: 7600 }
+])
+
+check('รอบจดล่าสุดยังไม่ออกบิล ต้องเตือน — หน่วยของรอบนั้นจะตกหล่น', () => {
+  const sheet = terminations.getTerminationSheet(db, meteredId, { moveOutDate: '2026-11-12' })
+  const water = sheet.meter.sides.find((s) => s.side === 'water')
+  assert(water.previousReading === 7470, `เลขครั้งก่อนได้ ${water.previousReading}`)
+  assert(water.previousSource === 'batch', `ที่มาได้ ${water.previousSource}`)
+  assert(water.unbilledBatchDate === '2026-10-31', `ได้ ${water.unbilledBatchDate}`)
+})
+
+check('วันย้ายออกก่อนรอบจด ไม่เอาเลขของรอบที่ยังมาไม่ถึงมาใช้', () => {
+  const sheet = terminations.getTerminationSheet(db, meteredId, { moveOutDate: '2026-10-20' })
+  const water = sheet.meter.sides.find((s) => s.side === 'water')
+  assert(water.previousReading === 7456, `ได้ ${water.previousReading}`)
+})
+
+invoices.createMonthlyInvoice(db, {
+  contractId: meteredId,
+  billingMonth: '2026-11',
+  meterBatchId: octoberBatch.batchId,
+  issueDate: '2026-11-01'
+})
+
+check('ออกบิลรอบนั้นแล้ว คำเตือนหาย และคิดต่อจากเลขรอบจด', () => {
+  const sheet = terminations.getTerminationSheet(db, meteredId, {
+    moveOutDate: '2026-11-12',
+    finalReadings: { water: { current: 7480 } }
+  })
+  const water = sheet.meter.sides.find((s) => s.side === 'water')
+  assert(water.unbilledBatchDate === null, `ได้ ${water.unbilledBatchDate}`)
+  assert(water.unitsUsed === 10, `ใช้ ${water.unitsUsed} หน่วย`)
+  assert(water.isMinimumApplied === false, '10 × 17 = 170 เกินขั้นต่ำแล้ว')
+  assert(water.totalCents === 18190, `น้ำรวมได้ ${water.totalCents}`)
+})
+
+check('ยืนยันแล้วเก็บเลขมิเตอร์ เรต และ VAT ไว้กับรายการ', () => {
+  const result = terminations.completeTermination(db, meteredId, {
+    moveOutDate: '2026-11-12',
+    finalReadings: { water: { current: 7480 } },
+    adjustments: [{ itemType: 'service', description: 'ค่าทำความสะอาด', amount: '500' }],
+    allowOutstanding: true,
+    outstandingReason: 'ทดสอบ',
+    collectShortfall: false,
+    createdBy: staff.user_id
+  })
+  assert(result.meterTotalCents === 18190, `ค่ามิเตอร์ได้ ${result.meterTotalCents}`)
+  assert(result.damageTotalCents === 50000, `ค่าเสียหายได้ ${result.damageTotalCents}`)
+  assert(result.hasNetRefundMismatch === false, 'ยอดที่บันทึกต้องตรงกับที่คิดใหม่')
+  assert(result.items.some((i) => i.itemTypeLabel === 'ค่าน้ำ'), 'ต้องมีรายการค่าน้ำ')
+
+  const row = db
+    .prepare(
+      `SELECT * FROM contract_termination_items
+        WHERE contract_termination_id = ? AND item_type = 'water'`
+    )
+    .get(result.terminationId)
+  assert(row.previous_reading === 7470, `เลขก่อนได้ ${row.previous_reading}`)
+  assert(row.current_reading === 7480, `เลขหลังได้ ${row.current_reading}`)
+  assert(row.units_used === 10, `หน่วยได้ ${row.units_used}`)
+  assert(row.unit_price_cents === 1700, `เรตได้ ${row.unit_price_cents}`)
+  assert(row.amount_before_vat_cents === 17000, `ก่อน VAT ได้ ${row.amount_before_vat_cents}`)
+  assert(row.vat_percent === 7, `อัตรา VAT ได้ ${row.vat_percent}`)
+  assert(row.vat_amount_cents === 1190, `VAT ได้ ${row.vat_amount_cents}`)
+  assert(row.total_amount_cents === 18190, `รวมได้ ${row.total_amount_cents}`)
+})
+
+const flatDormId = makeMeterDorm('หอทดสอบเหมาจ่ายย้ายออก', false, {
+  water: { enabled: true, billingType: 'flat', flatRate: '150' },
+  electric: { enabled: false }
+})
+const flat = makeMeterContract(flatDormId)
+
+check('ห้องเหมาจ่าย เก็บเต็มเมื่อเลือกเก็บ ไม่ต้องกรอกเลขมิเตอร์ และหอไม่เปิด VAT ก็ไม่บวก', () => {
+  const skipped = terminations.getTerminationSheet(db, flat.contract.contractId, {
+    moveOutDate: '2026-10-20'
+  })
+  assert(skipped.meter.sides.length === 1, 'ฝั่งที่ปิดเก็บต้องไม่แสดง')
+  assert(skipped.meterTotalCents === 0, 'ไม่เลือกเก็บต้องไม่คิดเงิน')
+
+  const charged = terminations.getTerminationSheet(db, flat.contract.contractId, {
+    moveOutDate: '2026-10-20',
+    finalReadings: { water: { include: true } }
+  })
+  const water = charged.meter.sides[0]
+  assert(water.totalCents === 15000, `เหมาจ่ายได้ ${water.totalCents}`)
+  assert(water.vatCents === 0, `VAT ได้ ${water.vatCents}`)
+  assert(charged.items[0].description === 'ค่าน้ำงวดสุดท้าย (เหมาจ่าย)', charged.items[0].description)
+})
+
 cleanup()
 summarize('การย้ายออกและคืนเงินประกันทำงานครบทุกเส้นทาง')

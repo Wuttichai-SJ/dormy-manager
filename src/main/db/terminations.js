@@ -1,16 +1,35 @@
 // ต่างจากต้นแบบ: หอนี้มีกฎริบเงินประกัน (ตรึงไว้ในสัญญาแต่ละใบ)
 import { toCents } from '../money.js'
 import { FieldError } from '../fieldError.js'
+import { DEFAULT_VAT_RATE } from './apartments.js'
 import { listInvoices } from './invoices.js'
+import { calculateUnitsUsed } from './meterReadings.js'
 import { getDepositStatus, recordContractPayment } from './payments.js'
+import {
+  BILLING_TYPE_LABELS,
+  calculateUtilityCharge,
+  isSideUnpriced,
+  toUtilitySides
+} from './utilityDefaults.js'
 
+// รายการที่กรอกเองได้ · 'meter' คงไว้ให้ใบเก่า หน้าจอใหม่ใช้ค่าน้ำ-ค่าไฟจากมิเตอร์แทน
 export const TERMINATION_ITEM_TYPES = ['service', 'meter', 'discount_refund']
 
+// ค่าน้ำ-ค่าไฟงวดสุดท้าย ระบบสร้างเองจากเลขมิเตอร์ กรอกเป็นรายการไม่ได้
+const METER_ITEM_TYPES = ['meter', 'water', 'electricity']
+
 export const TERMINATION_ITEM_TYPE_LABELS = {
-  service: 'ค่าบริการ',
+  service: 'ค่าเสียหาย / ค่าปรับ',
   meter: 'ค่ามิเตอร์',
-  discount_refund: 'ส่วนลด / คืนเงิน'
+  water: 'ค่าน้ำ',
+  electricity: 'ค่าไฟ',
+  discount_refund: 'คืนเงิน / ส่วนลด'
 }
+
+const FINAL_METER_SIDES = [
+  { side: 'water', itemType: 'water', label: 'ค่าน้ำ', startColumn: 'water_meter_start' },
+  { side: 'electric', itemType: 'electricity', label: 'ค่าไฟ', startColumn: 'electric_meter_start' }
+]
 
 export const FORFEIT_REASON_LABELS = {
   early_move_out: 'ออกก่อนครบกำหนดตามสัญญา',
@@ -113,10 +132,11 @@ export function evaluateDepositRefund({
 }
 
 // คำนวณอย่างเดียว · adjustments ส่วนลดส่งเป็นบวก ระบบกลับเครื่องหมายเอง · ต้องรับ overrideRefundable
+// finalReadings = { water: { current, isOverCycle, include }, electric: {...} } เลขมิเตอร์วันย้ายออก
 export function getTerminationSheet(
   db,
   contractId,
-  { moveOutDate, adjustments, overrideRefundable } = {}
+  { moveOutDate, adjustments, overrideRefundable, finalReadings } = {}
 ) {
   const contract = requireActiveContract(db, contractId)
   const outDate = moveOutDate ?? todayIso()
@@ -157,7 +177,8 @@ export function getTerminationSheet(
     }))
   const outstandingTotalCents = outstandingInvoices.reduce((sum, i) => sum + i.outstandingCents, 0)
 
-  const items = normalizeAdjustments(adjustments)
+  const meter = buildFinalMeter(db, contract, outDate, finalReadings)
+  const items = [...normalizeAdjustments(adjustments), ...meter.items]
 
   // เจ้าของกดข้ามกฎได้ · เก็บผลตามกฎไว้เทียบด้วย
   const appliedRefundable =
@@ -203,9 +224,160 @@ export function getTerminationSheet(
     outstandingInvoices,
     outstandingTotalCents,
     hasOutstanding,
+    meter: { vatEnabled: meter.vatEnabled, vatRate: meter.vatRate, sides: meter.sides },
+    meterError: meter.sides.find((side) => side.error)?.error ?? null,
     items,
     ...money
   }
+}
+
+// ค่าน้ำ-ค่าไฟงวดสุดท้าย — สูตรเดียวกับบิลรายเดือน เก็บเต็ม ไม่เฉลี่ยตามวัน
+// ฝั่งมิเตอร์คิดเมื่อกรอกเลขวันย้ายออก · ฝั่งเหมาจ่ายคิดเมื่อติ๊ก include
+function buildFinalMeter(db, contract, moveOutDate, finalReadings) {
+  const vatEnabled = contract.is_vat_enabled === 1
+  const vatRate = vatEnabled ? Number(contract.vat_rate ?? DEFAULT_VAT_RATE) : 0
+  const result = { vatEnabled, vatRate, sides: [], items: [] }
+
+  const settingsRow = db
+    .prepare('SELECT * FROM room_utility_settings WHERE room_id = ?')
+    .get(contract.room_id)
+  if (!settingsRow) return result
+
+  const configs = toUtilitySides(settingsRow)
+
+  for (const def of FINAL_METER_SIDES) {
+    const config = configs[def.side]
+    if (!config.enabled) continue
+
+    const input = finalReadings?.[def.side] ?? {}
+    const isFlat = config.billingType === 'flat'
+    const previous = findPreviousReading(db, contract, def.side, def.startColumn, moveOutDate)
+
+    const row = {
+      side: def.side,
+      label: def.label,
+      billingType: config.billingType,
+      billingTypeLabel: BILLING_TYPE_LABELS[config.billingType] ?? config.billingType,
+      unitPriceCents: config.unitPriceCents,
+      minChargeCents: config.minChargeCents,
+      flatRateCents: config.flatRateCents,
+      isUnpriced: isSideUnpriced(config),
+      ...previous,
+      currentReading: null,
+      unitsUsed: null,
+      isMinimumApplied: false,
+      isCharged: false,
+      chargeCents: 0,
+      vatCents: 0,
+      totalCents: 0,
+      error: null
+    }
+    result.sides.push(row)
+
+    const isWanted = isFlat ? Boolean(input.include) : !isBlank(input.current)
+    if (!isWanted) continue
+
+    try {
+      let units = 0
+      if (!isFlat) {
+        const current = Number(String(input.current).replace(/,/g, '').trim())
+        if (!Number.isFinite(current)) throw new Error('เลขมิเตอร์ต้องเป็นตัวเลข')
+        units = calculateUnitsUsed(previous.previousReading, current, {
+          isOverCycle: Boolean(input.isOverCycle),
+          meterDigits: contract.meter_digits
+        })
+        row.currentReading = current
+        row.unitsUsed = units
+      }
+
+      const charge = calculateUtilityCharge(config, units)
+      // ปัดแบบเดียวกับ calculateInvoiceTotals
+      const vat = vatEnabled ? Math.round((charge * vatRate) / 100) : 0
+
+      row.isMinimumApplied =
+        config.billingType === 'minimum' && Math.round(units * config.unitPriceCents) < charge
+      row.isCharged = true
+      row.chargeCents = charge
+      row.vatCents = vat
+      row.totalCents = charge + vat
+
+      result.items.push({
+        itemType: def.itemType,
+        itemTypeLabel: TERMINATION_ITEM_TYPE_LABELS[def.itemType],
+        description: describeFinalMeter(row, vatRate),
+        amountCents: row.totalCents,
+        amountBeforeVatCents: charge,
+        vatPercent: vatEnabled ? vatRate : null,
+        vatAmountCents: vat,
+        previousReading: isFlat ? null : row.previousReading,
+        currentReading: row.currentReading,
+        unitsUsed: row.unitsUsed,
+        unitPriceCents: isFlat ? null : config.unitPriceCents
+      })
+    } catch (err) {
+      row.error = err.message
+    }
+  }
+
+  return result
+}
+
+// กติกาเดียวกับ getBatchSheet: สัญญาเริ่มหลังรอบจดล่าสุด → เลขวันเข้าพัก · นอกนั้น → เลขรอบจดล่าสุด
+function findPreviousReading(db, contract, side, startColumn, moveOutDate) {
+  const last = db
+    .prepare(
+      `SELECT pr.${side}_current_reading AS reading, pr.${side}_units_used AS units,
+              pb.reading_date, pb.batch_id
+         FROM meter_readings pr
+         JOIN meter_batches pb ON pb.batch_id = pr.meter_batch_id
+        WHERE pr.room_id = ?
+          AND pr.${side}_current_reading IS NOT NULL
+          AND pb.reading_date <= ?
+        ORDER BY pb.reading_date DESC, pb.batch_id DESC
+        LIMIT 1`
+    )
+    .get(contract.room_id, moveOutDate)
+
+  if (!last || last.reading_date < contract.start_date) {
+    return {
+      previousReading: Number(contract[startColumn] ?? 0),
+      previousSource: 'contract',
+      previousDate: contract.start_date,
+      unbilledBatchDate: null
+    }
+  }
+
+  // รอบจดล่าสุดยังไม่ถูกออกบิล = หน่วยของรอบนั้นจะไม่มีใครเก็บ ต้องเตือน
+  const isBilled =
+    Number(last.units ?? 0) <= 0 ||
+    last.reading_date === contract.start_date ||
+    Boolean(
+      db
+        .prepare(
+          `SELECT 1 FROM invoices
+            WHERE contract_id = ? AND meter_batch_id = ? AND status <> 'cancelled'`
+        )
+        .get(contract.contract_id, last.batch_id)
+    )
+
+  return {
+    previousReading: Number(last.reading),
+    previousSource: 'batch',
+    previousDate: last.reading_date,
+    unbilledBatchDate: isBilled ? null : last.reading_date
+  }
+}
+
+// รูปแบบเดียวกับบรรทัดค่าน้ำ-ค่าไฟบนใบแจ้งหนี้
+function describeFinalMeter(row, vatRate) {
+  const parts = [
+    row.billingType === 'flat'
+      ? `${row.label}งวดสุดท้าย (เหมาจ่าย)`
+      : `${row.label}งวดสุดท้าย : ${row.unitsUsed} หน่วย (${row.previousReading} - ${row.currentReading})`
+  ]
+  if (row.isMinimumApplied) parts.push(`คิดขั้นต่ำ ${formatBaht(row.minChargeCents)} บาท`)
+  if (row.vatCents > 0) parts.push(`รวม VAT ${vatRate}%`)
+  return parts.join(' · ')
 }
 
 // สูตร: ค่าเสียหายหักจากเงินประกัน · ค่ามิเตอร์เก็บแยก · ส่วนลด/คืนเงินคืนเสมอ · ริบ = ส่วนที่เหลือหลังหักค่าเสียหาย
@@ -214,7 +386,7 @@ export function summariseMoney({ depositReceivedCents, items, isRefundable }) {
     items.filter((i) => i.itemType === type).reduce((sum, i) => sum + Math.abs(i.amountCents), 0)
 
   const damageTotalCents = sumOf('service')
-  const meterTotalCents = sumOf('meter')
+  const meterTotalCents = METER_ITEM_TYPES.reduce((sum, type) => sum + sumOf(type), 0)
   const refundItemsTotalCents = sumOf('discount_refund')
 
   // depositBalanceCents ติดลบได้ (แสดงผล) · depositAfterDamageCents ไม่ต่ำกว่า 0
@@ -278,6 +450,7 @@ export function completeTermination(
     adjustments,
     overrideRefundable,
     overrideReason,
+    finalReadings,
     allowOutstanding,
     outstandingReason,
     // collected: true = ออกใบเสร็จ · false = ค้างไว้ในบันทึกการย้ายออก
@@ -292,8 +465,11 @@ export function completeTermination(
   const sheet = getTerminationSheet(db, contractId, {
     moveOutDate,
     adjustments,
-    overrideRefundable
+    overrideRefundable,
+    finalReadings
   })
+
+  if (sheet.meterError) throw new Error(`ค่าน้ำ-ค่าไฟงวดสุดท้าย: ${sheet.meterError}`)
 
   // บิลค้างต้องเคลียร์ก่อน — ข้ามได้พร้อมเหตุผล (ผู้เช่าหนี)
   const outstandingNote = String(outstandingReason ?? '').trim()
@@ -402,15 +578,27 @@ export function completeTermination(
 
     const insertItem = db.prepare(
       `INSERT INTO contract_termination_items
-         (contract_termination_id, item_type, description, total_amount_cents, created_at)
-       VALUES (@terminationId, @itemType, @description, @amountCents, @now)`
+         (contract_termination_id, item_type, description,
+          amount_before_vat_cents, vat_percent, vat_amount_cents, total_amount_cents,
+          previous_reading, current_reading, units_used, unit_price_cents, created_at)
+       VALUES (@terminationId, @itemType, @description,
+               @amountBeforeVatCents, @vatPercent, @vatAmountCents, @amountCents,
+               @previousReading, @currentReading, @unitsUsed, @unitPriceCents, @now)`
     )
     for (const item of sheet.items) {
+      // คอลัมน์ VAT และเลขมิเตอร์มีเฉพาะรายการค่าน้ำ-ค่าไฟ
       insertItem.run({
         terminationId,
         itemType: item.itemType,
         description: item.description,
+        amountBeforeVatCents: item.amountBeforeVatCents ?? null,
+        vatPercent: item.vatPercent ?? null,
+        vatAmountCents: item.vatAmountCents ?? null,
         amountCents: item.amountCents,
+        previousReading: item.previousReading ?? null,
+        currentReading: item.currentReading ?? null,
+        unitsUsed: item.unitsUsed ?? null,
+        unitPriceCents: item.unitPriceCents ?? null,
         now
       })
     }
@@ -721,6 +909,7 @@ function requireActiveContract(db, contractId) {
       `SELECT c.*, r.room_number, f.apartment_id,
               a.name_th AS apartment_name, a.address_th AS apartment_address,
               a.phone AS apartment_phone,
+              a.is_vat_enabled, a.vat_rate, a.meter_digits,
               (SELECT tn.first_name || ' ' || tn.last_name
                  FROM contract_tenants ct
                  JOIN tenants tn ON tn.tenant_id = ct.tenant_id
@@ -747,6 +936,10 @@ function requireActiveContract(db, contractId) {
 
 function formatBaht(cents) {
   return (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })
+}
+
+function isBlank(value) {
+  return value === null || value === undefined || String(value).trim() === ''
 }
 
 function isDate(value) {

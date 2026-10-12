@@ -108,6 +108,19 @@
   font-weight: 600;
 }
 
+.move-out-meter td {
+  vertical-align: top;
+}
+
+.move-out-meter .field {
+  width: 160px;
+  margin: 0;
+}
+
+.move-out-meter .checkbox-row {
+  margin-top: 6px;
+}
+
 .move-out-shortfall {
   margin-top: 12px;
   padding: 10px 14px;

@@ -41,12 +41,15 @@ export function registerTerminationHandlers() {
     return result
   })
 
-  handleSession('termination:sheet', ({ contractId, moveOutDate, adjustments, overrideRefundable }) =>
-    getTerminationSheet(getDatabase(), contractId, {
-      moveOutDate,
-      adjustments,
-      overrideRefundable
-    })
+  handleSession(
+    'termination:sheet',
+    ({ contractId, moveOutDate, adjustments, overrideRefundable, finalReadings }) =>
+      getTerminationSheet(getDatabase(), contractId, {
+        moveOutDate,
+        adjustments,
+        overrideRefundable,
+        finalReadings
+      })
   )
 
   handle('termination:complete', (payload) => {
@@ -55,6 +58,7 @@ export function registerTerminationHandlers() {
       adjustments: payload.adjustments,
       overrideRefundable: payload.overrideRefundable,
       overrideReason: payload.overrideReason,
+      finalReadings: payload.finalReadings,
       allowOutstanding: payload.allowOutstanding,
       outstandingReason: payload.outstandingReason,
       collectShortfall: payload.collectShortfall,
