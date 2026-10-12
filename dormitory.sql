@@ -482,14 +482,20 @@ CREATE TABLE IF NOT EXISTS `mydb`.`contract_termination_items` (
   -- 'meter' เพิ่มตอนทำขั้นตอนย้ายออก (2026-08-11) — ต้นแบบรวมน้ำกับไฟเป็นแท็บ "ค่ามิเตอร์"
   -- แท็บเดียว และตอนย้ายออกไม่มีใครแยกจดสองฝั่งอีกแล้ว · คอลัมน์เป็น TEXT ใน SQLite
   -- ตรวจค่าที่ TERMINATION_ITEM_TYPES ใน db/terminations.js จึงไม่ต้องมี migration
+  -- migration 032: ค่าน้ำ-ค่าไฟงวดสุดท้ายใช้ 'water' | 'electricity' · 'meter' เหลือเฉพาะใบเก่า
   `item_type` ENUM('service', 'discount_refund', 'meter', 'water', 'electricity') NULL,
   `description` VARCHAR(255) NULL,
-  -- คอลัมน์ VAT ปล่อย NULL — รายการปรับปรุงตอนย้ายออกไม่คิดภาษี เหมือนค่าปรับบนบิล
+  -- คอลัมน์ VAT มีค่าเฉพาะ 'water' | 'electricity' (คิดตามการตั้งค่าของหอ) รายการอื่นเป็น NULL
   `amount_before_vat_cents` INTEGER NULL,
   `vat_percent` DECIMAL(5,2) NULL,
   `vat_amount_cents` INTEGER NULL,
   -- **บวก = เก็บเพิ่มจากผู้เช่า · ลบ = คืนให้ผู้เช่า** ยอดรวมถูกลบออกจากเงินคืนตรงๆ
   `total_amount_cents` INTEGER NOT NULL,
+  -- migration 032: เลขมิเตอร์และเรตที่ใช้คิด · NULL = ไม่ได้มาจากมิเตอร์ หรือห้องเหมาจ่าย
+  `previous_reading` DECIMAL(10,2) NULL,
+  `current_reading` DECIMAL(10,2) NULL,
+  `units_used` DECIMAL(10,2) NULL,
+  `unit_price_cents` INTEGER NULL,
   `created_at` TIMESTAMP NOT NULL,
   PRIMARY KEY (`item_id`),
   INDEX `fk_contract_termination_items_contract_terminations1_idx` (`contract_termination_id` ASC) VISIBLE,
