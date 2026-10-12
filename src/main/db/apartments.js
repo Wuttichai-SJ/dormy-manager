@@ -30,7 +30,7 @@ export const MAX_DEPOSIT_NOTICE_DAYS = 365
 
 export const MAX_DEPOSIT_MIN_STAY_MONTHS = 60
 
-export function validateApartmentInput({
+export function validateApartmentInput({ // ตรวจสอบข้อมูลที่ input เข้ามา
   nameTh,
   addressTh,
   dueDateDay,
@@ -40,7 +40,7 @@ export function validateApartmentInput({
   isVatEnabled,
   vatRate
 }) {
-  const errors = []
+  const errors = [] // array เก็บ error ไว้
 
   if (!String(nameTh ?? '').trim()) errors.push('กรุณากรอกชื่อหอพัก (ภาษาไทย)')
   else if (String(nameTh).trim().length > 255) errors.push('ชื่อหอพักยาวเกิน 255 ตัวอักษร')
@@ -48,13 +48,14 @@ export function validateApartmentInput({
   if (!String(addressTh ?? '').trim()) errors.push('กรุณากรอกที่อยู่ (ภาษาไทย)')
 
   const day = Number(dueDateDay)
-  if (!Number.isInteger(day) || day < 1 || day > MAX_DUE_DATE_DAY) {
+  if (!Number.isInteger(day) || day < 1 || day > MAX_DUE_DATE_DAY) { // IsInteger เช็คว่าเป็นจำนวนจริงไหม
     errors.push(`วันสุดท้ายของการชำระเงินต้องเป็นวันที่ 1-${MAX_DUE_DATE_DAY}`)
   }
 
+  // ค่าปรับล่าช้า
   let lateFeeCents = null
   try {
-    lateFeeCents = toCents(lateFeePerDay, 'ค่าปรับชำระล่าช้าต่อวัน')
+    lateFeeCents = toCents(lateFeePerDay, 'ค่าปรับชำระล่าช้าต่อวัน') // เก็บค่าเงิน tocent
   } catch (err) {
     errors.push(err.message)
   }
@@ -74,9 +75,10 @@ export function validateApartmentInput({
 
   if (vatRate !== undefined && vatRate !== null && vatRate !== '') {
     const rate = Number(vatRate)
+    // check rate is number?
     if (!Number.isFinite(rate) || rate < MIN_VAT_RATE || rate > MAX_VAT_RATE) {
       errors.push(`อัตรา VAT ต้องอยู่ระหว่าง ${MIN_VAT_RATE}-${MAX_VAT_RATE}%`)
-    } else if (!/^\d+(\.\d{1,2})?$/.test(String(vatRate).trim())) {
+    } else if (!/^\d+(\.\d{1,2})?$/.test(String(vatRate).trim())) { // check pattern regex --> return true/false
       // ตรวจทศนิยมจากข้อความ — r*100 ด้วย float ไม่แม่น
       errors.push('อัตรา VAT ใส่ทศนิยมได้ไม่เกิน 2 ตำแหน่ง')
     }

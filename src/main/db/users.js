@@ -20,14 +20,14 @@ export const OWNER_ONLY_ACTIONS = [
   'จัดการผู้ใช้งานระบบ'
 ]
 
-// เบอร์โทรเก็บเป็นตัวเลขล้วน
+// เบอร์โทรเก็บเป็นตัวเลขล้วน 092-000-0000 ----> 0920000000
 export function normalizePhone(phone) {
   return String(phone ?? '').replace(/[^\d]/g, '')
 }
 
 // อีเมลว่าง = NULL (unique index ยอมให้ NULL ซ้ำ)
 export function normalizeEmail(email) {
-  const trimmed = String(email ?? '').trim().toLowerCase()
+  const trimmed = String(email ?? '').trim()
   return trimmed === '' ? null : trimmed
 }
 
@@ -42,7 +42,7 @@ export function validateUserFields({ fullName, phone, email, password }, { requi
   else if (digits.length < 9 || digits.length > 15) errors.phone = 'เบอร์โทรศัพท์ต้องมี 9-15 หลัก'
 
   const mail = normalizeEmail(email)
-  if (mail !== null && !/^[^@\s]+@[^@\s]+$/.test(mail)) errors.email = 'รูปแบบอีเมลไม่ถูกต้อง'
+  if (mail !== null && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(mail)) errors.email = 'รูปแบบอีเมลไม่ถูกต้อง'
 
   if (requirePassword || password !== undefined) {
     if (!password) errors.password = 'กรุณากรอกรหัสผ่าน'
@@ -113,17 +113,18 @@ export function insertUser(db, { fullName, phone, email, passwordHash, recoveryC
       role: validateRole(role ?? 'staff'),
       now
     })
-  return getUserById(db, result.lastInsertRowid)
+  return getUserById(db, result.lastInsertRowid) // return object user ออกมา
+  // ถ้า return เฉยๆ จะได้ผลลัพธ์ระบบที่ .run
 }
 
 export function listUsers(db) {
   return db
     .prepare(
       `SELECT * FROM users
-        ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, user_id`
+        ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, user_id` // ถ้า role เหมือนกัน ก็เรียงต่อด้วย user_id
     )
-    .all()
-    .map(toPublicUser)
+    .all() // เอาผลลัพธ์จาก SQL Array
+    .map(toPublicUser) // ผ่าน function ทีละคน
 }
 
 // ต้องเหลือเจ้าของที่ใช้งานได้อย่างน้อยหนึ่งบัญชีเสมอ
@@ -131,20 +132,22 @@ function countActiveOwners(db, { excludeUserId = null } = {}) {
   return db
     .prepare(
       `SELECT COUNT(*) AS n FROM users
-        WHERE role = 'owner' AND is_active = 1 AND user_id <> COALESCE(@excludeUserId, -1)`
-    )
-    .get({ excludeUserId }).n
+        WHERE role = 'owner' AND is_active = 1 AND user_id <> COALESCE(@excludeUserId, -1)` // <> คือ --> !=
+    )                                                         // COALESCE คือถ้ามีค่าใช้ @... แต่ถ้าไม่มีใช้ -1
+    .get({ excludeUserId }).n // get object { n: number } ออกมา แล้ว dot n เพื่อเอาเลข
+    // return เลขมา
 }
 
 export function assertOwnerRemains(db, userId, { role, isActive } = {}) {
   const target = getUserById(db, userId)
   if (!target) throw new Error('ไม่พบบัญชีผู้ใช้')
 
-  const stillOwner = (role ?? target.role) === 'owner'
-  const stillActive = isActive ?? target.is_active === 1
+  const stillOwner = (role ?? target.role) === 'owner' // เช็ค role
+  const stillActive = isActive ?? target.is_active === 1 // เช็ค isactive
   if (stillOwner && stillActive) return
 
-  if (countActiveOwners(db, { excludeUserId: userId }) === 0) {
+  // user กำลังจะกลายเป็น role อื่น
+  if (countActiveOwners(db, { excludeUserId: userId }) === 0) { // check เลข
     throw new FieldError({
       role:
         'ต้องมีเจ้าของหอที่ใช้งานอยู่อย่างน้อยหนึ่งบัญชี — ' +
@@ -170,7 +173,7 @@ export function updateUserProfile(db, userId, { fullName, phone, email, role }) 
 }
 
 // ปิดบัญชี ไม่ลบ — เอกสารเก่าอ้าง created_by
-export function setUserActive(db, userId, isActive) {
+export function setUserActive(db, userId, isActive) { // isActive ใส่ค่า True หรือ False
   db.prepare('UPDATE users SET is_active = ?, updated_at = ? WHERE user_id = ?').run(
     isActive ? 1 : 0,
     new Date().toISOString(),
@@ -178,6 +181,7 @@ export function setUserActive(db, userId, isActive) {
   )
   return getUserById(db, userId)
 }
+
 
 export function updatePassword(db, userId, passwordHash) {
   db.prepare('UPDATE users SET password = ?, updated_at = ? WHERE user_id = ?').run(
@@ -213,7 +217,7 @@ export function toPublicUser(row) {
     phone: row.phone,
     email: row.email,
     role: row.role,
-    roleLabel: USER_ROLE_LABELS[row.role] ?? row.role,
+    roleLabel: USER_ROLE_LABELS[row.role] ?? row.role, // แสดง label role เช่น owner --> "เจ้าของหอ"
     // ใช้ซ่อนปุ่มเท่านั้น — สิทธิ์จริงตรวจที่ main
     isOwner: row.role === 'owner',
     hasRecoveryCode: Boolean(row.recovery_code_hash),
