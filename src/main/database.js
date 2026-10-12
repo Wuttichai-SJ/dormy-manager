@@ -18,19 +18,23 @@ export function resolveDbPath() {
   return path.join(app.getPath('userData'), fileName)
 }
 
+// ขั้น 2
 export function openDatabase(dbPath, migrationsDir = resolveMigrationsDir()) {
-  const instance = new Database(dbPath)
+  // ใช้ path ไหนเช่น dormy.sqlite หรือ dormy-dev.dqlite 
+  // อยูาที่ว่าโปรแกรมเป็น exe แล้ว หรือยังเป็น develop environment
+  const instance = new Database(dbPath) // instance = sqlite(dormy.sqlite) สมมติเป็น exe แล้ว
   try {
-    instance.pragma('journal_mode = WAL')
-    instance.pragma('foreign_keys = ON')
-    runMigrations(instance, migrationsDir)
-    return instance
+    instance.pragma('journal_mode = WAL') // เปิดการทำงาน อ่าน เขียน ของ sqlite (Write Ahead Logging)
+    instance.pragma('foreign_keys = ON') // เปิด foreing key sqlite
+    runMigrations(instance, migrationsDir) // Run migration ที่สร้างไว้ เพื่อให้ database มีข้อมูลพร้อมกับการใช้งาน
+    return instance 
   } catch (error) {
     instance.close()
     throw error
   }
 }
 
+// ขั้นแรกทำงานตรงนี้ 1
 export function getDatabase() {
   if (db) return db
   db = openDatabase(resolveDbPath())
@@ -38,6 +42,7 @@ export function getDatabase() {
 }
 
 // ใช้ตอนกู้คืน — handler ต้องเรียก getDatabase() ใหม่ทุกครั้ง ห้ามเก็บ instance ไว้
+// dormy.sqlite -> ปิด DB -> เอา Backup DB มาแทน -> เปฺิด DB ใหม่
 export function closeDatabase() {
   if (!db) return
   db.close()

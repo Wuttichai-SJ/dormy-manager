@@ -1,6 +1,6 @@
 // ออฟไลน์ล้วน — ลืมรหัสผ่านใช้รหัสสำรองแทน OTP
-import crypto from 'crypto'
-import bcrypt from 'bcryptjs'
+import crypto from 'crypto' // ตัวสุ่มข้อมูล
+import bcrypt from 'bcryptjs' // hash ข้อมูล
 import {
   PASSWORD_MIN_LENGTH,
   assertIdentifiersFree,
@@ -29,18 +29,19 @@ const CODE_GROUP = 4
 
 // ตั๋วชั่วคราวอยู่ในหน่วยความจำ main เท่านั้น
 const resetTickets = new Map()
-const TICKET_TTL_MS = 10 * 60 * 1000
+const TICKET_TTL_MS = 10 * 60 * 1000 // 10 นาที = 600,000 milisecond
 
 export function generateRecoveryCode() {
   // ต้องใช้ CSPRNG
   let raw = ''
   for (let i = 0; i < CODE_LENGTH; i += 1) {
-    raw += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)]
+    raw += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)] // สุ่ม code_alphabet
   }
-  return raw.match(new RegExp(`.{1,${CODE_GROUP}}`, 'g')).join('-')
+  return raw.match(new RegExp(`.{1,${CODE_GROUP}}`, 'g')).join('-') // หั่นข้อความทีละ 4 ตัว เชื่อมกับ -
+  // .match return เป็น Array ตามเงื่อนไข RegEx
 }
 
-export function normalizeRecoveryCode(input) {
+export function normalizeRecoveryCode(input) { // จัดรูปแบบ code ให้เป็น มาตรฐาน
   const cleaned = String(input ?? '')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
@@ -48,19 +49,20 @@ export function normalizeRecoveryCode(input) {
   return cleaned.match(new RegExp(`.{1,${CODE_GROUP}}`, 'g')).join('-')
 }
 
-export function hashSecret(secret) {
+export function hashSecret(secret) { // hash pasaword
   return bcrypt.hashSync(String(secret), BCRYPT_COST)
 }
 
-export function verifySecret(secret, hash) {
+export function verifySecret(secret, hash) { // เทียบรหัสกรอกกับ hash ว่าตรงไหม
   if (!hash) return false
   return bcrypt.compareSync(String(secret), hash)
 }
 
-export function isInitialized(db) {
+export function isInitialized(db) { // CHECK ว่า db มี user แล้วยัง
   return countUsers(db) > 0
 }
 
+// สร้าง owner คนแรก
 export function setupFirstUser(db, { fullName, phone, email, password }) {
   if (isInitialized(db)) {
     throw new Error('ระบบมีบัญชีผู้ใช้อยู่แล้ว ไม่สามารถสร้างบัญชีแรกซ้ำได้')
@@ -68,8 +70,8 @@ export function setupFirstUser(db, { fullName, phone, email, password }) {
 
   throwIfFieldErrors(validateUserFields({ fullName, phone, email, password }))
 
-  const recoveryCode = generateRecoveryCode()
-  const user = insertUser(db, {
+  const recoveryCode = generateRecoveryCode() // สร้าง recoverycode 16 ตัว
+  const user = insertUser(db, { // เก็บข้อมูลลง Database
     fullName,
     phone,
     email,
@@ -82,10 +84,11 @@ export function setupFirstUser(db, { fullName, phone, email, password }) {
   return { user: toPublicUser(user), recoveryCode }
 }
 
+// function สร้างพนักงานช่วย
 export function createUser(db, { fullName, phone, email, password, role }) {
-  throwIfFieldErrors(validateUserFields({ fullName, phone, email, password }))
-  validateRole(role)
-  assertIdentifiersFree(db, { phone, email })
+  throwIfFieldErrors(validateUserFields({ fullName, phone, email, password })) // check ข้อมูล
+  validateRole(role) // check role
+  assertIdentifiersFree(db, { phone, email }) // check phone mail ว่าซ้ำไหม
 
   // เจ้าของได้รหัสสำรอง พนักงานไม่ได้ (เจ้าของรีเซ็ตให้)
   const recoveryCode = role === 'owner' ? generateRecoveryCode() : null
@@ -101,6 +104,7 @@ export function createUser(db, { fullName, phone, email, password, role }) {
   return { user: toPublicUser(user), recoveryCode }
 }
 
+// update user พนักงาน
 export function updateUser(db, userId, { fullName, phone, email, role }) {
   const current = getUserById(db, userId)
   if (!current) throw new Error('ไม่พบบัญชีผู้ใช้')
@@ -122,6 +126,7 @@ export function updateUser(db, userId, { fullName, phone, email, role }) {
   return { user: toPublicUser(getUserById(db, updated.user_id)), recoveryCode }
 }
 
+// เปิด / ปิด บัญชี
 export function setUserActiveState(db, { userId, isActive }) {
   assertOwnerRemains(db, userId, { isActive })
   return toPublicUser(setUserActive(db, userId, isActive))
@@ -147,6 +152,7 @@ export function resetUserPassword(db, { userId, newPassword, actorUserId }) {
   return toPublicUser(getUserById(db, userId))
 }
 
+// user เปลี่ยน password ตัวเอง
 export function changeOwnPassword(db, { userId, currentPassword, newPassword }) {
   const row = getUserById(db, userId)
   if (!row) throw new Error('ไม่พบบัญชีผู้ใช้')
@@ -204,12 +210,13 @@ export function resetPasswordWithTicket(db, { ticket, newPassword }) {
     hashSecret(newPassword),
     hashSecret(nextCode)
   )
+  // ใช้เสร็จลบ ticket ทิ้ง
   resetTickets.delete(ticket)
 
   return { user: toPublicUser(user), recoveryCode: nextCode }
 }
 
-// ต้องยืนยันรหัสผ่านก่อนออกรหัสสำรองใหม่
+// ต้องยืนยันรหัสผ่านก่อนออกรหัสสำรองใหม่ ----- User ยังจำ Password ได้ แต่ต้องการออก Recovery Code ใหม่
 export function regenerateRecoveryCode(db, { userId, password }) {
   const row = getUserById(db, userId)
   if (!row) throw new Error('ไม่พบบัญชีผู้ใช้')
