@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, Menu, dialog } from 'electron'
 import path from 'path'
 import { getDatabase } from './database.js'
 import { logInfo, logError, getLogPath } from './logger.js'
@@ -162,8 +162,6 @@ app.whenReady().then(() => {
     app.quit()
     return
   }
-
-  ipcMain.handle('app:ping', () => ({ success: true, data: 'pong' }))
 
   // ลงทะเบียน handler ให้ครบก่อนสร้างหน้าต่าง
   registerAuthHandlers()

@@ -5,7 +5,6 @@ import { requireSessionUserId } from './authHandlers.js'
 import {
   createContract,
   getActiveContractByRoom,
-  getContractById,
   listContractsByRoom,
   listRoomsForApartment,
   validateContractInput
@@ -38,12 +37,6 @@ export function registerContractHandlers() {
     active: getActiveContractByRoom(getDatabase(), roomId),
     history: listContractsByRoom(getDatabase(), roomId)
   }))
-
-  handleSession('contract:get', ({ contractId }) => {
-    const contract = getContractById(getDatabase(), contractId)
-    if (!contract) throw new Error('ไม่พบสัญญาที่ต้องการ')
-    return contract
-  })
 
   handle('contract:create', (payload) => {
     const errors = validateContractInput(payload)

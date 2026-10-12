@@ -4,8 +4,6 @@ import { toCents } from '../money.js'
 import { createContract, RENT_TYPES } from './contracts.js'
 import { nextDocumentNumber } from './invoices.js'
 
-export const BOOKING_STATUSES = ['pending', 'confirmed', 'converted_to_contract', 'cancelled']
-
 export const BOOKING_STATUS_LABELS = {
   pending: 'รอยืนยัน',
   confirmed: 'ยืนยันแล้ว',

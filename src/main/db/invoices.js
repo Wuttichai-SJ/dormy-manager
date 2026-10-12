@@ -12,8 +12,6 @@ export const INVOICE_STATUS_LABELS = {
   cancelled: 'ยกเลิก'
 }
 
-export const INVOICE_TYPES = ['monthly', 'general']
-
 export const ITEM_TYPES = [
   'rent',
   'water',

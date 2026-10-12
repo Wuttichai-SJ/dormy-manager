@@ -3,11 +3,6 @@ import { FieldError } from '../fieldError.js'
 
 export const METER_SIDES = ['water', 'electric']
 
-export const METER_SIDE_LABELS = {
-  water: 'ค่าน้ำ',
-  electric: 'ค่าไฟ'
-}
-
 const SIDE_COLUMNS = {
   water: {
     previous: 'water_previous_reading',

@@ -226,7 +226,3 @@ export function regenerateRecoveryCode(db, { userId, password }) {
   updateRecoveryCodeHash(db, userId, hashSecret(nextCode))
   return { recoveryCode: nextCode }
 }
-
-export function clearResetTickets() {
-  resetTickets.clear()
-}

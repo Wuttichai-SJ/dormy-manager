@@ -126,8 +126,3 @@ export function formatPhone(digits) {
   if (digits?.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
   return digits
 }
-
-export function formatIdCard(digits) {
-  if (digits?.length !== 13) return digits
-  return `${digits[0]}-${digits.slice(1, 5)}-${digits.slice(5, 10)}-${digits.slice(10, 12)}-${digits[12]}`
-}

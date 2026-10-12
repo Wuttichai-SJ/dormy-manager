@@ -4,14 +4,7 @@ import { nextDocumentNumber } from './invoices.js'
 import { getDepositStatus, recordContractPayment } from './payments.js'
 
 export const RENT_TYPES = ['monthly', 'daily']
-export const CONTRACT_STATUSES = ['active', 'terminated']
 export const DEPOSIT_PAYMENT_METHODS = ['cash', 'transfer', 'other']
-
-export const DEPOSIT_PAYMENT_METHOD_LABELS = {
-  cash: 'เงินสด',
-  transfer: 'โอนเงิน',
-  other: 'อื่นๆ'
-}
 
 // ค่าเช่าเดือนแรก: เข้าวันที่ 1-3 คิดเต็มเดือน · หลังจากนั้น ค่าเช่า ÷ 30 × วันที่อยู่ ปัดเป็นบาทเต็ม (50 สตางค์ขึ้น)
 

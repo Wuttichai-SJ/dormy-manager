@@ -221,18 +221,6 @@ export function listFloors(db, apartmentId) {
   }))
 }
 
-export function getRoomById(db, roomId) {
-  const row = db
-    .prepare(
-      `SELECT r.*, rt.name AS room_type_name
-         FROM rooms r
-         LEFT JOIN room_types rt ON rt.room_type_id = r.room_type_id
-        WHERE r.room_id = ?`
-    )
-    .get(roomId)
-  return row ? toPublicRoom(row) : null
-}
-
 export function countRooms(db, apartmentId) {
   return db
     .prepare(

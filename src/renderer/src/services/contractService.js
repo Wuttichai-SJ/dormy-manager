@@ -8,10 +8,6 @@ export function getContractsForRoom(roomId) {
   return invoke('contract:forRoom', { roomId })
 }
 
-export function getContract(contractId) {
-  return invoke('contract:get', { contractId })
-}
-
 export function createContract(payload) {
   return invoke('contract:create', payload)
 }

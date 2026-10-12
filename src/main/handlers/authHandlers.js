@@ -20,7 +20,7 @@ export function clearSession() {
   session = null
 }
 
-// ทุกช่อง handleSession() ต้องล็อกอินก่อน — ยกเว้น auth:* และ app:ping
+// ทุกช่อง handleSession() ต้องล็อกอินก่อน — ยกเว้น auth:*
 export function requireSessionUserId() {
   if (!session) throw new Error('ยังไม่ได้เข้าสู่ระบบ')
   return session.userId
