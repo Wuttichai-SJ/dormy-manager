@@ -27,7 +27,7 @@ export function normalizePhone(phone) {
 
 // อีเมลว่าง = NULL (unique index ยอมให้ NULL ซ้ำ)
 export function normalizeEmail(email) {
-  const trimmed = String(email ?? '').trim()
+  const trimmed = String(email ?? '').trim().toLowerCase()
   return trimmed === '' ? null : trimmed
 }
 
