@@ -13,20 +13,41 @@ import { revealPdf, savePdf } from '../services/printService.js'
 import { completeTermination, getTerminationSheet } from '../services/terminationService.js'
 
 // หน้าสรุปย้ายออก — มีกล่อง "ผลการตัดสิน" ตามกฎเงินประกันของหอ
+const OTHER_CATEGORY = 'อื่น ๆ'
+
+// ค่าน้ำ-ค่าไฟไม่อยู่ในนี้ — คิดจากมิเตอร์ที่ FinalMeterCard
 const ITEM_TABS = [
-  { key: 'service', label: 'ค่าบริการ', hint: null },
   {
-    key: 'meter',
-    label: 'ค่ามิเตอร์',
-    hint: 'ค่าน้ำ-ค่าไฟงวดสุดท้ายที่ยังไม่ได้ออกบิล'
+    key: 'service',
+    label: 'ค่าเสียหาย / ค่าปรับ',
+    hint: 'หักจากเงินประกัน ส่วนที่เกินเงินประกันผู้เช่าจ่ายเพิ่ม',
+    categories: [
+      'ค่าทำความสะอาด',
+      'ค่าซ่อมแซม / ของเสียหาย',
+      'กุญแจ / คีย์การ์ดหาย',
+      'ค่าปรับ',
+      OTHER_CATEGORY
+    ]
   },
-  { key: 'discount_refund', label: 'ส่วนลด / คืนเงิน', hint: 'กรอกเป็นจำนวนบวก ระบบบวกคืนให้เอง' }
+  {
+    key: 'discount_refund',
+    label: 'คืนเงิน / ส่วนลด',
+    hint: 'กรอกเป็นจำนวนบวก ระบบบวกคืนให้เอง',
+    categories: ['คืนค่าเช่าล่วงหน้า', 'ส่วนลดพิเศษ', OTHER_CATEGORY]
+  }
 ]
+
+const EMPTY_FINAL_READINGS = {
+  water: { current: '', isOverCycle: false, include: false },
+  electric: { current: '', isOverCycle: false, include: false }
+}
 
 export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }) {
   const [confirmDialog, ask] = useConfirm()
   const [moveOutDate, setMoveOutDate] = useState(todayIso())
   const [adjustments, setAdjustments] = useState([])
+  // เลขมิเตอร์วันย้ายออก — ยอดเงินคิดที่ main
+  const [finalReadings, setFinalReadings] = useState(EMPTY_FINAL_READINGS)
   const [sheet, setSheet] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -49,18 +70,19 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
   // คำนวณล่าสุดไม่ผ่าน = ล็อกปุ่มพิมพ์/ยืนยันจนกว่าจะคำนวณผ่าน
   const [sheetError, setSheetError] = useState('')
 
-  // ดึงใหม่เมื่อวันที่ออก รายการ หรือการข้ามกฎเปลี่ยน — ไม่คำนวณเองที่หน้าจอ
+  // ดึงใหม่เมื่อวันที่ออก รายการ เลขมิเตอร์ หรือการข้ามกฎเปลี่ยน — ไม่คำนวณเองที่หน้าจอ
   const load = useCallback(async () => {
     const res = await getTerminationSheet({
       contractId: contract.contractId,
       moveOutDate,
       adjustments,
-      overrideRefundable: override
+      overrideRefundable: override,
+      finalReadings
     })
     if (!res.success) return setSheetError(res.error)
     setSheetError('')
     setSheet(res.data)
-  }, [contract.contractId, moveOutDate, adjustments, override])
+  }, [contract.contractId, moveOutDate, adjustments, override, finalReadings])
 
   useEffect(() => {
     load()
@@ -75,6 +97,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
       adjustments,
       overrideRefundable: override,
       overrideReason,
+      finalReadings,
       allowOutstanding,
       outstandingReason,
       collectShortfall,
@@ -135,6 +158,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
   const canConfirm =
     sheet &&
     !stale &&
+    !sheet.meterError &&
     !(needsReason && overrideReason.trim() === '') &&
     !(sheet.hasOutstanding && !allowOutstanding) &&
     !(sheet.hasOutstanding && allowOutstanding && outstandingReason.trim() === '')
@@ -233,6 +257,14 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
             onOverrideReason={setOverrideReason}
           />
 
+          <FinalMeterCard
+            meter={sheet.meter}
+            readings={finalReadings}
+            onChange={(side, patch) =>
+              setFinalReadings((all) => ({ ...all, [side]: { ...all[side], ...patch } }))
+            }
+          />
+
           {/* แสดงจาก adjustments ที่ผู้ใช้เพิ่ม ไม่ใช่จากผลคำนวณ (ลบได้เสมอ) */}
           <AdjustmentsCard
             items={adjustments}
@@ -255,7 +287,7 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
               เงินประกัน {formatBaht(sheet.depositReceivedCents)} − ค่าเสียหาย{' '}
               {formatBaht(sheet.damageTotalCents)}
               {sheet.forfeitedCents > 0 && ` − ริบ ${formatBaht(sheet.forfeitedCents)}`}
-              {sheet.meterTotalCents > 0 && ` − ค่ามิเตอร์ ${formatBaht(sheet.meterTotalCents)}`}
+              {sheet.meterTotalCents > 0 && ` − ค่าน้ำ-ค่าไฟ ${formatBaht(sheet.meterTotalCents)}`}
               {sheet.refundItemsTotalCents > 0 &&
                 ` + คืนให้ผู้เช่า ${formatBaht(sheet.refundItemsTotalCents)}`}
             </p>
@@ -327,6 +359,9 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
             </div>
             {stale && (
               <p className="field-hint">ตัวเลขยังไม่อัปเดต — แก้ข้อที่ผิดก่อนจึงจะพิมพ์หรือยืนยันได้</p>
+            )}
+            {sheet.meterError && (
+              <p className="field-hint">ต้องแก้เลขมิเตอร์วันย้ายออกให้ถูกก่อนจึงจะยืนยันได้</p>
             )}
             {needsReason && overrideReason.trim() === '' && (
               <p className="field-hint">ต้องกรอกเหตุผลที่ตัดสินต่างจากกฎก่อนจึงจะยืนยันได้</p>
@@ -422,25 +457,161 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
   )
 }
 
+// เลขครั้งก่อนและเรตมาจากห้อง — กรอกแค่เลขวันย้ายออก (ห้องเหมาจ่ายเลือกว่าจะเก็บหรือไม่)
+function FinalMeterCard({ meter, readings, onChange }) {
+  if (meter.sides.length === 0) return null
+
+  return (
+    <section className="panel">
+      <h3 className="panel-title">ค่าน้ำ-ค่าไฟงวดสุดท้าย</h3>
+
+      <table className="data-table move-out-meter">
+        <thead>
+          <tr>
+            <th>รายการ</th>
+            <th className="align-right">เลขครั้งก่อน</th>
+            <th>เลขวันย้ายออก</th>
+            <th className="align-right">หน่วยที่ใช้</th>
+            <th className="align-right">ยอดเงิน</th>
+          </tr>
+        </thead>
+        <tbody>
+          {meter.sides.map((side) => (
+            <FinalMeterRow
+              key={side.side}
+              side={side}
+              reading={readings[side.side]}
+              onChange={(patch) => onChange(side.side, patch)}
+            />
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
+function FinalMeterRow({ side, reading, onChange }) {
+  const isFlat = side.billingType === 'flat'
+  const inputId = `finalMeter-${side.side}`
+  // เลขน้อยกว่าครั้งก่อน = อาจเกินรอบมิเตอร์ จึงค่อยแสดงตัวเลือก
+  const typed = Number(String(reading.current).replace(/,/g, ''))
+  const showOverCycle =
+    reading.isOverCycle ||
+    (reading.current.trim() !== '' && Number.isFinite(typed) && typed < side.previousReading)
+
+  return (
+    <tr>
+      <td>
+        {side.label}
+        <p className="field-hint">{rateText(side)}</p>
+        {side.isUnpriced && <p className="field-hint negative">ห้องนี้ยังไม่ได้ตั้งราคา</p>}
+        {side.unbilledBatchDate && (
+          <p className="field-hint negative">
+            รอบจด {side.unbilledBatchDate} ยังไม่ได้ออกบิล — ออกบิลรอบนั้นก่อน
+          </p>
+        )}
+      </td>
+      <td className="align-right">
+        {isFlat ? (
+          '-'
+        ) : (
+          <>
+            {side.previousReading}
+            <p className="field-hint">
+              {side.previousSource === 'batch'
+                ? `จดเมื่อ ${side.previousDate}`
+                : `เลขวันเข้าพัก ${side.previousDate}`}
+            </p>
+          </>
+        )}
+      </td>
+      <td>
+        {isFlat ? (
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={reading.include}
+              onChange={(e) => onChange({ include: e.target.checked })}
+            />
+            <span>เก็บงวดสุดท้าย</span>
+          </label>
+        ) : (
+          <div className={fieldClass('field', side.error)}>
+            <input
+              id={inputId}
+              inputMode="decimal"
+              aria-label={`เลขมิเตอร์${side.label}วันย้ายออก`}
+              value={reading.current}
+              onChange={(e) => onChange({ current: e.target.value })}
+              {...invalidProps(inputId, side.error)}
+            />
+            <FieldError id={`${inputId}-error`} message={side.error} />
+            {showOverCycle && (
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={reading.isOverCycle}
+                  onChange={(e) => onChange({ isOverCycle: e.target.checked })}
+                />
+                <span>เกินรอบมิเตอร์</span>
+              </label>
+            )}
+          </div>
+        )}
+      </td>
+      <td className="align-right">{side.unitsUsed ?? '-'}</td>
+      <td className="align-right">
+        {side.isCharged ? formatBaht(side.totalCents) : '-'}
+        {side.isCharged && side.isMinimumApplied && (
+          <p className="field-hint">คิดขั้นต่ำ {formatBaht(side.minChargeCents)} บาท</p>
+        )}
+        {side.isCharged && side.vatCents > 0 && (
+          <p className="field-hint">รวม VAT {formatBaht(side.vatCents)}</p>
+        )}
+      </td>
+    </tr>
+  )
+}
+
+function rateText(side) {
+  if (side.billingType === 'flat') return `เหมาจ่าย ${formatBaht(side.flatRateCents)} บาท/เดือน`
+  const perUnit = `${formatBaht(side.unitPriceCents)} บาท/หน่วย`
+  return side.billingType === 'minimum'
+    ? `${perUnit} · ขั้นต่ำ ${formatBaht(side.minChargeCents)} บาท`
+    : perUnit
+}
+
 // ยังไม่ส่งไป main จนกว่าจะยืนยัน — ตรวจที่หน้าจอ · amount เป็นข้อความบาท
 function AdjustmentsCard({ items, onAdd, onRemove }) {
   const [confirmDialog, ask] = useConfirm()
   const [tab, setTab] = useState(ITEM_TABS[0])
-  const [description, setDescription] = useState('')
+  const [category, setCategory] = useState(ITEM_TABS[0].categories[0])
+  const [detail, setDetail] = useState('')
   const [amount, setAmount] = useState('')
   const { errors, fromResult, clear, reset } = useFormErrors(['description', 'amount'])
+
+  function selectTab(next) {
+    reset()
+    setTab(next)
+    setCategory(next.categories[0])
+  }
 
   function add() {
     reset()
     const fields = {}
-    if (!description.trim()) fields.description = 'กรุณาระบุชื่อรายการ'
+    const note = detail.trim()
+    if (category === OTHER_CATEGORY && !note) fields.description = 'กรุณาระบุรายละเอียด'
     // กติกาเดียวกับ toCents ฝั่ง main
     const cents = bahtInputToCents(amount)
     if (cents === null) fields.amount = 'จำนวนเงินต้องเป็นตัวเลขไม่ติดลบ ทศนิยมไม่เกิน 2 ตำแหน่ง'
     else if (cents === 0) fields.amount = 'จำนวนเงินต้องมากกว่า 0'
     if (Object.keys(fields).length > 0) return fromResult({ fields })
+
+    // main เก็บเป็นชื่อรายการบรรทัดเดียว
+    const description =
+      category === OTHER_CATEGORY ? note : note ? `${category} — ${note}` : category
     onAdd({ itemType: tab.key, description, amount })
-    setDescription('')
+    setDetail('')
     setAmount('')
   }
 
@@ -495,7 +666,7 @@ function AdjustmentsCard({ items, onAdd, onRemove }) {
             key={t.key}
             type="button"
             className={'mode-tab' + (t.key === tab.key ? ' active' : '')}
-            onClick={() => setTab(t)}
+            onClick={() => selectTab(t)}
           >
             {t.label}
           </button>
@@ -505,13 +676,33 @@ function AdjustmentsCard({ items, onAdd, onRemove }) {
       {tab.hint && <p className="field-hint invoice-tab-hint">{tab.hint}</p>}
 
       <div className="field-row">
+        <div className="field">
+          <label htmlFor="adjustmentCategory">หมวด</label>
+          <select
+            id="adjustmentCategory"
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value)
+              clear('description')
+            }}
+          >
+            {tab.categories.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className={fieldClass('field', errors.description)}>
-          <label htmlFor="adjustmentName">ชื่อรายการ</label>
+          <label htmlFor="adjustmentName">
+            รายละเอียด{' '}
+            {category !== OTHER_CATEGORY && <span className="optional">(ไม่บังคับ)</span>}
+          </label>
           <input
             id="adjustmentName"
-            value={description}
+            value={detail}
             onChange={(e) => {
-              setDescription(e.target.value)
+              setDetail(e.target.value)
               clear('description')
             }}
             {...invalidProps('adjustmentName', errors.description)}

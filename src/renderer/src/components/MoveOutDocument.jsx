@@ -34,9 +34,9 @@ export default function MoveOutDocument({ termination, signedBy }) {
     subtotal: true
   })
 
-  // กลุ่ม 2 — ชำระแยก ไม่แตะเงินประกัน
+  // กลุ่ม 2 — ชำระแยก ไม่แตะเงินประกัน ('meter' = ใบเก่าที่กรอกยอดเอง)
   const chargeRows = t.items
-    .filter((i) => i.itemType === 'meter')
+    .filter((i) => ['meter', 'water', 'electricity'].includes(i.itemType))
     .map((item) => ({ label: item.description, amount: Math.abs(item.amountCents) }))
 
   // กลุ่ม 3 — หอต้องคืน แม้เงินประกันถูกริบ
