@@ -19,7 +19,7 @@ const DEPOSIT_METHODS = [
   { value: 'other', label: 'อื่นๆ' }
 ]
 
-export default function ContractWizard({ apartment, room, rentType, booking, onCancel, onDone }) {
+export default function ContractWizard({ apartment, room, booking, onCancel, onDone }) {
   const [confirmDialog, ask] = useConfirm()
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
@@ -29,13 +29,11 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
   const [form, setForm] = useState({
     startDate: booking?.checkInDate ?? today(),
     endDate: booking?.checkOutDate ?? '',
-    rentAmount: centsToInput(
-      booking?.rentPriceCents ?? (rentType === 'daily' ? room.dailyRentCents : room.monthlyRentCents)
-    ),
+    rentAmount: centsToInput(booking?.rentPriceCents ?? room.monthlyRentCents),
     deposit: '',
     depositPaymentMethod: 'cash',
     // ระยะสัญญาใช้ตัดสินเงินประกันตอนย้ายออก (หอนี้ 12 เดือน)
-    termMonths: rentType === 'daily' ? '' : '12',
+    termMonths: '12',
     // ว่าง = เก็บครบวันนี้
     depositReceived: '',
     bookingFee: booking ? centsToInput(booking.bookingFeeCents) : '',
@@ -88,7 +86,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
 
     const payload = {
       roomId: room.roomId,
-      rentType,
+      rentType: 'monthly',
       ...form,
       endDate: form.endDate || null,
       bookingFee: form.bookingFee || '0',
@@ -123,7 +121,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
         {step === 0 && (
           <>
             <h3 className="panel-title">
-              สัญญา{rentType === 'monthly' ? 'รายเดือน' : 'รายวัน'} — ห้อง {room.roomNumber}
+              สัญญาเช่า — ห้อง {room.roomNumber}
             </h3>
 
             <div className="field-row">
@@ -143,7 +141,7 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               </div>
               <div className="field field-required">
                 <label htmlFor="rentAmount">
-                  ค่าเช่าต่อ{rentType === 'monthly' ? 'เดือน' : 'วัน'}{' '}
+                  ค่าเช่าต่อเดือน{' '}
                   <span className="required">* จำเป็น</span>
                 </label>
                 <div className="input-with-suffix">
@@ -153,25 +151,23 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
                     onChange={(e) => set('rentAmount', e.target.value)}
                     inputMode="decimal"
                   />
-                  <span className="input-suffix">บาท/{rentType === 'monthly' ? 'เดือน' : 'วัน'}</span>
+                  <span className="input-suffix">บาท/เดือน</span>
                 </div>
               </div>
 
-              {rentType === 'monthly' && (
-                <div className="field">
-                  <label htmlFor="termMonths">ระยะสัญญา</label>
-                  <select
-                    id="termMonths"
-                    value={form.termMonths}
-                    onChange={(e) => set('termMonths', e.target.value)}
-                  >
-                    <option value="12">12 เดือน (1 ปี)</option>
-                    <option value="6">6 เดือน</option>
-                    <option value="">ไม่กำหนดระยะ</option>
-                  </select>
-                  <p className="field-hint">ออกก่อนครบสัญญา = ริบเงินประกัน</p>
-                </div>
-              )}
+              <div className="field">
+                <label htmlFor="termMonths">ระยะสัญญา</label>
+                <select
+                  id="termMonths"
+                  value={form.termMonths}
+                  onChange={(e) => set('termMonths', e.target.value)}
+                >
+                  <option value="12">12 เดือน (1 ปี)</option>
+                  <option value="6">6 เดือน</option>
+                  <option value="">ไม่กำหนดระยะ</option>
+                </select>
+                <p className="field-hint">ออกก่อนครบสัญญา = ริบเงินประกัน</p>
+              </div>
             </div>
 
             <div className="field-row">
@@ -337,24 +333,20 @@ export default function ContractWizard({ apartment, room, rentType, booking, onC
               />
             </h3>
 
-            {rentType === 'monthly' ? (
-              <div className="contract-summary">
-                <div className="contract-summary-row">
-                  <span>ค่าเช่าต่อเดือน</span>
-                  <span>{formatBaht(rentCents)} บาท</span>
-                </div>
-                <div className="contract-summary-row">
-                  <span>วันที่เข้าพัก</span>
-                  <span>{form.startDate}</span>
-                </div>
-                <div className="contract-summary-row total">
-                  <span>ค่าเช่าล่วงหน้าที่ต้องเก็บ</span>
-                  <span>{formatBaht(advanceRentCents(rentCents, form.startDate))} บาท</span>
-                </div>
+            <div className="contract-summary">
+              <div className="contract-summary-row">
+                <span>ค่าเช่าต่อเดือน</span>
+                <span>{formatBaht(rentCents)} บาท</span>
               </div>
-            ) : (
-              <p className="muted">สัญญารายวันไม่มีค่าเช่าล่วงหน้า</p>
-            )}
+              <div className="contract-summary-row">
+                <span>วันที่เข้าพัก</span>
+                <span>{form.startDate}</span>
+              </div>
+              <div className="contract-summary-row total">
+                <span>ค่าเช่าล่วงหน้าที่ต้องเก็บ</span>
+                <span>{formatBaht(advanceRentCents(rentCents, form.startDate))} บาท</span>
+              </div>
+            </div>
 
           </>
         )}

@@ -325,8 +325,8 @@ function createRoomRow(db, { floorId, roomTypeId, roomNumber, defaults, now }) {
   const roomId = db
     .prepare(
       `INSERT INTO rooms (floor_id, room_type_id, room_number, is_active,
-                          monthly_rent_cents, daily_rent_cents, status, created_at)
-       VALUES (?, ?, ?, 1, 0, NULL, 'vacant', ?)`
+                          monthly_rent_cents, status, created_at)
+       VALUES (?, ?, ?, 1, 0, 'vacant', ?)`
     )
     .run(floorId, roomTypeId, roomNumber, now).lastInsertRowid
 
@@ -533,7 +533,7 @@ function assertRoomsBelongToSameApartment(db, roomIds) {
   return apartmentIds[0]
 }
 
-export function validateRoomRateInput({ monthlyRent, dailyRent }) {
+export function validateRoomRateInput({ monthlyRent }) {
   const errors = errorList()
 
   try {
@@ -542,30 +542,20 @@ export function validateRoomRateInput({ monthlyRent, dailyRent }) {
     errors.add('monthlyRent', err.message)
   }
 
-  if (String(dailyRent ?? '').trim() !== '') {
-    try {
-      toCents(dailyRent, 'ค่าเช่ารายวัน')
-    } catch (err) {
-      errors.add('dailyRent', err.message)
-    }
-  }
-
   return errors
 }
 
-export function setRoomRates(db, roomIds, { monthlyRent, dailyRent }) {
+export function setRoomRates(db, roomIds, { monthlyRent }) {
   const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
 
   const monthly = toCents(monthlyRent, 'ค่าเช่ารายเดือน')
-  // ว่าง = ไม่รับรายวัน (NULL ไม่ใช่ 0)
-  const daily = String(dailyRent ?? '').trim() === '' ? null : toCents(dailyRent, 'ค่าเช่ารายวัน')
 
   const stmt = db.prepare(
-    'UPDATE rooms SET monthly_rent_cents = ?, daily_rent_cents = ?, updated_at = ? WHERE room_id = ?'
+    'UPDATE rooms SET monthly_rent_cents = ?, updated_at = ? WHERE room_id = ?'
   )
   const now = new Date().toISOString()
   const run = db.transaction(() => {
-    for (const roomId of roomIds) stmt.run(monthly, daily, now, roomId)
+    for (const roomId of roomIds) stmt.run(monthly, now, roomId)
   })
   run()
 
@@ -670,7 +660,6 @@ export function toPublicRoom(row) {
     roomTypeName: row.room_type_name ?? null,
     isActive: row.is_active === 1,
     monthlyRentCents: row.monthly_rent_cents,
-    dailyRentCents: row.daily_rent_cents,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at

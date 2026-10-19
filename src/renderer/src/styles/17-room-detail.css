@@ -67,11 +67,6 @@
   border-color: #b9c5ee;
 }
 
-.contract-type-daily {
-  color: #b07a12;
-  border-color: var(--brand-strong);
-}
-
 .contract-type:hover {
   background: var(--bg);
 }

@@ -119,6 +119,15 @@ check('ต้องมีผู้เช่าอย่างน้อยหน�
   assert(errors.some((e) => e.includes('ผู้เช่าอย่างน้อย')), errors.join(', '))
 })
 
+check('ไม่รับสัญญารายวัน', () => {
+  const errors = contracts.validateContractInput({
+    ...BASE,
+    rentType: 'daily',
+    tenants: [somchai.tenantId]
+  })
+  assert(errors.some((e) => e.includes('เฉพาะสัญญารายเดือน')), errors.join(', '))
+})
+
 check('วันที่ออกก่อนวันที่เข้าพักไม่ได้', () => {
   const errors = contracts.validateContractInput({
     ...BASE,

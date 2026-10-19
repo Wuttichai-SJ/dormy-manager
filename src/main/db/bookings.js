@@ -18,7 +18,7 @@ export const PAYMENT_METHODS = ['cash', 'transfer', 'other']
 export function validateBookingInput(input) {
   const errors = errorList()
 
-  if (!RENT_TYPES.includes(input.rentType)) errors.add('rentType', 'ประเภทการเช่าต้องเป็นรายเดือนหรือรายวัน')
+  if (!RENT_TYPES.includes(input.rentType)) errors.add('rentType', 'ระบบรับเฉพาะการเช่ารายเดือน')
   if (!isDate(input.checkInDate)) errors.add('checkInDate', 'กรุณาระบุวันที่เข้าพัก')
   if (input.checkOutDate && !isDate(input.checkOutDate)) errors.add('checkOutDate', 'วันที่ออกไม่ถูกต้อง')
   if (isDate(input.checkInDate) && isDate(input.checkOutDate) && input.checkOutDate < input.checkInDate) {

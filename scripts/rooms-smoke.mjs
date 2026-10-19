@@ -532,7 +532,7 @@ const floor1Ids = bulkPlan[0].rooms.map((r) => r.roomId)
 const allIds = bulkPlan.flatMap((f) => f.rooms.map((r) => r.roomId))
 
 check('ตั้งค่าเช่าทีเดียวหลายห้องได้', () => {
-  const result = rooms.setRoomRates(db, floor1Ids, { monthlyRent: '3500', dailyRent: '' })
+  const result = rooms.setRoomRates(db, floor1Ids, { monthlyRent: '3500' })
   const updated = result[0].rooms
   assert(
     updated.every((r) => r.monthlyRentCents === 350000),
@@ -544,23 +544,10 @@ check('ตั้งค่าเช่าทีเดียวหลายห้�
   )
 })
 
-check('ค่าเช่ารายวันเว้นว่าง = NULL ไม่ใช่ 0', () => {
-  const room = rooms.listFloors(db, bulkApartment.apartmentId)[0].rooms[0]
-  assert(room.dailyRentCents === null, `ได้ ${room.dailyRentCents}`)
-})
-
-check('กรอกค่าเช่ารายวันแล้วเก็บเป็นสตางค์', () => {
-  const result = rooms.setRoomRates(db, floor1Ids, { monthlyRent: '3500', dailyRent: '450.50' })
-  assert(result[0].rooms[0].dailyRentCents === 45050, `ได้ ${result[0].rooms[0].dailyRentCents}`)
-})
-
-check('ค่าเช่ารายเดือนบังคับกรอก รายวันไม่บังคับ', () => {
-  assert(rooms.validateRoomRateInput({ monthlyRent: '', dailyRent: '' }).length === 1, 'ต้องบังคับรายเดือน')
-  assert(rooms.validateRoomRateInput({ monthlyRent: '3500', dailyRent: '' }).length === 0, 'รายวันไม่ควรบังคับ')
-  assert(
-    rooms.validateRoomRateInput({ monthlyRent: '3500', dailyRent: 'abc' }).length === 1,
-    'รายวันที่กรอกผิดต้องไม่ผ่าน'
-  )
+check('ค่าเช่ารายเดือนบังคับกรอก', () => {
+  assert(rooms.validateRoomRateInput({ monthlyRent: '' }).length === 1, 'ต้องบังคับรายเดือน')
+  assert(rooms.validateRoomRateInput({ monthlyRent: '3500' }).length === 0, 'กรอกถูกต้องต้องผ่าน')
+  assert(rooms.validateRoomRateInput({ monthlyRent: 'abc' }).length === 1, 'กรอกผิดต้องไม่ผ่าน')
 })
 
 check('ไม่เลือกห้องเลยต้องแจ้งเตือน', () => {

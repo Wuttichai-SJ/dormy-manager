@@ -202,7 +202,6 @@ export default function BookingsCard({ room, onConvert, onOpenBookingChange, add
 const BOOKING_FIELDS = [
   'customerName',
   'customerPhone',
-  'rentType',
   'checkInDate',
   'checkOutDate',
   'rentPrice',
@@ -264,21 +263,6 @@ function BookingDialog({ value, onChange, onClose, onSubmit, busy, form }) {
       <fieldset className="form-group">
         <legend>การเข้าพัก</legend>
         <div className="field-row">
-          <div className={fieldClass('field field-required', errors.rentType)}>
-            <label htmlFor="booking-rentType">
-              ประเภทการเช่า <span className="required">* จำเป็น</span>
-            </label>
-            <select
-              id="booking-rentType"
-              value={value.rentType}
-              onChange={(e) => set('rentType', e.target.value)}
-              {...inv('rentType')}
-            >
-              <option value="monthly">รายเดือน</option>
-              <option value="daily">รายวัน</option>
-            </select>
-            {err('rentType')}
-          </div>
           <div className={fieldClass('field field-required', errors.checkInDate)}>
             <label htmlFor="booking-checkInDate">
               วันที่เข้าพัก <span className="required">* จำเป็น</span>
