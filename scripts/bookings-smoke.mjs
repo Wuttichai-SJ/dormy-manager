@@ -56,6 +56,11 @@ check('วันที่ออกก่อนวันที่เข้าพ�
   assert(errors.some((e) => e.includes('ไม่ก่อนวันที่เข้าพัก')), errors.join(', '))
 })
 
+check('ไม่รับการจองรายวัน', () => {
+  const errors = bookings.validateBookingInput({ ...BASE, rentType: 'daily' })
+  assert(errors.some((e) => e.includes('เฉพาะการเช่ารายเดือน')), errors.join(', '))
+})
+
 check('วิธีชำระเงินจองต้องเป็นค่าที่รู้จัก', () => {
   const errors = bookings.validateBookingInput({ ...BASE, paymentMethod: 'promise' })
   assert(errors.some((e) => e.includes('วิธีชำระเงินจอง')), errors.join(', '))

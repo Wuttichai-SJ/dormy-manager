@@ -12,14 +12,13 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [tenant, setTenant] = useState('')
-  const [rentType, setRentType] = useState('')
 
   const load = useCallback(async () => {
-    const res = await listRoomsForApartment(apartment.apartmentId, { search, tenant, rentType })
+    const res = await listRoomsForApartment(apartment.apartmentId, { search, tenant })
     if (!res.success) return setError(res.error)
     setError('')
     setRooms(res.data)
-  }, [apartment.apartmentId, search, tenant, rentType])
+  }, [apartment.apartmentId, search, tenant])
 
   useEffect(() => {
     load()
@@ -67,11 +66,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
             aria-label="ค้นหาชื่อหรือเบอร์ของผู้เช่าหรือผู้จอง"
           />
         </div>
-        <select value={rentType} onChange={(e) => setRentType(e.target.value)} aria-label="ประเภทสัญญา">
-          <option value="">ทุกประเภทสัญญา</option>
-          <option value="monthly">รายเดือน</option>
-          <option value="daily">รายวัน</option>
-        </select>
       </div>
 
       <Alert>{error}</Alert>
@@ -81,9 +75,9 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
       ) : rooms.length === 0 ? (
         <section className="panel empty-state">
           <Icon name="rooms" />
-          <h2>{search || tenant || rentType ? 'ไม่พบห้องที่ค้นหา' : 'ยังไม่มีห้องพักในหอนี้'}</h2>
+          <h2>{search || tenant ? 'ไม่พบห้องที่ค้นหา' : 'ยังไม่มีห้องพักในหอนี้'}</h2>
           <p className="muted">
-            {search || tenant || rentType
+            {search || tenant
               ? 'ลองเปลี่ยนคำค้นหรือล้างตัวกรอง'
               : 'สร้างผังห้องได้ที่ ตั้งค่า → ผังห้อง'}
           </p>
@@ -95,7 +89,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
               <tr>
                 <th>ห้อง</th>
                 <th>ผู้เช่า</th>
-                <th>ประเภท</th>
                 <th className="align-right">ค่าเช่า</th>
                 <th>บริการเสริม</th>
                 <th className="align-right">จัดการ</th>
@@ -140,13 +133,6 @@ export default function RoomsPage({ apartment, onOpenRoom }) {
                     ) : (
                       <span className="muted">—</span>
                     )}
-                  </td>
-                  <td>
-                    {room.rentType
-                      ? room.rentType === 'monthly'
-                        ? 'รายเดือน'
-                        : 'รายวัน'
-                      : <span className="muted">—</span>}
                   </td>
                   <td className="align-right">
                     {/* ค่าเช่าของสัญญาจริง ไม่ใช่ราคาตั้งของห้อง */}

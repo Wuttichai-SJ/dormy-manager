@@ -87,10 +87,10 @@ export function registerRoomHandlers() {
     return result
   })
 
-  handleOwner('room:setRates', ({ roomIds, monthlyRent, dailyRent }) => {
-    throwIfErrors(validateRoomRateInput({ monthlyRent, dailyRent }))
+  handleOwner('room:setRates', ({ roomIds, monthlyRent }) => {
+    throwIfErrors(validateRoomRateInput({ monthlyRent }))
 
-    const result = setRoomRates(getDatabase(), roomIds, { monthlyRent, dailyRent })
+    const result = setRoomRates(getDatabase(), roomIds, { monthlyRent })
     logInfo(`ตั้งค่าห้อง ${roomIds.length} ห้อง`)
     return result
   })

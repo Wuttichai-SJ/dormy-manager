@@ -3,7 +3,7 @@ import { toCents } from '../money.js'
 import { nextDocumentNumber } from './invoices.js'
 import { getDepositStatus, recordContractPayment } from './payments.js'
 
-export const RENT_TYPES = ['monthly', 'daily']
+export const RENT_TYPES = ['monthly']
 export const DEPOSIT_PAYMENT_METHODS = ['cash', 'transfer', 'other']
 
 // ค่าเช่าเดือนแรก: เข้าวันที่ 1-3 คิดเต็มเดือน · หลังจากนั้น ค่าเช่า ÷ 30 × วันที่อยู่ ปัดเป็นบาทเต็ม (50 สตางค์ขึ้น)
@@ -32,7 +32,7 @@ export function validateContractInput(input) {
   const errors = []
   const { rentType, startDate, endDate, tenants } = input
 
-  if (!RENT_TYPES.includes(rentType)) errors.push('ประเภทสัญญาต้องเป็นรายเดือนหรือรายวัน')
+  if (!RENT_TYPES.includes(rentType)) errors.push('ระบบรับเฉพาะสัญญารายเดือน')
   if (!isDate(startDate)) errors.push('กรุณาระบุวันที่เข้าพัก')
   if (endDate && !isDate(endDate)) errors.push('วันที่ออกไม่ถูกต้อง')
   if (isDate(startDate) && isDate(endDate) && endDate < startDate) {
@@ -102,14 +102,14 @@ export function getActiveContractByRoom(db, roomId) {
   return row ? toPublicContract(db, row) : null
 }
 
-export function listRoomsForApartment(db, apartmentId, { search, tenant, rentType } = {}) {
+export function listRoomsForApartment(db, apartmentId, { search, tenant } = {}) {
   const rows = db
     .prepare(
       `SELECT
-         r.room_id, r.room_number, r.status, r.is_active, r.monthly_rent_cents, r.daily_rent_cents,
+         r.room_id, r.room_number, r.status, r.is_active, r.monthly_rent_cents,
          rt.name AS room_type_name,
          f.floor_name,
-         c.contract_id, c.rent_type, c.start_date, c.end_date, c.rent_amount_cents,
+         c.contract_id, c.start_date, c.end_date, c.rent_amount_cents,
          -- เงินประกันที่ยังเก็บไม่ครบ — คิดในคิวรีเดียวกันเพื่อไม่ให้ยิงทีละห้อง
          -- นับจากใบเสร็จที่ระบุว่าเป็นเงินประกัน (รวมเงินจองที่ออกใบให้ตอนทำสัญญา)
          c.deposit_amount_cents - COALESCE((
@@ -198,11 +198,9 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
       status: row.status,
       isActive: row.is_active === 1,
       monthlyRentCents: row.monthly_rent_cents,
-      dailyRentCents: row.daily_rent_cents,
       services: servicesByRoom.get(row.room_id) ?? [],
       serviceItems: serviceItemsByRoom.get(row.room_id) ?? [],
       contractId: row.contract_id ?? null,
-      rentType: row.rent_type ?? null,
       startDate: row.start_date ?? null,
       endDate: row.end_date ?? null,
       contractRentCents: row.rent_amount_cents ?? null,
@@ -227,7 +225,6 @@ export function listRoomsForApartment(db, apartmentId, { search, tenant, rentTyp
   const digits = (value) => String(value ?? '').replace(/\D/g, '')
   return rooms.filter((room) => {
     if (search && !room.roomNumber.includes(String(search).trim())) return false
-    if (rentType && room.rentType !== rentType) return false
     if (tenant) {
       const keyword = String(tenant).trim()
       const asDigits = digits(keyword)
@@ -316,8 +313,7 @@ export function createContract(db, input) {
       ? Math.max(0, depositCents - bookingFeeCents)
       : toCents(input.depositReceived, 'เงินประกันที่รับวันนี้')
 
-  const firstMonthRentCents =
-    input.rentType === 'monthly' ? calculateAdvanceRentCents(rentAmountCents, input.startDate) : 0
+  const firstMonthRentCents = calculateAdvanceRentCents(rentAmountCents, input.startDate)
 
   // เก็บเกินยอดที่ตกลงไม่ได้
   if (bookingFeeCents + depositReceivedCents > depositCents) {

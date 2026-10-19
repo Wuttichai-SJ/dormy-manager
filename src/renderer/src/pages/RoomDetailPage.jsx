@@ -22,7 +22,7 @@ import { setMoveOutNotice } from '../services/terminationService.js'
 export default function RoomDetailPage({ apartment, room, onBack, user }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const [creating, setCreating] = useState(null) /* 'monthly' | 'daily' | null */
+  const [creating, setCreating] = useState(false)
   const [converting, setConverting] = useState(null)
   // เพิ่มทีละหนึ่ง — BookingsCard เปิดหน้าต่างเพิ่มการจองเมื่อเลขเปลี่ยน
   const [bookingRequest, setBookingRequest] = useState(0)
@@ -47,14 +47,13 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
       <ContractWizard
         apartment={apartment}
         room={room}
-        rentType={converting ? converting.rentType : creating}
         booking={converting}
         onCancel={() => {
-          setCreating(null)
+          setCreating(false)
           setConverting(null)
         }}
         onDone={() => {
-          setCreating(null)
+          setCreating(false)
           setConverting(null)
           showToast('บันทึกข้อมูลสำเร็จ')
           load()
@@ -184,23 +183,15 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
                   </p>
                 ) : (
                   <>
-                    <p className="room-detail-empty">ห้องว่าง · เลือกประเภทสัญญา</p>
+                    <p className="room-detail-empty">ห้องว่าง</p>
                     <div className="contract-type-picker">
                       <button
                         type="button"
                         className="contract-type contract-type-monthly"
-                        onClick={() => setCreating('monthly')}
+                        onClick={() => setCreating(true)}
                       >
                         <Icon name="bookings" />
-                        <span>รายเดือน</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="contract-type contract-type-daily"
-                        onClick={() => setCreating('daily')}
-                      >
-                        <Icon name="meters" />
-                        <span>รายวัน</span>
+                        <span>ทำสัญญาเช่า</span>
                       </button>
                     </div>
                     <p className="room-booking-hint">

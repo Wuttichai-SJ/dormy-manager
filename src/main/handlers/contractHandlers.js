@@ -29,8 +29,8 @@ function handleSession(channel, fn) {
 }
 
 export function registerContractHandlers() {
-  handleSession('room:listForApartment', ({ apartmentId, search, tenant, rentType }) =>
-    listRoomsForApartment(getDatabase(), apartmentId, { search, tenant, rentType })
+  handleSession('room:listForApartment', ({ apartmentId, search, tenant }) =>
+    listRoomsForApartment(getDatabase(), apartmentId, { search, tenant })
   )
 
   handleSession('contract:forRoom', ({ roomId }) => ({

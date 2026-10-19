@@ -32,7 +32,7 @@ export default function RoomRatesPage({ apartment, only }) {
   const [catalogue, setCatalogue] = useState([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const dialogForm = useFormErrors(['monthlyRent', 'dailyRent'])
+  const dialogForm = useFormErrors(['monthlyRent'])
 
   const load = useCallback(async () => {
     const [floorRes, serviceRes] = await Promise.all([
@@ -239,10 +239,6 @@ function RoomCardDetail({ mode, room }) {
           <span>รายเดือน:</span>
           <span>{formatBaht(room.monthlyRentCents)} บาท</span>
         </span>
-        <span className="room-card-line">
-          <span>รายวัน:</span>
-          <span>{room.dailyRentCents === null ? 'ไม่รับ' : `${formatBaht(room.dailyRentCents)} บาท`}</span>
-        </span>
       </span>
     )
   }
@@ -266,7 +262,6 @@ function RoomCardDetail({ mode, room }) {
 
 function RateDialog({ onClose, onSubmit, busy, form }) {
   const [monthlyRent, setMonthlyRent] = useState('')
-  const [dailyRent, setDailyRent] = useState('')
   const { errors } = form
 
   return (
@@ -275,7 +270,7 @@ function RateDialog({ onClose, onSubmit, busy, form }) {
       busy={busy}
       error={form.formError}
       onClose={onClose}
-      onSubmit={() => onSubmit({ monthlyRent, dailyRent })}
+      onSubmit={() => onSubmit({ monthlyRent })}
     >
       <div className={fieldClass('field field-required', errors.monthlyRent)}>
         <label htmlFor="monthlyRent">
@@ -296,24 +291,6 @@ function RateDialog({ onClose, onSubmit, busy, form }) {
           <span className="input-suffix">บาท / เดือน</span>
         </div>
         <FieldError id="monthlyRent-error" message={errors.monthlyRent} />
-      </div>
-
-      <div className={fieldClass('field', errors.dailyRent)}>
-        <label htmlFor="dailyRent">ราคาค่าเช่ารายวัน</label>
-        <div className="input-with-suffix">
-          <input
-            id="dailyRent"
-            value={dailyRent}
-            onChange={(e) => {
-              setDailyRent(e.target.value)
-              form.clear('dailyRent')
-            }}
-            inputMode="decimal"
-            {...invalidProps('dailyRent', errors.dailyRent)}
-          />
-          <span className="input-suffix">บาท / วัน</span>
-        </div>
-        <FieldError id="dailyRent-error" message={errors.dailyRent} />
       </div>
     </Modal>
   )
