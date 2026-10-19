@@ -1,11 +1,12 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import { useConfirm } from '../components/ConfirmDialog.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
+import FieldError from '../components/FieldError.jsx'
 import { centsToInput, formatBaht } from '../format.js'
 import { FULL_MONTH_MOVE_IN_UNTIL_DAY, PRORATE_DAYS_PER_MONTH } from '../constants.js'
-import { EMPTY_TENANT } from '../components/TenantDialog.jsx'
+import { EMPTY_TENANT, formatPhone } from '../components/TenantDialog.jsx'
 import { createTenant, listTenants } from '../services/tenantService.js'
 import { createContract } from '../services/contractService.js'
 import { convertBookingToContract } from '../services/bookingService.js'
@@ -48,7 +49,29 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
     booking ? tenantFromBooking(booking) : { ...EMPTY_TENANT }
   ])
 
+  // เบอร์ (ตัวเลขล้วน) → ผู้เช่าในระบบที่ใช้เบอร์นี้ · null = ไม่มีใครใช้
+  const [phoneOwners, setPhoneOwners] = useState({})
+
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
+
+  async function checkPhone(phone) {
+    const digits = onlyDigits(phone)
+    if (digits.length < 9) return
+    const owner = await findPhoneOwner(digits)
+    setPhoneOwners((map) => ({ ...map, [digits]: owner }))
+  }
+
+  // มาจากใบจอง = เบอร์กรอกมาแล้ว เช็กเลยไม่ต้องรอออกจากช่อง
+  useEffect(() => {
+    if (booking) checkPhone(booking.customerPhone)
+  }, [])
+
+  // index ของคนก่อนหน้าในสัญญานี้ที่ใช้เบอร์เดียวกัน · -1 = ไม่ซ้ำ
+  const duplicateOf = (index) => {
+    const digits = onlyDigits(tenants[index].phone)
+    if (digits.length < 9) return -1
+    return tenants.findIndex((t, i) => i < index && onlyDigits(t.phone) === digits)
+  }
 
   const depositCents = toCentsSafe(form.deposit)
   const bookingCents = toCentsSafe(form.bookingFee)
@@ -61,18 +84,58 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
 
   async function submit() {
     setError('')
+
+    const dupIndex = tenants.findIndex((_, i) => duplicateOf(i) >= 0)
+    if (dupIndex >= 0) {
+      return setError(`${tenantLabel(dupIndex)} ใช้เบอร์ซ้ำกับ${tenantLabel(duplicateOf(dupIndex))}`)
+    }
+
+    setBusy(true)
+    const owners = await Promise.all(tenants.map((person) => findPhoneOwner(person.phone)))
+    setPhoneOwners((map) => {
+      const next = { ...map }
+      tenants.forEach((person, i) => (next[onlyDigits(person.phone)] = owners[i]))
+      return next
+    })
+
+    const problem = await findOwnerProblem(tenants, owners)
+    if (problem) {
+      setBusy(false)
+      return setError(problem)
+    }
+
+    if (!owners.some(Boolean)) return save(owners)
+
+    // ปิดหน้าต่างโดยไม่ยืนยัน = ข้อความนี้ค้างไว้ให้กลับไปแก้เบอร์
+    setBusy(false)
+    setError('เบอร์ที่กรอกมีผู้เช่าในระบบใช้อยู่แล้ว · ถ้าเป็นคนละคน กรุณาใช้เบอร์อื่น')
+    ask({
+      tone: 'primary',
+      icon: 'tenants',
+      title: 'ใช้ข้อมูลผู้เช่าเดิม?',
+      message: tenants
+        .map((person, i) => owners[i] && reuseNote(person, owners[i]))
+        .filter(Boolean)
+        .join(' · '),
+      confirmLabel: 'ใช่ คนเดิม',
+      busyLabel: 'กำลังบันทึก...',
+      dismissLabel: 'ไม่ใช่',
+      onConfirm: async () => {
+        await save(owners)
+        return { success: true }
+      }
+    })
+  }
+
+  // owners[i] = ผู้เช่าเดิมที่ยืนยันแล้วว่าเป็นคนเดียวกัน · null = สร้างใหม่
+  async function save(owners) {
+    setError('')
     setBusy(true)
 
-    // ค้นด้วยเบอร์ก่อนสร้าง — เจอคนเดิมใช้ระเบียนเดิม
     const tenantIds = []
-    for (const person of tenants) {
-      const found = await listTenants(person.phone)
-      const existing = found.success
-        ? found.data.find((t) => t.phone === String(person.phone).replace(/\D/g, ''))
-        : null
-
-      if (existing) {
-        tenantIds.push(existing.tenantId)
+    for (const [i, person] of tenants.entries()) {
+      if (owners[i]) {
+        tenantIds.push(owners[i].tenantId)
         continue
       }
 
@@ -289,6 +352,9 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
                 key={index}
                 index={index}
                 value={person}
+                owner={phoneOwners[onlyDigits(person.phone)] ?? null}
+                duplicateOf={duplicateOf(index)}
+                onPhoneBlur={() => checkPhone(person.phone)}
                 canRemove={tenants.length > 1}
                 onChange={(next) =>
                   setTenants((list) => list.map((t, i) => (i === index ? next : t)))
@@ -405,13 +471,13 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
   )
 }
 
-function TenantFields({ index, value, onChange, onRemove, canRemove }) {
+function TenantFields({ index, value, owner, duplicateOf, onPhoneBlur, onChange, onRemove, canRemove }) {
   const set = (key, v) => onChange({ ...value, [key]: v })
 
   return (
     <div className="contract-tenant">
       <div className="contract-tenant-head">
-        <strong>{index === 0 ? 'ผู้เช่าหลัก' : `ผู้อยู่ร่วมคนที่ ${index}`}</strong>
+        <strong>{tenantLabel(index)}</strong>
         {canRemove && (
           <button type="button" className="link-btn link-danger" onClick={onRemove}>
             นำออก
@@ -442,8 +508,18 @@ function TenantFields({ index, value, onChange, onRemove, canRemove }) {
           <input
             value={value.phone}
             onChange={(e) => set('phone', e.target.value)}
+            onBlur={onPhoneBlur}
             inputMode="tel"
           />
+          {duplicateOf >= 0 ? (
+            <FieldError message={`เบอร์ซ้ำกับ${tenantLabel(duplicateOf)} ในสัญญานี้`} />
+          ) : owner && idCardMismatch(value, owner) ? (
+            <FieldError message={`เบอร์นี้เป็นของ ${owner.fullName} แต่เลขบัตรไม่ตรงกัน · กรุณาใช้เบอร์อื่น`} />
+          ) : owner ? (
+            <p className="field-hint field-hint-warn">
+              เบอร์นี้เป็นของ {owner.fullName} ({ownerStatus(owner)}) · ถ้าเป็นคนเดิม ระบบจะใช้ข้อมูลเดิม
+            </p>
+          ) : null}
         </div>
         <div className="field">
           <label>เลขบัตรประชาชน / พาสปอร์ต</label>
@@ -461,6 +537,56 @@ function TenantFields({ index, value, onChange, onRemove, canRemove }) {
       </div>
     </div>
   )
+}
+
+function tenantLabel(index) {
+  return index === 0 ? 'ผู้เช่าหลัก' : `ผู้อยู่ร่วมคนที่ ${index}`
+}
+
+function onlyDigits(value) {
+  return String(value ?? '').replace(/\D/g, '')
+}
+
+async function findPhoneOwner(phone) {
+  const digits = onlyDigits(phone)
+  if (digits.length < 9) return null
+  const res = await listTenants(digits)
+  return res.success ? (res.data.find((t) => t.phone === digits) ?? null) : null
+}
+
+// กรอกเลขบัตรมาแล้วไม่ตรงกับเจ้าของเบอร์ = คนละคนแน่นอน
+function idCardMismatch(person, owner) {
+  const typed = onlyDigits(person.idCardNo)
+  return Boolean(typed && owner.idCardNo && typed !== owner.idCardNo)
+}
+
+function ownerStatus(owner) {
+  return owner.activeContracts > 0 ? 'ยังมีสัญญาเช่าอยู่' : 'ผู้เช่าเก่า'
+}
+
+function reuseNote(person, owner) {
+  const typedName = `${person.firstName.trim()} ${person.lastName.trim()}`
+  const nameNote = typedName === owner.fullName ? '' : ` ชื่อที่กรอกไว้ "${typedName}" จะไม่ถูกใช้`
+  return `เบอร์ ${formatPhone(owner.phone)} เป็นของ "${owner.fullName}" (${ownerStatus(owner)}) สัญญานี้จะใช้ข้อมูลเดิมของคนนี้${nameNote}`
+}
+
+// ตรวจก่อนสร้างผู้เช่าคนแรก — กันสร้างไปครึ่งทางแล้วค้าง
+async function findOwnerProblem(tenants, owners) {
+  for (const [i, person] of tenants.entries()) {
+    const owner = owners[i]
+    if (owner && idCardMismatch(person, owner)) {
+      return `เบอร์ของ${tenantLabel(i)} เป็นของ "${owner.fullName}" แต่เลขบัตรไม่ตรงกัน · ถ้าเป็นคนละคน กรุณาใช้เบอร์อื่น`
+    }
+
+    const idCard = onlyDigits(person.idCardNo)
+    if (owner || !idCard) continue
+    const res = await listTenants(idCard)
+    const cardOwner = res.success ? res.data.find((t) => t.idCardNo === idCard) : null
+    if (cardOwner) {
+      return `เลขบัตรของ${tenantLabel(i)} เป็นของ "${cardOwner.fullName}" (เบอร์ ${formatPhone(cardOwner.phone)}) อยู่แล้ว · ถ้าเป็นคนเดิม ให้กรอกเบอร์นี้`
+    }
+  }
+  return null
 }
 
 function today() {
