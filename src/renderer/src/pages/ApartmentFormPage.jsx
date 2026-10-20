@@ -8,8 +8,6 @@ import { createApartment, getApartment, updateApartment } from '../services/apar
 const EMPTY = {
   nameTh: '',
   addressTh: '',
-  nameEn: '',
-  addressEn: '',
   phone: '',
   dueDateDay: '10',
   lateFeePerDay: '0.00',
@@ -51,8 +49,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
       setForm({
         nameTh: a.nameTh ?? '',
         addressTh: a.addressTh ?? '',
-        nameEn: a.nameEn ?? '',
-        addressEn: a.addressEn ?? '',
         phone: a.phone ?? '',
         dueDateDay: String(a.dueDateDay),
         lateFeePerDay: centsToInput(a.lateFeePerDayCents),
@@ -95,13 +91,13 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
       <section className="form-section">
         <div className="form-section-head">
           <h2>รายละเอียดหอพัก</h2>
-          <p>ชื่อและที่อยู่ จะถูกนำไปแสดงในใบแจ้งหนี้และใบเสร็จ</p>
+          <p>ชื่อ ที่อยู่ และเบอร์โทรศัพท์ จะถูกนำไปแสดงในใบแจ้งหนี้และใบเสร็จ</p>
         </div>
 
         <div className="form-section-body">
           <div className="field field-required">
             <label htmlFor="nameTh">
-              ชื่อ (ภาษาไทย) <Required />
+              ชื่อหอพัก <Required />
             </label>
             <input
               id="nameTh"
@@ -113,7 +109,7 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
 
           <div className="field field-required">
             <label htmlFor="addressTh">
-              ที่อยู่ (ภาษาไทย) <Required />
+              ที่อยู่ <Required />
             </label>
             <input
               id="addressTh"
@@ -122,34 +118,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             />
           </div>
 
-          <hr className="divider" />
-
-          <div className="field">
-            <label htmlFor="nameEn">ชื่อ (อังกฤษ)</label>
-            <input
-              id="nameEn"
-              value={form.nameEn}
-              onChange={(e) => set('nameEn', e.target.value)}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="addressEn">ที่อยู่ (อังกฤษ)</label>
-            <input
-              id="addressEn"
-              value={form.addressEn}
-              onChange={(e) => set('addressEn', e.target.value)}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="form-section">
-        <div className="form-section-head">
-          <h2>รายละเอียดอื่นๆ</h2>
-          <p>เบอร์โทรศัพท์สำหรับให้ผู้เช่าติดต่อ</p>
-        </div>
-        <div className="form-section-body">
           <div className="field">
             <label htmlFor="phone">เบอร์โทรศัพท์</label>
             <input

@@ -42,10 +42,10 @@ export function validateApartmentInput({ // ตรวจสอบข้อมู
 }) {
   const errors = [] // array เก็บ error ไว้
 
-  if (!String(nameTh ?? '').trim()) errors.push('กรุณากรอกชื่อหอพัก (ภาษาไทย)')
+  if (!String(nameTh ?? '').trim()) errors.push('กรุณากรอกชื่อหอพัก')
   else if (String(nameTh).trim().length > 255) errors.push('ชื่อหอพักยาวเกิน 255 ตัวอักษร')
 
-  if (!String(addressTh ?? '').trim()) errors.push('กรุณากรอกที่อยู่ (ภาษาไทย)')
+  if (!String(addressTh ?? '').trim()) errors.push('กรุณากรอกที่อยู่หอพัก')
 
   const day = Number(dueDateDay)
   if (!Number.isInteger(day) || day < 1 || day > MAX_DUE_DATE_DAY) { // IsInteger เช็คว่าเป็นจำนวนจริงไหม
@@ -123,9 +123,7 @@ function toRow(input) {
 
   return {
     nameTh: String(input.nameTh).trim(),
-    nameEn: optional(input.nameEn),
     addressTh: String(input.addressTh).trim(),
-    addressEn: optional(input.addressEn),
     phone: optional(input.phone),
     logoUrl: optional(input.logoUrl),
     dueDateDay: Number(input.dueDateDay),
@@ -190,12 +188,12 @@ export function insertApartment(db, input) {
   const result = db
     .prepare(
       `INSERT INTO apartments (
-         logo_url, name_th, name_en, address_th, address_en, phone,
+         logo_url, name_th, address_th, phone,
          late_fee_per_day_cents, is_auto_late_fee_enabled, late_fee_grace_days,
          due_date_day, is_vat_enabled, vat_rate, meter_digits,
          default_rent_item_text, display_order, created_at
        ) VALUES (
-         @logoUrl, @nameTh, @nameEn, @addressTh, @addressEn, @phone,
+         @logoUrl, @nameTh, @addressTh, @phone,
          @lateFeePerDayCents, @isAutoLateFeeEnabled, @lateFeeGraceDays,
          @dueDateDay, @isVatEnabled, @vatRate, @meterDigits,
          @rentItemText, @displayOrder, @now
@@ -215,9 +213,7 @@ export function updateApartment(db, apartmentId, input) {
       `UPDATE apartments SET
          logo_url = @logoUrl,
          name_th = @nameTh,
-         name_en = @nameEn,
          address_th = @addressTh,
-         address_en = @addressEn,
          phone = @phone,
          late_fee_per_day_cents = @lateFeePerDayCents,
          is_auto_late_fee_enabled = @isAutoLateFeeEnabled,
@@ -363,9 +359,7 @@ export function toPublicApartment(row) {
     apartmentId: row.apartment_id,
     logoUrl: row.logo_url,
     nameTh: row.name_th,
-    nameEn: row.name_en,
     addressTh: row.address_th,
-    addressEn: row.address_en,
     phone: row.phone,
     lateFeePerDayCents: row.late_fee_per_day_cents,
     isAutoLateFeeEnabled: row.is_auto_late_fee_enabled === 1,
