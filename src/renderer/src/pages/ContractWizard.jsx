@@ -40,6 +40,8 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
     bookingFee: booking ? centsToInput(booking.bookingFeeCents) : '',
     bookingReceiptNo: booking?.bookingNumber ?? '',
     note: booking?.note ?? '',
+    // อยู่มาก่อนเริ่มใช้ระบบ — ไม่เก็บค่าเช่าเดือนแรก ไม่มีเงินจอง
+    carriedOver: false,
     waterMeterStart: '',
     electricMeterStart: ''
   })
@@ -74,7 +76,7 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
   }
 
   const depositCents = toCentsSafe(form.deposit)
-  const bookingCents = toCentsSafe(form.bookingFee)
+  const bookingCents = form.carriedOver ? 0 : toCentsSafe(form.bookingFee)
   const rentCents = toCentsSafe(form.rentAmount)
 
   const dueToday = Math.max(depositCents - bookingCents, 0)
@@ -152,7 +154,8 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
       rentType: 'monthly',
       ...form,
       endDate: form.endDate || null,
-      bookingFee: form.bookingFee || '0',
+      bookingFee: form.carriedOver ? '0' : form.bookingFee || '0',
+      bookingReceiptNo: form.carriedOver ? '' : form.bookingReceiptNo,
       tenants: tenantIds
     }
 
@@ -186,6 +189,28 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
             <h3 className="panel-title">
               สัญญาเช่า — ห้อง {room.roomNumber}
             </h3>
+
+            {!booking && (
+              <div className="contract-carried-over">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={form.carriedOver}
+                    onChange={(e) => set('carriedOver', e.target.checked)}
+                  />
+                  <span>ผู้เช่าเดิม (อยู่ก่อนเริ่มใช้ระบบ)</span>
+                </label>
+                <InfoTip
+                  title="ผู้เช่าเดิม"
+                  points={[
+                    'วันที่เข้าพัก = วันที่เข้าอยู่จริง ย้อนหลังได้',
+                    'ไม่เก็บค่าเช่าเดือนแรก ไม่มีเงินจอง',
+                    'เงินประกัน กรอกยอดที่หอถือไว้แล้ว',
+                    'กรอกให้ครบก่อนออกบิลรอบแรกในระบบนี้'
+                  ]}
+                />
+              </div>
+            )}
 
             <div className="field-row">
               <div className="field field-required">
@@ -266,47 +291,53 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
               </div>
             </div>
 
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor="bookingFee">เงินจอง</label>
-                <div className="input-with-suffix">
+            {!form.carriedOver && (
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="bookingFee">เงินจอง</label>
+                  <div className="input-with-suffix">
+                    <input
+                      id="bookingFee"
+                      value={form.bookingFee}
+                      onChange={(e) => set('bookingFee', e.target.value)}
+                      inputMode="decimal"
+                    />
+                    <span className="input-suffix">บาท</span>
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="bookingReceiptNo">
+                    เลขที่ใบจอง
+                    <InfoTip
+                      title="เลขที่ใบจอง"
+                      points={
+                        booking
+                          ? ['ยกมาจากใบจองของผู้เช่ารายนี้ แก้ไม่ได้']
+                          : ['เว้นว่างได้ ระบบออกเลขให้เองเมื่อมีเงินจอง']
+                      }
+                    />
+                  </label>
                   <input
-                    id="bookingFee"
-                    value={form.bookingFee}
-                    onChange={(e) => set('bookingFee', e.target.value)}
-                    inputMode="decimal"
+                    id="bookingReceiptNo"
+                    value={form.bookingReceiptNo}
+                    onChange={(e) => set('bookingReceiptNo', e.target.value)}
+                    placeholder={booking ? '' : 'ระบบออกเลขให้อัตโนมัติ'}
+                    readOnly={Boolean(booking)}
                   />
-                  <span className="input-suffix">บาท</span>
                 </div>
               </div>
-              <div className="field">
-                <label htmlFor="bookingReceiptNo">
-                  เลขที่ใบจอง
-                  <InfoTip
-                    title="เลขที่ใบจอง"
-                    points={
-                      booking
-                        ? ['ยกมาจากใบจองของผู้เช่ารายนี้ แก้ไม่ได้']
-                        : ['เว้นว่างได้ ระบบออกเลขให้เองเมื่อมีเงินจอง']
-                    }
-                  />
-                </label>
-                <input
-                  id="bookingReceiptNo"
-                  value={form.bookingReceiptNo}
-                  onChange={(e) => set('bookingReceiptNo', e.target.value)}
-                  placeholder={booking ? '' : 'ระบบออกเลขให้อัตโนมัติ'}
-                  readOnly={Boolean(booking)}
-                />
-              </div>
-            </div>
+            )}
 
             <div className="field">
               <label htmlFor="depositReceived">
-                รับเงินประกันวันนี้
+                {form.carriedOver ? 'เงินประกันที่หอถือไว้แล้ว' : 'รับเงินประกันวันนี้'}
                 <InfoTip
-                  title="เก็บได้ไม่ครบ?"
-                  points={['กรอกยอดที่รับจริงวันนี้', 'ส่วนที่ขาดจะขึ้นเป็นยอดค้างที่หน้าห้อง']}
+                  title={form.carriedOver ? 'เงินประกันจากระบบเดิม' : 'เก็บได้ไม่ครบ?'}
+                  points={
+                    form.carriedOver
+                      ? ['ใช้คืนตอนย้ายออก', 'ส่วนที่ขาดจะขึ้นเป็นยอดค้างที่หน้าห้อง']
+                      : ['กรอกยอดที่รับจริงวันนี้', 'ส่วนที่ขาดจะขึ้นเป็นยอดค้างที่หน้าห้อง']
+                  }
                 />
               </label>
               <div className="input-with-suffix">
@@ -319,7 +350,9 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
                 />
                 <span className="input-suffix">บาท</span>
               </div>
-              <p className="field-hint">เว้นว่าง = เก็บครบ {formatBaht(dueToday)} บาท</p>
+              <p className="field-hint">
+                เว้นว่าง = {form.carriedOver ? 'ถือไว้ครบ' : 'เก็บครบ'} {formatBaht(dueToday)} บาท
+              </p>
             </div>
 
             <div className="contract-summary">
@@ -328,12 +361,14 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
                 <span>เงินประกัน</span>
                 <span>{formatBaht(depositCents)} บาท</span>
               </div>
-              <div className="contract-summary-row">
-                <span>เงินจอง</span>
-                <span className="negative">-{formatBaht(bookingCents)} บาท</span>
-              </div>
+              {!form.carriedOver && (
+                <div className="contract-summary-row">
+                  <span>เงินจอง</span>
+                  <span className="negative">-{formatBaht(bookingCents)} บาท</span>
+                </div>
+              )}
               <div className="contract-summary-row total">
-                <span>รวม (เก็บเพิ่ม)</span>
+                <span>{form.carriedOver ? 'รวม (ยกยอดจากระบบเดิม)' : 'รวม (เก็บเพิ่ม)'}</span>
                 <span>{formatBaht(dueToday)} บาท</span>
               </div>
               {depositShort > 0 && (
@@ -410,9 +445,12 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
               </div>
               <div className="contract-summary-row total">
                 <span>ค่าเช่าล่วงหน้าที่ต้องเก็บ</span>
-                <span>{formatBaht(advanceRentCents(rentCents, form.startDate))} บาท</span>
+                <span>
+                  {formatBaht(form.carriedOver ? 0 : advanceRentCents(rentCents, form.startDate))} บาท
+                </span>
               </div>
             </div>
+            {form.carriedOver && <p className="muted">ผู้เช่าเดิม จ่ายค่าเช่าในระบบเดิมแล้ว</p>}
 
           </>
         )}
@@ -420,10 +458,12 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
         {step === 2 && (
           <>
             <h3 className="panel-title">
-              เลขมิเตอร์วันเข้าพัก
+              {form.carriedOver ? 'เลขมิเตอร์วันเริ่มใช้ระบบ' : 'เลขมิเตอร์วันเข้าพัก'}
               <InfoTip title="เลขตั้งต้น" points={['ใช้คิดค่าน้ำ/ค่าไฟบิลแรกของสัญญานี้']} />
             </h3>
-            <p className="panel-subtitle">จดจากหน้าปัดจริงในวันเข้าพัก</p>
+            <p className="panel-subtitle">
+              {form.carriedOver ? 'จดจากหน้าปัดจริงวันนี้' : 'จดจากหน้าปัดจริงในวันเข้าพัก'}
+            </p>
 
             <div className="field-row">
               <div className="field field-required">

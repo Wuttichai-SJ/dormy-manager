@@ -78,6 +78,17 @@
   color: var(--warn);
 }
 
+.contract-carried-over {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.contract-carried-over .checkbox-row {
+  font-size: 14px;
+}
+
 .contract-tenant {
   margin-bottom: 20px;
   padding: 16px;

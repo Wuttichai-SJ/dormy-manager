@@ -38,6 +38,10 @@ export function validateContractInput(input) {
   if (isDate(startDate) && isDate(endDate) && endDate < startDate) {
     errors.push('วันที่ออกต้องไม่ก่อนวันที่เข้าพัก')
   }
+  // ผู้เช่าเดิม = อยู่มาก่อนเริ่มใช้ระบบ
+  if (input.carriedOver && isDate(startDate) && startDate > todayIso()) {
+    errors.push('ผู้เช่าเดิมต้องมีวันที่เข้าพักไม่เกินวันนี้')
+  }
 
   if (!DEPOSIT_PAYMENT_METHODS.includes(input.depositPaymentMethod)) {
     errors.push('กรุณาเลือกวิธีชำระเงินประกัน')
@@ -86,6 +90,12 @@ export function validateContractInput(input) {
 
 function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function todayIso() {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
 export function getContractById(db, contractId) {
@@ -249,6 +259,12 @@ export function listContractsByRoom(db, roomId) {
 }
 
 export function createContract(db, input) {
+  // ผู้เช่าเดิมย้ายมาจากระบบเก่า: ไม่มีเงินจอง ไม่เก็บค่าเช่าเดือนแรก
+  const carriedOver = input.carriedOver === true
+  if (carriedOver && input.fromBookingId) {
+    throw new Error('สัญญาจากใบจองบันทึกเป็นผู้เช่าเดิมไม่ได้')
+  }
+
   const roomId = Number(input.roomId)
   const room = db
     .prepare(
@@ -304,7 +320,7 @@ export function createContract(db, input) {
     )
     .get(room.apartment_id)
 
-  const bookingFeeCents = toCents(input.bookingFee ?? 0, 'เงินจอง')
+  const bookingFeeCents = carriedOver ? 0 : toCents(input.bookingFee ?? 0, 'เงินจอง')
   const depositCents = toCents(input.deposit, 'เงินประกัน')
 
   // ไม่ส่งมา = จ่ายครบวันนี้ · 0 = ยังไม่ได้เก็บ
@@ -313,7 +329,9 @@ export function createContract(db, input) {
       ? Math.max(0, depositCents - bookingFeeCents)
       : toCents(input.depositReceived, 'เงินประกันที่รับวันนี้')
 
-  const firstMonthRentCents = calculateAdvanceRentCents(rentAmountCents, input.startDate)
+  const firstMonthRentCents = carriedOver
+    ? 0
+    : calculateAdvanceRentCents(rentAmountCents, input.startDate)
 
   // เก็บเกินยอดที่ตกลงไม่ได้
   if (bookingFeeCents + depositReceivedCents > depositCents) {
@@ -325,7 +343,7 @@ export function createContract(db, input) {
 
   const run = db.transaction(() => {
     // เลขที่ใบจองยกมาจากใบจองเดิม ไม่มีก็ออกให้ใหม่
-    const givenReceiptNo = String(input.bookingReceiptNo ?? '').trim()
+    const givenReceiptNo = carriedOver ? '' : String(input.bookingReceiptNo ?? '').trim()
     const bookingReceiptNo =
       givenReceiptNo ||
       (bookingFeeCents > 0
@@ -414,7 +432,7 @@ export function createContract(db, input) {
         purpose: 'deposit',
         paymentMethod: input.depositPaymentMethod,
         paymentDate: input.startDate,
-        remark: 'เงินประกันวันทำสัญญา',
+        remark: carriedOver ? 'เงินประกันยกยอดจากระบบเดิม' : 'เงินประกันวันทำสัญญา',
         createdBy: input.createdBy
       })
     }
