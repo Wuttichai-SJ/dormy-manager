@@ -105,8 +105,6 @@ group('สร้าง / อ่าน / แก้ไข')
 const first = apartments.insertApartment(db, {
   nameTh: 'หอพักทดสอบ ก',
   addressTh: '1 ถนนทดสอบ กรุงเทพฯ',
-  nameEn: 'Test Dorm A',
-  addressEn: '1 Test Rd',
   phone: '081-234-5678',
   dueDateDay: 5,
   lateFeePerDay: '50',
@@ -148,20 +146,31 @@ check('ตั้งจำนวนหลักเองแล้วบันท�
   })
 })
 
+check('แก้ไขหอแล้วชื่อ/ที่อยู่อังกฤษที่เคยกรอกไว้ยังอยู่ (หน้าจอเลิกใช้แล้ว)', () => {
+  db.prepare("UPDATE apartments SET name_en = 'Old Name', address_en = 'Old Rd' WHERE apartment_id = ?").run(
+    first.apartmentId
+  )
+  apartments.updateApartment(db, first.apartmentId, {
+    nameTh: first.nameTh,
+    addressTh: first.addressTh,
+    dueDateDay: 5,
+    lateFeePerDay: '50',
+    isAutoLateFeeEnabled: true
+  })
+  const row = db.prepare('SELECT name_en, address_en FROM apartments WHERE apartment_id = ?').get(first.apartmentId)
+  assert(row.name_en === 'Old Name' && row.address_en === 'Old Rd', JSON.stringify(row))
+})
+
 check('ช่องไม่บังคับที่เว้นว่างเก็บเป็น NULL ไม่ใช่สตริงว่าง', () => {
   const bare = apartments.insertApartment(db, {
     nameTh: 'หอพักทดสอบ ข',
     addressTh: '2 ถนนทดสอบ',
-    nameEn: '',
-    addressEn: '   ',
     phone: '',
     dueDateDay: 10,
     lateFeePerDay: '0',
     isAutoLateFeeEnabled: false,
     isVatEnabled: false
   })
-  assert(bare.nameEn === null, `nameEn = ${JSON.stringify(bare.nameEn)}`)
-  assert(bare.addressEn === null, `addressEn = ${JSON.stringify(bare.addressEn)}`)
   assert(bare.phone === null, `phone = ${JSON.stringify(bare.phone)}`)
 })
 
