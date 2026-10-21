@@ -20,6 +20,22 @@ export const PAYMENT_METHOD_LABELS = {
 
 export const PAYMENT_PURPOSES = ['invoice', 'deposit', 'advance', 'other']
 
+// ข้อความที่ระบบเขียนเองตอนทำสัญญา — ใช้แยกเงินจอง/ยกยอดออกจากเงินประกันทั่วไป
+export const BOOKING_REMARK = 'เงินจอง'
+export const BOOKING_REMARK_PREFIX = 'เงินจองตามใบจอง '
+export const CARRIED_OVER_DEPOSIT_REMARK = 'เงินประกันยกยอดจากระบบเดิม'
+
+// ประเภทของใบเสร็จที่ไม่ได้มาจากบิล ตามธุรกรรมจริง
+function contractReceiptLabel(row) {
+  const remark = row.remark ?? ''
+  if (row.purpose === 'advance') return 'ค่าเช่าเดือนแรก'
+  if (row.purpose === 'other') return 'ส่วนต่างตอนย้ายออก'
+  if (row.amount_cents < 0) return 'คืนเงินประกัน'
+  if (remark === BOOKING_REMARK || remark.startsWith(BOOKING_REMARK_PREFIX)) return 'เงินจอง'
+  if (remark === CARRIED_OVER_DEPOSIT_REMARK) return 'เงินประกัน (ยกยอด)'
+  return 'เงินประกัน'
+}
+
 export const PAYMENT_PURPOSE_LABELS = {
   invoice: 'ค่าบิล',
   deposit: 'เงินประกัน',
@@ -460,7 +476,7 @@ function toPublicPayment(row) {
     invoiceId: row.invoice_id,
     contractId: row.contract_id,
     sourceType: row.invoice_id ? 'invoice' : 'contract',
-    sourceLabel: row.invoice_id ? `ใบแจ้งหนี้ #${row.invoice_number}` : 'สัญญา',
+    sourceLabel: row.invoice_id ? `ใบแจ้งหนี้ #${row.invoice_number}` : contractReceiptLabel(row),
     isRefund: row.amount_cents < 0,
     isCancelled: Boolean(row.cancelled_at),
     cancelledAt: row.cancelled_at ?? null,

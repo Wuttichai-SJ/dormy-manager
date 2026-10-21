@@ -1,7 +1,13 @@
 // ตัวช่วยทำสัญญา 3 ขั้น แต่เขียนลงฐานข้อมูลครั้งเดียวตอนจบ
 import { toCents } from '../money.js'
 import { nextDocumentNumber } from './invoices.js'
-import { getDepositStatus, recordContractPayment } from './payments.js'
+import {
+  BOOKING_REMARK,
+  BOOKING_REMARK_PREFIX,
+  CARRIED_OVER_DEPOSIT_REMARK,
+  getDepositStatus,
+  recordContractPayment
+} from './payments.js'
 import { assertMeterStartWithinDial } from './meterReadings.js'
 
 export const RENT_TYPES = ['monthly']
@@ -91,6 +97,11 @@ export function validateContractInput(input) {
 
 function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+// 700000 → "7,000" · 70050 → "700.50"
+function bahtText(cents) {
+  return (cents / 100).toLocaleString('en-US', { minimumFractionDigits: cents % 100 ? 2 : 0 })
 }
 
 function todayIso() {
@@ -422,7 +433,7 @@ export function createContract(db, input) {
         purpose: 'deposit',
         paymentMethod: input.depositPaymentMethod,
         paymentDate: input.bookingPaidDate || input.startDate,
-        remark: bookingReceiptNo ? `เงินจองตามใบจอง ${bookingReceiptNo}` : 'เงินจอง',
+        remark: bookingReceiptNo ? `${BOOKING_REMARK_PREFIX}${bookingReceiptNo}` : BOOKING_REMARK,
         createdBy: input.createdBy
       })
     }
@@ -435,7 +446,11 @@ export function createContract(db, input) {
         purpose: 'deposit',
         paymentMethod: input.depositPaymentMethod,
         paymentDate: input.startDate,
-        remark: carriedOver ? 'เงินประกันยกยอดจากระบบเดิม' : 'เงินประกันวันทำสัญญา',
+        remark: carriedOver
+          ? CARRIED_OVER_DEPOSIT_REMARK
+          : bookingFeeCents > 0
+            ? `เงินประกันส่วนที่เหลือ (เงินประกัน ${bahtText(depositCents)} หักเงินจอง ${bahtText(bookingFeeCents)})`
+            : 'เงินประกัน',
         createdBy: input.createdBy
       })
     }
