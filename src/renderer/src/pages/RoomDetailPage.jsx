@@ -254,13 +254,24 @@ function ContractCard({ contract, onReload, onPrintMoveIn }) {
     ['เริ่มต้น', contract.startDate],
     ['สิ้นสุด', contract.endDate ?? '-'],
     ['ค่าห้อง', formatBaht(contract.rentAmountCents)],
-    ['เงินประกัน', formatBaht(contract.depositAmountCents)],
-    ['รับเงินประกันแล้ว', formatBaht(deposit.receivedCents)]
+    [
+      'เงินประกัน',
+      <>
+        {formatBaht(contract.depositAmountCents)}
+        {/* เงินจองเป็นส่วนหนึ่งของเงินประกัน ไม่ใช่อีกก้อน */}
+        {contract.bookingFeeCents > 0 && (
+          <span className="contract-row-note">รวมเงินจอง {formatBaht(contract.bookingFeeCents)}</span>
+        )}
+      </>
+    ]
   ]
 
-  if (contract.bookingFeeCents > 0) rows.push(['เงินจอง', formatBaht(contract.bookingFeeCents)])
+  // รับครบแล้วไม่ต้องโชว์ซ้ำ
+  if (deposit.receivedCents !== contract.depositAmountCents) {
+    rows.push(['รับเงินประกันแล้ว', formatBaht(deposit.receivedCents)])
+  }
   if (contract.advancePaymentAmountCents > 0) {
-    rows.push(['เงินล่วงหน้า', formatBaht(contract.advancePaymentAmountCents)])
+    rows.push(['ค่าเช่าเดือนแรก', formatBaht(contract.advancePaymentAmountCents)])
   }
 
   return (

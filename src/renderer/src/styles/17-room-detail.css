@@ -95,6 +95,15 @@
 .contract-row dd {
   margin: 0;
   font-weight: 500;
+  text-align: right;
+}
+
+.contract-row-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
 }
 
 .meter-start-grid {
