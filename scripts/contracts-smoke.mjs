@@ -16,6 +16,7 @@ const services = await import('../src/main/db/apartmentServices.js')
 const rooms = await import('../src/main/db/rooms.js')
 const tenants = await import('../src/main/db/tenants.js')
 const contracts = await import('../src/main/db/contracts.js')
+const payments = await import('../src/main/db/payments.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-contracts')
 
@@ -362,6 +363,71 @@ check('เปลี่ยนกติกาของหอทีหลัง ส
     .get(contract.contractId)
   assert(row.deposit_refund_policy === 'on_full_term', `กติกาเก่าถูกเขียนทับเป็น ${row.deposit_refund_policy}`)
   assert(row.deposit_notice_days === 15, `จำนวนวันถูกเขียนทับเป็น ${row.deposit_notice_days}`)
+})
+
+group('ผู้เช่าเดิมจากระบบเก่า')
+
+check('ผู้เช่าเดิมใส่วันเข้าพักในอนาคตไม่ได้ แต่ย้อนหลังได้', () => {
+  const future = contracts.validateContractInput({
+    ...BASE,
+    carriedOver: true,
+    startDate: '2999-01-01',
+    tenants: [somchai.tenantId]
+  })
+  assert(future.some((e) => e.includes('ไม่เกินวันนี้')), future.join(', '))
+
+  const past = contracts.validateContractInput({
+    ...BASE,
+    carriedOver: true,
+    startDate: '2024-10-15',
+    tenants: [somchai.tenantId]
+  })
+  assert(past.length === 0, past.join(', '))
+})
+
+check('ผู้เช่าเดิม: ไม่เก็บค่าเช่าเดือนแรก ไม่มีเงินจอง เงินประกันยกยอดลงวันเข้าพักเดิม', () => {
+  rooms.addRoom(db, floor.floorId, { roomNumber: '980' })
+  const room = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomNumber === '980')
+  const person = tenants.insertTenant(db, { firstName: 'ผู้เช่า', lastName: 'อยู่มานาน', phone: '0877776666' })
+
+  const contract = contracts.createContract(db, {
+    ...BASE,
+    carriedOver: true,
+    roomId: room.roomId,
+    startDate: '2024-10-15',
+    bookingFee: '1000',
+    bookingReceiptNo: 'BK-เก่า',
+    tenants: [person.tenantId]
+  })
+
+  assert(contract.advancePaymentAmountCents === 0, `ค่าเช่าล่วงหน้า ${contract.advancePaymentAmountCents}`)
+  assert(contract.bookingReceiptNo === null, `เลขใบจอง ${contract.bookingReceiptNo}`)
+
+  const paid = db
+    .prepare('SELECT purpose, amount_cents, payment_date, remark FROM payments WHERE contract_id = ?')
+    .all(contract.contractId)
+  assert(paid.length === 1, `ควรมีใบเดียว ได้ ${JSON.stringify(paid)}`)
+  assert(paid[0].purpose === 'deposit' && paid[0].amount_cents === 500000, JSON.stringify(paid[0]))
+  assert(paid[0].payment_date === '2024-10-15', `ลงวันที่ ${paid[0].payment_date}`)
+  assert(paid[0].remark.includes('ยกยอดจากระบบเดิม'), paid[0].remark)
+
+  const deposit = payments.getDepositStatus(db, contract.contractId)
+  assert(deposit.isSettled && deposit.receivedCents === 500000, JSON.stringify(deposit))
+})
+
+check('สัญญาจากใบจองบันทึกเป็นผู้เช่าเดิมไม่ได้', () => {
+  throws(
+    () =>
+      contracts.createContract(db, {
+        ...BASE,
+        carriedOver: true,
+        fromBookingId: 1,
+        roomId: room4.roomId,
+        tenants: [somying.tenantId]
+      }),
+    'ผู้เช่าเดิมไม่ได้',
+    'ต้องกันสัญญาจากใบจอง'
+  )
 })
 
 group('ห้องที่ปิดใช้งาน')
