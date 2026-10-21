@@ -43,6 +43,12 @@ export default function LoginPage({ lastIdentifier = '', onSuccess, onForgotPass
             id="identifier"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter = ไปช่องรหัสผ่าน ไม่ส่งฟอร์ม
+              if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+              e.preventDefault()
+              document.getElementById('password')?.focus()
+            }}
             autoComplete="username"
             autoFocus={!lastIdentifier}
           />
