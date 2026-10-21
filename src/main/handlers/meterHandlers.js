@@ -6,6 +6,7 @@ import {
   createBatch,
   deleteBatch,
   getBatchSheet,
+  getLastKnownReadings,
   listBatches,
   saveBatchReadings
 } from '../db/meterReadings.js'
@@ -36,6 +37,8 @@ export function registerMeterHandlers() {
     logInfo(`สร้างใบจดมิเตอร์ ${readingDate} ของหอ ${apartmentId} (batch_id ${batch.batchId})`)
     return batch
   })
+
+  handleSession('meter:lastKnown', ({ roomId }) => getLastKnownReadings(getDatabase(), roomId))
 
   handleSession('meter:getSheet', ({ batchId, side }) => getBatchSheet(getDatabase(), batchId, side))
 

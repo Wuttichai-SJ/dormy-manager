@@ -158,6 +158,60 @@ function getMeterDigits(db, apartmentId) {
   return row?.meter_digits ?? undefined
 }
 
+// เลขล่าสุดที่ระบบรู้ของห้อง (จดรายเดือน / ย้ายออก / เริ่มสัญญา) ไว้เติมให้ตอนทำสัญญาใหม่
+export function getLastKnownReadings(db, roomId) {
+  const room = db
+    .prepare('SELECT f.apartment_id FROM rooms r JOIN floors f ON f.floor_id = r.floor_id WHERE r.room_id = ?')
+    .get(roomId)
+  if (!room) throw new Error('ไม่พบห้องพัก')
+
+  const result = { meterDigits: normalizeMeterDigits(getMeterDigits(db, room.apartment_id)) }
+  for (const side of METER_SIDES) {
+    const cols = columnsFor(side)
+    const itemType = side === 'water' ? 'water' : 'electricity'
+    // วันเดียวกัน: ย้ายออก > จดรายเดือน > เริ่มสัญญา
+    const candidates = [
+      db
+        .prepare(
+          `SELECT mr.${cols.current} AS reading, mb.reading_date AS date, 1 AS rank
+             FROM meter_readings mr JOIN meter_batches mb ON mb.batch_id = mr.meter_batch_id
+            WHERE mr.room_id = ? AND mr.${cols.current} IS NOT NULL
+            ORDER BY mb.reading_date DESC, mb.batch_id DESC LIMIT 1`
+        )
+        .get(roomId),
+      db
+        .prepare(
+          `SELECT ti.current_reading AS reading, t.actual_move_out_date AS date, 2 AS rank
+             FROM contract_termination_items ti
+             JOIN contract_terminations t ON t.termination_id = ti.contract_termination_id
+             JOIN contracts c ON c.contract_id = t.contract_id
+            WHERE c.room_id = ? AND ti.item_type = ? AND ti.current_reading IS NOT NULL
+            ORDER BY t.actual_move_out_date DESC, t.termination_id DESC LIMIT 1`
+        )
+        .get(roomId, itemType),
+      db
+        .prepare(
+          `SELECT ${cols.contractStart} AS reading, start_date AS date, 0 AS rank
+             FROM contracts WHERE room_id = ?
+            ORDER BY start_date DESC, contract_id DESC LIMIT 1`
+        )
+        .get(roomId)
+    ].filter((c) => c && c.reading !== null)
+
+    candidates.sort((a, b) => (a.date === b.date ? b.rank - a.rank : a.date < b.date ? 1 : -1))
+    result[side] = candidates[0] ? { reading: Number(candidates[0].reading), date: candidates[0].date } : null
+  }
+  return result
+}
+
+// เลขเริ่มต้นของสัญญาต้องไม่เกินหน้าปัด
+export function assertMeterStartWithinDial(db, apartmentId, { waterMeterStart, electricMeterStart }) {
+  const digits = normalizeMeterDigits(getMeterDigits(db, apartmentId))
+  const rollover = 10 ** digits
+  requireWithinDial(Number(waterMeterStart), rollover, digits, 'เลขมิเตอร์ค่าน้ำวันเข้าพัก')
+  requireWithinDial(Number(electricMeterStart), rollover, digits, 'เลขมิเตอร์ค่าไฟวันเข้าพัก')
+}
+
 export function createBatch(db, apartmentId, readingDate) {
   if (!isDate(readingDate)) throw new FieldError({ readingDate: 'กรุณาเลือกวันที่จดมิเตอร์' })
 

@@ -1205,6 +1205,59 @@ check('ยืนยันแล้วเก็บเลขมิเตอร์ 
   assert(row.total_amount_cents === 18190, `รวมได้ ${row.total_amount_cents}`)
 })
 
+group('เลขมิเตอร์ตั้งต้นตอนคนใหม่เข้า')
+
+check('ห้องที่ยังไม่มีประวัติ = ไม่มีเลขให้เติม', () => {
+  const fresh = rooms.addFloor(db, meterDormId, { roomCount: 1 })
+  const room = fresh[fresh.length - 1].rooms[0]
+  const last = meter.getLastKnownReadings(db, room.roomId)
+  assert(last.water === null && last.electric === null, JSON.stringify(last))
+  assert(last.meterDigits === 5, `จำนวนหลักได้ ${last.meterDigits}`)
+})
+
+check('เลขล่าสุดเลือกจากเหตุการณ์ล่าสุด: ย้ายออก > จดรายเดือน', () => {
+  const last = meter.getLastKnownReadings(db, metered.room.roomId)
+  assert(last.water.reading === 7480 && last.water.date === '2026-11-12', `น้ำได้ ${JSON.stringify(last.water)}`)
+  // ย้ายออกไม่ได้กรอกเลขไฟ จึงใช้เลขรอบจด
+  assert(last.electric.reading === 7600 && last.electric.date === '2026-10-31', `ไฟได้ ${JSON.stringify(last.electric)}`)
+})
+
+const nextTenantInput = {
+  roomId: metered.room.roomId,
+  rentType: 'monthly',
+  startDate: '2026-11-15',
+  rentAmount: '5000',
+  deposit: '5000',
+  depositPaymentMethod: 'cash',
+  bookingFee: '0',
+  electricMeterStart: 7600,
+  createdBy: staff.user_id
+}
+
+check('เลขตั้งต้นเกินหน้าปัด ทำสัญญาไม่ได้', () => {
+  throws(
+    () =>
+      contracts.createContract(db, {
+        ...nextTenantInput,
+        waterMeterStart: 100000,
+        tenants: [makeTenant().tenantId]
+      }),
+    'เกินหน้าปัด',
+    'เลข 6 หลักบนมิเตอร์ 5 หลักต้องไม่ผ่าน'
+  )
+})
+
+check('เลขตั้งต้นน้อยกว่าเลขล่าสุด (หมุนครบรอบ/เปลี่ยนมิเตอร์) ยังทำสัญญาได้ และกลายเป็นเลขล่าสุด', () => {
+  const next = contracts.createContract(db, {
+    ...nextTenantInput,
+    waterMeterStart: 12,
+    tenants: [makeTenant().tenantId]
+  })
+  assert(next.waterMeterStart === 12, `ได้ ${next.waterMeterStart}`)
+  const last = meter.getLastKnownReadings(db, metered.room.roomId)
+  assert(last.water.reading === 12 && last.water.date === '2026-11-15', JSON.stringify(last.water))
+})
+
 const flatDormId = makeMeterDorm('หอทดสอบเหมาจ่ายย้ายออก', false, {
   water: { enabled: true, billingType: 'flat', flatRate: '150' },
   electric: { enabled: false }
