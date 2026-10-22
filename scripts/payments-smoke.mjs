@@ -261,7 +261,7 @@ const depositReceipt = payments.recordContractPayment(db, {
 check('ออกใบเสร็จเงินประกันได้โดยไม่ต้องมีใบแจ้งหนี้', () => {
   assert(depositReceipt.invoiceId === null, 'ต้องไม่ผูกกับใบแจ้งหนี้')
   assert(depositReceipt.contractId === contract2.contractId, 'ต้องผูกกับสัญญา')
-  assert(depositReceipt.sourceLabel === 'สัญญา', `ได้ ${depositReceipt.sourceLabel}`)
+  assert(depositReceipt.sourceLabel === 'เงินประกัน', `ได้ ${depositReceipt.sourceLabel}`)
   assert(depositReceipt.roomNumber === '102', `ได้ ${depositReceipt.roomNumber}`)
 })
 
@@ -1235,6 +1235,74 @@ check('ข้อมูลหอติดมากับใบเสร็จ เ
   const rows = payments.listContractReceipts(db, depositContract.contractId)
   assert(rows[0].apartment?.name, 'ไม่มีชื่อหอติดมาด้วย')
   assert(rows[0].roomNumber, 'ไม่มีเลขห้องติดมาด้วย')
+})
+
+group('ประเภทใบเสร็จบอกตามธุรกรรมจริง')
+
+check('เงินจอง / เงินประกัน / ค่าเช่าเดือนแรก / คืนเงินประกัน / ส่วนต่างตอนย้ายออก แยกชื่อกัน', () => {
+  const floor = rooms.listFloors(db, apartmentId)[0]
+  rooms.addRoom(db, floor.floorId, { roomNumber: '970' })
+  const room = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomNumber === '970')
+  const person = tenants.insertTenant(db, { firstName: 'ป้าย', lastName: 'ใบเสร็จ', phone: '0855554444' })
+
+  const contract = contracts.createContract(db, {
+    roomId: room.roomId,
+    rentType: 'monthly',
+    startDate: '2026-07-10',
+    rentAmount: '3500',
+    deposit: '7000',
+    depositPaymentMethod: 'transfer',
+    bookingFee: '2000',
+    bookingReceiptNo: 'B-970',
+    waterMeterStart: 0,
+    electricMeterStart: 0,
+    tenants: [person.tenantId],
+    createdBy: staff.user_id
+  })
+  payments.recordContractPayment(db, {
+    contractId: contract.contractId,
+    amount: '7000',
+    paymentMethod: 'cash',
+    paymentDate: '2026-09-30',
+    remark: 'คืนเงินประกันตอนย้ายออก ห้อง 970',
+    isRefund: true,
+    purpose: 'deposit',
+    createdBy: staff.user_id
+  })
+  payments.recordContractPayment(db, {
+    contractId: contract.contractId,
+    amount: '300',
+    paymentMethod: 'cash',
+    paymentDate: '2026-09-30',
+    remark: 'รับเงินส่วนต่างตอนย้ายออก ห้อง 970',
+    purpose: 'other',
+    createdBy: staff.user_id
+  })
+
+  const labels = payments
+    .listContractReceipts(db, contract.contractId)
+    .map((r) => `${r.sourceLabel}:${r.amountCents}`)
+    .sort()
+  const expected = [
+    'คืนเงินประกัน:-700000',
+    'ค่าเช่าเดือนแรก:256700',
+    'เงินจอง:200000',
+    'เงินประกัน:500000',
+    'ส่วนต่างตอนย้ายออก:30000'
+  ].sort()
+  assert(JSON.stringify(labels) === JSON.stringify(expected), labels.join(', '))
+})
+
+check('ใบเงินประกันวันทำสัญญาบอกว่าหักเงินจองไปเท่าไหร่ · ไม่มีเงินจองเขียนแค่ "เงินประกัน"', () => {
+  const remarks = db
+    .prepare(`SELECT remark FROM payments WHERE purpose = 'deposit' AND remark LIKE 'เงินประกัน%'`)
+    .all()
+    .map((r) => r.remark)
+  assert(
+    remarks.includes('เงินประกันส่วนที่เหลือ (เงินประกัน 7,000 หักเงินจอง 2,000)'),
+    remarks.join(' | ')
+  )
+  assert(!remarks.includes('เงินประกันวันทำสัญญา'), 'ข้อความเดิมต้องไม่ถูกใช้แล้ว')
 })
 
 cleanup()
