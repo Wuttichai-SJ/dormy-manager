@@ -4,6 +4,7 @@ import Alert from '../components/Alert.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
+import ImageViewer from '../components/ImageViewer.jsx'
 import Modal from '../components/Modal.jsx'
 import ConfirmDialog, { useConfirm } from '../components/ConfirmDialog.jsx'
 import PeriodBar, {
@@ -400,6 +401,8 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [dialog, setDialog] = useState(null) /* null | 'edit' | 'complete' | 'cancel' | 'delete' */
+  // index ในรายการรูปที่โหลดแล้ว · null = ไม่ได้เปิดดู
+  const [viewing, setViewing] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -471,6 +474,9 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
     onChanged?.()
     onBack()
   }
+
+  // รูปที่โหลดไม่ขึ้นไม่เอาเข้าตัวดูรูป
+  const loadedImageIds = (request?.imageIds ?? []).filter((id) => images[id])
 
   return (
     <>
@@ -598,7 +604,14 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
                 {request.imageIds.map((imageId) => (
                   <figure key={imageId} className="maintenance-image">
                     {images[imageId] ? (
-                      <img src={images[imageId]} alt="รูปประกอบการแจ้งซ่อม" />
+                      <button
+                        type="button"
+                        className="maintenance-image-open"
+                        onClick={() => setViewing(loadedImageIds.indexOf(imageId))}
+                        title="กดเพื่อดูรูปขนาดใหญ่"
+                      >
+                        <img src={images[imageId]} alt="รูปประกอบการแจ้งซ่อม" />
+                      </button>
                     ) : (
                       <span className="muted">กำลังโหลดรูป...</span>
                     )}
@@ -615,6 +628,16 @@ function MaintenanceDetail({ maintenanceId, onBack, onChanged }) {
             )}
           </section>
         </>
+      )}
+
+      {viewing !== null && loadedImageIds.length > 0 && (
+        <ImageViewer
+          images={loadedImageIds.map((id) => images[id])}
+          index={Math.min(viewing, loadedImageIds.length - 1)}
+          onIndexChange={setViewing}
+          onClose={() => setViewing(null)}
+          alt="รูปประกอบการแจ้งซ่อม"
+        />
       )}
 
       {dialog === 'edit' && request && (
