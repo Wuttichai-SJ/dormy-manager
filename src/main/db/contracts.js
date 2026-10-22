@@ -2,6 +2,7 @@
 import { toCents } from '../money.js'
 import { nextDocumentNumber } from './invoices.js'
 import { getDepositStatus, recordContractPayment } from './payments.js'
+import { assertMeterStartWithinDial } from './meterReadings.js'
 
 export const RENT_TYPES = ['monthly']
 export const DEPOSIT_PAYMENT_METHODS = ['cash', 'transfer', 'other']
@@ -306,6 +307,8 @@ export function createContract(db, input) {
     const exists = db.prepare('SELECT 1 FROM tenants WHERE tenant_id = ?').get(tenantId)
     if (!exists) throw new Error('ไม่พบผู้เช่าที่ระบุ')
   }
+
+  assertMeterStartWithinDial(db, room.apartment_id, input)
 
   const rentAmountCents = toCents(input.rentAmount, 'ค่าเช่า')
   const now = new Date().toISOString()

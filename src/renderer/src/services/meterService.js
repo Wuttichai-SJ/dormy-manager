@@ -17,6 +17,11 @@ export function saveMeterReadings(batchId, side, rows) {
   return invoke('meter:saveReadings', { batchId, side, rows })
 }
 
+// เลขล่าสุดของห้อง ไว้เติมให้ตอนทำสัญญา
+export function getLastMeterReadings(roomId) {
+  return invoke('meter:lastKnown', { roomId })
+}
+
 export function deleteMeterBatch(batchId) {
   return invoke('meter:deleteBatch', { batchId })
 }

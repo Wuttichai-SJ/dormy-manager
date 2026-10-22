@@ -4,12 +4,13 @@ import { useConfirm } from '../components/ConfirmDialog.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import DateField from '../components/DateField.jsx'
 import FieldError from '../components/FieldError.jsx'
-import { centsToInput, formatBaht } from '../format.js'
+import { centsToInput, formatBaht, formatDocumentDate } from '../format.js'
 import { FULL_MONTH_MOVE_IN_UNTIL_DAY, PRORATE_DAYS_PER_MONTH } from '../constants.js'
 import { EMPTY_TENANT, formatPhone } from '../components/TenantDialog.jsx'
 import { createTenant, listTenants } from '../services/tenantService.js'
 import { createContract } from '../services/contractService.js'
 import { convertBookingToContract } from '../services/bookingService.js'
+import { getLastMeterReadings } from '../services/meterService.js'
 
 // 3 ขั้น: สัญญา · ค่าเช่าล่วงหน้า · มิเตอร์ — บันทึกครั้งเดียวตอนจบ
 const STEPS = ['สัญญา', 'ค่าเช่าล่วงหน้า', 'มิเตอร์น้ำ-ไฟ']
@@ -67,6 +68,21 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
   useEffect(() => {
     if (booking) checkPhone(booking.customerPhone)
   }, [])
+
+  // เลขล่าสุดของห้อง เติมให้เป็นค่าตั้งต้น · null = ไม่มีประวัติ
+  const [lastMeter, setLastMeter] = useState(null)
+  useEffect(() => {
+    getLastMeterReadings(room.roomId).then((res) => {
+      if (!res.success) return
+      setLastMeter(res.data)
+      const fill = (current, last) => (current === '' && last ? String(last.reading) : current)
+      setForm((f) => ({
+        ...f,
+        waterMeterStart: fill(f.waterMeterStart, res.data.water),
+        electricMeterStart: fill(f.electricMeterStart, res.data.electric)
+      }))
+    })
+  }, [room.roomId])
 
   // index ของคนก่อนหน้าในสัญญานี้ที่ใช้เบอร์เดียวกัน · -1 = ไม่ซ้ำ
   const duplicateOf = (index) => {
@@ -476,6 +492,7 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
                   onChange={(e) => set('waterMeterStart', e.target.value)}
                   inputMode="decimal"
                 />
+                <MeterStartNote value={form.waterMeterStart} last={lastMeter?.water} digits={lastMeter?.meterDigits} />
               </div>
               <div className="field field-required">
                 <label htmlFor="electricMeterStart">
@@ -486,6 +503,11 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
                   value={form.electricMeterStart}
                   onChange={(e) => set('electricMeterStart', e.target.value)}
                   inputMode="decimal"
+                />
+                <MeterStartNote
+                  value={form.electricMeterStart}
+                  last={lastMeter?.electric}
+                  digits={lastMeter?.meterDigits}
                 />
               </div>
             </div>
@@ -576,6 +598,33 @@ function TenantFields({ index, value, owner, duplicateOf, onPhoneBlur, onChange,
         <input value={value.address} onChange={(e) => set('address', e.target.value)} />
       </div>
     </div>
+  )
+}
+
+// เตือนเท่านั้น ไม่บล็อก — เลขน้อยกว่าเกิดได้จริงตอนหมุนครบรอบ/เปลี่ยนมิเตอร์
+// digits มาพร้อมเลขล่าสุด — ยังโหลดไม่เสร็จ = ยังไม่เช็กหน้าปัด
+function MeterStartNote({ value, last, digits }) {
+  const rollover = 10 ** (digits ?? 5)
+  const typed = String(value ?? '').trim()
+  const n = Number(typed)
+
+  if (digits && typed !== '' && Number.isFinite(n) && n >= rollover) {
+    return <FieldError message={`เกินหน้าปัดมิเตอร์ ${digits} หลัก (สูงสุด ${rollover - 1})`} />
+  }
+  if (!last) return null
+
+  const lastText = `${last.reading} (${formatDocumentDate(last.date)})`
+  if (typed === '' || !Number.isFinite(n) || n >= last.reading) {
+    return <p className="field-hint">เลขล่าสุดในระบบ {lastText}</p>
+  }
+  // ท้ายหน้าปัด → ต้นหน้าปัด = หมุนครบรอบ
+  const looksRolled = last.reading >= rollover * 0.9 && n < rollover * 0.1
+  return (
+    <p className="field-hint field-hint-warn">
+      {looksRolled
+        ? `น่าจะหมุนครบรอบ (เลขล่าสุด ${lastText})`
+        : `น้อยกว่าเลขล่าสุด ${lastText} — เปลี่ยนมิเตอร์หรือหมุนครบรอบ? ถ้าไม่ใช่ให้ตรวจหน้าปัดอีกครั้ง`}
+    </p>
   )
 }
 
