@@ -214,19 +214,17 @@ export default function MoveOutPage({ contract, room, onBack, onDone, signedBy }
                   รับเงินที่ใบแจ้งหนี้ข้างบนให้ครบก่อนย้ายออก
                 </Alert>
 
-                <div className="field checkbox-row">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={allowOutstanding}
-                      onChange={(e) => {
-                        setAllowOutstanding(e.target.checked)
-                        if (!e.target.checked) setOutstandingReason('')
-                      }}
-                    />
-                    <span>ย้ายออกทั้งที่ยังมีบิลค้าง (เช่น ผู้เช่าหนีไปแล้ว)</span>
-                  </label>
-                </div>
+                <label className="checkbox-row move-out-check">
+                  <input
+                    type="checkbox"
+                    checked={allowOutstanding}
+                    onChange={(e) => {
+                      setAllowOutstanding(e.target.checked)
+                      if (!e.target.checked) setOutstandingReason('')
+                    }}
+                  />
+                  <span>ย้ายออกทั้งที่ยังมีบิลค้าง (เช่น ผู้เช่าหนีไปแล้ว)</span>
+                </label>
 
                 {allowOutstanding && (
                   <div className="field field-required">
@@ -425,19 +423,17 @@ function DepositVerdict({ sheet, override, onOverride, overrideReason, onOverrid
         {systemSaysRefund && <span>ตามกฎของสัญญา: อยู่ครบกำหนดและแจ้งล่วงหน้าครบ</span>}
       </div>
 
-      <div className="field checkbox-row">
-        <label>
-          <input
-            type="checkbox"
-            checked={isOverriding}
-            onChange={(e) => {
-              onOverride(e.target.checked ? !systemSaysRefund : null)
-              if (!e.target.checked) onOverrideReason('')
-            }}
-          />
-          <span>ตัดสินต่างจากกฎ — {systemSaysRefund ? 'ริบเงินประกัน' : 'คืนเงินประกันให้'}</span>
-        </label>
-      </div>
+      <label className="checkbox-row move-out-check">
+        <input
+          type="checkbox"
+          checked={isOverriding}
+          onChange={(e) => {
+            onOverride(e.target.checked ? !systemSaysRefund : null)
+            if (!e.target.checked) onOverrideReason('')
+          }}
+        />
+        <span>ตัดสินต่างจากกฎ — {systemSaysRefund ? 'ริบเงินประกัน' : 'คืนเงินประกันให้'}</span>
+      </label>
 
       {isOverriding && (
         <div className="field field-required">
