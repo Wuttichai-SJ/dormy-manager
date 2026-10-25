@@ -37,6 +37,13 @@ export const BANKS = [
   'ธกส (BAAC)'
 ]
 
+// = BANK_ACCOUNT_GROUPS ใน main/db/bankAccounts.js · ไม่อยู่ในนี้ = 10 หลัก
+export const BANK_ACCOUNT_GROUPS = {
+  สแตนดาร์ดชาร์เตอร์ด: [3, 1, 5, 2],
+  ออมสิน: [4, 4, 4],
+  'ธกส (BAAC)': [3, 1, 5, 3]
+}
+
 // = RECOMMENDED_MAX_ACCOUNTS ใน main/db/bankAccounts.js
 export const RECOMMENDED_MAX_ACCOUNTS = 2
 

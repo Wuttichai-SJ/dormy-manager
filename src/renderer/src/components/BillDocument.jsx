@@ -2,6 +2,7 @@ import React from 'react'
 import Icon from '../Icon.jsx'
 import { DEFAULT_VAT_RATE } from '../constants.js'
 import { formatBaht } from '../format.js'
+import { formatPhone } from './TenantDialog.jsx'
 
 // ใช้ร่วมกันทั้งใบแจ้งหนี้และใบเสร็จ — onRemoveItem มีเฉพาะตอนแก้บนจอ
 export default function BillDocument({ invoice, title, meta, tenants, footer, onRemoveItem }) {
@@ -144,7 +145,7 @@ export function BillTenantInfo({ tenants }) {
       {primary.phone && (
         <div>
           <dt>เบอร์โทรศัพท์</dt>
-          <dd>{primary.phone}</dd>
+          <dd>{formatPhone(primary.phone)}</dd>
         </div>
       )}
 

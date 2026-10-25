@@ -67,6 +67,17 @@ check('เลขบัญชีสั้น/ยาวเกินถูกปฏ
   assert(long.length === 1, long.join(' | '))
 })
 
+check('จำนวนหลักต้องตรงกับธนาคาร', () => {
+  const nine = banks.validateBankAccountInput({ bankName: KBANK, accountName: 'ทดสอบ', accountNumber: '123456789' })
+  assert(nine.some((e) => e.includes('10 หลัก')), nine.join(' | '))
+  const gsb = banks.validateBankAccountInput({ bankName: 'ออมสิน', accountName: 'ทดสอบ', accountNumber: '0201-2345-6789' })
+  assert(gsb.length === 0, gsb.join(' | '))
+  const idPromptPay = banks.validateBankAccountInput({ bankName: PROMPTPAY, accountName: 'ทดสอบ', accountNumber: '1101700203158' })
+  assert(idPromptPay.length === 0, idPromptPay.join(' | '))
+  const badPromptPay = banks.validateBankAccountInput({ bankName: PROMPTPAY, accountName: 'ทดสอบ', accountNumber: '12345678901' })
+  assert(badPromptPay.length === 1, badPromptPay.join(' | '))
+})
+
 check('เลขบัญชีมีขีดยังผ่านได้ (นับเฉพาะตัวเลข)', () => {
   const errors = banks.validateBankAccountInput({
     bankName: KBANK,
@@ -100,7 +111,7 @@ check('บัญชีแรกถูกตั้งเป็นบัญชี�
 const second = banks.insertBankAccount(db, id, {
   bankName: SCB,
   accountName: 'นายทดสอบ ระบบ',
-  accountNumber: '98765432109'
+  accountNumber: '9876543210'
 })
 
 check('บัญชีถัดมาไม่ถูกตั้งเป็นหลักเอง', () => {

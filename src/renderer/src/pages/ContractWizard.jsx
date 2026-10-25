@@ -7,6 +7,7 @@ import FieldError from '../components/FieldError.jsx'
 import { centsToInput, formatBaht, formatDocumentDate } from '../format.js'
 import { FULL_MONTH_MOVE_IN_UNTIL_DAY, PRORATE_DAYS_PER_MONTH } from '../constants.js'
 import { EMPTY_TENANT, formatPhone, thaiIdCardError } from '../components/TenantDialog.jsx'
+import { formatIdCardInput, formatPhoneInput } from '../inputMasks.js'
 import { createTenant, listTenants, updateTenant } from '../services/tenantService.js'
 import { createContract } from '../services/contractService.js'
 import { convertBookingToContract } from '../services/bookingService.js'
@@ -597,7 +598,7 @@ function TenantFields({ index, value, owner, duplicateOf, errors, onPhoneBlur, o
           </label>
           <input
             value={value.phone}
-            onChange={(e) => set('phone', e.target.value)}
+            onChange={(e) => set('phone', formatPhoneInput(e.target.value))}
             onBlur={onPhoneBlur}
             inputMode="tel"
           />
@@ -619,7 +620,7 @@ function TenantFields({ index, value, owner, duplicateOf, errors, onPhoneBlur, o
           </label>
           <input
             value={value.idCardNo}
-            onChange={(e) => set('idCardNo', e.target.value)}
+            onChange={(e) => set('idCardNo', formatIdCardInput(e.target.value))}
             inputMode="numeric"
           />
           <FieldError message={errors.idCardNo} />
@@ -780,6 +781,6 @@ function tenantFromBooking(booking) {
     ...EMPTY_TENANT,
     firstName: parts[0] ?? '',
     lastName: parts.slice(1).join(' '),
-    phone: booking.customerPhone ?? ''
+    phone: formatPhoneInput(booking.customerPhone)
   }
 }

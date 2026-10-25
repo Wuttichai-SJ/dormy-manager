@@ -23,6 +23,26 @@ export const BANKS = [
 
 export const RECOMMENDED_MAX_ACCOUNTS = 2
 
+// จำนวนหลักของเลขบัญชีแต่ละธนาคาร (กลุ่มตัวเลขตามสมุดบัญชี) · ไม่อยู่ในนี้ = 10 หลัก
+// สำเนาอยู่ใน renderer constants.js — แก้คู่กัน
+export const BANK_ACCOUNT_GROUPS = {
+  สแตนดาร์ดชาร์เตอร์ด: [3, 1, 5, 2],
+  ออมสิน: [4, 4, 4],
+  'ธกส (BAAC)': [3, 1, 5, 3]
+}
+const DEFAULT_ACCOUNT_GROUPS = [3, 1, 5, 1]
+const PROMPTPAY = 'พร้อมเพย์'
+
+function accountNumberError(bankName, digits) {
+  if (bankName === PROMPTPAY) {
+    return digits.length === 10 || digits.length === 13
+      ? null
+      : 'พร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก'
+  }
+  const length = (BANK_ACCOUNT_GROUPS[bankName] ?? DEFAULT_ACCOUNT_GROUPS).reduce((a, b) => a + b, 0)
+  return digits.length === length ? null : `เลขบัญชีธนาคารนี้ต้องมี ${length} หลัก`
+}
+
 export function validateBankAccountInput({ bankName, accountName, accountNumber }) {
   const errors = []
 
@@ -33,7 +53,10 @@ export function validateBankAccountInput({ bankName, accountName, accountNumber 
 
   const digits = normalizeAccountNumber(accountNumber)
   if (!digits) errors.push('กรุณากรอกเลขบัญชี')
-  else if (digits.length < 8 || digits.length > 20) errors.push('เลขบัญชีต้องมี 8-20 หลัก')
+  else if (BANKS.includes(String(bankName ?? '').trim())) {
+    const error = accountNumberError(String(bankName).trim(), digits)
+    if (error) errors.push(error)
+  }
 
   return errors
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
 import Alert from '../components/Alert.jsx'
 import InfoTip from '../components/InfoTip.jsx'
+import { formatPhoneInput } from '../inputMasks.js'
 import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
 import { setupFirstUser } from '../services/authService.js'
@@ -100,7 +101,7 @@ export default function RegisterPage({ onReady, onRestored }) {
             <input
               id="phone"
               value={form.phone}
-              onChange={(e) => set('phone', e.target.value)}
+              onChange={(e) => set('phone', formatPhoneInput(e.target.value))}
               placeholder="08x-xxx-xxxx"
               inputMode="tel"
             />

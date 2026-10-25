@@ -6,6 +6,7 @@ import { useConfirm } from '../components/ConfirmDialog.jsx'
 import SelectField from '../components/SelectField.jsx'
 import ToggleSwitch from '../components/ToggleSwitch.jsx'
 import { BANKS, RECOMMENDED_MAX_ACCOUNTS } from '../constants.js'
+import { formatAccountNumber, formatAccountNumberInput } from '../inputMasks.js'
 import {
   createBankAccount,
   deleteBankAccount,
@@ -113,7 +114,13 @@ export default function BankAccountsPage({ apartment }) {
             <SelectField
               id="bankName"
               value={form.bankName}
-              onChange={(bank) => set('bankName', bank)}
+              onChange={(bank) =>
+                setForm((f) => ({
+                  ...f,
+                  bankName: bank,
+                  accountNumber: formatAccountNumberInput(bank, f.accountNumber)
+                }))
+              }
               options={BANKS}
               placeholder="เลือกธนาคาร"
             />
@@ -137,7 +144,7 @@ export default function BankAccountsPage({ apartment }) {
             <input
               id="accountNumber"
               value={form.accountNumber}
-              onChange={(e) => set('accountNumber', e.target.value)}
+              onChange={(e) => set('accountNumber', formatAccountNumberInput(form.bankName, e.target.value))}
               inputMode="numeric"
             />
           </div>
@@ -185,7 +192,7 @@ export default function BankAccountsPage({ apartment }) {
                 <tr key={a.bankAccountId} className={editingId === a.bankAccountId ? 'row-editing' : ''}>
                   <td>{a.bankName}</td>
                   <td>{a.accountName}</td>
-                  <td>{a.accountNumber}</td>
+                  <td>{formatAccountNumber(a.bankName, a.accountNumber)}</td>
                   <td>
                     <ToggleSwitch
                       label=""
@@ -203,7 +210,7 @@ export default function BankAccountsPage({ apartment }) {
                         setForm({
                           bankName: a.bankName,
                           accountName: a.accountName,
-                          accountNumber: a.accountNumber
+                          accountNumber: formatAccountNumber(a.bankName, a.accountNumber)
                         })
                       }}
                     >

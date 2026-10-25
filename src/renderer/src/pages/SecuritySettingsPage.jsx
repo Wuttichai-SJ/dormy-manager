@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
+import { formatPhone } from '../components/TenantDialog.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { regenerateRecoveryCode } from '../services/authService.js'
 import { changeOwnPassword } from '../services/userService.js'
@@ -56,7 +57,7 @@ export default function SecuritySettingsPage({ user }) {
         </div>
         <div>
           <dt>เบอร์โทรศัพท์</dt>
-          <dd>{user.phone}</dd>
+          <dd>{formatPhone(user.phone)}</dd>
         </div>
         <div>
           <dt>อีเมล</dt>

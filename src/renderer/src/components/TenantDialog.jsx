@@ -1,5 +1,6 @@
 import React from 'react'
 import Modal from './Modal.jsx'
+import { formatIdCardInput, formatPhoneInput } from '../inputMasks.js'
 
 export const EMPTY_TENANT = {
   firstName: '',
@@ -55,24 +56,27 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
           <input
             id="phone"
             value={value.phone}
-            onChange={(e) => set('phone', e.target.value)}
+            onChange={(e) => set('phone', formatPhoneInput(e.target.value))}
             inputMode="tel"
           />
         </div>
-        <div className="field">
-          <label htmlFor="idCardNo">เลขบัตรประชาชน</label>
+        <div className="field field-required">
+          <label htmlFor="idCardNo">
+            เลขบัตรประชาชน <span className="required">* จำเป็น</span>
+          </label>
           <input
             id="idCardNo"
             value={value.idCardNo ?? ''}
-            onChange={(e) => set('idCardNo', e.target.value)}
+            onChange={(e) => set('idCardNo', formatIdCardInput(e.target.value))}
             inputMode="numeric"
           />
-          <p className="field-hint">เว้นว่างได้ ถ้ายังไม่ได้เอกสาร — เติมทีหลังได้</p>
         </div>
       </div>
 
-      <div className="field">
-        <label htmlFor="address">ที่อยู่ตามทะเบียนบ้าน</label>
+      <div className="field field-required">
+        <label htmlFor="address">
+          ที่อยู่ตามทะเบียนบ้าน <span className="required">* จำเป็น</span>
+        </label>
         <input
           id="address"
           value={value.address ?? ''}
@@ -107,7 +111,7 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
           <input
             id="emergencyPhone"
             value={value.emergencyPhone ?? ''}
-            onChange={(e) => set('emergencyPhone', e.target.value)}
+            onChange={(e) => set('emergencyPhone', formatPhoneInput(e.target.value))}
             inputMode="tel"
           />
         </div>
@@ -131,8 +135,8 @@ export function thaiIdCardError(value) {
   return (11 - (sum % 11)) % 10 === Number(digits[12]) ? null : 'เลขบัตรประชาชนไม่ถูกต้อง'
 }
 
-// แสดงผลเท่านั้น — ฐานข้อมูลเก็บตัวเลขล้วน
+// แสดงผลเท่านั้น — ฐานข้อมูลเก็บตัวเลขล้วน · เบอร์เก่าที่ยาวเกินแสดงตามเดิม
 export function formatPhone(digits) {
-  if (digits?.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  if (digits?.length === 9 || digits?.length === 10) return formatPhoneInput(digits)
   return digits
 }

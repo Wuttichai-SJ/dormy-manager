@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { BillSignature } from './BillDocument.jsx'
 import { getImageDataUrl } from '../services/imageService.js'
+import { formatAccountNumber } from '../inputMasks.js'
 
 // ท้ายใบแจ้งหนี้: ลงชื่อ · บัญชี · QR · การแจ้งชำระ · Note — ไม่มีข้อมูลก็ไม่แสดง · qrDataUrl ส่งมาได้เพื่อไม่ต้องโหลดซ้ำ
 export default function InvoicePaymentInfo({ invoice, signedBy, qrDataUrl: providedQr }) {
@@ -47,7 +48,7 @@ export default function InvoicePaymentInfo({ invoice, signedBy, qrDataUrl: provi
                       <strong>{bank.accountName}</strong>
                       <span className="invoice-bank-name">{bank.bankName}</span>
                     </td>
-                    <td className="invoice-account-number">{bank.accountNumber}</td>
+                    <td className="invoice-account-number">{formatAccountNumber(bank.bankName, bank.accountNumber)}</td>
                   </tr>
                 ))}
               </tbody>

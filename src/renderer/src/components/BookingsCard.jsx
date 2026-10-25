@@ -9,6 +9,7 @@ import DateField from './DateField.jsx'
 import { showToast } from './Toast.jsx'
 import { formatBaht, centsToInput } from '../format.js'
 import { PAYMENT_METHODS } from '../constants.js'
+import { formatPhoneInput } from '../inputMasks.js'
 import {
   createBooking,
   deleteBooking,
@@ -251,7 +252,7 @@ function BookingDialog({ value, onChange, onClose, onSubmit, busy, form }) {
             <input
               id="booking-customerPhone"
               value={value.customerPhone}
-              onChange={(e) => set('customerPhone', e.target.value)}
+              onChange={(e) => set('customerPhone', formatPhoneInput(e.target.value))}
               inputMode="tel"
               {...inv('customerPhone')}
             />

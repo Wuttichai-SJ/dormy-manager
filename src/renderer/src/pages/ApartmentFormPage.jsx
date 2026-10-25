@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import InfoTip from '../components/InfoTip.jsx'
+import { formatPhoneInput } from '../inputMasks.js'
 import { centsToInput } from '../format.js'
 import { MAX_DUE_DATE_DAY, DEFAULT_VAT_RATE, MAX_VAT_RATE } from '../constants.js'
 import { createApartment, getApartment, updateApartment } from '../services/apartmentService.js'
@@ -123,7 +124,7 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
             <input
               id="phone"
               value={form.phone}
-              onChange={(e) => set('phone', e.target.value)}
+              onChange={(e) => set('phone', formatPhoneInput(e.target.value))}
               inputMode="tel"
             />
           </div>

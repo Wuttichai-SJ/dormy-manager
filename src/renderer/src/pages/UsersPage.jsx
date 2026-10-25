@@ -4,6 +4,8 @@ import Alert from '../components/Alert.jsx'
 import { useConfirm } from '../components/ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
+import { formatPhone } from '../components/TenantDialog.jsx'
+import { formatPhoneInput } from '../inputMasks.js'
 import Modal from '../components/Modal.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import RecoveryCodeCard from '../components/RecoveryCodeCard.jsx'
@@ -128,7 +130,7 @@ export default function UsersPage({ user }) {
                     {row.fullName}
                     {row.userId === user?.userId && <span className="room-badge user-self-badge">คุณ</span>}
                   </td>
-                  <td>{row.phone}</td>
+                  <td>{formatPhone(row.phone)}</td>
                   <td>{row.email ?? '-'}</td>
                   <td>{row.roleLabel}</td>
                   <td>{row.isActive ? 'ใช้งานอยู่' : 'ปิดการใช้งาน'}</td>
@@ -221,7 +223,7 @@ function UserFormDialog({ target, onClose, onSaved }) {
   const editing = Boolean(target)
   const [form, setForm] = useState(() => ({
     fullName: target?.fullName ?? '',
-    phone: target?.phone ?? '',
+    phone: formatPhone(target?.phone ?? ''),
     email: target?.email ?? '',
     password: '',
     role: target?.role ?? 'staff'
@@ -278,7 +280,11 @@ function UserFormDialog({ target, onClose, onSaved }) {
           id="userPhone"
           type="text"
           value={form.phone}
-          onChange={set('phone')}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))
+            clear('phone')
+          }}
+          inputMode="tel"
           {...invalidProps('userPhone', errors.phone)}
         />
         <FieldError id="userPhone-error" message={errors.phone} />
