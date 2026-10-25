@@ -35,6 +35,10 @@ export function listInvoices(apartmentId, filters = {}) {
   return invoke('invoice:list', { apartmentId, ...filters })
 }
 
+export function getOutstandingSummary(apartmentId, billingMonth) {
+  return invoke('invoice:outstandingSummary', { apartmentId, billingMonth })
+}
+
 // itemType = 'service' | 'discount' | 'other' — ส่วนลดกรอกเป็นบวก
 export function addInvoiceItem(invoiceId, item) {
   return invoke('invoice:addItem', { invoiceId, ...item })

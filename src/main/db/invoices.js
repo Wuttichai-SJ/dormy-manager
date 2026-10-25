@@ -645,6 +645,60 @@ export function listBillingMonths(db, apartmentId) {
     .map((row) => row.month)
 }
 
+// ใบสรุปยอดค้างชำระติดบอร์ด — บิลรายเดือนทุกห้องของเดือนนั้น แยกหน้าตามตึก
+export function getOutstandingSummary(db, apartmentId, billingMonth) {
+  if (!/^\d{4}-\d{2}$/.test(String(billingMonth ?? ''))) throw new Error('กรุณาเลือกเดือน')
+
+  const rows = db
+    .prepare(
+      `SELECT i.invoice_id, i.total_amount_cents, r.room_number, f.building_name,
+              (SELECT t.first_name || ' ' || t.last_name
+                 FROM contract_tenants ct JOIN tenants t ON t.tenant_id = ct.tenant_id
+                WHERE ct.contract_id = i.contract_id
+                ORDER BY ct.is_primary DESC, t.tenant_id LIMIT 1) AS tenant_name,
+              COALESCE(SUM(CASE WHEN it.item_type = 'rent'
+                                THEN it.total_amount_cents + it.vat_amount_cents END), 0) AS rent,
+              COALESCE(SUM(CASE WHEN it.item_type = 'water'
+                                THEN it.total_amount_cents + it.vat_amount_cents END), 0) AS water,
+              COALESCE(SUM(CASE WHEN it.item_type = 'electricity'
+                                THEN it.total_amount_cents + it.vat_amount_cents END), 0) AS electric,
+              COALESCE(SUM(CASE WHEN it.item_type NOT IN ('rent', 'water', 'electricity')
+                                THEN it.total_amount_cents + it.vat_amount_cents END), 0) AS other
+         FROM invoices i
+         JOIN contracts c ON c.contract_id = i.contract_id
+         JOIN rooms r     ON r.room_id = c.room_id
+         JOIN floors f    ON f.floor_id = r.floor_id
+         LEFT JOIN invoice_items it ON it.invoice_id = i.invoice_id
+        WHERE f.apartment_id = @apartmentId AND i.billing_month = @billingMonth
+          AND i.invoice_type = 'monthly' AND i.status <> 'cancelled'
+        GROUP BY i.invoice_id`
+    )
+    .all({ apartmentId, billingMonth })
+    .sort((a, b) => a.room_number.localeCompare(b.room_number, 'th', { numeric: true }))
+
+  const groups = []
+  for (const row of rows) {
+    const buildingName = row.building_name || null
+    let group = groups.find((g) => g.buildingName === buildingName)
+    if (!group) {
+      group = { buildingName, rows: [] }
+      groups.push(group)
+    }
+    group.rows.push({
+      invoiceId: row.invoice_id,
+      roomNumber: row.room_number,
+      tenantName: row.tenant_name ?? '',
+      rentCents: row.rent,
+      waterCents: row.water,
+      electricCents: row.electric,
+      otherCents: row.other,
+      totalCents: row.total_amount_cents
+    })
+  }
+
+  return { billingMonth, hasOther: rows.some((row) => row.other !== 0), groups }
+}
+
 export function addInvoiceItem(db, invoiceId, { itemType, description, amount, isTaxable }) {
   const invoice = requireOpenInvoice(db, invoiceId)
 

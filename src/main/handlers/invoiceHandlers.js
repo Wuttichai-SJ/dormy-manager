@@ -10,6 +10,7 @@ import {
   deleteInvoice,
   getInvoiceById,
   getLateFeeForInvoice,
+  getOutstandingSummary,
   listInvoiceDeletions,
   listInvoices,
   previewMonthlyBilling,
@@ -73,6 +74,10 @@ export function registerInvoiceHandlers() {
 
   handleSession('invoice:list', ({ apartmentId, ...filters }) =>
     listInvoices(getDatabase(), apartmentId, filters)
+  )
+
+  handleSession('invoice:outstandingSummary', ({ apartmentId, billingMonth }) =>
+    getOutstandingSummary(getDatabase(), apartmentId, billingMonth)
   )
 
   handleSession('invoice:addItem', ({ invoiceId, itemType, description, amount, isTaxable }) => {

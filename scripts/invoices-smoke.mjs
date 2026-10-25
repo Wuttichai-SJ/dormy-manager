@@ -510,6 +510,28 @@ check('กดซ้ำอีกรอบไม่สร้างอะไรเ�
   assert(again.skipped.length === 2, `ข้าม ${again.skipped.length} ใบ`)
 })
 
+group('สรุปยอดค้างชำระติดบอร์ด')
+
+check('ได้ทุกห้องของเดือน เรียงตามเลขห้อง พร้อมชื่อผู้เช่าหลัก', () => {
+  const summary = invoices.getOutstandingSummary(db, apartmentId, '2026-08')
+  const rows = summary.groups.flatMap((g) => g.rows)
+  assert(rows.map((r) => r.roomNumber).join(',') === '101,102', rows.map((r) => r.roomNumber).join(','))
+  assert(rows[0].tenantName === 'สมชาย ทดสอบ', `ได้ ${rows[0].tenantName}`)
+})
+
+check('ค่าเช่า + น้ำ + ไฟ + อื่นๆ รวมได้เท่ายอดบิล (รวม VAT)', () => {
+  const summary = invoices.getOutstandingSummary(db, apartmentId, '2026-08')
+  for (const row of summary.groups.flatMap((g) => g.rows)) {
+    const sum = row.rentCents + row.waterCents + row.electricCents + row.otherCents
+    assert(sum === row.totalCents, `ห้อง ${row.roomNumber}: ${sum} ≠ ${row.totalCents}`)
+  }
+  assert(summary.hasOther, 'ห้อง 101 มีค่าบริการ ต้องมีคอลัมน์อื่นๆ')
+})
+
+check('เดือนผิดรูปแบบต้องเตือน', () => {
+  throws(() => invoices.getOutstandingSummary(db, apartmentId, ''), 'เลือกเดือน', 'ควรเตือน')
+})
+
 group('แก้ไขบิลที่ออกไปแล้ว')
 
 check('เพิ่มค่าบริการเข้าบิลแล้วยอดรวมถูกคิดใหม่', () => {

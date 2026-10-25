@@ -21,6 +21,7 @@ import InvoiceDetailPage from './InvoiceDetailPage.jsx'
 import MultiPaymentPage from './MultiPaymentPage.jsx'
 import InvoiceBill from '../components/InvoiceBill.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
+import OutstandingSummaryDocument, { summaryPageCount } from '../components/OutstandingSummaryDocument.jsx'
 import { listMeterBatches } from '../services/meterService.js'
 import { getImageDataUrl } from '../services/imageService.js'
 import {
@@ -28,6 +29,7 @@ import {
   createMonthlyInvoicesForApartment,
   deleteInvoice,
   getInvoice,
+  getOutstandingSummary,
   listInvoices,
   previewMonthlyBilling
 } from '../services/invoiceService.js'
@@ -57,6 +59,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
   const [period, setPeriod] = useState(initialPeriod)
   const [deleting, setDeleting] = useState(null)
   const [printSet, setPrintSet] = useState(null)
+  const [summarySet, setSummarySet] = useState(null)
   const [busy, setBusy] = useState(false)
 
   const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
@@ -120,6 +123,18 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     setPrintSet({ bills, qrDataUrl })
   }
 
+  async function startSummaryPrint() {
+    setError('')
+    setBusy(true)
+    const res = await getOutstandingSummary(apartment.apartmentId, period.month)
+    setBusy(false)
+    if (!res.success) return setError(res.error)
+    if (res.data.groups.length === 0) {
+      return setError(`ยังไม่มีบิลของ${periodLabel(period)}`)
+    }
+    setSummarySet({ summary: res.data, printedAt: new Date() })
+  }
+
   if (openInvoiceId) {
     return (
       <InvoiceDetailPage
@@ -157,6 +172,29 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           load()
         }}
       />
+    )
+  }
+
+  if (summarySet) {
+    const pages = summaryPageCount(summarySet.summary)
+    return (
+      <>
+        <OutstandingSummaryDocument
+          summary={summarySet.summary}
+          apartmentName={apartment.nameTh}
+          printedAt={summarySet.printedAt}
+        />
+
+        <PrintDialog
+          title="พิมพ์สรุปยอดค้างชำระ"
+          maxPages={pages}
+          onClose={() => setSummarySet(null)}
+          onPrinted={() => {
+            setSummarySet(null)
+            showToast('ส่งสรุปยอดค้างชำระเข้าเครื่องพิมพ์แล้ว')
+          }}
+        />
+      </>
     )
   }
 
@@ -198,15 +236,26 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           <h2 className="panel-title">
             รายการใบแจ้งหนี้
             <InfoTip
-              title="พิมพ์ใบแจ้งหนี้ทุกห้อง"
+              title="พิมพ์เอกสาร"
               points={[
-                'พิมพ์ทุกใบในช่วงเวลาและแท็บที่เลือก ใบละหนึ่งแผ่น',
+                'ใบแจ้งหนี้ทุกห้อง: พิมพ์ทุกใบในช่วงเวลาและแท็บที่เลือก ใบละหนึ่งแผ่น',
                 'ต้องการเฉพาะบางชุด ให้เลือกเดือนหรือแท็บก่อน',
-                'ใบที่ยกเลิกแล้วจะไม่ถูกพิมพ์'
+                'ใบที่ยกเลิกแล้วจะไม่ถูกพิมพ์',
+                'สรุปยอดค้างชำระ: ทุกห้องของเดือนที่เลือก ตึกละหน้า สำหรับติดบอร์ด'
               ]}
             />
           </h2>
           <div className="panel-head-actions">
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={startSummaryPrint}
+              disabled={busy || period.mode !== 'month'}
+              title={period.mode !== 'month' ? 'เลือกแบบรายเดือนก่อน' : undefined}
+            >
+              <Icon name="printer" />
+              <span>พิมพ์สรุปยอดค้างชำระ</span>
+            </button>
             <button
               type="button"
               className="btn btn-outline"

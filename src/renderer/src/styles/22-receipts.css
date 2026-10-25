@@ -137,3 +137,74 @@
   margin: 0;
 }
 
+
+/* สรุปยอดค้างชำระติดบอร์ด — ขาวดำล้วน */
+.outstanding-sheets {
+  padding: 24px;
+  color: #000;
+  background: #fff;
+}
+
+.outstanding-doc + .outstanding-doc {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+.outstanding-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.outstanding-head h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.outstanding-sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.outstanding-table thead tr:last-child th {
+  padding: 6px 8px;
+  text-align: left;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+}
+
+.outstanding-table thead th.align-right {
+  text-align: right;
+}
+
+.outstanding-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #ccc;
+}
+
+.outstanding-total {
+  font-weight: 600;
+}
+
+@media print {
+  .outstanding-sheets {
+    padding: 0;
+  }
+
+  .outstanding-doc + .outstanding-doc {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    break-before: page;
+  }
+
+  .outstanding-table tr {
+    break-inside: avoid;
+  }
+}
