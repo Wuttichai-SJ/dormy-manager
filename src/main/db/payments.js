@@ -428,16 +428,18 @@ export function listReceipts(db, apartmentId, { dateFrom, dateTo } = {}) {
               cu.full_name AS cancelled_by_name,
               a.name_th AS apartment_name, a.address_th AS apartment_address,
               a.phone AS apartment_phone,
-              -- ชื่อผู้เช่าหลักของสัญญา — ใบเสร็จที่ยื่นให้คนหนึ่งต้องมีชื่อคนนั้นอยู่บนนั้น
-              (SELECT t.first_name || ' ' || t.last_name
-                 FROM contract_tenants ct
-                 JOIN tenants t ON t.tenant_id = ct.tenant_id
-                WHERE ct.contract_id = c.contract_id
-                ORDER BY ct.is_primary DESC, t.tenant_id
-                LIMIT 1) AS tenant_name
+              pt.first_name || ' ' || pt.last_name AS tenant_name,
+              pt.phone AS tenant_phone, pt.address AS tenant_address
          FROM payments p
          LEFT JOIN invoices i  ON i.invoice_id = p.invoice_id
          JOIN contracts c ON c.contract_id = COALESCE(p.contract_id, i.contract_id)
+         -- ผู้เช่าหลักของสัญญา — ใบเสร็จต้องมีชื่อ ที่อยู่ เบอร์ของคนที่จ่าย
+         LEFT JOIN tenants pt ON pt.tenant_id = (
+           SELECT ct.tenant_id FROM contract_tenants ct
+            WHERE ct.contract_id = c.contract_id
+            ORDER BY ct.is_primary DESC, ct.tenant_id
+            LIMIT 1
+         )
          JOIN rooms r     ON r.room_id = c.room_id
          JOIN floors f    ON f.floor_id = r.floor_id
          JOIN apartments a ON a.apartment_id = f.apartment_id
@@ -486,6 +488,8 @@ function toPublicPayment(row) {
     createdByName: row.created_by_name,
     createdAt: row.created_at,
     tenantName: row.tenant_name ?? null,
+    tenantPhone: row.tenant_phone ?? null,
+    tenantAddress: row.tenant_address ?? null,
     apartment: row.apartment_name
       ? {
           name: row.apartment_name,

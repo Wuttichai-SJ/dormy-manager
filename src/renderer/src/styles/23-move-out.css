@@ -196,12 +196,6 @@
   border-top: 1px dashed var(--border-strong);
 }
 
-.receipt-received {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
-
 .move-out-summary.is-stale {
   opacity: 0.45;
 }

@@ -497,6 +497,16 @@ export function getInvoiceById(db, invoiceId) {
     )
     .get(invoiceId).paid
 
+  const reading = row.meter_batch_id
+    ? db
+        .prepare(
+          `SELECT mr.* FROM meter_readings mr
+             JOIN contracts c ON c.room_id = mr.room_id
+            WHERE mr.meter_batch_id = ? AND c.contract_id = ?`
+        )
+        .get(row.meter_batch_id, row.contract_id)
+    : null
+
   return {
     invoiceId: row.invoice_id,
     contractId: row.contract_id,
@@ -508,6 +518,10 @@ export function getInvoiceById(db, invoiceId) {
     status: row.status,
     statusLabel: INVOICE_STATUS_LABELS[row.status],
     meterBatchId: row.meter_batch_id,
+    // เลขมิเตอร์ก่อน/ล่าสุดของรอบที่ออกบิล — ใบเสร็จใช้แสดงใต้ค่าน้ำ/ค่าไฟ
+    meterReadings: reading
+      ? { water: toMeterSide(reading, 'water'), electric: toMeterSide(reading, 'electric') }
+      : null,
     exemptAmountCents: row.exempt_amount_cents,
     taxableAmountCents: row.taxable_amount_cents,
     vatAmountCents: row.vat_amount_cents,
@@ -536,6 +550,17 @@ export function getInvoiceById(db, invoiceId) {
     tenants,
     bankAccounts,
     items: items.map(toPublicItem)
+  }
+}
+
+function toMeterSide(reading, side) {
+  const previous = reading[`${side}_previous_reading`]
+  const current = reading[`${side}_current_reading`]
+  if (previous == null || current == null) return null
+  return {
+    previous: Number(previous),
+    current: Number(current),
+    units: Number(reading[`${side}_units_used`] ?? 0)
   }
 }
 

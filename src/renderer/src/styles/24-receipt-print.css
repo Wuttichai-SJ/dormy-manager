@@ -1,4 +1,107 @@
-/* ใบเสร็จ A5 แนวนอน สองใบต่อ A4 — @media print ก้อนที่ 3 จาก 3 */
+/* ใบเสร็จขาวดำ A5 แนวนอน สองใบต่อ A4 — @media print ก้อนที่ 3 จาก 3 */
+
+.receipt-doc {
+  display: flex;
+  flex-direction: column;
+  color: #000;
+  background: #fff;
+  font-size: 13px;
+}
+
+.rc-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.rc-apartment {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.rc-head {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.rc-info {
+  margin: 0;
+}
+
+.rc-info > div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+  padding: 1px 0;
+}
+
+.rc-info dt {
+  font-weight: 600;
+}
+
+.rc-info dd {
+  margin: 0;
+}
+
+.rc-items {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+}
+
+.rc-items th {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid #000;
+}
+
+.rc-items th.align-right {
+  text-align: right;
+}
+
+.rc-items th + th,
+.rc-items td + td {
+  width: 110px;
+  border-left: 1px solid #000;
+}
+
+.rc-items td {
+  padding: 2px 8px;
+}
+
+.rc-sub td:first-child {
+  padding-left: 22px;
+}
+
+.rc-items tfoot td {
+  border-top: 1px solid #000;
+}
+
+.rc-total td {
+  font-weight: 700;
+}
+
+.rc-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 18px;
+}
+
+.rc-line {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.rc-blank {
+  flex: 1;
+  min-height: 18px;
+  border-bottom: 1px solid #000;
+}
 
 @media print {
   .receipt-doc {
@@ -7,17 +110,12 @@
     margin: 0;
     padding: 0;
     break-inside: avoid;
-    display: flex;
-    flex-direction: column;
+    font-size: 11px;
   }
 
-  .receipt-doc > .invoice-payment-info {
+  .receipt-doc .rc-foot {
     margin-top: auto;
     padding-top: 10px;
-  }
-
-  .receipt-doc .invoice-items {
-    width: 100%;
   }
 
   .receipt-doc:nth-child(2n):not(:last-child) {
@@ -42,57 +140,21 @@
     margin-top: 0;
   }
 
-  .receipt-doc .invoice-doc-title {
-    margin-bottom: 6px;
+  .receipt-doc .rc-title {
     font-size: 15px;
   }
 
-  .receipt-doc .invoice-doc-head {
-    margin-bottom: 8px;
-    font-size: 11px;
+  .receipt-doc .rc-apartment {
+    margin-bottom: 6px;
+    font-size: 10px;
   }
 
-  .receipt-doc .invoice-doc-head p {
-    margin: 1px 0;
+  .receipt-doc .rc-head {
+    margin-bottom: 6px;
   }
 
-  .receipt-doc .invoice-doc-meta > div {
-    padding: 1px 0;
-  }
-
-  .receipt-doc .invoice-tenant {
-    margin-bottom: 8px;
-    padding: 5px 0;
-    font-size: 11px;
-  }
-
-  .receipt-doc .invoice-items th,
-  .receipt-doc .invoice-items td {
-    padding-top: 4px;
-    padding-bottom: 4px;
-    font-size: 11px;
-  }
-
-  .receipt-doc .invoice-totals {
-    font-size: 11px;
-  }
-
-  .receipt-doc .invoice-totals > div {
-    padding: 2px 0;
-  }
-
-  .receipt-doc .invoice-total-row {
-    padding-top: 5px !important;
-    font-size: 13px;
-  }
-
-  .receipt-doc .receipt-received {
-    margin-top: 6px;
-    padding-top: 6px;
-  }
-
-  .receipt-doc .invoice-signature {
-    padding-top: 14px;
+  .receipt-doc .rc-items td {
+    padding-top: 1px;
+    padding-bottom: 1px;
   }
 }
-

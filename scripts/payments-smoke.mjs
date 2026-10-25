@@ -541,6 +541,7 @@ check('ใบเสร็จแนบข้อมูลหอและชื่�
   const withInvoice = report.receipts.find((r) => r.sourceType === 'invoice')
   assert(withInvoice.apartment?.name === 'หอทดสอบรับเงิน', `ได้ ${withInvoice.apartment?.name}`)
   assert(Boolean(withInvoice.tenantName), 'ต้องมีชื่อผู้เช่า')
+  assert(Boolean(withInvoice.tenantPhone), 'ต้องมีเบอร์ผู้เช่า')
 })
 
 check('ยอดรวมหักใบคืนเงินประกันออก จึงเป็นเงินที่เข้าหอจริง', () => {

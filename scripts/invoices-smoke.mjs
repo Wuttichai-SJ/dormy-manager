@@ -368,6 +368,11 @@ check('บิลจำวันที่จดมิเตอร์ที่ใ�
   assert(invoice1.roomNumber === '101', `ได้ ${invoice1.roomNumber}`)
 })
 
+check('บิลแนบเลขมิเตอร์ก่อน/ล่าสุดไปให้ใบเสร็จ', () => {
+  const water = invoice1.meterReadings?.water
+  assert(water?.previous === 2 && water?.current === 100 && water?.units === 98, JSON.stringify(water))
+})
+
 check('บิลแนบชื่อผู้เช่าไปด้วย ผู้เช่าหลักมาก่อน', () => {
   assert(invoice1.tenants.length >= 1, `ได้ ${invoice1.tenants.length} คน`)
   assert(invoice1.tenants[0].isPrimary === true, 'ผู้เช่าหลักต้องอยู่ตัวแรก')
