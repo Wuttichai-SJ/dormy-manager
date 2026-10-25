@@ -1,6 +1,6 @@
 // ผู้เช่าเป็นข้อมูลกลางไม่ผูกหอ — ผูกผ่านสัญญาเท่านั้น (ย้ายข้ามหอได้)
 
-export function validateTenantInput({ firstName, lastName, phone, idCardNo }) {
+export function validateTenantInput({ firstName, lastName, phone, idCardNo, address }) {
   const errors = []
 
   if (!String(firstName ?? '').trim()) errors.push('กรุณากรอกชื่อผู้เช่า')
@@ -12,10 +12,27 @@ export function validateTenantInput({ firstName, lastName, phone, idCardNo }) {
     errors.push('เบอร์โทรศัพท์ต้องมี 9-10 หลัก')
   }
 
-  const idCard = onlyDigits(idCardNo)
-  if (idCard && idCard.length !== 13) errors.push('เลขบัตรประชาชนต้องมี 13 หลัก')
+  const idCardError = thaiIdCardError(idCardNo)
+  if (idCardError) errors.push(idCardError)
+
+  if (!String(address ?? '').trim()) errors.push('กรุณากรอกที่อยู่')
 
   return errors
+}
+
+// สำเนาอยู่ใน renderer TenantDialog.jsx — แก้คู่กัน
+export function thaiIdCardError(value) {
+  const digits = onlyDigits(value)
+  if (!digits) return 'กรุณากรอกเลขบัตรประชาชน'
+  if (digits.length !== 13) return 'เลขบัตรประชาชนต้องมี 13 หลัก'
+  return isThaiIdChecksumValid(digits) ? null : 'เลขบัตรประชาชนไม่ถูกต้อง'
+}
+
+// หลักที่ 13 = (11 - ผลรวมหลัก 1-12 คูณ 13..2 mod 11) mod 10
+function isThaiIdChecksumValid(digits) {
+  let sum = 0
+  for (let i = 0; i < 12; i++) sum += Number(digits[i]) * (13 - i)
+  return (11 - (sum % 11)) % 10 === Number(digits[12])
 }
 
 // เบอร์/เลขบัตรเก็บเป็นตัวเลขล้วน

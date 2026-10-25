@@ -121,6 +121,16 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
   )
 }
 
+// สำเนาของ main/db/tenants.js — แก้คู่กัน
+export function thaiIdCardError(value) {
+  const digits = String(value ?? '').replace(/\D/g, '')
+  if (!digits) return 'กรุณากรอกเลขบัตรประชาชน'
+  if (digits.length !== 13) return 'เลขบัตรประชาชนต้องมี 13 หลัก'
+  let sum = 0
+  for (let i = 0; i < 12; i++) sum += Number(digits[i]) * (13 - i)
+  return (11 - (sum % 11)) % 10 === Number(digits[12]) ? null : 'เลขบัตรประชาชนไม่ถูกต้อง'
+}
+
 // แสดงผลเท่านั้น — ฐานข้อมูลเก็บตัวเลขล้วน
 export function formatPhone(digits) {
   if (digits?.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`

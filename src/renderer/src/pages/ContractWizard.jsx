@@ -6,8 +6,8 @@ import DateField from '../components/DateField.jsx'
 import FieldError from '../components/FieldError.jsx'
 import { centsToInput, formatBaht, formatDocumentDate } from '../format.js'
 import { FULL_MONTH_MOVE_IN_UNTIL_DAY, PRORATE_DAYS_PER_MONTH } from '../constants.js'
-import { EMPTY_TENANT, formatPhone } from '../components/TenantDialog.jsx'
-import { createTenant, listTenants } from '../services/tenantService.js'
+import { EMPTY_TENANT, formatPhone, thaiIdCardError } from '../components/TenantDialog.jsx'
+import { createTenant, listTenants, updateTenant } from '../services/tenantService.js'
 import { createContract } from '../services/contractService.js'
 import { convertBookingToContract } from '../services/bookingService.js'
 import { getLastMeterReadings } from '../services/meterService.js'
@@ -51,6 +51,9 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
   const [tenants, setTenants] = useState([
     booking ? tenantFromBooking(booking) : { ...EMPTY_TENANT }
   ])
+
+  // แสดง error ใต้ช่องหลังกดต่อไป/บันทึกครั้งแรก
+  const [showTenantErrors, setShowTenantErrors] = useState(false)
 
   // เบอร์ (ตัวเลขล้วน) → ผู้เช่าในระบบที่ใช้เบอร์นี้ · null = ไม่มีใครใช้
   const [phoneOwners, setPhoneOwners] = useState({})
@@ -100,8 +103,25 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
   const receivedToday = form.depositReceived.trim() === '' ? dueToday : toCentsSafe(form.depositReceived)
   const depositShort = Math.max(dueToday - receivedToday, 0)
 
+  // ข้อมูลผู้เช่าไม่ครบ = กลับไปขั้นแรก
+  function tenantsComplete() {
+    const incomplete = tenants.findIndex((person) => Object.keys(tenantFieldErrors(person)).length > 0)
+    if (incomplete < 0) return true
+    setShowTenantErrors(true)
+    setStep(0)
+    setError(`กรอกข้อมูล${tenantLabel(incomplete)}ให้ครบ`)
+    return false
+  }
+
+  function next() {
+    setError('')
+    if (step === 0 && !tenantsComplete()) return
+    setStep(step + 1)
+  }
+
   async function submit() {
     setError('')
+    if (!tenantsComplete()) return
 
     const dupIndex = tenants.findIndex((_, i) => duplicateOf(i) >= 0)
     if (dupIndex >= 0) {
@@ -153,6 +173,11 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
     const tenantIds = []
     for (const [i, person] of tenants.entries()) {
       if (owners[i]) {
+        const filled = await fillMissingDetails(owners[i], person)
+        if (!filled.success) {
+          setBusy(false)
+          return setError(filled.error)
+        }
         tenantIds.push(owners[i].tenantId)
         continue
       }
@@ -405,6 +430,7 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
                 value={person}
                 owner={phoneOwners[onlyDigits(person.phone)] ?? null}
                 duplicateOf={duplicateOf(index)}
+                errors={showTenantErrors ? tenantFieldErrors(person) : {}}
                 onPhoneBlur={() => checkPhone(person.phone)}
                 canRemove={tenants.length > 1}
                 onChange={(next) =>
@@ -519,7 +545,7 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
             {step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
           </button>
           {step < STEPS.length - 1 ? (
-            <button type="button" className="btn" onClick={() => setStep(step + 1)}>
+            <button type="button" className="btn" onClick={next}>
               ต่อไป
             </button>
           ) : (
@@ -533,7 +559,7 @@ export default function ContractWizard({ apartment, room, booking, onCancel, onD
   )
 }
 
-function TenantFields({ index, value, owner, duplicateOf, onPhoneBlur, onChange, onRemove, canRemove }) {
+function TenantFields({ index, value, owner, duplicateOf, errors, onPhoneBlur, onChange, onRemove, canRemove }) {
   const set = (key, v) => onChange({ ...value, [key]: v })
 
   return (
@@ -553,12 +579,14 @@ function TenantFields({ index, value, owner, duplicateOf, onPhoneBlur, onChange,
             ชื่อจริง <span className="required">* จำเป็น</span>
           </label>
           <input value={value.firstName} onChange={(e) => set('firstName', e.target.value)} />
+          <FieldError message={errors.firstName} />
         </div>
         <div className="field field-required">
           <label>
             นามสกุล <span className="required">* จำเป็น</span>
           </label>
           <input value={value.lastName} onChange={(e) => set('lastName', e.target.value)} />
+          <FieldError message={errors.lastName} />
         </div>
       </div>
 
@@ -573,7 +601,9 @@ function TenantFields({ index, value, owner, duplicateOf, onPhoneBlur, onChange,
             onBlur={onPhoneBlur}
             inputMode="tel"
           />
-          {duplicateOf >= 0 ? (
+          {errors.phone ? (
+            <FieldError message={errors.phone} />
+          ) : duplicateOf >= 0 ? (
             <FieldError message={`เบอร์ซ้ำกับ${tenantLabel(duplicateOf)} ในสัญญานี้`} />
           ) : owner && idCardMismatch(value, owner) ? (
             <FieldError message={`เบอร์นี้เป็นของ ${owner.fullName} แต่เลขบัตรไม่ตรงกัน · กรุณาใช้เบอร์อื่น`} />
@@ -583,19 +613,25 @@ function TenantFields({ index, value, owner, duplicateOf, onPhoneBlur, onChange,
             </p>
           ) : null}
         </div>
-        <div className="field">
-          <label>เลขบัตรประชาชน / พาสปอร์ต</label>
+        <div className="field field-required">
+          <label>
+            เลขบัตรประชาชน <span className="required">* จำเป็น</span>
+          </label>
           <input
             value={value.idCardNo}
             onChange={(e) => set('idCardNo', e.target.value)}
             inputMode="numeric"
           />
+          <FieldError message={errors.idCardNo} />
         </div>
       </div>
 
-      <div className="field">
-        <label>ที่อยู่</label>
+      <div className="field field-required">
+        <label>
+          ที่อยู่ <span className="required">* จำเป็น</span>
+        </label>
         <input value={value.address} onChange={(e) => set('address', e.target.value)} />
+        <FieldError message={errors.address} />
       </div>
     </div>
   )
@@ -628,6 +664,35 @@ function MeterStartNote({ value, last, digits }) {
   )
 }
 
+function tenantFieldErrors(person) {
+  const errors = {}
+  if (!String(person.firstName ?? '').trim()) errors.firstName = 'กรุณากรอกชื่อจริง'
+  if (!String(person.lastName ?? '').trim()) errors.lastName = 'กรุณากรอกนามสกุล'
+  const phone = onlyDigits(person.phone)
+  if (!phone) errors.phone = 'กรุณากรอกเบอร์ติดต่อ'
+  else if (phone.length < 9 || phone.length > 10) errors.phone = 'เบอร์โทรศัพท์ต้องมี 9-10 หลัก'
+  const idCard = thaiIdCardError(person.idCardNo)
+  if (idCard) errors.idCardNo = idCard
+  if (!String(person.address ?? '').trim()) errors.address = 'กรุณากรอกที่อยู่'
+  return errors
+}
+
+// ผู้เช่าเดิมที่ยังไม่มีเลขบัตร/ที่อยู่ → เติมจากที่กรอกในสัญญานี้
+async function fillMissingDetails(owner, person) {
+  if (owner.idCardNo && owner.address) return { success: true }
+  return updateTenant(owner.tenantId, {
+    firstName: owner.firstName,
+    lastName: owner.lastName,
+    phone: owner.phone,
+    idCardNo: owner.idCardNo || person.idCardNo,
+    address: owner.address || person.address,
+    emergencyContactName: owner.emergencyContactName,
+    emergencyRelation: owner.emergencyRelation,
+    emergencyPhone: owner.emergencyPhone,
+    note: owner.note
+  })
+}
+
 function tenantLabel(index) {
   return index === 0 ? 'ผู้เช่าหลัก' : `ผู้อยู่ร่วมคนที่ ${index}`
 }
@@ -656,7 +721,8 @@ function ownerStatus(owner) {
 function reuseNote(person, owner) {
   const typedName = `${person.firstName.trim()} ${person.lastName.trim()}`
   const nameNote = typedName === owner.fullName ? '' : ` ชื่อที่กรอกไว้ "${typedName}" จะไม่ถูกใช้`
-  return `เบอร์ ${formatPhone(owner.phone)} เป็นของ "${owner.fullName}" (${ownerStatus(owner)}) สัญญานี้จะใช้ข้อมูลเดิมของคนนี้${nameNote}`
+  const fillNote = owner.idCardNo && owner.address ? '' : ' (เติมเลขบัตร/ที่อยู่ที่ยังว่างจากที่กรอก)'
+  return `เบอร์ ${formatPhone(owner.phone)} เป็นของ "${owner.fullName}" (${ownerStatus(owner)}) สัญญานี้จะใช้ข้อมูลเดิมของคนนี้${fillNote}${nameNote}`
 }
 
 // ตรวจก่อนสร้างผู้เช่าคนแรก — กันสร้างไปครึ่งทางแล้วค้าง
@@ -668,7 +734,7 @@ async function findOwnerProblem(tenants, owners) {
     }
 
     const idCard = onlyDigits(person.idCardNo)
-    if (owner || !idCard) continue
+    if (owner?.idCardNo || !idCard) continue
     const res = await listTenants(idCard)
     const cardOwner = res.success ? res.data.find((t) => t.idCardNo === idCard) : null
     if (cardOwner) {

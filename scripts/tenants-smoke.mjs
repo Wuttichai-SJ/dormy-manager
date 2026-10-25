@@ -19,7 +19,8 @@ const BASE = {
   firstName: 'สมชาย',
   lastName: 'ใจดี',
   phone: '0812345678',
-  idCardNo: '1234567890123'
+  idCardNo: '1234567890121',
+  address: '99 ม.1 ต.ในเมือง'
 }
 
 group('ตรวจข้อมูล')
@@ -36,9 +37,25 @@ check('เบอร์โทรบังคับกรอก และต้อ
   assert(tenants.validateTenantInput({ ...BASE, phone: '021234567' }).length === 0, 'เบอร์บ้าน 9 หลักต้องผ่าน')
 })
 
-check('เลขบัตรประชาชนเว้นว่างได้', () => {
-  assert(tenants.validateTenantInput({ ...BASE, idCardNo: '' }).length === 0, 'เว้นว่างต้องผ่าน')
-  assert(tenants.validateTenantInput({ ...BASE, idCardNo: null }).length === 0, 'ไม่ส่งมาเลยต้องผ่าน')
+check('ข้อมูลครบต้องผ่าน', () => {
+  const errors = tenants.validateTenantInput(BASE)
+  assert(errors.length === 0, errors.join(', '))
+})
+
+check('เลขบัตรประชาชนบังคับกรอก', () => {
+  assert(tenants.validateTenantInput({ ...BASE, idCardNo: '' }).length === 1, 'เว้นว่างต้องไม่ผ่าน')
+  assert(tenants.validateTenantInput({ ...BASE, idCardNo: null }).length === 1, 'ไม่ส่งมาเลยต้องไม่ผ่าน')
+})
+
+check('เลขบัตรหลักสุดท้ายผิดต้องไม่ผ่าน', () => {
+  const errors = tenants.validateTenantInput({ ...BASE, idCardNo: '1234567890123' })
+  assert(errors.some((e) => e.includes('ไม่ถูกต้อง')), errors.join(', '))
+  assert(tenants.validateTenantInput({ ...BASE, idCardNo: '1-1017-00203-15-8' }).length === 0, 'มีขีดต้องผ่าน')
+})
+
+check('ที่อยู่บังคับกรอก', () => {
+  const errors = tenants.validateTenantInput({ ...BASE, address: '  ' })
+  assert(errors.some((e) => e.includes('ที่อยู่')), errors.join(', '))
 })
 
 check('เลขบัตรที่กรอกมาต้องครบ 13 หลัก', () => {
@@ -86,7 +103,7 @@ check('เลขบัตรซ้ำไม่ได้', () => {
       firstName: 'ง',
       lastName: 'ง',
       phone: '0840000000',
-      idCardNo: '1234567890123'
+      idCardNo: '1234567890121'
     }),
     'เลขบัตรประชาชน',
     'ควรกันเลขบัตรซ้ำ'
