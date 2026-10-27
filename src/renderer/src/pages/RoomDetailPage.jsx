@@ -5,7 +5,8 @@ import { useConfirm } from '../components/ConfirmDialog.jsx'
 import FieldError, { fieldClass, invalidProps, useFormErrors } from '../components/FieldError.jsx'
 import InfoTip from '../components/InfoTip.jsx'
 import { showToast } from '../components/Toast.jsx'
-import { formatPhone } from '../components/TenantDialog.jsx'
+import TenantDialog, { formatPhone } from '../components/TenantDialog.jsx'
+import { getTenant } from '../services/tenantService.js'
 import { centsToInput, formatBaht } from '../format.js'
 import { PAYMENT_METHODS, ROOM_STATUS_LABELS } from '../constants.js'
 import { getContractsForRoom } from '../services/contractService.js'
@@ -221,7 +222,7 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
 
           <div className="room-detail-column">
             <ServicesCard contract={active} room={room} />
-            {active && <TenantsCard contract={active} />}
+            {active && <TenantsCard contract={active} onReload={load} />}
             <BookingsCard
               room={room}
               onConvert={setConverting}
@@ -673,7 +674,15 @@ function ServicesCard({ contract, room }) {
   )
 }
 
-function TenantsCard({ contract }) {
+function TenantsCard({ contract, onReload }) {
+  const [editing, setEditing] = useState(null)
+
+  async function openEdit(tenantId) {
+    const res = await getTenant(tenantId)
+    if (!res.success) return showToast(res.error, 'error')
+    setEditing(res.data)
+  }
+
   return (
     <section className="panel">
       <h3 className="panel-title">ข้อมูลผู้เช่า</h3>
@@ -684,6 +693,7 @@ function TenantsCard({ contract }) {
             <th>ชื่อ</th>
             <th>เบอร์ติดต่อ</th>
             <th>สถานะ</th>
+            <th />
           </tr>
         </thead>
         <tbody>
@@ -698,10 +708,27 @@ function TenantsCard({ contract }) {
                   <span className="muted">ผู้อยู่ร่วม</span>
                 )}
               </td>
+              <td className="align-right">
+                <button type="button" className="link-btn" onClick={() => openEdit(t.tenantId)}>
+                  แก้ไข
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {editing && (
+        <TenantDialog
+          tenant={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            showToast('บันทึกข้อมูลผู้เช่าแล้ว')
+            onReload()
+          }}
+        />
+      )}
     </section>
   )
 }

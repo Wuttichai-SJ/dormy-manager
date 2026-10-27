@@ -8,6 +8,10 @@ export function listTenantsByApartment(apartmentId) {
   return invoke('tenant:listByApartment', { apartmentId })
 }
 
+export function getTenant(tenantId) {
+  return invoke('tenant:get', { tenantId })
+}
+
 export function createTenant(payload) {
   return invoke('tenant:create', payload)
 }

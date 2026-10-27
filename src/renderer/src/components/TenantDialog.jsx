@@ -1,6 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import Modal from './Modal.jsx'
+import FieldError, { fieldClass, invalidProps, useFormErrors } from './FieldError.jsx'
 import { formatIdCardInput, formatPhoneInput } from '../inputMasks.js'
+import { createTenant, updateTenant } from '../services/tenantService.js'
 
 export const EMPTY_TENANT = {
   firstName: '',
@@ -14,75 +16,100 @@ export const EMPTY_TENANT = {
   note: ''
 }
 
-export default function TenantDialog({ value, onChange, onClose, onSubmit, busy }) {
-  const set = (key, v) => onChange({ ...value, [key]: v })
+const TENANT_FIELDS = ['firstName', 'lastName', 'phone', 'idCardNo', 'address']
+
+// ฟิลด์ที่มี mask — ค่าจากฐานข้อมูลเป็นตัวเลขล้วน
+const MASKS = {
+  phone: formatPhoneInput,
+  idCardNo: formatIdCardInput,
+  emergencyPhone: formatPhoneInput
+}
+
+export default function TenantDialog({ tenant, onClose, onSaved }) {
+  const editing = Boolean(tenant?.tenantId)
+  const [form, setForm] = useState(() => {
+    const initial = { ...EMPTY_TENANT }
+    for (const key of Object.keys(EMPTY_TENANT)) {
+      const value = tenant?.[key] ?? ''
+      initial[key] = MASKS[key] ? MASKS[key](value) : value
+    }
+    return initial
+  })
+  const [busy, setBusy] = useState(false)
+  const { errors, formError, fromResult, clear, reset } = useFormErrors(TENANT_FIELDS)
+
+  const set = (key, value) => {
+    setForm((f) => ({ ...f, [key]: MASKS[key] ? MASKS[key](value) : value }))
+    clear(key)
+  }
+
+  async function submit() {
+    reset()
+    setBusy(true)
+    const res = editing ? await updateTenant(tenant.tenantId, form) : await createTenant(form)
+    setBusy(false)
+    if (!res.success) return fromResult(res)
+    onSaved(res.data)
+  }
 
   return (
     <Modal
-      title={value.tenantId ? 'แก้ไขข้อมูลผู้เช่า' : 'เพิ่มผู้เช่า'}
+      title={editing ? `แก้ไขข้อมูล ${tenant.fullName}` : 'เพิ่มผู้เช่า'}
+      icon="account"
       busy={busy}
+      error={formError}
       onClose={onClose}
-      onSubmit={onSubmit}
+      onSubmit={submit}
     >
       <div className="field-row">
-        <div className="field field-required">
-          <label htmlFor="firstName">
-            ชื่อ <span className="required">* จำเป็น</span>
-          </label>
+        <RequiredField id="firstName" label="ชื่อ" error={errors.firstName}>
           <input
             id="firstName"
-            value={value.firstName}
+            value={form.firstName}
             onChange={(e) => set('firstName', e.target.value)}
             autoFocus
+            {...invalidProps('firstName', errors.firstName)}
           />
-        </div>
-        <div className="field field-required">
-          <label htmlFor="lastName">
-            นามสกุล <span className="required">* จำเป็น</span>
-          </label>
+        </RequiredField>
+        <RequiredField id="lastName" label="นามสกุล" error={errors.lastName}>
           <input
             id="lastName"
-            value={value.lastName}
+            value={form.lastName}
             onChange={(e) => set('lastName', e.target.value)}
+            {...invalidProps('lastName', errors.lastName)}
           />
-        </div>
+        </RequiredField>
       </div>
 
       <div className="field-row">
-        <div className="field field-required">
-          <label htmlFor="phone">
-            เบอร์โทรศัพท์ <span className="required">* จำเป็น</span>
-          </label>
+        <RequiredField id="phone" label="เบอร์โทรศัพท์" error={errors.phone}>
           <input
             id="phone"
-            value={value.phone}
-            onChange={(e) => set('phone', formatPhoneInput(e.target.value))}
+            value={form.phone}
+            onChange={(e) => set('phone', e.target.value)}
             inputMode="tel"
+            {...invalidProps('phone', errors.phone)}
           />
-        </div>
-        <div className="field field-required">
-          <label htmlFor="idCardNo">
-            เลขบัตรประชาชน <span className="required">* จำเป็น</span>
-          </label>
+        </RequiredField>
+        <RequiredField id="idCardNo" label="เลขบัตรประชาชน" error={errors.idCardNo}>
           <input
             id="idCardNo"
-            value={value.idCardNo ?? ''}
-            onChange={(e) => set('idCardNo', formatIdCardInput(e.target.value))}
+            value={form.idCardNo}
+            onChange={(e) => set('idCardNo', e.target.value)}
             inputMode="numeric"
+            {...invalidProps('idCardNo', errors.idCardNo)}
           />
-        </div>
+        </RequiredField>
       </div>
 
-      <div className="field field-required">
-        <label htmlFor="address">
-          ที่อยู่ตามทะเบียนบ้าน <span className="required">* จำเป็น</span>
-        </label>
+      <RequiredField id="address" label="ที่อยู่ตามทะเบียนบ้าน" error={errors.address}>
         <input
           id="address"
-          value={value.address ?? ''}
+          value={form.address}
           onChange={(e) => set('address', e.target.value)}
+          {...invalidProps('address', errors.address)}
         />
-      </div>
+      </RequiredField>
 
       <hr className="divider" />
 
@@ -93,7 +120,7 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
           <label htmlFor="emergencyContactName">ชื่อผู้ติดต่อ</label>
           <input
             id="emergencyContactName"
-            value={value.emergencyContactName ?? ''}
+            value={form.emergencyContactName}
             onChange={(e) => set('emergencyContactName', e.target.value)}
           />
         </div>
@@ -101,7 +128,7 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
           <label htmlFor="emergencyRelation">ความสัมพันธ์</label>
           <input
             id="emergencyRelation"
-            value={value.emergencyRelation ?? ''}
+            value={form.emergencyRelation}
             onChange={(e) => set('emergencyRelation', e.target.value)}
             placeholder="เช่น บิดา มารดา"
           />
@@ -110,8 +137,8 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
           <label htmlFor="emergencyPhone">เบอร์โทรศัพท์</label>
           <input
             id="emergencyPhone"
-            value={value.emergencyPhone ?? ''}
-            onChange={(e) => set('emergencyPhone', formatPhoneInput(e.target.value))}
+            value={form.emergencyPhone}
+            onChange={(e) => set('emergencyPhone', e.target.value)}
             inputMode="tel"
           />
         </div>
@@ -119,9 +146,21 @@ export default function TenantDialog({ value, onChange, onClose, onSubmit, busy 
 
       <div className="field">
         <label htmlFor="note">หมายเหตุ</label>
-        <input id="note" value={value.note ?? ''} onChange={(e) => set('note', e.target.value)} />
+        <input id="note" value={form.note} onChange={(e) => set('note', e.target.value)} />
       </div>
     </Modal>
+  )
+}
+
+function RequiredField({ id, label, error, children }) {
+  return (
+    <div className={fieldClass('field field-required', error)}>
+      <label htmlFor={id}>
+        {label} <span className="required">* จำเป็น</span>
+      </label>
+      {children}
+      <FieldError id={`${id}-error`} message={error} />
+    </div>
   )
 }
 

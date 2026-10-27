@@ -2,8 +2,10 @@ import { ipcMain } from 'electron'
 import { getDatabase } from '../database.js'
 import { logError, logInfo } from '../logger.js'
 import { requireSessionUserId } from './authHandlers.js'
+import { throwIfErrors } from '../fieldError.js'
 import {
   deleteTenant,
+  getTenantById,
   insertTenant,
   listTenants,
   listTenantsByApartment,
@@ -30,8 +32,7 @@ function handleSession(channel, fn) {
 }
 
 function assertValid(payload) {
-  const errors = validateTenantInput(payload)
-  if (errors.length > 0) throw new Error(errors.join('\n'))
+  throwIfErrors(validateTenantInput(payload))
 }
 
 export function registerTenantHandlers() {
@@ -40,6 +41,12 @@ export function registerTenantHandlers() {
   handleSession('tenant:listByApartment', ({ apartmentId }) =>
     listTenantsByApartment(getDatabase(), apartmentId)
   )
+
+  handleSession('tenant:get', ({ tenantId }) => {
+    const tenant = getTenantById(getDatabase(), tenantId)
+    if (!tenant) throw new Error('ไม่พบผู้เช่า')
+    return tenant
+  })
 
   handleSession('tenant:create', (payload) => {
     assertValid(payload)

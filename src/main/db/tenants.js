@@ -1,21 +1,23 @@
+import { FieldError, errorList } from '../fieldError.js'
+
 // ผู้เช่าเป็นข้อมูลกลางไม่ผูกหอ — ผูกผ่านสัญญาเท่านั้น (ย้ายข้ามหอได้)
 
 export function validateTenantInput({ firstName, lastName, phone, idCardNo, address }) {
-  const errors = []
+  const errors = errorList()
 
-  if (!String(firstName ?? '').trim()) errors.push('กรุณากรอกชื่อผู้เช่า')
-  if (!String(lastName ?? '').trim()) errors.push('กรุณากรอกนามสกุลผู้เช่า')
+  if (!String(firstName ?? '').trim()) errors.add('firstName', 'กรุณากรอกชื่อผู้เช่า')
+  if (!String(lastName ?? '').trim()) errors.add('lastName', 'กรุณากรอกนามสกุลผู้เช่า')
 
   const digits = onlyDigits(phone)
-  if (!digits) errors.push('กรุณากรอกเบอร์โทรศัพท์')
+  if (!digits) errors.add('phone', 'กรุณากรอกเบอร์โทรศัพท์')
   else if (digits.length < 9 || digits.length > 10) {
-    errors.push('เบอร์โทรศัพท์ต้องมี 9-10 หลัก')
+    errors.add('phone', 'เบอร์โทรศัพท์ต้องมี 9-10 หลัก')
   }
 
   const idCardError = thaiIdCardError(idCardNo)
-  if (idCardError) errors.push(idCardError)
+  if (idCardError) errors.add('idCardNo', idCardError)
 
-  if (!String(address ?? '').trim()) errors.push('กรุณากรอกที่อยู่')
+  if (!String(address ?? '').trim()) errors.add('address', 'กรุณากรอกที่อยู่')
 
   return errors
 }
@@ -75,9 +77,9 @@ function assertNotDuplicate(db, row, exceptTenantId = null) {
 
   const name = `${clash.first_name} ${clash.last_name}`
   if (clash.phone === row.phone) {
-    throw new Error(`เบอร์ ${row.phone} ถูกใช้กับผู้เช่า "${name}" อยู่แล้ว`)
+    throw new FieldError({ phone: `เบอร์ ${row.phone} ถูกใช้กับผู้เช่า "${name}" อยู่แล้ว` })
   }
-  throw new Error(`เลขบัตรประชาชนนี้ถูกใช้กับผู้เช่า "${name}" อยู่แล้ว`)
+  throw new FieldError({ idCardNo: `เลขบัตรประชาชนนี้ถูกใช้กับผู้เช่า "${name}" อยู่แล้ว` })
 }
 
 const LIST_SQL = `
