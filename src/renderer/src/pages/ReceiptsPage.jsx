@@ -12,6 +12,7 @@ import PeriodBar, {
   useMonthGroups
 } from '../components/PeriodBar.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
+import SelectField from '../components/SelectField.jsx'
 import ReceiptDocument from '../components/ReceiptDocument.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { formatBaht } from '../format.js'
@@ -35,6 +36,22 @@ const CSV_COLUMNS = [
   { key: 'remark', label: 'หมายเหตุ' }
 ]
 
+// ต้องตรงกับ contractReceiptLabel ใน main/db/payments.js
+const TYPE_OPTIONS = [
+  { value: '', label: 'ทั้งหมด' },
+  ...['ใบแจ้งหนี้', 'เงินจอง', 'เงินประกัน', 'เงินประกัน (ยกยอด)', 'ค่าเช่าเดือนแรก', 'คืนเงินประกัน', 'ส่วนต่างตอนย้ายออก']
+]
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'ทั้งหมด' },
+  { value: 'active', label: 'ปกติ' },
+  { value: 'cancelled', label: 'ยกเลิกแล้ว' }
+]
+
+function receiptType(r) {
+  return r.sourceType === 'invoice' ? 'ใบแจ้งหนี้' : r.sourceLabel
+}
+
 export default function ReceiptsPage({ apartment, user }) {
   const [period, setPeriod] = useState(initialPeriod)
   const range = periodDateRange(period)
@@ -46,6 +63,9 @@ export default function ReceiptsPage({ apartment, user }) {
   const [printing, setPrinting] = useState(false)
   const [invoicesById, setInvoicesById] = useState({})
   const [cancelling, setCancelling] = useState(null)
+  const [typeFilter, setTypeFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const hasFilters = typeFilter !== '' || statusFilter !== ''
 
   // เตรียมเอกสารก่อนเปิดกล่องพิมพ์
   async function startPrinting() {
@@ -84,7 +104,15 @@ export default function ReceiptsPage({ apartment, user }) {
     load()
   }, [load])
 
-  const receipts = report?.receipts ?? []
+  const receipts = (report?.receipts ?? []).filter(
+    (r) =>
+      (!typeFilter || receiptType(r) === typeFilter) &&
+      (!statusFilter || (statusFilter === 'cancelled') === r.isCancelled)
+  )
+  // ยอดรวม = เงินที่เข้าหอจริง (หักใบคืนเงิน ไม่นับใบที่ยกเลิก)
+  const live = receipts.filter((r) => !r.isCancelled)
+  const cancelledCount = receipts.length - live.length
+  const netCents = live.reduce((sum, r) => sum + r.amountCents, 0)
   const { groups, collapsible, isOpen, toggle: toggleMonth, resetToggles } = useMonthGroups(
     receipts,
     (r) => String(r.paymentDate ?? '').slice(0, 7),
@@ -94,6 +122,12 @@ export default function ReceiptsPage({ apartment, user }) {
   function changePeriod(next) {
     setPeriod(next)
     resetToggles()
+  }
+
+  // เปลี่ยนตัวกรองแล้วล้างรายการที่ติ๊กไว้
+  function changeFilter(setter, value) {
+    setter(value)
+    setSelected(new Set())
   }
   const chosen = receipts.filter((r) => selected.has(r.paymentId))
   // ใบที่ยกเลิกติ๊กพิมพ์ไม่ได้
@@ -168,22 +202,53 @@ export default function ReceiptsPage({ apartment, user }) {
 
         <div className="invoice-filters">
           <PeriodBar period={period} onChange={changePeriod} />
+
+          <div className="field">
+            <label htmlFor="filterType">ประเภท</label>
+            <SelectField
+              id="filterType"
+              value={typeFilter}
+              onChange={(value) => changeFilter(setTypeFilter, value)}
+              options={TYPE_OPTIONS}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="filterStatus">สถานะ</label>
+            <SelectField
+              id="filterStatus"
+              value={statusFilter}
+              onChange={(value) => changeFilter(setStatusFilter, value)}
+              options={STATUS_OPTIONS}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="link-btn invoice-filter-reset"
+            onClick={() => {
+              changeFilter(setTypeFilter, '')
+              setStatusFilter('')
+            }}
+            disabled={!hasFilters}
+          >
+            รีเซ็ต
+          </button>
         </div>
 
-        {/* ยอดรวม = เงินที่เข้าหอจริง (หักใบคืนเงิน ไม่นับใบที่ยกเลิก) */}
         <div className="room-stats">
           <div className="stat-card">
-            <div className="stat-card-value">{report?.receiptCount ?? 0}</div>
+            <div className="stat-card-value">{live.length}</div>
             <div className="stat-card-label">จำนวนใบเสร็จ</div>
           </div>
-          {(report?.cancelledCount ?? 0) > 0 && (
+          {cancelledCount > 0 && (
             <div className="stat-card">
-              <div className="stat-card-value">{report.cancelledCount}</div>
+              <div className="stat-card-value">{cancelledCount}</div>
               <div className="stat-card-label">ยกเลิกแล้ว (ไม่นับในยอด)</div>
             </div>
           )}
           <div className="stat-card highlight">
-            <div className="stat-card-value">{formatBaht(report?.totalAmountCents ?? 0)}</div>
+            <div className="stat-card-value">{formatBaht(netCents)}</div>
             <div className="stat-card-label">ยอดรับเงินสุทธิ (บาท)</div>
           </div>
         </div>
@@ -223,6 +288,8 @@ export default function ReceiptsPage({ apartment, user }) {
 
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
+        ) : receipts.length === 0 && hasFilters ? (
+          <p className="muted table-empty">ไม่มีใบเสร็จที่ตรงกับตัวกรอง</p>
         ) : receipts.length === 0 ? (
           <p className="muted table-empty">
             ไม่มีใบเสร็จ{period.mode !== 'all' && `ของ${periodLabel(period)}`}
