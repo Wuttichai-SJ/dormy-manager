@@ -507,6 +507,18 @@ export function getInvoiceById(db, invoiceId) {
         .get(row.meter_batch_id, row.contract_id)
     : null
 
+  // ขั้นต่ำตามการตั้งค่าห้องปัจจุบัน — ใบเสร็จแจ้งไว้ในหมายเหตุ
+  const utilityRow = db
+    .prepare(
+      `SELECT u.* FROM room_utility_settings u
+         JOIN contracts c ON c.room_id = u.room_id
+        WHERE c.contract_id = ?`
+    )
+    .get(row.contract_id)
+  const sides = utilityRow ? toUtilitySides(utilityRow) : null
+  const minChargeOf = (side) =>
+    side?.enabled && side.billingType === 'minimum' && side.minChargeCents > 0 ? side.minChargeCents : null
+
   return {
     invoiceId: row.invoice_id,
     contractId: row.contract_id,
@@ -522,6 +534,7 @@ export function getInvoiceById(db, invoiceId) {
     meterReadings: reading
       ? { water: toMeterSide(reading, 'water'), electric: toMeterSide(reading, 'electric') }
       : null,
+    minChargeCents: { water: minChargeOf(sides?.water), electric: minChargeOf(sides?.electric) },
     exemptAmountCents: row.exempt_amount_cents,
     taxableAmountCents: row.taxable_amount_cents,
     vatAmountCents: row.vat_amount_cents,

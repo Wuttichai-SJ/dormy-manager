@@ -16,9 +16,9 @@ export default function ReceiptDocument({ receipt, invoice }) {
     { label: 'เลขที่ใบเสร็จ', value: receipt.receiptNumber },
     { label: 'วันที่', value: formatDocumentDate(receipt.paymentDate) },
     { label: 'ออกโดย', value: receipt.createdByName ?? '-' },
-    { label: 'ชำระโดย', value: receipt.paymentMethodLabel },
-    invoice && { label: 'อ้างอิง', value: invoice.invoiceNumber }
-  ].filter(Boolean)
+    { label: 'ชำระโดย', value: receipt.paymentMethodLabel }
+  ]
+  const noteLines = invoice ? [...minChargeLines(invoice), receipt.remark?.trim()].filter(Boolean) : []
 
   return (
     <article className="receipt-doc">
@@ -91,13 +91,17 @@ export default function ReceiptDocument({ receipt, invoice }) {
       </table>
 
       <div className="rc-foot">
-        <div className="rc-note">
-          <span>หมายเหตุ</span>
-          <div className="rc-note-box">{invoice ? receipt.remark?.trim() : ''}</div>
-        </div>
         <div className="rc-line rc-sign">
           <span>ผู้รับเงิน</span>
           <span className="rc-blank" />
+        </div>
+        <div className="rc-note">
+          <span>หมายเหตุ</span>
+          <div className="rc-note-box">
+            {noteLines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
         </div>
       </div>
     </article>
@@ -113,7 +117,7 @@ function InfoRow({ label, value }) {
   )
 }
 
-// ค่าน้ำ/ไฟที่มีเลขมิเตอร์ = หัวรายการ + บรรทัดย่อย ยอดเงินอยู่บรรทัดสุดท้าย
+// ค่าน้ำ/ไฟที่มีเลขมิเตอร์ = หัวรายการ + 3 บรรทัดย่อย ยอดเงินอยู่บรรทัดสุดท้าย
 function invoiceRows(invoice) {
   const rows = []
   for (const item of invoice.items) {
@@ -136,26 +140,19 @@ function invoiceRows(invoice) {
     rows.push({ key, label: item.description.split(' : ')[0] })
     rows.push({ key: `${key}-prev`, sub: true, label: '- มิเตอร์จดครั้งก่อน', quantity: quantity.format(meter.previous) })
     rows.push({ key: `${key}-cur`, sub: true, label: '- มิเตอร์จดครั้งล่าสุด', quantity: quantity.format(meter.current) })
-    // ขั้นต่ำ/เหมาจ่าย ยอดไม่เท่าหน่วย × ราคา — ไม่แสดงราคาต่อหน่วยกันอ่านผิด
-    const showRate = item.unitPriceCents > 0 && Math.round(meter.units * item.unitPriceCents) === item.totalAmountCents
-    rows.push({
-      key: `${key}-use`,
-      sub: true,
-      label: '- เปลี่ยนแปลง',
-      quantity: quantity.format(meter.units),
-      amountCents: showRate ? null : amountCents
-    })
-    if (showRate) {
-      rows.push({
-        key: `${key}-rate`,
-        sub: true,
-        label: '- ราคาต่อหน่วย (บาท)',
-        quantity: quantity.format(item.unitPriceCents / 100),
-        amountCents
-      })
-    }
+    rows.push({ key: `${key}-use`, sub: true, label: '- เปลี่ยนแปลง', quantity: quantity.format(meter.units), amountCents })
   }
   return rows
+}
+
+// แจ้งเฉพาะฝั่งที่บิลนี้เก็บเงินจริง
+function minChargeLines(invoice) {
+  const lines = []
+  const has = (type) => invoice.items.some((item) => item.itemType === type)
+  const min = invoice.minChargeCents ?? {}
+  if (min.water && has('water')) lines.push(`ค่าน้ำขั้นต่ำ ${formatBaht(min.water)} บาท`)
+  if (min.electric && has('electricity')) lines.push(`ค่าไฟขั้นต่ำ ${formatBaht(min.electric)} บาท`)
+  return lines
 }
 
 // ใบเสร็จของสัญญา — ชื่อรายการมาจาก remark ที่บันทึกตอนรับเงิน
