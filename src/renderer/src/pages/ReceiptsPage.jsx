@@ -36,10 +36,10 @@ const CSV_COLUMNS = [
   { key: 'remark', label: 'หมายเหตุ' }
 ]
 
-// ต้องตรงกับ contractReceiptLabel ใน main/db/payments.js
+// ต้องตรงกับ sourceLabel ใน main/db/payments.js
 const TYPE_OPTIONS = [
   { value: '', label: 'ทั้งหมด' },
-  ...['ใบแจ้งหนี้', 'เงินจอง', 'เงินประกัน', 'เงินประกัน (ยกยอด)', 'ค่าเช่าเดือนแรก', 'คืนเงินประกัน', 'ส่วนต่างตอนย้ายออก']
+  ...['ใบเสร็จรับเงิน', 'เงินจอง', 'เงินประกัน', 'เงินประกัน (ยกยอด)', 'ค่าเช่าเดือนแรก', 'คืนเงินประกัน', 'ส่วนต่างตอนย้ายออก']
 ]
 
 const STATUS_OPTIONS = [
@@ -47,10 +47,6 @@ const STATUS_OPTIONS = [
   { value: 'active', label: 'ปกติ' },
   { value: 'cancelled', label: 'ยกเลิกแล้ว' }
 ]
-
-function receiptType(r) {
-  return r.sourceType === 'invoice' ? 'ใบแจ้งหนี้' : r.sourceLabel
-}
 
 export default function ReceiptsPage({ apartment, user }) {
   const [period, setPeriod] = useState(initialPeriod)
@@ -106,7 +102,7 @@ export default function ReceiptsPage({ apartment, user }) {
 
   const receipts = (report?.receipts ?? []).filter(
     (r) =>
-      (!typeFilter || receiptType(r) === typeFilter) &&
+      (!typeFilter || r.sourceLabel === typeFilter) &&
       (!statusFilter || (statusFilter === 'cancelled') === r.isCancelled)
   )
   // ยอดรวม = เงินที่เข้าหอจริง (หักใบคืนเงิน ไม่นับใบที่ยกเลิก)

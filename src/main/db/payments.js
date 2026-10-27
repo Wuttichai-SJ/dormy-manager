@@ -478,7 +478,7 @@ function toPublicPayment(row) {
     invoiceId: row.invoice_id,
     contractId: row.contract_id,
     sourceType: row.invoice_id ? 'invoice' : 'contract',
-    sourceLabel: row.invoice_id ? `ใบแจ้งหนี้ #${row.invoice_number}` : contractReceiptLabel(row),
+    sourceLabel: row.invoice_id ? 'ใบเสร็จรับเงิน' : contractReceiptLabel(row),
     isRefund: row.amount_cents < 0,
     isCancelled: Boolean(row.cancelled_at),
     cancelledAt: row.cancelled_at ?? null,

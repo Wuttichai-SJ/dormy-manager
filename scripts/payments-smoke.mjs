@@ -184,12 +184,9 @@ check('บิลเปลี่ยนเป็นชำระบางส่ว�
   assert(after.outstandingCents === 300000, `ได้ ${after.outstandingCents}`)
 })
 
-check('ประเภทใบเสร็จอ้างถึงใบแจ้งหนี้', () => {
+check('ใบเสร็จของบิลรายเดือนมีประเภท "ใบเสร็จรับเงิน"', () => {
   assert(firstPayment.sourceType === 'invoice', `ได้ ${firstPayment.sourceType}`)
-  assert(
-    firstPayment.sourceLabel === `ใบแจ้งหนี้ #${invoice.invoiceNumber}`,
-    `ได้ ${firstPayment.sourceLabel}`
-  )
+  assert(firstPayment.sourceLabel === 'ใบเสร็จรับเงิน', `ได้ ${firstPayment.sourceLabel}`)
 })
 
 check('รับเงินส่วนที่เหลือเกินยอดค้างที่เหลือไม่ได้', () => {
