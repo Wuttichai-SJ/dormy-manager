@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import Alert from '../components/Alert.jsx'
 import InfoTip from '../components/InfoTip.jsx'
-import { formatPhoneInput } from '../inputMasks.js'
 import { centsToInput } from '../format.js'
 import { MAX_DUE_DATE_DAY, DEFAULT_VAT_RATE, MAX_VAT_RATE } from '../constants.js'
 import { createApartment, getApartment, updateApartment } from '../services/apartmentService.js'
@@ -9,7 +8,6 @@ import { createApartment, getApartment, updateApartment } from '../services/apar
 const EMPTY = {
   nameTh: '',
   addressTh: '',
-  phone: '',
   dueDateDay: '10',
   lateFeePerDay: '0.00',
   lateFeeGraceDays: '0',
@@ -50,7 +48,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
       setForm({
         nameTh: a.nameTh ?? '',
         addressTh: a.addressTh ?? '',
-        phone: a.phone ?? '',
         dueDateDay: String(a.dueDateDay),
         lateFeePerDay: centsToInput(a.lateFeePerDayCents),
         lateFeeGraceDays: String(a.lateFeeGraceDays ?? 0),
@@ -92,7 +89,7 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
       <section className="form-section">
         <div className="form-section-head">
           <h2>รายละเอียดหอพัก</h2>
-          <p>ชื่อ ที่อยู่ และเบอร์โทรศัพท์ จะถูกนำไปแสดงในใบแจ้งหนี้และใบเสร็จ</p>
+          <p>ชื่อและที่อยู่ จะถูกนำไปแสดงในใบเสร็จและเอกสารที่พิมพ์</p>
         </div>
 
         <div className="form-section-body">
@@ -116,16 +113,6 @@ export default function ApartmentFormPage({ apartmentId, onDone }) {
               id="addressTh"
               value={form.addressTh}
               onChange={(e) => set('addressTh', e.target.value)}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="phone">เบอร์โทรศัพท์</label>
-            <input
-              id="phone"
-              value={form.phone}
-              onChange={(e) => set('phone', formatPhoneInput(e.target.value))}
-              inputMode="tel"
             />
           </div>
         </div>
