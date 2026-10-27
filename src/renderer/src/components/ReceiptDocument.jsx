@@ -66,6 +66,12 @@ export default function ReceiptDocument({ receipt, invoice }) {
         <tfoot>
           {showVat && (
             <tr>
+              <td colSpan={2}>รวมก่อน VAT</td>
+              <td className="align-right">{formatBaht(totalCents - invoice.vatAmountCents)}</td>
+            </tr>
+          )}
+          {showVat && (
+            <tr>
               <td colSpan={2}>VAT {invoice.vatRate}%</td>
               <td className="align-right">{formatBaht(invoice.vatAmountCents)}</td>
             </tr>
@@ -85,9 +91,9 @@ export default function ReceiptDocument({ receipt, invoice }) {
       </table>
 
       <div className="rc-foot">
-        <div className="rc-line">
+        <div className="rc-note">
           <span>หมายเหตุ</span>
-          <span className="rc-blank">{invoice ? receipt.remark?.trim() : ''}</span>
+          <div className="rc-note-box">{invoice ? receipt.remark?.trim() : ''}</div>
         </div>
         <div className="rc-line rc-sign">
           <span>ผู้รับเงิน</span>
@@ -107,7 +113,7 @@ function InfoRow({ label, value }) {
   )
 }
 
-// ค่าน้ำ/ไฟที่มีเลขมิเตอร์ = หัวรายการ + 3 บรรทัดย่อย ยอดเงินอยู่บรรทัดสุดท้าย
+// ค่าน้ำ/ไฟที่มีเลขมิเตอร์ = หัวรายการ + บรรทัดย่อย ยอดเงินอยู่บรรทัดสุดท้าย
 function invoiceRows(invoice) {
   const rows = []
   for (const item of invoice.items) {
@@ -130,7 +136,24 @@ function invoiceRows(invoice) {
     rows.push({ key, label: item.description.split(' : ')[0] })
     rows.push({ key: `${key}-prev`, sub: true, label: '- มิเตอร์จดครั้งก่อน', quantity: quantity.format(meter.previous) })
     rows.push({ key: `${key}-cur`, sub: true, label: '- มิเตอร์จดครั้งล่าสุด', quantity: quantity.format(meter.current) })
-    rows.push({ key: `${key}-use`, sub: true, label: '- เปลี่ยนแปลง', quantity: quantity.format(meter.units), amountCents })
+    // ขั้นต่ำ/เหมาจ่าย ยอดไม่เท่าหน่วย × ราคา — ไม่แสดงราคาต่อหน่วยกันอ่านผิด
+    const showRate = item.unitPriceCents > 0 && Math.round(meter.units * item.unitPriceCents) === item.totalAmountCents
+    rows.push({
+      key: `${key}-use`,
+      sub: true,
+      label: '- เปลี่ยนแปลง',
+      quantity: quantity.format(meter.units),
+      amountCents: showRate ? null : amountCents
+    })
+    if (showRate) {
+      rows.push({
+        key: `${key}-rate`,
+        sub: true,
+        label: '- ราคาต่อหน่วย (บาท)',
+        quantity: quantity.format(item.unitPriceCents / 100),
+        amountCents
+      })
+    }
   }
   return rows
 }
