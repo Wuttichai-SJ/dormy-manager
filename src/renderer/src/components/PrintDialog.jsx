@@ -3,7 +3,7 @@ import Alert from './Alert.jsx'
 import Modal from './Modal.jsx'
 import { listPrinters, previewDocument, printDocument } from '../services/printService.js'
 
-export default function PrintDialog({ onClose, onPrinted, title = 'พิมพ์ใบแจ้งหนี้', maxPages = 1 }) {
+export default function PrintDialog({ onClose, onPrinted, title = 'พิมพ์เอกสาร', maxPages = 1 }) {
   const [pdfUrl, setPdfUrl] = useState('')
   const [scale, setScale] = useState(1)
   const [printers, setPrinters] = useState(null)

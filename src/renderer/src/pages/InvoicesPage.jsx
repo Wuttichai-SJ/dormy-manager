@@ -19,11 +19,9 @@ import { INVOICE_STATUS_LABELS } from '../constants.js'
 import { formatBaht } from '../format.js'
 import InvoiceDetailPage from './InvoiceDetailPage.jsx'
 import MultiPaymentPage from './MultiPaymentPage.jsx'
-import InvoiceBill from '../components/InvoiceBill.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
 import OutstandingSummaryDocument, { summaryPageCount } from '../components/OutstandingSummaryDocument.jsx'
 import { listMeterBatches } from '../services/meterService.js'
-import { getImageDataUrl } from '../services/imageService.js'
 import {
   createMonthlyInvoice,
   createMonthlyInvoicesForApartment,
@@ -58,7 +56,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
   // เปิดมาเป็นเดือนนี้
   const [period, setPeriod] = useState(initialPeriod)
   const [deleting, setDeleting] = useState(null)
-  const [printSet, setPrintSet] = useState(null)
   const [summarySet, setSummarySet] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -94,34 +91,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
   useEffect(() => {
     load()
   }, [load])
-
-  // พิมพ์ทุกใบในตารางยกเว้นใบที่ยกเลิก
-  const printable = invoices.filter((inv) => inv.status !== 'cancelled')
-
-  // เตรียมเอกสารก่อนเปิดกล่องพิมพ์
-  async function startBulkPrint() {
-    setError('')
-    setBusy(true)
-
-    const results = await Promise.all(printable.map((inv) => getInvoice(inv.invoiceId)))
-    const failed = results.find((res) => !res.success)
-    if (failed) {
-      setBusy(false)
-      return setError(failed.error)
-    }
-    const bills = results.map((res) => res.data)
-
-    // โหลด QR ครั้งเดียวแล้วใช้ทุกใบ
-    const qrImageId = bills[0]?.apartment?.qrCodeImageId
-    let qrDataUrl = null
-    if (qrImageId) {
-      const res = await getImageDataUrl(qrImageId)
-      if (res.success) qrDataUrl = res.data.dataUrl
-    }
-
-    setBusy(false)
-    setPrintSet({ bills, qrDataUrl })
-  }
 
   async function startSummaryPrint() {
     setError('')
@@ -198,35 +167,6 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     )
   }
 
-  // ระหว่างพิมพ์แสดงแค่เอกสาร — printToPDF จับภาพหน้าที่แสดงอยู่
-  if (printSet) {
-    return (
-      <>
-        <div className="invoice-sheets">
-          {printSet.bills.map((bill) => (
-            <article key={bill.invoiceId} className="invoice-sheet">
-              <InvoiceBill
-                invoice={bill}
-                signedBy={user?.fullName}
-                qrDataUrl={printSet.qrDataUrl}
-              />
-            </article>
-          ))}
-        </div>
-
-        <PrintDialog
-          title={`พิมพ์ใบแจ้งหนี้ ${printSet.bills.length} ใบ`}
-          maxPages={printSet.bills.length}
-          onClose={() => setPrintSet(null)}
-          onPrinted={() => {
-            setPrintSet(null)
-            showToast(`ส่งใบแจ้งหนี้ ${printSet.bills.length} ใบเข้าเครื่องพิมพ์แล้ว`)
-          }}
-        />
-      </>
-    )
-  }
-
   return (
     <>
       <section className="panel">
@@ -236,13 +176,8 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           <h2 className="panel-title">
             รายการใบแจ้งหนี้
             <InfoTip
-              title="พิมพ์เอกสาร"
-              points={[
-                'ใบแจ้งหนี้ทุกห้อง: พิมพ์ทุกใบในช่วงเวลาและแท็บที่เลือก ใบละหนึ่งแผ่น',
-                'ต้องการเฉพาะบางชุด ให้เลือกเดือนหรือแท็บก่อน',
-                'ใบที่ยกเลิกแล้วจะไม่ถูกพิมพ์',
-                'สรุปยอดค้างชำระ: ทุกห้องของเดือนที่เลือก ตึกละหน้า สำหรับติดบอร์ด'
-              ]}
+              title="พิมพ์สรุปยอดค้างชำระ"
+              points={['ทุกห้องของเดือนที่เลือก ตึกละหน้า สำหรับติดบอร์ด', 'ต้องเลือกแบบรายเดือนก่อน']}
             />
           </h2>
           <div className="panel-head-actions">
@@ -254,18 +189,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
               title={period.mode !== 'month' ? 'เลือกแบบรายเดือนก่อน' : undefined}
             >
               <Icon name="printer" />
-              <span>พิมพ์สรุปยอดค้างชำระ</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline"
-              onClick={startBulkPrint}
-              disabled={busy || printable.length === 0}
-            >
-              <Icon name="printer" />
-              <span>
-                {busy ? 'กำลังเตรียมเอกสาร...' : `พิมพ์ใบแจ้งหนี้ทุกห้อง (${printable.length})`}
-              </span>
+              <span>{busy ? 'กำลังเตรียมเอกสาร...' : 'พิมพ์สรุปยอดค้างชำระ'}</span>
             </button>
             <button type="button" className="btn btn-outline" onClick={() => setMultiPay(true)}>
               <Icon name="payments" />
@@ -295,9 +219,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           ))}
         </div>
 
-        {settlement === 'cancelled' && (
-          <p className="field-hint">ใบที่ยกเลิกพิมพ์ไม่ได้ · ลบถาวรต้องกรอกเหตุผล</p>
-        )}
+        {settlement === 'cancelled' && <p className="field-hint">ลบถาวรต้องกรอกเหตุผล</p>}
 
         <div className="invoice-filters">
           <PeriodBar period={period} onChange={changePeriod} />

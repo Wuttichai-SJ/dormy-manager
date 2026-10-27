@@ -17,9 +17,7 @@ import {
 } from '../services/invoiceService.js'
 import { listPaymentsForInvoice, receivePayment } from '../services/paymentService.js'
 import CancelReceiptDialog from '../components/CancelReceiptDialog.jsx'
-import PrintDialog from '../components/PrintDialog.jsx'
 import InvoiceBill from '../components/InvoiceBill.jsx'
-import { revealPdf, savePdf } from '../services/printService.js'
 
 // สองคอลัมน์: เอกสาร + เพิ่มรายการ / ยอดค้าง + รับเงิน · signedBy = ชื่อในช่องลงชื่อ
 export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCancelReceipt }) {
@@ -71,7 +69,6 @@ export default function InvoiceDetailPage({ invoiceId, onBack, signedBy, canCanc
           <InvoiceDocument
             invoice={invoice}
             signedBy={signedBy}
-            onError={setError}
             onRemoveItem={(item) =>
               ask({
                 title: `ลบรายการ "${item.description}"?`,
@@ -163,55 +160,20 @@ function BackLink({ onBack }) {
   )
 }
 
-function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy }) {
-  const [busy, setBusy] = useState(false)
+function InvoiceDocument({ invoice, onRemoveItem, onCancel, signedBy }) {
   const closed = invoice.status === 'cancelled'
-
-  const [printing, setPrinting] = useState(false)
-
-  async function onSavePdf() {
-    onError('')
-    setBusy(true)
-    const res = await savePdf(`${invoice.invoiceNumber}-ห้อง${invoice.roomNumber}`)
-    setBusy(false)
-    if (!res.success) return onError(res.error)
-    if (res.data.cancelled) return
-
-    showToast('บันทึกไฟล์ PDF แล้ว')
-    revealPdf(res.data.filePath)
-  }
 
   return (
     <section className="panel invoice-doc">
-      <div className="invoice-doc-tools">
-        {!closed && (
+      {!closed && (
+        <div className="invoice-doc-tools">
           <button type="button" className="link-btn link-danger" onClick={onCancel}>
             <Icon name="trash" />
             <span>ยกเลิกบิล</span>
           </button>
-        )}
+        </div>
+      )}
 
-        {/* บิลที่ยกเลิกพิมพ์ไม่ได้ · ปุ่มถูกซ่อนตอนพิมพ์ */}
-        {!closed && (
-          <div className="invoice-doc-actions">
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              onClick={() => setPrinting(true)}
-              disabled={busy}
-            >
-              <Icon name="printer" />
-              <span>พิมพ์</span>
-            </button>
-            <button type="button" className="btn btn-sm" onClick={onSavePdf} disabled={busy}>
-              <Icon name="download" />
-              <span>{busy ? 'กำลังบันทึก...' : 'บันทึก PDF'}</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* เหตุผลยกเลิกอยู่นอกตัวเอกสาร — ไม่ติดไปบนกระดาษ */}
       {closed && <CancelledNotice invoice={invoice} />}
 
       <InvoiceBill
@@ -220,16 +182,6 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
         // บิลที่ยกเลิกไม่ส่ง onRemoveItem — ไม่มีปุ่มลบ
         onRemoveItem={closed ? undefined : onRemoveItem}
       />
-
-      {printing && (
-        <PrintDialog
-          onClose={() => setPrinting(false)}
-          onPrinted={() => {
-            setPrinting(false)
-            showToast('ส่งเอกสารเข้าเครื่องพิมพ์แล้ว')
-          }}
-        />
-      )}
     </section>
   )
 }
@@ -237,7 +189,7 @@ function InvoiceDocument({ invoice, onRemoveItem, onCancel, onError, signedBy })
 function CancelledNotice({ invoice }) {
   return (
     <Alert kind="warn">
-      <strong>ยกเลิกแล้ว</strong> — พิมพ์ แก้ไข และรับชำระไม่ได้ · ออกบิลเดือนนี้ใหม่ได้
+      <strong>ยกเลิกแล้ว</strong> — แก้ไขและรับชำระไม่ได้ · ออกบิลเดือนนี้ใหม่ได้
       <dl className="invoice-cancel-info">
         <div>
           <dt>เหตุผล</dt>
@@ -287,7 +239,7 @@ function CancelInvoiceDialog({ invoice, onClose, onCancelled }) {
       onSubmit={submit}
     >
       <Alert kind="warn">
-        <strong>พิมพ์และรับชำระไม่ได้อีก</strong> · ออกบิลเดือนนี้ใหม่ได้ (ได้เลขที่ใหม่)
+        <strong>รับชำระไม่ได้อีก</strong> · ออกบิลเดือนนี้ใหม่ได้ (ได้เลขที่ใหม่)
       </Alert>
 
       <dl className="invoice-totals delete-summary">

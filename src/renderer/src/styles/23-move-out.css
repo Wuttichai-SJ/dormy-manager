@@ -171,25 +171,6 @@
   color: var(--text-soft);
 }
 
-.invoice-sheet + .invoice-sheet {
-  margin-top: 32px;
-  padding-top: 32px;
-  border-top: 1px dashed var(--border-strong);
-}
-
-@media print {
-  .invoice-sheet {
-    break-after: page;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  .invoice-sheet:last-child {
-    break-after: auto;
-  }
-}
-
 .receipt-doc + .receipt-doc {
   margin-top: 32px;
   padding-top: 32px;
