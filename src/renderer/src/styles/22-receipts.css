@@ -179,8 +179,12 @@
   border-bottom: 1px solid #000;
 }
 
-.outstanding-table thead th.align-right {
+.outstanding-table thead tr:last-child th.align-right {
   text-align: right;
+}
+
+.outstanding-table thead tr:last-child th + th {
+  border-left: 1px solid #000;
 }
 
 .outstanding-table td {
