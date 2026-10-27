@@ -14,6 +14,7 @@ import PeriodBar, {
 } from '../components/PeriodBar.jsx'
 import MoveOutDocument from '../components/MoveOutDocument.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
+import SelectField from '../components/SelectField.jsx'
 import { showToast } from '../components/Toast.jsx'
 import { PAYMENT_METHODS } from '../constants.js'
 import { centsToInput, formatBaht } from '../format.js'
@@ -24,8 +25,15 @@ import {
   listTerminations
 } from '../services/terminationService.js'
 
+const DECISION_OPTIONS = [
+  { value: '', label: 'ทั้งหมด' },
+  { value: 'refund', label: 'คืนเงินประกัน' },
+  { value: 'forfeit', label: 'ริบเงินประกัน' }
+]
+
 export default function MoveOutHistoryPage({ apartment, user }) {
   const [search, setSearch] = useState('')
+  const [decision, setDecision] = useState('')
   // เปิดมาที่ "ทั้งหมด" — การ์ดยังเก็บไม่ได้นับตามช่วงที่เลือก ห้ามซ่อนยอดค้างของเดือนเก่า
   const [period, setPeriod] = useState(() => ({ mode: 'all', month: currentMonth() }))
   const range = periodDateRange(period)
@@ -51,12 +59,17 @@ export default function MoveOutHistoryPage({ apartment, user }) {
     load()
   }, [load])
 
-  const rows = report?.terminations ?? []
+  const rows = (report?.terminations ?? []).filter(
+    (t) => !decision || (decision === 'refund') === t.isDepositRefundable
+  )
+  const forfeitedCount = rows.filter((t) => !t.isDepositRefundable).length
+  const unpaid = rows.filter((t) => t.unpaidBalanceCents > 0)
+  const unpaidTotalCents = unpaid.reduce((sum, t) => sum + t.unpaidBalanceCents, 0)
   const { groups, collapsible, isOpen, toggle, resetToggles } = useMonthGroups(
     rows,
     (t) => String(t.moveOutDate ?? '').slice(0, 7),
     period,
-    Boolean(search)
+    Boolean(search || decision)
   )
 
   function changePeriod(next) {
@@ -97,14 +110,24 @@ export default function MoveOutHistoryPage({ apartment, user }) {
               placeholder="เช่น 101 หรือ สมชาย"
             />
           </div>
+          <div className="field">
+            <label htmlFor="moveOutDecision">ผลการตัดสิน</label>
+            <SelectField
+              id="moveOutDecision"
+              value={decision}
+              onChange={setDecision}
+              options={DECISION_OPTIONS}
+            />
+          </div>
           <button
             type="button"
             className="link-btn invoice-filter-reset"
             onClick={() => {
               setSearch('')
+              setDecision('')
               changePeriod({ mode: 'all', month: currentMonth() })
             }}
-            disabled={!search && period.mode === 'all'}
+            disabled={!search && !decision && period.mode === 'all'}
           >
             รีเซ็ต
           </button>
@@ -112,19 +135,19 @@ export default function MoveOutHistoryPage({ apartment, user }) {
 
         <div className="room-stats">
           <div className="stat-card">
-            <div className="stat-card-value">{report?.count ?? 0}</div>
+            <div className="stat-card-value">{rows.length}</div>
             <div className="stat-card-label">ย้ายออกแล้ว (ราย)</div>
           </div>
-          {(report?.forfeitedCount ?? 0) > 0 && (
+          {forfeitedCount > 0 && (
             <div className="stat-card">
-              <div className="stat-card-value">{report.forfeitedCount}</div>
+              <div className="stat-card-value">{forfeitedCount}</div>
               <div className="stat-card-label">ริบเงินประกัน (ราย)</div>
             </div>
           )}
-          {(report?.unpaidCount ?? 0) > 0 && (
+          {unpaid.length > 0 && (
             <div className="stat-card highlight">
-              <div className="stat-card-value">{formatBaht(report.unpaidTotalCents)}</div>
-              <div className="stat-card-label">ยังเก็บไม่ได้ ({report.unpaidCount} ราย)</div>
+              <div className="stat-card-value">{formatBaht(unpaidTotalCents)}</div>
+              <div className="stat-card-label">ยังเก็บไม่ได้ ({unpaid.length} ราย)</div>
             </div>
           )}
         </div>
@@ -137,7 +160,7 @@ export default function MoveOutHistoryPage({ apartment, user }) {
           <p className="muted">กำลังโหลด...</p>
         ) : rows.length === 0 ? (
           <p className="muted table-empty">
-            {search
+            {search || decision
               ? 'ไม่พบรายการย้ายออกตามเงื่อนไขที่ค้นหา'
               : period.mode === 'all'
                 ? 'ยังไม่มีผู้เช่าย้ายออกจากหอนี้'
