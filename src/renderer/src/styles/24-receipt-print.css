@@ -79,6 +79,12 @@
   padding: 2px 8px;
 }
 
+.rc-items tbody tr:nth-child(even) {
+  background: #ececec;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
 .rc-sub td:first-child {
   padding-left: 22px;
 }
