@@ -4,6 +4,16 @@ import { formatBaht, formatDocumentDate } from '../format.js'
 
 const quantity = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+const THAI_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+
+// บิลเก่าเก็บ "(เดือน 09-2569)" — แสดงเป็น "(ก.ย. 2569)" ให้ตรงกับบิลใหม่
+function shortMonthLabel(text) {
+  return String(text ?? '').replace(/\(เดือน (\d{2})-(\d{4})\)/g, (match, month, year) => {
+    const name = THAI_SHORT_MONTHS[Number(month) - 1]
+    return name ? `(${name} ${year})` : match
+  })
+}
+
 // ขาวดำ A5 แนวนอน — ผู้รับเงินเซ็นมือ
 export default function ReceiptDocument({ receipt, invoice }) {
   const apartment = receipt.apartment ?? invoice?.apartment ?? {}
@@ -18,7 +28,7 @@ export default function ReceiptDocument({ receipt, invoice }) {
     { label: 'ออกโดย', value: receipt.createdByName ?? '-' },
     { label: 'ชำระโดย', value: receipt.paymentMethodLabel }
   ]
-  const noteLines = invoice ? [...minChargeLines(invoice), receipt.remark?.trim()].filter(Boolean) : []
+  const noteLines = invoice ? [...utilityNoteLines(invoice), receipt.remark?.trim()].filter(Boolean) : []
 
   return (
     <article className="receipt-doc">
@@ -129,7 +139,7 @@ function invoiceRows(invoice) {
     if (!meter) {
       rows.push({
         key: item.invoiceItemId,
-        label: item.description,
+        label: shortMonthLabel(item.description),
         quantity: quantity.format(item.quantity),
         amountCents
       })
@@ -137,7 +147,7 @@ function invoiceRows(invoice) {
     }
 
     const key = item.invoiceItemId
-    rows.push({ key, label: item.description.split(' : ')[0] })
+    rows.push({ key, label: shortMonthLabel(item.description.split(' : ')[0]) })
     rows.push({ key: `${key}-prev`, sub: true, label: '- มิเตอร์จดครั้งก่อน', quantity: quantity.format(meter.previous) })
     rows.push({ key: `${key}-cur`, sub: true, label: '- มิเตอร์จดครั้งล่าสุด', quantity: quantity.format(meter.current) })
     rows.push({ key: `${key}-use`, sub: true, label: '- เปลี่ยนแปลง', quantity: quantity.format(meter.units), amountCents })
@@ -145,13 +155,21 @@ function invoiceRows(invoice) {
   return rows
 }
 
-// แจ้งเฉพาะฝั่งที่บิลนี้เก็บเงินจริง
-function minChargeLines(invoice) {
+// แจ้งเฉพาะฝั่งที่บิลนี้เก็บเงินจริง · ราคาต่อหน่วยตามบิล (เหมาจ่ายเป็น 0 ไม่แสดง)
+function utilityNoteLines(invoice) {
   const lines = []
-  const has = (type) => invoice.items.some((item) => item.itemType === type)
   const min = invoice.minChargeCents ?? {}
-  if (min.water && has('water')) lines.push(`ค่าน้ำขั้นต่ำ ${formatBaht(min.water)} บาท`)
-  if (min.electric && has('electricity')) lines.push(`ค่าไฟขั้นต่ำ ${formatBaht(min.electric)} บาท`)
+  for (const [itemType, side, label] of [
+    ['water', 'water', 'ค่าน้ำ'],
+    ['electricity', 'electric', 'ค่าไฟ']
+  ]) {
+    const item = invoice.items.find((row) => row.itemType === itemType)
+    if (!item) continue
+    const parts = []
+    if (item.unitPriceCents > 0) parts.push(`หน่วยละ ${formatBaht(item.unitPriceCents)} บาท`)
+    if (min[side]) parts.push(`ขั้นต่ำ ${formatBaht(min[side])} บาท`)
+    if (parts.length) lines.push(`${label}${parts.join(' · ')}`)
+  }
   return lines
 }
 
@@ -160,7 +178,7 @@ function contractRow(receipt, amountCents) {
   return {
     key: `contract-${receipt.paymentId}`,
     label:
-      receipt.remark?.trim() || (receipt.isRefund ? 'คืนเงินประกันตามสัญญาเช่า' : 'เงินตามสัญญาเช่า'),
+      shortMonthLabel(receipt.remark?.trim()) || (receipt.isRefund ? 'คืนเงินประกันตามสัญญาเช่า' : 'เงินตามสัญญาเช่า'),
     quantity: quantity.format(1),
     amountCents
   }

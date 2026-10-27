@@ -1,6 +1,6 @@
 // ตัวช่วยทำสัญญา 3 ขั้น แต่เขียนลงฐานข้อมูลครั้งเดียวตอนจบ
 import { toCents } from '../money.js'
-import { nextDocumentNumber } from './invoices.js'
+import { formatDocumentMonth, nextDocumentNumber } from './invoices.js'
 import {
   BOOKING_REMARK,
   BOOKING_REMARK_PREFIX,
@@ -457,14 +457,13 @@ export function createContract(db, input) {
 
     // ค่าเช่าเดือนแรกออกใบเสร็จตอนย้ายเข้า — บิลรายเดือนเดือนนี้จะข้ามห้องนี้
     if (firstMonthRentCents > 0) {
-      const [startYear, startMonth] = String(input.startDate).split('-')
       recordContractPayment(db, {
         contractId,
         amount: String(firstMonthRentCents / 100),
         purpose: 'advance',
         paymentMethod: input.depositPaymentMethod,
         paymentDate: input.startDate,
-        remark: `ค่าเช่าเดือนแรก (เดือน ${startMonth}-${Number(startYear) + 543})`,
+        remark: `ค่าเช่าเดือนแรก (${formatDocumentMonth(String(input.startDate).slice(0, 7))})`,
         createdBy: input.createdBy
       })
     }

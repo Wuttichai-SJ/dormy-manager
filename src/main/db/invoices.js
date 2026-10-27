@@ -112,7 +112,7 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
   const rentLabel = contract.default_rent_item_text || 'ค่าเช่าห้อง'
   items.push({
     itemType: 'rent',
-    description: `${rentLabel} (เดือน ${formatDocumentMonth(billingMonth)})`,
+    description: `${rentLabel} (${formatDocumentMonth(billingMonth)})`,
     quantity: 1,
     unitPriceCents: contract.rent_amount_cents,
     totalAmountCents: contract.rent_amount_cents,
@@ -136,7 +136,7 @@ export function buildInvoiceItems(db, { contractId, billingMonth, meterBatchId }
       : null
 
     const utilityMonth = meterBatchId ? utilityMonthOf(billingMonth) : null
-    const monthTag = utilityMonth ? ` (เดือน ${formatDocumentMonth(utilityMonth)})` : ''
+    const monthTag = utilityMonth ? ` (${formatDocumentMonth(utilityMonth)})` : ''
 
     for (const [side, itemType, label] of [
       ['water', 'water', 'ค่าน้ำ'],
@@ -199,11 +199,14 @@ function formatBillingMonth(billingMonth) {
   return `${month}-${year}`
 }
 
-// พ.ศ. สำหรับข้อความบนเอกสาร — แยกจาก formatBillingMonth (ค.ศ. ใช้บนจอ)
-function formatDocumentMonth(billingMonth) {
+const THAI_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+
+// ชื่อเดือนย่อ + พ.ศ. สำหรับรายการบนเอกสาร เช่น "ก.ย. 2569"
+export function formatDocumentMonth(billingMonth) {
   const [year, month] = String(billingMonth).split('-')
-  if (!year || !month) return String(billingMonth)
-  return `${month}-${Number(year) + 543}`
+  const name = THAI_SHORT_MONTHS[Number(month) - 1]
+  if (!year || !name) return String(billingMonth)
+  return `${name} ${Number(year) + 543}`
 }
 
 // vatRate ไม่มีค่าเริ่มต้นโดยตั้งใจ — ลืมส่งต้องพัง

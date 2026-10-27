@@ -199,7 +199,7 @@ check('มีค่าเช่า ค่าน้ำ ค่าไฟ และ�
 
 check('ค่าเช่าขึ้นเป็นไทยล้วน พร้อมเดือนแบบ MM-พ.ศ.', () => {
   const rent = built.items.find((i) => i.itemType === 'rent')
-  assert(rent.description === 'ค่าเช่าห้อง (เดือน 08-2569)', `ได้ "${rent.description}"`)
+  assert(rent.description === 'ค่าเช่าห้อง (ส.ค. 2569)', `ได้ "${rent.description}"`)
   assert(rent.totalAmountCents === 500000, `ได้ ${rent.totalAmountCents}`)
 })
 
@@ -212,7 +212,7 @@ check('ไม่มีคำอังกฤษหลงเหลือในช�
 check('ค่าน้ำคิดจากหน่วยที่จด พร้อมเดือนและเลขมิเตอร์ก่อน/หลัง', () => {
   const water = built.items.find((i) => i.itemType === 'water')
   assert(
-    water.description === 'ค่าน้ำ (เดือน 07-2569) : 98 หน่วย (2 - 100)',
+    water.description === 'ค่าน้ำ (ก.ค. 2569) : 98 หน่วย (2 - 100)',
     `ได้ "${water.description}"`
   )
   assert(water.totalAmountCents === 98 * 2000, `ได้ ${water.totalAmountCents}`)
@@ -221,7 +221,7 @@ check('ค่าน้ำคิดจากหน่วยที่จด พร
 check('ค่าไฟคิดจากหน่วยที่จดเช่นกัน', () => {
   const elec = built.items.find((i) => i.itemType === 'electricity')
   assert(elec.totalAmountCents === 300 * 700, `ได้ ${elec.totalAmountCents}`)
-  assert(elec.description.includes('(เดือน 07-2569)'), `ได้ "${elec.description}"`)
+  assert(elec.description.includes('(ก.ค. 2569)'), `ได้ "${elec.description}"`)
 })
 
 group('เดือนของค่าน้ำ-ค่าไฟบนบิล')
@@ -249,8 +249,8 @@ check('เปลี่ยนเดือนค่าเช่าแล้ว เ
   })
   const rent = other.items.find((i) => i.itemType === 'rent')
   const water = other.items.find((i) => i.itemType === 'water')
-  assert(rent.description.includes('(เดือน 12-2569)'), `ค่าเช่าได้ "${rent.description}"`)
-  assert(water.description.includes('(เดือน 11-2569)'), `ค่าน้ำได้ "${water.description}"`)
+  assert(rent.description.includes('(ธ.ค. 2569)'), `ค่าเช่าได้ "${rent.description}"`)
+  assert(water.description.includes('(พ.ย. 2569)'), `ค่าน้ำได้ "${water.description}"`)
 })
 
 check('จดมิเตอร์วันที่ 28 แล้วออกบิลเดือนถัดไป ค่าน้ำต้องเป็นเดือนที่จด', () => {
@@ -266,8 +266,8 @@ check('จดมิเตอร์วันที่ 28 แล้วออกบ
   })
   const rent = july.items.find((i) => i.itemType === 'rent')
   const water = july.items.find((i) => i.itemType === 'water')
-  assert(rent.description.includes('(เดือน 07-2570)'), `ค่าเช่าได้ "${rent.description}"`)
-  assert(water.description.includes('(เดือน 06-2570)'), `ค่าน้ำได้ "${water.description}"`)
+  assert(rent.description.includes('(ก.ค. 2570)'), `ค่าเช่าได้ "${rent.description}"`)
+  assert(water.description.includes('(มิ.ย. 2570)'), `ค่าน้ำได้ "${water.description}"`)
 })
 
 check('ไม่ได้เลือกใบจดมิเตอร์ ก็ไม่เขียนเดือนมั่วลงไป', () => {
@@ -359,7 +359,7 @@ check('ฐานข้อมูลเก็บวันที่และเด�
   assert(row.due_date.startsWith('2026-'), `เก็บวันครบกำหนดเป็น ${row.due_date}`)
 
   const rent = invoice1.items.find((i) => i.itemType === 'rent')
-  assert(rent.description.includes('08-2569'), `ข้อความบนบิลได้ "${rent.description}"`)
+  assert(rent.description.includes('ส.ค. 2569'), `ข้อความบนบิลได้ "${rent.description}"`)
 })
 
 check('บิลจำวันที่จดมิเตอร์ที่ใช้ออก และแนบข้อมูลหอไปให้หน้าพิมพ์', () => {
