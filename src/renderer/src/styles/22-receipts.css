@@ -196,9 +196,100 @@
   font-weight: 600;
 }
 
+.outstanding-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid #000;
+  font-size: 12px;
+  break-inside: avoid;
+}
+
+.outstanding-foot-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.outstanding-foot-text section + section {
+  margin-top: 8px;
+}
+
+.outstanding-foot-text h3 {
+  margin: 0 0 2px;
+  font-size: 12px;
+}
+
+.outstanding-foot-text p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.outstanding-foot-pay {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.outstanding-banks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: right;
+}
+
+.outstanding-banks li {
+  display: flex;
+  flex-direction: column;
+}
+
+.outstanding-banks li + li {
+  margin-top: 8px;
+}
+
+.outstanding-bank-name {
+  font-weight: 600;
+}
+
+.outstanding-account {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
+.outstanding-qr {
+  margin: 0;
+  text-align: center;
+}
+
+.outstanding-qr img {
+  display: block;
+  width: 32mm;
+  height: 32mm;
+  object-fit: contain;
+}
+
+.outstanding-qr figcaption {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
 @media print {
   .outstanding-sheets {
     padding: 0;
+  }
+
+  /* ดันท้ายใบลงล่างสุดของกระดาษ — สูงน้อยกว่า A4 ลบขอบเล็กน้อย กันล้นไปหน้าใหม่ */
+  .outstanding-doc {
+    display: flex;
+    flex-direction: column;
+    min-height: 268mm;
+  }
+
+  .outstanding-foot {
+    margin-top: auto;
   }
 
   .outstanding-doc + .outstanding-doc {

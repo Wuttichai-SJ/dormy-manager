@@ -533,6 +533,12 @@ check('ค่าเช่า + น้ำ + ไฟ + อื่นๆ รวมไ
   assert(summary.hasOther, 'ห้อง 101 มีค่าบริการ ต้องมีคอลัมน์อื่นๆ')
 })
 
+check('มีข้อมูลการชำระเงินของหอสำหรับท้ายใบ', () => {
+  const { payment } = invoices.getOutstandingSummary(db, apartmentId, '2026-08')
+  assert(Array.isArray(payment.bankAccounts), 'bankAccounts ต้องเป็นอาร์เรย์')
+  assert('instructions' in payment && 'note' in payment && 'qrCodeImageId' in payment, 'ขาดช่องข้อมูล')
+})
+
 check('เดือนผิดรูปแบบต้องเตือน', () => {
   throws(() => invoices.getOutstandingSummary(db, apartmentId, ''), 'เลือกเดือน', 'ควรเตือน')
 })

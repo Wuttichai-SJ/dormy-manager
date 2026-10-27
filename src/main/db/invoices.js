@@ -474,20 +474,7 @@ export function getInvoiceById(db, invoiceId) {
           }))
       : []
 
-  const bankAccounts = db
-    .prepare(
-      `SELECT bank_name, account_name, account_number, is_default
-         FROM apartment_bank_accounts
-        WHERE apartment_id = ?
-        ORDER BY is_default DESC, bank_account_id`
-    )
-    .all(row.apartment_id)
-    .map((bank) => ({
-      bankName: bank.bank_name,
-      accountName: bank.account_name,
-      accountNumber: bank.account_number,
-      isDefault: bank.is_default === 1
-    }))
+  const bankAccounts = listDocumentBankAccounts(db, row.apartment_id)
 
   // ยอดชำระคำนวณสดจากใบเสร็จ ไม่นับใบที่ยกเลิก
   const paidCents = db
@@ -564,6 +551,23 @@ export function getInvoiceById(db, invoiceId) {
     bankAccounts,
     items: items.map(toPublicItem)
   }
+}
+
+function listDocumentBankAccounts(db, apartmentId) {
+  return db
+    .prepare(
+      `SELECT bank_name, account_name, account_number, is_default
+         FROM apartment_bank_accounts
+        WHERE apartment_id = ?
+        ORDER BY is_default DESC, bank_account_id`
+    )
+    .all(apartmentId)
+    .map((bank) => ({
+      bankName: bank.bank_name,
+      accountName: bank.account_name,
+      accountNumber: bank.account_number,
+      isDefault: bank.is_default === 1
+    }))
 }
 
 function toMeterSide(reading, side) {
@@ -734,7 +738,18 @@ export function getOutstandingSummary(db, apartmentId, billingMonth) {
     })
   }
 
-  return { billingMonth, hasOther: rows.some((row) => row.other !== 0), groups }
+  // ท้ายใบ: วิธีแจ้งโอน + บัญชี + QR ชุดเดียวกับใบแจ้งหนี้
+  const apartment = db
+    .prepare('SELECT payment_instructions, invoice_note, qr_code_image_id FROM apartments WHERE apartment_id = ?')
+    .get(apartmentId)
+  const payment = {
+    instructions: apartment?.payment_instructions ?? null,
+    note: apartment?.invoice_note ?? null,
+    qrCodeImageId: apartment?.qr_code_image_id ?? null,
+    bankAccounts: listDocumentBankAccounts(db, apartmentId)
+  }
+
+  return { billingMonth, hasOther: rows.some((row) => row.other !== 0), groups, payment }
 }
 
 export function addInvoiceItem(db, invoiceId, { itemType, description, amount, isTaxable }) {

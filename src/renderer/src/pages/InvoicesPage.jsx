@@ -22,6 +22,7 @@ import MultiPaymentPage from './MultiPaymentPage.jsx'
 import PrintDialog from '../components/PrintDialog.jsx'
 import OutstandingSummaryDocument, { summaryPageCount } from '../components/OutstandingSummaryDocument.jsx'
 import { listMeterBatches } from '../services/meterService.js'
+import { getImageDataUrl } from '../services/imageService.js'
 import {
   createMonthlyInvoice,
   createMonthlyInvoicesForApartment,
@@ -96,12 +97,24 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
     setError('')
     setBusy(true)
     const res = await getOutstandingSummary(apartment.apartmentId, period.month)
-    setBusy(false)
-    if (!res.success) return setError(res.error)
+    if (!res.success) {
+      setBusy(false)
+      return setError(res.error)
+    }
     if (res.data.groups.length === 0) {
+      setBusy(false)
       return setError(`ยังไม่มีบิลของ${periodLabel(period)}`)
     }
-    setSummarySet({ summary: res.data, printedAt: new Date() })
+
+    // QR หายหรือโหลดไม่ได้ ยังพิมพ์ได้ — แค่ไม่มีรูป
+    let qrDataUrl = null
+    const qrImageId = res.data.payment?.qrCodeImageId
+    if (qrImageId) {
+      const qr = await getImageDataUrl(qrImageId)
+      if (qr.success) qrDataUrl = qr.data.dataUrl
+    }
+    setBusy(false)
+    setSummarySet({ summary: res.data, printedAt: new Date(), qrDataUrl })
   }
 
   if (openInvoiceId) {
@@ -152,6 +165,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
           summary={summarySet.summary}
           apartmentName={apartment.nameTh}
           printedAt={summarySet.printedAt}
+          qrDataUrl={summarySet.qrDataUrl}
         />
 
         <PrintDialog
