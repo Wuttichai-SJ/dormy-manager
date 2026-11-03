@@ -45,6 +45,9 @@ export function registerMeterHandlers() {
   handleSession('meter:saveReadings', ({ batchId, side, rows }) => {
     const sheet = saveBatchReadings(getDatabase(), batchId, side, rows)
     logInfo(`บันทึกเลขมิเตอร์ฝั่ง ${side} ของใบจด ${batchId} จำนวน ${rows?.length ?? 0} ห้อง`)
+    for (const a of sheet.previousAdjustments) {
+      logInfo(`แก้เลขจดครั้งก่อนฝั่ง ${side} ใบจด ${batchId} ห้อง ${a.roomNumber}: ${a.from} → ${a.to}`)
+    }
     return sheet
   })
 

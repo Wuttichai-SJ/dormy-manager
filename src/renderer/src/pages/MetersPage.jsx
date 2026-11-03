@@ -250,6 +250,8 @@ function MeterSheet({ batchId, side, onBack }) {
         ...room,
         // เก็บเป็นข้อความ — ลบจนว่างต้องไม่เด้งเป็น 0
         currentInput: room.currentReading === null ? '' : String(room.currentReading),
+        previousInput: String(room.previousReading),
+        previousAdjusted: room.isPreviousAdjusted,
         // สามสถานะเลือกได้ทีละอย่าง — เก็บเป็นค่าเดียว
         meterEvent: room.isMeterReplaced ? 'replaced' : room.isOverCycle ? 'over_cycle' : 'normal',
         removedInput: room.removedReading === null ? '' : String(room.removedReading),
@@ -289,10 +291,12 @@ function MeterSheet({ batchId, side, onBack }) {
     const res = await saveMeterReadings(
       batchId,
       side,
-      // ไม่ส่งเลขครั้งก่อน — main คิดเอง
+      // เลขครั้งก่อนส่งเฉพาะแถวที่แก้เอง — นอกนั้น main คิดเอง
       filled.map((r) => ({
         roomId: r.roomId,
         roomNumber: r.roomNumber,
+        isPreviousAdjusted: r.previousAdjusted,
+        previousReading: r.previousAdjusted ? r.previousInput : undefined,
         currentReading: Number(r.currentInput || 0),
         isOverCycle: r.meterEvent === 'over_cycle',
         isMeterReplaced: r.meterEvent === 'replaced',
@@ -323,6 +327,7 @@ function MeterSheet({ batchId, side, onBack }) {
             title="วิธีจด"
             points={[
               '“จดครั้งก่อน” คือเลขปิดรอบที่แล้ว',
+              'เลขครั้งก่อนไม่ตรงหน้าปัดจริง แก้ในช่องได้เลย',
               'ห้องที่เปลี่ยนผู้เช่า เริ่มจากเลขวันเข้าพักในสัญญา',
               'เว้นช่อง “ปัจจุบัน” = ไม่บันทึกห้องนั้น',
               'กด Enter เพื่อไปห้องถัดไป'
@@ -335,21 +340,6 @@ function MeterSheet({ batchId, side, onBack }) {
           <Alert kind="warn">
             ห้อง {sheet.hiddenRooms.join(', ')} ถูกปิดใช้งาน จึงไม่อยู่ในใบนี้ — เปิดได้ที่ ตั้งค่า →
             ผังห้อง
-          </Alert>
-        )}
-
-        {sheet?.newTenantRooms?.length > 0 && (
-          <Alert kind="warn">
-            <strong>ห้องที่เปลี่ยนผู้เช่า — เริ่มนับเลขใหม่</strong>
-            <ul className="meter-new-tenant-list">
-              {sheet.newTenantRooms.map((r) => (
-                <li key={r.roomNumber}>
-                  ห้อง {r.roomNumber}: เริ่มจาก <strong>{r.previousReading}</strong> (เข้าพัก{' '}
-                  {formatDate(r.contractStartDate)}) แทน {r.supersededReading}
-                </li>
-              ))}
-            </ul>
-            ถ้าไม่ตรงหน้าปัดจริง ให้แก้ที่สัญญาก่อนบันทึก
           </Alert>
         )}
 
@@ -386,9 +376,10 @@ function MeterSheet({ batchId, side, onBack }) {
                   const pending = row.currentInput.trim() === ''
                   const replaced = row.meterEvent === 'replaced'
                   const overDial = !pending && Number(row.currentInput) >= 10 ** sheet.meterDigits
+                  const previousBad = !isValidReading(row.previousInput, sheet.meterDigits)
                   const units = pending
                     ? null
-                    : previewUnitsUsed(row.previousReading, row.currentInput, {
+                    : previewUnitsUsed(row.previousInput, row.currentInput, {
                         isOverCycle: row.meterEvent === 'over_cycle',
                         isMeterReplaced: replaced,
                         removedReading: row.removedInput,
@@ -396,7 +387,9 @@ function MeterSheet({ batchId, side, onBack }) {
                         meterDigits: sheet?.meterDigits
                       })
                   const problem =
-                    !pending && units === null ? meterProblem(row, sheet.meterDigits, overDial) : null
+                    previousBad || (!pending && units === null)
+                      ? meterProblem(row, sheet.meterDigits, overDial, previousBad)
+                      : null
                   const problemId = `meter-problem-${row.roomId}`
                   return (
                     <tr key={row.roomId}>
@@ -406,10 +399,49 @@ function MeterSheet({ batchId, side, onBack }) {
                           {ROOM_STATUS_LABELS[row.status] ?? row.status}
                         </span>
                       </td>
-                      {/* อ่านอย่างเดียว — เลขปิดรอบก่อนคือเลขเปิดรอบนี้ */}
                       <td className="align-right meter-previous">
-                        {row.previousReading}
-                        {row.supersededReading !== null &&
+                        <input
+                          className={
+                            row.previousAdjusted
+                              ? 'meter-input meter-previous-input meter-previous-adjusted'
+                              : 'meter-input meter-previous-input'
+                          }
+                          inputMode="decimal"
+                          value={row.previousInput}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            setRow(row.roomId, {
+                              previousInput: value,
+                              previousAdjusted:
+                                value.trim() === '' || Number(value) !== row.derivedPreviousReading
+                            })
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Enter') return
+                            e.preventDefault()
+                            inputsRef.current.get(row.roomId)?.focus()
+                          }}
+                          aria-label={`เลขจดครั้งก่อน ห้อง ${row.roomNumber}`}
+                          aria-invalid={previousBad ? true : undefined}
+                        />
+                        {row.previousAdjusted ? (
+                          <span className="meter-previous-note">
+                            แก้เอง ·{' '}
+                            <button
+                              type="button"
+                              className="link-btn"
+                              onClick={() =>
+                                setRow(row.roomId, {
+                                  previousInput: String(row.derivedPreviousReading),
+                                  previousAdjusted: false
+                                })
+                              }
+                            >
+                              คืนค่า {row.derivedPreviousReading}
+                            </button>
+                          </span>
+                        ) : (
+                          row.supersededReading !== null &&
                           row.supersededReading !== undefined && (
                             <span
                               className="meter-new-tenant-tag"
@@ -417,7 +449,8 @@ function MeterSheet({ batchId, side, onBack }) {
                             >
                               ผู้เช่าใหม่
                             </span>
-                          )}
+                          )
+                        )}
                       </td>
                       <td className="align-right">
                         <div className="meter-entry">
@@ -539,8 +572,14 @@ function formatDateTime(iso) {
   return `${pad2(at.getDate())}/${pad2(at.getMonth() + 1)}/${at.getFullYear()} ${pad2(at.getHours())}:${pad2(at.getMinutes())}`
 }
 
+function isValidReading(value, meterDigits) {
+  const n = Number(value)
+  return String(value).trim() !== '' && Number.isFinite(n) && n >= 0 && n < 10 ** meterDigits
+}
+
 // ลำดับเดียวกับ previewUnitsUsed (constants.js)
-function meterProblem(row, meterDigits, overDial) {
+function meterProblem(row, meterDigits, overDial, previousBad) {
+  if (previousBad) return `เลขจดครั้งก่อนต้องเป็นตัวเลข 0 – ${(10 ** meterDigits - 1).toLocaleString()}`
   const current = Number(row.currentInput)
   if (!Number.isFinite(current) || current < 0) return 'กรอกเป็นตัวเลขเท่านั้น'
   if (overDial) {

@@ -287,17 +287,35 @@
   font-variant-numeric: tabular-nums;
 }
 
+.meter-previous-input {
+  width: 100px;
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+.meter-previous-adjusted {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.meter-previous-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.meter-previous-note .link-btn {
+  font-size: 11px;
+}
+
 .meter-new-tenant-tag {
   display: block;
   margin-top: 2px;
   font-size: 11px;
   color: var(--warn);
   white-space: nowrap;
-}
-
-.meter-new-tenant-list {
-  margin: 6px 0;
-  padding-left: 18px;
 }
 
 .meter-event {

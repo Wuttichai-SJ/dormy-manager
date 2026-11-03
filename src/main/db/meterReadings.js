@@ -12,6 +12,7 @@ const SIDE_COLUMNS = {
     replaced: 'is_water_meter_replaced',
     removed: 'water_removed_reading',
     newStart: 'water_new_start_reading',
+    previousAdjusted: 'is_water_previous_adjusted',
     contractStart: 'water_meter_start'
   },
   electric: {
@@ -22,6 +23,7 @@ const SIDE_COLUMNS = {
     replaced: 'is_electric_meter_replaced',
     removed: 'electric_removed_reading',
     newStart: 'electric_new_start_reading',
+    previousAdjusted: 'is_electric_previous_adjusted',
     contractStart: 'electric_meter_start'
   }
 }
@@ -271,6 +273,7 @@ export function getBatchSheet(db, batchId, side) {
               saved.${cols.replaced} AS savedReplaced,
               saved.${cols.removed}  AS savedRemoved,
               saved.${cols.newStart} AS savedNewStart,
+              saved.${cols.previousAdjusted} AS savedPreviousAdjusted,
               (SELECT pr.${cols.current}
                  FROM meter_readings pr
                  JOIN meter_batches pb ON pb.batch_id = pr.meter_batch_id
@@ -353,6 +356,8 @@ export function getBatchSheet(db, batchId, side) {
       })
     }
 
+    const isPreviousAdjusted = row.savedPreviousAdjusted === 1
+
     return {
       roomId: row.room_id,
       roomNumber: row.room_number,
@@ -360,6 +365,7 @@ export function getBatchSheet(db, batchId, side) {
       status: row.status,
       previousReading: Number(row.savedPrevious ?? derived),
       derivedPreviousReading: derived,
+      isPreviousAdjusted,
       // 'batch' / 'contract' / 'none'
       previousSource,
       contractStartDate: row.contractStartDate ?? null,
@@ -401,23 +407,30 @@ export function saveBatchReadings(db, batchId, side, rows) {
     throw new Error('แก้ไขไม่ได้ เพราะใบจดมิเตอร์นี้ถูกใช้ออกบิลไปแล้ว')
   }
 
-  // เลขครั้งก่อนคิดที่ main เสมอ ไม่รับจากหน้าจอ
+  // เลขครั้งก่อนคิดที่ main · รับจากหน้าจอเฉพาะแถวที่ติ๊กว่าแก้เอง
   const sheet = getBatchSheet(db, batchId, side)
-  const derived = new Map(sheet.rooms.map((r) => [r.roomId, r.derivedPreviousReading]))
+  const before = new Map(sheet.rooms.map((r) => [r.roomId, r]))
   // จำนวนหลักมาจากค่าของหอ ไม่รับจากหน้าจอ
   const meterDigits = sheet.meterDigits
 
   const errors = []
   const prepared = []
+  const adjustments = []
   for (const row of rows ?? []) {
     const label = row.roomNumber ?? `ห้อง #${row.roomId}`
-    if (!derived.has(row.roomId)) {
+    const room = before.get(row.roomId)
+    if (!room) {
       errors.push(`ห้อง ${label}: ไม่ได้อยู่ในหอพักของใบจดมิเตอร์นี้`)
       continue
     }
 
-    const previous = derived.get(row.roomId)
     try {
+      const derived = room.derivedPreviousReading
+      const adjusted = row.isPreviousAdjusted ? parseAdjustedPrevious(row.previousReading, meterDigits) : null
+      // แก้แล้วได้เลขเดิม = ไม่ได้แก้
+      const isAdjusted = adjusted !== null && adjusted !== derived
+      const previous = isAdjusted ? adjusted : derived
+
       const units = calculateUnitsUsed(previous, row.currentReading, {
         isOverCycle: row.isOverCycle,
         isMeterReplaced: row.isMeterReplaced,
@@ -434,8 +447,12 @@ export function saveBatchReadings(db, batchId, side, rows) {
         replaced: row.isMeterReplaced ? 1 : 0,
         // ไม่ได้เปลี่ยนมิเตอร์ = NULL (ไม่ใช่ 0)
         removed: row.isMeterReplaced ? Number(row.removedReading) : null,
-        newStart: row.isMeterReplaced ? Number(row.newStartReading) : null
+        newStart: row.isMeterReplaced ? Number(row.newStartReading) : null,
+        previousAdjusted: isAdjusted ? 1 : 0
       })
+      if (isAdjusted && !(room.isPreviousAdjusted && room.previousReading === adjusted)) {
+        adjustments.push({ roomNumber: room.roomNumber, from: derived, to: adjusted })
+      }
     } catch (err) {
       errors.push(`ห้อง ${label}: ${err.message}`)
     }
@@ -448,12 +465,12 @@ export function saveBatchReadings(db, batchId, side, rows) {
     `INSERT INTO meter_readings (
        meter_batch_id, room_id,
        ${cols.previous}, ${cols.current}, ${cols.units}, ${cols.overCycle},
-       ${cols.replaced}, ${cols.removed}, ${cols.newStart},
+       ${cols.replaced}, ${cols.removed}, ${cols.newStart}, ${cols.previousAdjusted},
        created_at
      ) VALUES (
        @batchId, @roomId,
        @previous, @current, @units, @overCycle,
-       @replaced, @removed, @newStart,
+       @replaced, @removed, @newStart, @previousAdjusted,
        @now
      )
      ON CONFLICT (meter_batch_id, room_id) DO UPDATE SET
@@ -464,6 +481,7 @@ export function saveBatchReadings(db, batchId, side, rows) {
        ${cols.replaced} = @replaced,
        ${cols.removed}  = @removed,
        ${cols.newStart} = @newStart,
+       ${cols.previousAdjusted} = @previousAdjusted,
        updated_at = @now`
   )
 
@@ -472,7 +490,19 @@ export function saveBatchReadings(db, batchId, side, rows) {
   })
   run()
 
-  return getBatchSheet(db, batchId, side)
+  // ให้ handler เขียน log ว่าแก้เลขครั้งก่อนจากเท่าไรเป็นเท่าไร
+  return { ...getBatchSheet(db, batchId, side), previousAdjustments: adjustments }
+}
+
+function parseAdjustedPrevious(value, meterDigits) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    throw new Error('กรุณากรอกเลขจดครั้งก่อน')
+  }
+  const n = Number(value)
+  if (!Number.isFinite(n)) throw new Error('เลขจดครั้งก่อนต้องเป็นตัวเลข')
+  if (n < 0) throw new Error('เลขมิเตอร์ติดลบไม่ได้')
+  requireWithinDial(n, 10 ** meterDigits, meterDigits, 'เลขจดครั้งก่อน')
+  return round2(n)
 }
 
 function isDate(value) {
