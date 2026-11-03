@@ -17,6 +17,7 @@ const rooms = await import('../src/main/db/rooms.js')
 const tenants = await import('../src/main/db/tenants.js')
 const contracts = await import('../src/main/db/contracts.js')
 const payments = await import('../src/main/db/payments.js')
+const terminations = await import('../src/main/db/terminations.js')
 
 const { db, cleanup } = await openTempDatabase('dormy-contracts')
 
@@ -325,44 +326,63 @@ check('สัญญาใหม่ได้กติกาปัจจุบั�
   assert(row.deposit_min_stay_months === 9, `ได้ ${row.deposit_min_stay_months}`)
 })
 
-check('เปลี่ยนกติกาของหอทีหลัง สัญญาที่ทำไปแล้วต้องไม่เปลี่ยนตาม', () => {
+check('เปลี่ยนกติกาของหอทีหลัง สัญญาที่ใช้งานอยู่เปลี่ยนตาม ยกเว้นห้องที่แจ้งย้ายออกแล้ว', () => {
   const home = apartments.insertApartment(db, {
-    nameTh: 'หอทดสอบไม่ย้อนหลัง',
+    nameTh: 'หอทดสอบกติกาย้อนสัญญาเดิม',
     addressTh: 'ที่อยู่',
     dueDateDay: 10,
     lateFeePerDay: '0'
   })
-  rooms.generateFloorPlan(db, home.apartmentId, [{ roomCount: 1 }])
-  const room = rooms.listFloors(db, home.apartmentId)[0].rooms[0]
-  rooms.setRoomRates(db, [room.roomId], { monthlyRent: '4000' })
-
-  const person = tenants.insertTenant(db, {
-    firstName: 'ผู้เช่าเซ็นก่อน',
-    lastName: 'ทดสอบ',
-    phone: '0899997777'
+  const other = apartments.insertApartment(db, {
+    nameTh: 'หออื่นต้องไม่โดนด้วย',
+    addressTh: 'ที่อยู่',
+    dueDateDay: 10,
+    lateFeePerDay: '0'
   })
-  const contract = contracts.createContract(db, {
-    ...BASE,
-    roomId: room.roomId,
-    rentAmount: '4000',
-    deposit: '4000',
-    termMonths: 12,
-    tenants: [person.tenantId]
-  })
+  rooms.generateFloorPlan(db, home.apartmentId, [{ roomCount: 2 }])
+  rooms.generateFloorPlan(db, other.apartmentId, [{ roomCount: 1 }])
+  const [stayRoom, leavingRoom] = rooms.listFloors(db, home.apartmentId)[0].rooms
+  const otherRoom = rooms.listFloors(db, other.apartmentId)[0].rooms[0]
+  rooms.setRoomRates(db, [stayRoom.roomId, leavingRoom.roomId], { monthlyRent: '4000' })
+  rooms.setRoomRates(db, [otherRoom.roomId], { monthlyRent: '4000' })
 
-  apartments.saveDepositPolicy(db, home.apartmentId, {
-    policy: 'never',
-    noticeDays: 60,
-    minStayMonths: 24
-  })
+  const sign = (room, phone) =>
+    contracts.createContract(db, {
+      ...BASE,
+      roomId: room.roomId,
+      rentAmount: '4000',
+      deposit: '4000',
+      termMonths: 12,
+      tenants: [
+        tenants.insertTenant(db, { firstName: `ผู้เช่า${phone}`, lastName: 'ทดสอบ', phone }).tenantId
+      ]
+    })
+  const staying = sign(stayRoom, '0899997771')
+  const leaving = sign(leavingRoom, '0899997772')
+  const elsewhere = sign(otherRoom, '0899997773')
+  terminations.setMoveOutNotice(db, leaving.contractId, '2026-08-01')
 
-  const row = db
-    .prepare(
-      `SELECT deposit_refund_policy, deposit_notice_days FROM contracts WHERE contract_id = ?`
-    )
-    .get(contract.contractId)
-  assert(row.deposit_refund_policy === 'on_full_term', `กติกาเก่าถูกเขียนทับเป็น ${row.deposit_refund_policy}`)
-  assert(row.deposit_notice_days === 15, `จำนวนวันถูกเขียนทับเป็น ${row.deposit_notice_days}`)
+  const saved = apartments.saveDepositPolicy(db, home.apartmentId, {
+    policy: 'on_full_term',
+    noticeDays: 30,
+    minStayMonths: 6
+  })
+  assert(saved.appliedContractCount === 1, `อัปเดต ${saved.appliedContractCount} ใบ ควรเป็น 1`)
+  assert(saved.noticeGivenContractCount === 1, `แจ้งย้ายออกแล้ว ${saved.noticeGivenContractCount} ใบ`)
+
+  const read = (id) =>
+    db
+      .prepare('SELECT deposit_notice_days AS days, deposit_min_stay_months AS minStay FROM contracts WHERE contract_id = ?')
+      .get(id)
+  assert(read(staying.contractId).days === 30, `สัญญาที่อยู่ต่อได้ ${read(staying.contractId).days}`)
+  assert(read(staying.contractId).minStay === 6, `เดือนขั้นต่ำได้ ${read(staying.contractId).minStay}`)
+  assert(read(leaving.contractId).days === 15, `ห้องที่แจ้งย้ายออกแล้วถูกเปลี่ยนเป็น ${read(leaving.contractId).days}`)
+  assert(read(elsewhere.contractId).days === 15, `หออื่นถูกเปลี่ยนเป็น ${read(elsewhere.contractId).days}`)
+
+  // ยกเลิกการแจ้ง = กลับมาใช้กติกาปัจจุบันของหอ
+  terminations.setMoveOutNotice(db, leaving.contractId, null)
+  assert(read(leaving.contractId).days === 30, `ยกเลิกแจ้งแล้วได้ ${read(leaving.contractId).days}`)
+  assert(read(leaving.contractId).minStay === 6, `ยกเลิกแจ้งแล้วเดือนขั้นต่ำได้ ${read(leaving.contractId).minStay}`)
 })
 
 group('ผู้เช่าเดิมจากระบบเก่า')

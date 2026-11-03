@@ -645,5 +645,94 @@ check('ใบจดที่ลงวันเดียวกับวันเ�
   assert(row.previousSource === 'batch', `ได้ ${row.previousSource} — ไม่ควรถือว่าโซ่ขาด`)
 })
 
+group('แก้เลขจดครั้งก่อนเอง')
+
+const adjustHome = apartments.insertApartment(db, {
+  nameTh: 'หอทดสอบแก้เลขครั้งก่อน',
+  addressTh: 'ที่อยู่',
+  dueDateDay: 5,
+  lateFeePerDay: '0'
+})
+rooms.generateFloorPlan(db, adjustHome.apartmentId, [{ roomCount: 1 }])
+const adjustRoom = rooms.listFloors(db, adjustHome.apartmentId)[0].rooms[0]
+const adjustBatch = meter.createBatch(db, adjustHome.apartmentId, '2029-01-31')
+const adjustRow = () =>
+  meter
+    .getBatchSheet(db, adjustBatch.batchId, 'water')
+    .rooms.find((r) => r.roomId === adjustRoom.roomId)
+
+check('ห้องว่างที่ไม่เคยจด แก้เลขครั้งก่อนได้ และหน่วยคิดจากเลขที่แก้', () => {
+  const saved = meter.saveBatchReadings(db, adjustBatch.batchId, 'water', [
+    { roomId: adjustRoom.roomId, isPreviousAdjusted: true, previousReading: '4570', currentReading: 4575 }
+  ])
+  const row = adjustRow()
+  assert(row.previousReading === 4570, `ได้ ${row.previousReading}`)
+  assert(row.unitsUsed === 5, `ได้ ${row.unitsUsed}`)
+  assert(row.isPreviousAdjusted === true, 'ต้องจำว่าแก้เอง')
+  assert(row.derivedPreviousReading === 0, `เลขที่ระบบหาให้ต้องคงเดิม ได้ ${row.derivedPreviousReading}`)
+  assert(saved.previousAdjustments.length === 1, 'ต้องส่งรายการที่แก้ออกมาให้เขียน log')
+  assert(saved.previousAdjustments[0].from === 0 && saved.previousAdjustments[0].to === 4570, 'from/to ผิด')
+})
+
+check('บันทึกซ้ำโดยไม่แตะเลขครั้งก่อน เลขที่แก้ไว้ต้องไม่ถูกคิดใหม่ทับ', () => {
+  const saved = meter.saveBatchReadings(db, adjustBatch.batchId, 'water', [
+    { roomId: adjustRoom.roomId, isPreviousAdjusted: true, previousReading: 4570, currentReading: 4580 }
+  ])
+  assert(adjustRow().previousReading === 4570, `ได้ ${adjustRow().previousReading}`)
+  assert(adjustRow().unitsUsed === 10, `ได้ ${adjustRow().unitsUsed}`)
+  assert(saved.previousAdjustments.length === 0, 'แก้ค่าเดิมซ้ำ ไม่ต้อง log อีก')
+})
+
+check('รอบถัดไปเดินต่อจากเลขปัจจุบันของรอบที่แก้', () => {
+  const next = meter.createBatch(db, adjustHome.apartmentId, '2029-02-28')
+  const row = meter
+    .getBatchSheet(db, next.batchId, 'water')
+    .rooms.find((r) => r.roomId === adjustRoom.roomId)
+  assert(row.previousReading === 4580, `ได้ ${row.previousReading}`)
+  assert(row.isPreviousAdjusted === false, 'รอบใหม่ต้องไม่ติดธงแก้เอง')
+})
+
+check('คืนค่าที่ระบบคิด (ไม่ส่งธงแก้เอง) แล้วกลับไปใช้เลขที่ระบบหาให้', () => {
+  meter.saveBatchReadings(db, adjustBatch.batchId, 'water', [
+    { roomId: adjustRoom.roomId, currentReading: 4580 }
+  ])
+  assert(adjustRow().previousReading === 0, `ได้ ${adjustRow().previousReading}`)
+  assert(adjustRow().isPreviousAdjusted === false, 'ธงแก้เองต้องถูกล้าง')
+})
+
+check('แก้เป็นเลขเดียวกับที่ระบบหาให้ ไม่นับว่าแก้', () => {
+  const saved = meter.saveBatchReadings(db, adjustBatch.batchId, 'water', [
+    { roomId: adjustRoom.roomId, isPreviousAdjusted: true, previousReading: 0, currentReading: 10 }
+  ])
+  assert(adjustRow().isPreviousAdjusted === false, 'ไม่ควรติดธง')
+  assert(saved.previousAdjustments.length === 0, 'ไม่ควร log')
+})
+
+check('เลขครั้งก่อนที่แก้ต้องผ่านการตรวจเหมือนเลขอื่น', () => {
+  const save = (previousReading, currentReading = 10) => () =>
+    meter.saveBatchReadings(db, adjustBatch.batchId, 'water', [
+      { roomId: adjustRoom.roomId, isPreviousAdjusted: true, previousReading, currentReading }
+    ])
+  throws(save(''), 'กรุณากรอกเลขจดครั้งก่อน', 'ช่องว่างผ่านได้')
+  throws(save('abc'), 'ต้องเป็นตัวเลข', 'ตัวอักษรผ่านได้')
+  throws(save(-1), 'ติดลบ', 'ติดลบผ่านได้')
+  throws(save(100000), 'เกินหน้าปัด', 'เกินหน้าปัดผ่านได้')
+  throws(save(50, 10), 'น้อยกว่าครั้งก่อน', 'ปัจจุบันน้อยกว่าเลขที่แก้ต้องเตือน')
+})
+
+check('ฝั่งไฟไม่ติดธงแก้เองของฝั่งน้ำ', () => {
+  meter.saveBatchReadings(db, adjustBatch.batchId, 'water', [
+    { roomId: adjustRoom.roomId, isPreviousAdjusted: true, previousReading: 5, currentReading: 10 }
+  ])
+  meter.saveBatchReadings(db, adjustBatch.batchId, 'electric', [
+    { roomId: adjustRoom.roomId, currentReading: 300 }
+  ])
+  const elec = meter
+    .getBatchSheet(db, adjustBatch.batchId, 'electric')
+    .rooms.find((r) => r.roomId === adjustRoom.roomId)
+  assert(elec.isPreviousAdjusted === false, 'ฝั่งไฟต้องไม่ติดธง')
+  assert(adjustRow().isPreviousAdjusted === true, 'ฝั่งน้ำต้องยังติดธง')
+})
+
 cleanup()
 summarize('โมดูลจดมิเตอร์ทำงานครบทุกเส้นทาง')

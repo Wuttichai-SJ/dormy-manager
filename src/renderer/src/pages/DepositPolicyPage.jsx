@@ -5,7 +5,7 @@ import { showToast } from '../components/Toast.jsx'
 import { DEPOSIT_REFUND_POLICIES } from '../constants.js'
 import { getDepositPolicy, saveDepositPolicy } from '../services/apartmentService.js'
 
-// ค่าตั้งต้นของสัญญาใหม่เท่านั้น — สัญญาเดิมใช้กฎที่ตรึงไว้
+// ใช้กับสัญญาใหม่และสัญญาที่ใช้งานอยู่ — ห้องที่แจ้งย้ายออกแล้วคงกติกาเดิม
 export default function DepositPolicyPage({ apartment }) {
   const [form, setForm] = useState(null)
   const [saved, setSaved] = useState(null)
@@ -43,7 +43,11 @@ export default function DepositPolicyPage({ apartment }) {
     setBusy(false)
     if (!res.success) return setError(res.error)
     setSaved(res.data)
-    showToast('บันทึกนโยบายเงินประกันแล้ว')
+    showToast(
+      res.data.appliedContractCount > 0
+        ? `บันทึกแล้ว · ใช้กับสัญญาที่ใช้งานอยู่ ${res.data.appliedContractCount} ใบ`
+        : 'บันทึกนโยบายเงินประกันแล้ว'
+    )
   }
 
   if (loading || !form) return <p className="muted">กำลังโหลด...</p>
@@ -52,12 +56,6 @@ export default function DepositPolicyPage({ apartment }) {
 
   return (
     <>
-      <Alert kind="warn">
-        การแก้ที่นี่<strong>ไม่กระทบสัญญาที่ทำไปแล้ว</strong>
-        {saved.activeContractCount > 0 && ` (${saved.activeContractCount} ใบที่ใช้งานอยู่)`} ·
-        ใช้กับสัญญาใหม่เท่านั้น
-      </Alert>
-
       <form className="form-section" onSubmit={submit}>
         <div className="form-section-head">
           <h2>
@@ -73,7 +71,11 @@ export default function DepositPolicyPage({ apartment }) {
               ]}
             />
           </h2>
-          <p>ใช้กับสัญญาที่ทำหลังจากนี้</p>
+          <p>
+            ใช้กับสัญญาใหม่และสัญญาที่ใช้งานอยู่ทันที
+            {saved.noticeGivenContractCount > 0 &&
+              ` · ห้องที่แจ้งย้ายออกแล้ว ${saved.noticeGivenContractCount} ห้องใช้กติกาเดิม`}
+          </p>
         </div>
 
         <div className="form-section-body">
