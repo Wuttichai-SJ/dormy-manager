@@ -313,44 +313,71 @@ export function getDepositPolicy(db, apartmentId) {
     policyLabel: DEPOSIT_REFUND_POLICY_LABELS[row.policy] ?? row.policy,
     noticeDays: row.noticeDays,
     minStayMonths: row.minStayMonths,
-    activeContractCount: db
-      .prepare(
-        `SELECT COUNT(*) AS n
-           FROM contracts c
-           JOIN rooms r  ON r.room_id = c.room_id
-           JOIN floors f ON f.floor_id = r.floor_id
-          WHERE f.apartment_id = ? AND c.status = 'active'`
-      )
-      .get(apartmentId).n
+    ...countActiveContracts(db, apartmentId)
   }
+}
+
+function countActiveContracts(db, apartmentId) {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(c.move_out_notice_date IS NOT NULL), 0) AS noticeGiven
+         FROM contracts c
+         JOIN rooms r  ON r.room_id = c.room_id
+         JOIN floors f ON f.floor_id = r.floor_id
+        WHERE f.apartment_id = ? AND c.status = 'active'`
+    )
+    .get(apartmentId)
+  return { activeContractCount: row.total, noticeGivenContractCount: row.noticeGiven }
 }
 
 export function saveDepositPolicy(db, apartmentId, { policy, noticeDays, minStayMonths } = {}) {
   const errors = validateDepositPolicyInput({ policy, noticeDays, minStayMonths })
   if (errors.length > 0) throw new Error(errors.join('\n'))
 
-  const result = db
-    .prepare(
-      `UPDATE apartments
-          SET default_deposit_refund_policy = @policy,
-              default_deposit_notice_days = @noticeDays,
-              default_deposit_min_stay_months = @minStayMonths,
-              updated_at = @now
-        WHERE apartment_id = @apartmentId`
-    )
-    .run({
-      apartmentId,
-      policy,
-      noticeDays: Number(noticeDays),
-      minStayMonths:
-        minStayMonths === null || minStayMonths === undefined || String(minStayMonths).trim() === ''
-          ? null
-          : Number(minStayMonths),
-      now: new Date().toISOString()
-    })
-  if (result.changes === 0) throw new Error('ไม่พบหอพัก')
+  const params = {
+    apartmentId,
+    policy,
+    noticeDays: Number(noticeDays),
+    minStayMonths:
+      minStayMonths === null || minStayMonths === undefined || String(minStayMonths).trim() === ''
+        ? null
+        : Number(minStayMonths),
+    now: new Date().toISOString()
+  }
 
-  return getDepositPolicy(db, apartmentId)
+  const run = db.transaction(() => {
+    const result = db
+      .prepare(
+        `UPDATE apartments
+            SET default_deposit_refund_policy = @policy,
+                default_deposit_notice_days = @noticeDays,
+                default_deposit_min_stay_months = @minStayMonths,
+                updated_at = @now
+          WHERE apartment_id = @apartmentId`
+      )
+      .run(params)
+    if (result.changes === 0) throw new Error('ไม่พบหอพัก')
+
+    // ใช้กับสัญญาที่ใช้งานอยู่ด้วย · ห้องที่แจ้งย้ายออกแล้วคงกติกาเดิม กันริบเงินประกันย้อนหลัง
+    return db
+      .prepare(
+        `UPDATE contracts
+            SET deposit_refund_policy = @policy,
+                deposit_notice_days = @noticeDays,
+                deposit_min_stay_months = @minStayMonths,
+                updated_at = @now
+          WHERE status = 'active'
+            AND move_out_notice_date IS NULL
+            AND room_id IN (SELECT r.room_id FROM rooms r
+                              JOIN floors f ON f.floor_id = r.floor_id
+                             WHERE f.apartment_id = @apartmentId)`
+      )
+      .run(params).changes
+  })
+
+  const appliedContractCount = run()
+  return { ...getDepositPolicy(db, apartmentId), appliedContractCount }
 }
 
 export function toPublicApartment(row) {

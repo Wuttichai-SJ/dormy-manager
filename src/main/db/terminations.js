@@ -66,8 +66,26 @@ export function setMoveOutNotice(db, contractId, noticeDate) {
     })
   }
 
-  db.prepare('UPDATE contracts SET move_out_notice_date = ?, updated_at = ? WHERE contract_id = ?')
-    .run(noticeDate, new Date().toISOString(), contractId)
+  const run = db.transaction(() => {
+    db.prepare('UPDATE contracts SET move_out_notice_date = ?, updated_at = ? WHERE contract_id = ?')
+      .run(noticeDate, new Date().toISOString(), contractId)
+
+    // ยกเลิกการแจ้ง = กลับมาใช้กติกาปัจจุบันของหอ เหมือนสัญญาอื่นที่ใช้งานอยู่
+    if (noticeDate === null) {
+      db.prepare(
+        `UPDATE contracts
+            SET (deposit_refund_policy, deposit_notice_days, deposit_min_stay_months) =
+                (SELECT a.default_deposit_refund_policy, a.default_deposit_notice_days,
+                        a.default_deposit_min_stay_months
+                   FROM rooms r
+                   JOIN floors f     ON f.floor_id = r.floor_id
+                   JOIN apartments a ON a.apartment_id = f.apartment_id
+                  WHERE r.room_id = contracts.room_id)
+          WHERE contract_id = ?`
+      ).run(contractId)
+    }
+  })
+  run()
 
   return { contractId, moveOutNoticeDate: noticeDate }
 }

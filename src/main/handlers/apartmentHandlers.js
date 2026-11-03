@@ -77,7 +77,7 @@ export function registerApartmentHandlers() {
     return result
   })
 
-  // ค่าตั้งต้นของสัญญาใหม่เท่านั้น — สัญญาเดิมใช้กฎที่ตรึงไว้
+  // ใช้กับสัญญาใหม่และสัญญาที่ใช้งานอยู่ — ยกเว้นห้องที่แจ้งย้ายออกแล้ว
   handleSession('apartment:getDepositPolicy', ({ apartmentId }) =>
     getDepositPolicy(getDatabase(), apartmentId)
   )
@@ -92,7 +92,8 @@ export function registerApartmentHandlers() {
     logInfo(
       `บันทึกนโยบายเงินประกัน (apartment_id ${apartmentId}): ${saved.policy} · ` +
         `แจ้งล่วงหน้า ${saved.noticeDays} วัน · ` +
-        `ขั้นต่ำ ${saved.minStayMonths === null ? 'ตามระยะสัญญา' : `${saved.minStayMonths} เดือน`}`
+        `ขั้นต่ำ ${saved.minStayMonths === null ? 'ตามระยะสัญญา' : `${saved.minStayMonths} เดือน`} · ` +
+        `อัปเดตสัญญาที่ใช้งานอยู่ ${saved.appliedContractCount} ใบ`
     )
     return saved
   })
