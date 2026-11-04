@@ -4,13 +4,13 @@ import { BUDDHIST_YEAR_OFFSET, formatBaht } from '../format.js'
 import { formatAccountNumber } from '../inputMasks.js'
 
 // ประมาณจำนวนแถวต่อแผ่น A4 — ใช้คิด maxPages ของกล่องพิมพ์
-export const SUMMARY_ROWS_PER_PAGE = 20
+export const SUMMARY_ROWS_PER_PAGE = 22
 
 export function summaryPageCount(summary) {
   return summary.groups.reduce((n, g) => n + Math.max(1, Math.ceil(g.rows.length / SUMMARY_ROWS_PER_PAGE)), 0)
 }
 
-// ติดบอร์ดหน้าตึก — ตึกละหน้า หัวตารางซ้ำทุกแผ่น
+// ติดบอร์ดหน้าตึก — ตึกละหน้า หัวตารางซ้ำทุกแผ่น · ท้ายใบอยู่หน้าสุดท้ายหน้าเดียว
 export default function OutstandingSummaryDocument({ summary, apartmentName, printedAt, qrDataUrl }) {
   const [year, month] = summary.billingMonth.split('-').map(Number)
   const monthText = `${MONTH_NAMES[month - 1]} ${year + BUDDHIST_YEAR_OFFSET}`
@@ -18,7 +18,7 @@ export default function OutstandingSummaryDocument({ summary, apartmentName, pri
 
   return (
     <div className="outstanding-sheets">
-      {summary.groups.map((group) => (
+      {summary.groups.map((group, index) => (
         <article key={group.buildingName ?? ''} className="outstanding-doc">
           <table className="outstanding-table">
             <thead>
@@ -59,7 +59,9 @@ export default function OutstandingSummaryDocument({ summary, apartmentName, pri
             </tbody>
           </table>
 
-          <PaymentFooter payment={summary.payment} qrDataUrl={qrDataUrl} />
+          {index === summary.groups.length - 1 && (
+            <PaymentFooter payment={summary.payment} qrDataUrl={qrDataUrl} />
+          )}
         </article>
       ))}
     </div>
