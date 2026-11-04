@@ -3,6 +3,7 @@ import { formatPhone } from './TenantDialog.jsx'
 import { formatBaht, formatDocumentDate } from '../format.js'
 
 const quantity = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const reading = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 })
 
 const THAI_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 
@@ -14,7 +15,7 @@ function shortMonthLabel(text) {
   })
 }
 
-// ขาวดำ A5 แนวนอน — ผู้รับเงินเซ็นมือ
+// ขาวดำ ครึ่ง A4 — ผู้รับเงินเซ็นมือ
 export default function ReceiptDocument({ receipt, invoice }) {
   const apartment = receipt.apartment ?? invoice?.apartment ?? {}
   const amountCents = Math.abs(receipt.amountCents)
@@ -28,10 +29,11 @@ export default function ReceiptDocument({ receipt, invoice }) {
     { label: 'ออกโดย', value: receipt.createdByName ?? '-' },
     { label: 'ชำระโดย', value: receipt.paymentMethodLabel }
   ]
-  const noteLines = invoice ? [...utilityNoteLines(invoice), receipt.remark?.trim()].filter(Boolean) : []
+  const footRows = (showVat ? 2 : 0) + 1 + (invoice && amountCents !== totalCents ? 1 : 0)
+  const size = printSize(rows.length + footRows)
 
   return (
-    <article className="receipt-doc">
+    <article className={`receipt-doc ${size}`}>
       <h2 className="rc-title">ใบเสร็จรับเงิน</h2>
 
       {apartment.name && (
@@ -66,7 +68,7 @@ export default function ReceiptDocument({ receipt, invoice }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.key} className={row.sub ? 'rc-sub' : undefined}>
+            <tr key={row.key}>
               <td>{row.label}</td>
               <td className="align-right">{row.quantity ?? ''}</td>
               <td className="align-right">{row.amountCents == null ? '' : formatBaht(row.amountCents)}</td>
@@ -101,17 +103,12 @@ export default function ReceiptDocument({ receipt, invoice }) {
       </table>
 
       <div className="rc-foot">
+        <div className="rc-note">
+          <span className="rc-note-label">หมายเหตุ</span>
+        </div>
         <div className="rc-line rc-sign">
           <span>ผู้รับเงิน</span>
           <span className="rc-blank" />
-        </div>
-        <div className="rc-note">
-          <span>หมายเหตุ</span>
-          <div className="rc-note-box">
-            {noteLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-          </div>
         </div>
       </div>
     </article>
@@ -127,7 +124,14 @@ function InfoRow({ label, value }) {
   )
 }
 
-// ค่าน้ำ/ไฟที่มีเลขมิเตอร์ = หัวรายการ + 3 บรรทัดย่อย ยอดเงินอยู่บรรทัดสุดท้าย
+// ครึ่ง A4 สูงคงที่ — แถวเยอะเกินจะย่อตัวอักษรลงเป็นขั้น (ตัวเลขประมาณจากความสูงจริงตอนพิมพ์)
+function printSize(tableRows) {
+  if (tableRows <= 8) return 'rc-size-l'
+  if (tableRows <= 11) return 'rc-size-m'
+  return 'rc-size-s'
+}
+
+// ค่าน้ำ/ไฟที่มีเลขมิเตอร์ = แถวเดียว: รายการ + หน่วยที่ใช้ · จำนวน = เลขเก่า - เลขใหม่
 function invoiceRows(invoice) {
   const rows = []
   for (const item of invoice.items) {
@@ -146,31 +150,14 @@ function invoiceRows(invoice) {
       continue
     }
 
-    const key = item.invoiceItemId
-    rows.push({ key, label: shortMonthLabel(item.description.split(' : ')[0]) })
-    rows.push({ key: `${key}-prev`, sub: true, label: '- มิเตอร์จดครั้งก่อน', quantity: quantity.format(meter.previous) })
-    rows.push({ key: `${key}-cur`, sub: true, label: '- มิเตอร์จดครั้งล่าสุด', quantity: quantity.format(meter.current) })
-    rows.push({ key: `${key}-use`, sub: true, label: '- เปลี่ยนแปลง', quantity: quantity.format(meter.units), amountCents })
+    rows.push({
+      key: item.invoiceItemId,
+      label: `${shortMonthLabel(item.description.split(' : ')[0])} · เปลี่ยนแปลง ${reading.format(meter.units)} หน่วย`,
+      quantity: `${reading.format(meter.previous)} - ${reading.format(meter.current)}`,
+      amountCents
+    })
   }
   return rows
-}
-
-// แจ้งเฉพาะฝั่งที่บิลนี้เก็บเงินจริง · ราคาต่อหน่วยตามบิล (เหมาจ่ายเป็น 0 ไม่แสดง)
-function utilityNoteLines(invoice) {
-  const lines = []
-  const min = invoice.minChargeCents ?? {}
-  for (const [itemType, side, label] of [
-    ['water', 'water', 'ค่าน้ำ'],
-    ['electricity', 'electric', 'ค่าไฟ']
-  ]) {
-    const item = invoice.items.find((row) => row.itemType === itemType)
-    if (!item) continue
-    const parts = []
-    if (item.unitPriceCents > 0) parts.push(`หน่วยละ ${formatBaht(item.unitPriceCents)} บาท`)
-    if (min[side]) parts.push(`ขั้นต่ำ ${formatBaht(min[side])} บาท`)
-    if (parts.length) lines.push(`${label}${parts.join(' · ')}`)
-  }
-  return lines
 }
 
 // ใบเสร็จของสัญญา — ชื่อรายการมาจาก remark ที่บันทึกตอนรับเงิน

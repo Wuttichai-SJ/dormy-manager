@@ -1,4 +1,4 @@
-/* ใบเสร็จขาวดำ A5 แนวนอน สองใบต่อ A4 — @media print ก้อนที่ 3 จาก 3 */
+/* ใบเสร็จขาวดำ สองใบต่อ A4 พับครึ่งตัดได้ — @media print ก้อนที่ 3 จาก 3 */
 
 .receipt-doc {
   display: flex;
@@ -6,31 +6,33 @@
   color: #000;
   background: #fff;
   font-size: 13px;
+  line-height: 1.35;
 }
 
 .rc-title {
-  margin: 0 0 4px;
-  font-size: 18px;
+  margin: 0 0 2px;
+  font-size: 1.25em;
+  line-height: 1.2;
   text-align: center;
 }
 
 .rc-apartment {
-  margin: 0 0 10px;
-  font-size: 12px;
+  margin: 0 0 0.4em;
+  font-size: 0.875em;
   text-align: center;
 }
 
 .rc-head {
   display: grid;
-  grid-template-columns: 3fr 2fr;
-  margin-bottom: 10px;
+  grid-template-columns: 1.3fr 1fr;
+  margin-bottom: 0.4em;
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }
 
 .rc-info {
   margin: 0;
-  padding: 6px 10px;
+  padding: 0.3em 0.6em;
   background: #f6f6f6;
 }
 
@@ -40,9 +42,8 @@
 
 .rc-info > div {
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 8px;
-  padding: 1px 0;
+  grid-template-columns: 6.5em 1fr;
+  gap: 0.5em;
 }
 
 .rc-info dt {
@@ -60,7 +61,7 @@
 }
 
 .rc-items th {
-  padding: 4px 8px;
+  padding: 0.2em 0.5em;
   text-align: left;
   border-bottom: 1px solid #000;
 }
@@ -69,24 +70,33 @@
   text-align: right;
 }
 
+/* จำนวนต้องพอสำหรับ "10,000 - 10,500" */
+.rc-items th:nth-child(2) {
+  width: 10em;
+}
+
+.rc-items th:nth-child(3) {
+  width: 7.5em;
+}
+
 .rc-items th + th,
 .rc-items td + td {
-  width: 110px;
   border-left: 1px solid #000;
 }
 
 .rc-items td {
-  padding: 2px 8px;
+  padding: 0.06em 0.5em;
+  white-space: nowrap;
+}
+
+.rc-items td:first-child {
+  white-space: normal;
 }
 
 .rc-items tbody tr:nth-child(even) {
   background: #ececec;
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
-}
-
-.rc-sub td:first-child {
-  padding-left: 22px;
 }
 
 .rc-items tfoot td {
@@ -99,98 +109,87 @@
 
 .rc-foot {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 24px;
-  margin-top: 18px;
+  grid-template-columns: 3fr 2fr;
+  align-items: end;
+  gap: 1.5em;
+  margin-top: 0.8em;
 }
 
 .rc-note {
-  grid-column: 1 / -1;
-}
-
-.rc-note-box {
-  min-height: 14mm;
-  margin-top: 4px;
-  padding: 4px 8px;
+  min-height: 4.5em;
+  padding: 0.25em 0.5em;
   box-sizing: border-box;
   border: 1px solid #bbb;
   background: #f6f6f6;
+  font-size: 0.875em;
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }
 
-.rc-note-box p {
-  margin: 0;
-}
-
-.rc-sign {
-  grid-column: 2;
+.rc-note-label {
+  font-weight: 600;
 }
 
 .rc-line {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 0.5em;
 }
 
 .rc-blank {
   flex: 1;
-  min-height: 18px;
+  min-height: 1.4em;
   border-bottom: 1px solid #000;
 }
 
+/* ครึ่งหน้า = 148.5mm · หน้ากระดาษเว้นขอบ 12mm (printHandlers) จึงเหลือใบละ 136.5mm
+   ใบบนเว้นล่าง 12mm ใบล่างเว้นบน 12mm → ทุกใบมีขอบ 12mm รอบตัวหลังตัด และเส้นประอยู่ที่ 148.5mm พอดี */
 @media print {
   .receipt-doc {
+    position: relative;
     height: 136.5mm;
     box-sizing: border-box;
     margin: 0;
-    padding: 0;
     break-inside: avoid;
-    font-size: 11px;
+    font-size: 16px;
+  }
+
+  .receipt-doc.rc-size-m {
+    font-size: 14px;
+  }
+
+  .receipt-doc.rc-size-s {
+    font-size: 12px;
+  }
+
+  /* ทับ .receipt-doc + .receipt-doc ของหน้าจอ (23-move-out.css) */
+  .receipt-doc:nth-child(odd) {
+    margin-top: 0;
+    padding: 0 0 12mm;
+    border-top: 0;
+  }
+
+  .receipt-doc:nth-child(even) {
+    margin-top: 0;
+    padding: 12mm 0 0;
+    border-top: 1px dashed #999;
+  }
+
+  .receipt-doc:nth-child(even):not(:last-child) {
+    break-after: page;
+  }
+
+  .receipt-doc:nth-child(even)::before {
+    content: '✂ ตัดตามรอยประ';
+    position: absolute;
+    top: 1mm;
+    left: 0;
+    font-size: 9px;
+    color: #999;
   }
 
   .receipt-doc .rc-foot {
     margin-top: auto;
-    padding-top: 10px;
-  }
-
-  .receipt-doc:nth-child(2n):not(:last-child) {
-    break-after: page;
-  }
-
-  .receipt-doc:nth-child(2n) {
-    border-top: 1px dashed #999;
-    padding-top: 6mm;
-  }
-
-  .receipt-doc:nth-child(2n)::before {
-    content: '✂ ตัดตามรอยประ';
-    display: block;
-    margin-top: -5mm;
-    margin-bottom: 2mm;
-    font-size: 8px;
-    color: #999;
-  }
-
-  .receipt-doc + .receipt-doc {
-    margin-top: 0;
-  }
-
-  .receipt-doc .rc-title {
-    font-size: 15px;
-  }
-
-  .receipt-doc .rc-apartment {
-    margin-bottom: 6px;
-    font-size: 10px;
-  }
-
-  .receipt-doc .rc-head {
-    margin-bottom: 6px;
-  }
-
-  .receipt-doc .rc-items td {
-    padding-top: 1px;
-    padding-bottom: 1px;
+    padding-top: 0.8em;
   }
 }
