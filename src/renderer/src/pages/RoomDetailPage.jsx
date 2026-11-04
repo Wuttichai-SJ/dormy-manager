@@ -68,6 +68,8 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
   // ป้ายสถานะคิดจากสัญญา/การจองล่าสุด — ปิดปรับปรุงอ่านจาก room.status
   // ปิดใช้งานที่ตั้งค่า > ผังห้อง — ทำสัญญา/จองไม่ได้
   const inactive = room.isActive === false
+  // ปิดปรับปรุง = จองล่วงหน้าได้ ทำสัญญาไม่ได้
+  const underMaintenance = room.status === 'maintenance'
   const headerStatus = active
     ? 'occupied'
     : inactive
@@ -175,13 +177,31 @@ export default function RoomDetailPage({ apartment, room, onBack, user }) {
                     <BookingFacts booking={openBooking} />
 
                     <p className="room-booked-hint">
-                      ทำสัญญาหรือยกเลิกการจองได้ที่ "การจองห้อง" ด้านขวา
+                      {underMaintenance
+                        ? 'ห้องปิดปรับปรุงอยู่ · ทำสัญญาได้หลังเปลี่ยนเป็นห้องว่างที่ ตั้งค่า > ห้องว่าง'
+                        : 'ทำสัญญาหรือยกเลิกการจองได้ที่ "การจองห้อง" ด้านขวา'}
                     </p>
                   </div>
                 ) : inactive ? (
                   <p className="room-detail-empty">
                     ห้องนี้ปิดใช้งานอยู่ · เปิดใช้งานได้ที่ ตั้งค่า &gt; ผังห้อง
                   </p>
+                ) : underMaintenance ? (
+                  <>
+                    <p className="room-detail-empty">
+                      ห้องนี้ปิดปรับปรุงอยู่ · ทำสัญญาได้หลังเปลี่ยนเป็นห้องว่างที่ ตั้งค่า &gt; ห้องว่าง
+                    </p>
+                    <p className="room-booking-hint">
+                      มีคนรอเข้าพักหลังซ่อมเสร็จ?{' '}
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => setBookingRequest((n) => n + 1)}
+                      >
+                        บันทึกการจองไว้ก่อน
+                      </button>
+                    </p>
+                  </>
                 ) : (
                   <>
                     <p className="room-detail-empty">ห้องว่าง</p>
