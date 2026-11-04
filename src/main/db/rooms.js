@@ -595,7 +595,7 @@ export function setRoomStatus(db, roomIds, status) {
   return listFloors(db, apartmentId)
 }
 
-// ผูกบริการกับห้อง — ราคาถูกคัดลอกตอนทำสัญญา
+// ผูกบริการกับห้อง — ราคาถูกคัดลอกเข้าสัญญาตอนทำสัญญาหรือตอนผูกเพิ่ม
 function assertServicesBelongToApartment(db, apartmentId, serviceIds) {
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
     throw new Error('กรุณาเลือกค่าบริการอย่างน้อย 1 รายการ')
@@ -622,10 +622,20 @@ export function attachServicesToRooms(db, roomIds, serviceIds) {
   const stmt = db.prepare(
     'INSERT OR IGNORE INTO room_services (apartment_service_id, room_id, created_at) VALUES (?,?,?)'
   )
+  // สัญญาที่ใช้งานอยู่ได้บริการด้วย ราคา ณ วันที่ผูก
+  const toContract = db.prepare(
+    `INSERT OR IGNORE INTO contract_services (contract_id, apartment_service_id, price_cents)
+     SELECT c.contract_id, s.service_id, s.price_cents
+       FROM contracts c, apartment_services s
+      WHERE c.room_id = ? AND c.status = 'active' AND s.service_id = ?`
+  )
   const now = new Date().toISOString()
   const run = db.transaction(() => {
     for (const roomId of roomIds) {
-      for (const serviceId of serviceIds) stmt.run(serviceId, roomId, now)
+      for (const serviceId of serviceIds) {
+        stmt.run(serviceId, roomId, now)
+        toContract.run(roomId, serviceId)
+      }
     }
   })
   run()
@@ -633,7 +643,7 @@ export function attachServicesToRooms(db, roomIds, serviceIds) {
   return listFloors(db, apartmentId)
 }
 
-// นำออกไม่กระทบสัญญาเดิม (contract_services เก็บสำเนาเอง)
+// นำออกจากสัญญาที่ใช้งานอยู่ด้วย — บิลถัดไปไม่เก็บ บิลที่ออกแล้วไม่เปลี่ยน
 export function detachServicesFromRooms(db, roomIds, serviceIds) {
   const apartmentId = assertRoomsBelongToSameApartment(db, roomIds)
   assertServicesBelongToApartment(db, apartmentId, serviceIds)
@@ -641,9 +651,17 @@ export function detachServicesFromRooms(db, roomIds, serviceIds) {
   const stmt = db.prepare(
     'DELETE FROM room_services WHERE apartment_service_id = ? AND room_id = ?'
   )
+  const fromContract = db.prepare(
+    `DELETE FROM contract_services
+      WHERE apartment_service_id = ?
+        AND contract_id IN (SELECT contract_id FROM contracts WHERE room_id = ? AND status = 'active')`
+  )
   const run = db.transaction(() => {
     for (const roomId of roomIds) {
-      for (const serviceId of serviceIds) stmt.run(serviceId, roomId)
+      for (const serviceId of serviceIds) {
+        stmt.run(serviceId, roomId)
+        fromContract.run(serviceId, roomId)
+      }
     }
   })
   run()

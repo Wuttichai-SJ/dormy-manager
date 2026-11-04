@@ -238,6 +238,17 @@ check('ขึ้นราคาค่าบริการทีหลัง ไ
   assert(reread.services[0].priceCents === 30000, `สัญญาเก่าเปลี่ยนตาม ${reread.services[0].priceCents}`)
 })
 
+check('นำค่าบริการออกจากห้อง สัญญาที่ใช้งานอยู่ไม่ถูกเก็บด้วย · ผูกกลับได้ราคาปัจจุบัน', () => {
+  rooms.detachServicesFromRooms(db, [room1.roomId], [internet.serviceId])
+  const removed = contracts.getContractById(db, created.contractId)
+  assert(removed.services.length === 0, `ยังเหลือ ${removed.services.length} รายการ`)
+
+  rooms.attachServicesToRooms(db, [room1.roomId], [internet.serviceId])
+  const back = contracts.getContractById(db, created.contractId)
+  assert(back.services.length === 1, `ได้ ${back.services.length} รายการ`)
+  assert(back.services[0].priceCents === 50000, `ราคา ${back.services[0].priceCents}`)
+})
+
 check('ห้องกลายเป็นไม่ว่างทันที', () => {
   const room = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomId === room1.roomId)
   assert(room.status === 'occupied', `สถานะห้อง ${room.status}`)

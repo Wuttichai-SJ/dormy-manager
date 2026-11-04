@@ -359,7 +359,7 @@ function ServiceDialog({ catalogue, rooms, onClose, onSubmit, onDetach, busy, er
                   onClick={() =>
                     ask({
                       title: `นำ "${s.name}" ออกจากห้องที่เลือก?`,
-                      message: `${s.count} ห้องจะไม่มีบริการนี้ · สัญญาที่ทำไปแล้วไม่เปลี่ยน`,
+                      message: `${s.count} ห้องจะไม่มีบริการนี้ · ผู้เช่าปัจจุบันไม่ถูกเก็บตั้งแต่บิลถัดไป`,
                       confirmLabel: 'นำออก',
                       busyLabel: 'กำลังนำออก...',
                       icon: 'close',
