@@ -154,12 +154,12 @@
 .outstanding-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 19px;
 }
 
 .outstanding-head h2 {
-  margin: 0 0 4px;
-  font-size: 18px;
+  margin: 0 0 6px;
+  font-size: 28px;
   text-align: center;
 }
 
@@ -167,13 +167,13 @@
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 8px;
-  font-size: 12px;
+  padding-bottom: 10px;
+  font-size: 17px;
   font-weight: 400;
 }
 
 .outstanding-table thead tr:last-child th {
-  padding: 6px 8px;
+  padding: 8px 10px;
   text-align: left;
   border-top: 1px solid #000;
   border-bottom: 1px solid #000;
@@ -188,7 +188,7 @@
 }
 
 .outstanding-table td {
-  padding: 5px 8px;
+  padding: 7px 10px;
   border-bottom: 1px solid #ccc;
 }
 
@@ -204,7 +204,7 @@
   margin-top: 24px;
   padding-top: 12px;
   border-top: 1px solid #000;
-  font-size: 12px;
+  font-size: 16px;
   break-inside: avoid;
 }
 
@@ -219,7 +219,7 @@
 
 .outstanding-foot-text h3 {
   margin: 0 0 2px;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .outstanding-foot-text p {
@@ -254,7 +254,7 @@
 }
 
 .outstanding-account {
-  font-size: 15px;
+  font-size: 20px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
 }
@@ -273,7 +273,7 @@
 
 .outstanding-qr figcaption {
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 14px;
 }
 
 @media print {
