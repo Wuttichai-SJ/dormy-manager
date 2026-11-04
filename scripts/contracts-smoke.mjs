@@ -238,6 +238,17 @@ check('ขึ้นราคาค่าบริการทีหลัง ไ
   assert(reread.services[0].priceCents === 30000, `สัญญาเก่าเปลี่ยนตาม ${reread.services[0].priceCents}`)
 })
 
+check('นำค่าบริการออกจากห้อง สัญญาที่ใช้งานอยู่ไม่ถูกเก็บด้วย · ผูกกลับได้ราคาปัจจุบัน', () => {
+  rooms.detachServicesFromRooms(db, [room1.roomId], [internet.serviceId])
+  const removed = contracts.getContractById(db, created.contractId)
+  assert(removed.services.length === 0, `ยังเหลือ ${removed.services.length} รายการ`)
+
+  rooms.attachServicesToRooms(db, [room1.roomId], [internet.serviceId])
+  const back = contracts.getContractById(db, created.contractId)
+  assert(back.services.length === 1, `ได้ ${back.services.length} รายการ`)
+  assert(back.services[0].priceCents === 50000, `ราคา ${back.services[0].priceCents}`)
+})
+
 check('ห้องกลายเป็นไม่ว่างทันที', () => {
   const room = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomId === room1.roomId)
   assert(room.status === 'occupied', `สถานะห้อง ${room.status}`)
@@ -466,6 +477,46 @@ check('ห้องที่ปิดใช้งานทำสัญญาไ�
   const listed = contracts.listRoomsForApartment(db, apartmentId)
   assert(listed.find((r) => r.roomId === closed.roomId).isActive === false, 'ห้อง 990 ต้องบอกว่าปิดใช้งาน')
   assert(listed.find((r) => r.roomId === room1.roomId).isActive === true, 'ห้องอื่นต้องยังเปิดใช้งาน')
+})
+
+group('ห้องที่ปิดปรับปรุง')
+
+const bookings = await import('../src/main/db/bookings.js')
+
+check('ปิดปรับปรุง: จองล่วงหน้าได้ แต่ทำสัญญาไม่ได้ทั้งตรงและจากใบจอง จนกว่าจะเปิดห้อง', () => {
+  rooms.addRoom(db, floor.floorId, { roomNumber: '991' })
+  const repair = rooms.listFloors(db, apartmentId)[0].rooms.find((r) => r.roomNumber === '991')
+  rooms.setRoomStatus(db, [repair.roomId], 'maintenance')
+
+  throws(
+    () => contracts.createContract(db, { ...BASE, roomId: repair.roomId, tenants: [somying.tenantId] }),
+    'ปิดปรับปรุง',
+    'ห้องปิดปรับปรุงต้องทำสัญญาตรงไม่ได้'
+  )
+
+  const booking = bookings.createBooking(db, {
+    roomId: repair.roomId,
+    rentType: 'monthly',
+    checkInDate: '2026-12-01',
+    rentPrice: '5000',
+    bookingFee: '1000',
+    paymentMethod: 'cash',
+    customerName: 'รอซ่อมเสร็จ',
+    customerPhone: '0899999999'
+  })
+  throws(
+    () => bookings.convertBookingToContract(db, booking.bookingId, { ...BASE, tenants: [somying.tenantId] }),
+    'ปิดปรับปรุง',
+    'ใบจองของห้องปิดปรับปรุงต้องแปลงเป็นสัญญาไม่ได้'
+  )
+  assert(bookings.getBookingById(db, booking.bookingId).status === 'pending', 'ใบจองต้องยังค้างอยู่')
+
+  rooms.setRoomStatus(db, [repair.roomId], 'vacant')
+  const contract = bookings.convertBookingToContract(db, booking.bookingId, {
+    ...BASE,
+    tenants: [somying.tenantId]
+  })
+  assert(contract.contractId > 0, 'เปิดห้องแล้วต้องทำสัญญาจากใบจองได้')
 })
 
 cleanup()

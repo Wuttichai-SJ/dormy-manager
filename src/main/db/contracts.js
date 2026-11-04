@@ -298,6 +298,13 @@ export function createContract(db, input) {
     throw new Error(`ห้อง ${room.room_number} มีสัญญาที่ยังใช้งานอยู่แล้ว กรุณาแจ้งย้ายออกก่อน`)
   }
 
+  // ปิดปรับปรุง: จองล่วงหน้าได้ แต่ทำสัญญาได้หลังเปิดห้องแล้ว (ด่านนี้กันการแปลงใบจองด้วย)
+  if (room.status === 'maintenance') {
+    throw new Error(
+      `ห้อง ${room.room_number} ปิดปรับปรุงอยู่ ทำสัญญาไม่ได้ · เปลี่ยนเป็นห้องว่างที่ ตั้งค่า > ห้องว่าง ก่อน`
+    )
+  }
+
   // ห้องที่มีการจองค้าง ทำสัญญาได้ผ่าน convertBookingToContract เท่านั้น
   const openBooking = db
     .prepare(

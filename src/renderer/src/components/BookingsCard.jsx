@@ -143,7 +143,13 @@ export default function BookingsCard({ room, onConvert, onOpenBookingChange, add
                     >
                       ยกเลิก
                     </button>
-                    <button type="button" className="btn btn-sm" onClick={() => onConvert(b)}>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => onConvert(b)}
+                      disabled={room.status === 'maintenance'}
+                      title={room.status === 'maintenance' ? 'ห้องปิดปรับปรุงอยู่ ทำสัญญาไม่ได้' : undefined}
+                    >
                       ทำสัญญา
                     </button>
                   </>
