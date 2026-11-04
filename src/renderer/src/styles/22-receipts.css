@@ -276,9 +276,15 @@
   font-size: 12px;
 }
 
+/* ขอบซ้าย/ขวาแคบกว่าเอกสารอื่น — ต้องตรงกับ sideMarginMm ใน InvoicesPage */
+@page outstanding {
+  margin: 12mm 6mm;
+}
+
 @media print {
   .outstanding-sheets {
     padding: 0;
+    page: outstanding;
   }
 
   /* ดันท้ายใบลงล่างสุดของกระดาษ — สูงน้อยกว่า A4 ลบขอบเล็กน้อย กันล้นไปหน้าใหม่ */

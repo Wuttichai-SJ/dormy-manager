@@ -171,6 +171,7 @@ export default function InvoicesPage({ apartment, user, initialInvoiceId = null 
         <PrintDialog
           title="พิมพ์สรุปยอดค้างชำระ"
           maxPages={pages}
+          sideMarginMm={6}
           onClose={() => setSummarySet(null)}
           onPrinted={() => {
             setSummarySet(null)

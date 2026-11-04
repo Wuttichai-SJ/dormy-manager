@@ -13,6 +13,18 @@ const PAGE = {
   landscape: false
 }
 
+const MM_PER_INCH = 25.4
+// เครื่องพิมพ์ส่วนใหญ่พิมพ์ไม่ถึงขอบ ~4mm — ห้ามแคบกว่านี้
+const SIDE_MARGIN_MIN_MM = 5
+
+// ขอบซ้าย/ขวาเฉพาะเอกสาร (มม.) · ไม่ส่งมา = ขอบปกติ
+function pageOptions(sideMarginMm) {
+  const mm = Number(sideMarginMm)
+  if (!Number.isFinite(mm) || mm <= 0) return PAGE
+  const side = Math.max(SIDE_MARGIN_MIN_MM, mm) / MM_PER_INCH
+  return { ...PAGE, margins: { ...PAGE.margins, left: side, right: side } }
+}
+
 // ย่อทีละขั้นจนลงหน้าเดียว ต่ำสุด 0.5
 const FIT_SCALES = [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55, 0.5]
 
@@ -30,11 +42,11 @@ function countPdfPages(buffer) {
 }
 
 // maxPages = จำนวนหน้าที่เอกสารควรมี (ใบแจ้งหนี้ = 1)
-async function renderFittedPdf(win, maxPages = 1) {
+async function renderFittedPdf(win, maxPages = 1, page = PAGE) {
   const budget = Math.max(1, Number(maxPages) || 1)
   let last = null
   for (const scale of FIT_SCALES) {
-    const pdf = await win.webContents.printToPDF({ ...PAGE, scale })
+    const pdf = await win.webContents.printToPDF({ ...page, scale })
     last = { pdf, scale }
     if (countPdfPages(pdf) <= budget) return last
   }
@@ -92,13 +104,14 @@ export function registerPrintHandlers() {
     }))
   })
 
-  handleSession('print:preview', async ({ maxPages }, event) => {
-    const { pdf, scale } = await renderFittedPdf(windowOf(event), maxPages)
+  handleSession('print:preview', async ({ maxPages, sideMarginMm }, event) => {
+    const { pdf, scale } = await renderFittedPdf(windowOf(event), maxPages, pageOptions(sideMarginMm))
     return { base64: pdf.toString('base64'), scale }
   })
 
-  handleSession('print:document', async ({ deviceName, copies, maxPages }, event) => {
+  handleSession('print:document', async ({ deviceName, copies, maxPages, sideMarginMm }, event) => {
     const win = windowOf(event)
+    const page = pageOptions(sideMarginMm)
     if (!deviceName) throw new Error('กรุณาเลือกเครื่องพิมพ์')
 
     const count = Number(copies ?? 1)
@@ -106,11 +119,11 @@ export function registerPrintHandlers() {
       throw new Error('จำนวนชุดต้องเป็นตัวเลข 1-20')
     }
 
-    const { scale } = await renderFittedPdf(win, maxPages)
+    const { scale } = await renderFittedPdf(win, maxPages, page)
 
     const done = await new Promise((resolve) => {
       win.webContents.print(
-        { ...PAGE, silent: true, deviceName, copies: count, scaleFactor: scale * 100 },
+        { ...page, silent: true, deviceName, copies: count, scaleFactor: scale * 100 },
         (success, reason) => resolve({ success, reason })
       )
     })
