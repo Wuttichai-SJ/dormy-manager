@@ -3,7 +3,8 @@ import Alert from './Alert.jsx'
 import Modal from './Modal.jsx'
 import { listPrinters, previewDocument, printDocument } from '../services/printService.js'
 
-export default function PrintDialog({ onClose, onPrinted, title = 'พิมพ์เอกสาร', maxPages = 1 }) {
+// sideMarginMm = ขอบซ้าย/ขวาเฉพาะเอกสารนี้ · ไม่ส่ง = ขอบปกติ 12mm
+export default function PrintDialog({ onClose, onPrinted, title = 'พิมพ์เอกสาร', maxPages = 1, sideMarginMm }) {
   const [pdfUrl, setPdfUrl] = useState('')
   const [scale, setScale] = useState(1)
   const [printers, setPrinters] = useState(null)
@@ -16,7 +17,7 @@ export default function PrintDialog({ onClose, onPrinted, title = 'พิมพ�
   useEffect(() => {
     let url = ''
     ;(async () => {
-      const res = await previewDocument(maxPages)
+      const res = await previewDocument(maxPages, sideMarginMm)
       if (!res.success) return setError(res.error)
 
       const bytes = Uint8Array.from(atob(res.data.base64), (c) => c.charCodeAt(0))
@@ -46,7 +47,7 @@ export default function PrintDialog({ onClose, onPrinted, title = 'พิมพ�
   async function submit() {
     setError('')
     setBusy(true)
-    const res = await printDocument({ deviceName, copies: Number(copies), maxPages })
+    const res = await printDocument({ deviceName, copies: Number(copies), maxPages, sideMarginMm })
     setBusy(false)
     if (!res.success) return setError(res.error)
     onPrinted()

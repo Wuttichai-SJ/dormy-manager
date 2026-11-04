@@ -154,12 +154,12 @@
 .outstanding-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .outstanding-head h2 {
-  margin: 0 0 4px;
-  font-size: 18px;
+  margin: 0 0 5px;
+  font-size: 22px;
   text-align: center;
 }
 
@@ -167,13 +167,13 @@
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 8px;
-  font-size: 12px;
+  padding-bottom: 9px;
+  font-size: 14px;
   font-weight: 400;
 }
 
 .outstanding-table thead tr:last-child th {
-  padding: 6px 8px;
+  padding: 7px 9px;
   text-align: left;
   border-top: 1px solid #000;
   border-bottom: 1px solid #000;
@@ -188,7 +188,7 @@
 }
 
 .outstanding-table td {
-  padding: 5px 8px;
+  padding: 6px 9px;
   border-bottom: 1px solid #ccc;
 }
 
@@ -204,7 +204,7 @@
   margin-top: 24px;
   padding-top: 12px;
   border-top: 1px solid #000;
-  font-size: 12px;
+  font-size: 14px;
   break-inside: avoid;
 }
 
@@ -219,7 +219,7 @@
 
 .outstanding-foot-text h3 {
   margin: 0 0 2px;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .outstanding-foot-text p {
@@ -254,7 +254,7 @@
 }
 
 .outstanding-account {
-  font-size: 15px;
+  font-size: 17px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
 }
@@ -273,12 +273,18 @@
 
 .outstanding-qr figcaption {
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 12px;
+}
+
+/* ขอบซ้าย/ขวาแคบกว่าเอกสารอื่น — ต้องตรงกับ sideMarginMm ใน InvoicesPage */
+@page outstanding {
+  margin: 12mm 6mm;
 }
 
 @media print {
   .outstanding-sheets {
     padding: 0;
+    page: outstanding;
   }
 
   /* ดันท้ายใบลงล่างสุดของกระดาษ — สูงน้อยกว่า A4 ลบขอบเล็กน้อย กันล้นไปหน้าใหม่ */
