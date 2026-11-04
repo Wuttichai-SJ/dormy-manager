@@ -4,7 +4,7 @@ import { BUDDHIST_YEAR_OFFSET, formatBaht } from '../format.js'
 import { formatAccountNumber } from '../inputMasks.js'
 
 // ประมาณจำนวนแถวต่อแผ่น A4 — ใช้คิด maxPages ของกล่องพิมพ์
-export const SUMMARY_ROWS_PER_PAGE = 16
+export const SUMMARY_ROWS_PER_PAGE = 20
 
 export function summaryPageCount(summary) {
   return summary.groups.reduce((n, g) => n + Math.max(1, Math.ceil(g.rows.length / SUMMARY_ROWS_PER_PAGE)), 0)
